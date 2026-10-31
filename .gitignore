@@ -1,0 +1,12 @@
+.env
+.env.*
+!.env.example
+__pycache__/
+*.pyc
+.venv/
+node_modules/
+.next/
+*.sqlite3
+.DS_Store
+ngrok*
+*.log
