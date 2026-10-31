@@ -10,7 +10,7 @@ Postman:
 
 2: Configura los Headers:
 Key: Content-Type, Value: application/json
-Key: Authorization, Value: Bearer <ver .env: MP_TEST_ACCESS_TOKEN>
+Key: Authorization, Value: Bearer <token de prueba de la app 5332602214240276 — retirado del repo>
 
 3: Configura el Body:
 Selecciona la pestaña "Body"

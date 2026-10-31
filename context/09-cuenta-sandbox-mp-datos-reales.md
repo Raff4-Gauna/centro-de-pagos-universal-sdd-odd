@@ -15,8 +15,8 @@
 | Integración | Código QR, modelo **dinámico** |
 | País | Argentina |
 | Creada | 20/05/2025 |
-| Public Key (test) | `<ver .env: MP_TEST_PUBLIC_KEY>` |
-| Access Token (test) | `<ver .env: MP_TEST_ACCESS_TOKEN>` |
+| Public Key (test) | *(no se usa: se eligió la identidad de §7; el valor no se guarda en el repo)* |
+| Access Token (test) | *(no se usa: se eligió la identidad de §7; el valor no se guarda en el repo)* |
 | Usuario de prueba (comprador) | `TESTUSER1064981229` |
 | Webhooks configurados | Ninguno todavía (hay que crear uno para el tópico **`orders`**, no el que menciona el legacy) |
 
@@ -172,13 +172,13 @@ modelo dinámico**, con estos valores:
 | Campo | Valor |
 |---|---|
 | País de operación | Argentina |
-| Public Key (prueba) | `<ver .env: MP_TESTUSER_PUBLIC_KEY>` |
-| Access Token (prueba) | `<ver .env: MP_TESTUSER_ACCESS_TOKEN>` |
+| Public Key (prueba) | `<ver .env: MP_PUBLIC_KEY>` |
+| Access Token (prueba) | `<ver .env: MP_ACCESS_TOKEN>` |
 | N.º de la aplicación (mostrado en este panel) | `5469141309261729` |
 | User ID (mostrado en este panel) | `2452338094` |
 | Usuario de prueba | `TESTUSER1064981229` |
-| Contraseña | `<ver .env: MP_TESTUSER_PASSWORD>` |
-| Código de verificación | `<ver .env: MP_TESTUSER_VERIFICATION_CODE>` |
+| Contraseña | *(fuera del repo y del `.env`: gestor de contraseñas)* |
+| Código de verificación | *(fuera del repo y del `.env`: gestor de contraseñas)* |
 
 **Reconciliación con la sección 1 (hallazgo, no una contradicción grave):**
 - La **sucursal** (`SucursalRG`, Independencia 0123, Resistencia, Chaco) y la **caja** (`CAJAPOS`) que muestra
@@ -193,6 +193,9 @@ modelo dinámico**, con estos valores:
   los dos tokens (§1 o §7) es el vigente/recomendado hoy para probar la Orders API, porque pueden pertenecer a
   dos "identidades de prueba" distintas aunque operen sobre la misma sucursal/caja. Si surge una duda de negocio
   sobre cuál usar, se anota como `Q-0xx` en `specs/00-platform/clarifications.md` antes de que el spike corra.
+- **Actualización 2026-10-31:** el usuario configuró en `.env` la identidad de **esta sección** (`APP_USR-…`, app
+  `5469141309261729`, user `2452338094`) como `MP_PUBLIC_KEY` / `MP_ACCESS_TOKEN`. S-001 corre con ella; si la
+  Orders API la rechaza, el spike lo anota y se prueba la de §1.
 
 ## 8. Dato de contexto: NO es el "Inicio" ni la "Configuración" del Hub
 El usuario también adjuntó capturas del **panel propio de Mercado Pago** (saldo en pesos/dólares, inversiones,

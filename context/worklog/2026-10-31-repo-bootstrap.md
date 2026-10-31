@@ -21,5 +21,12 @@
 Hecho. Pendiente del usuario: **rotar** los tokens de MP y el App Secret de Clover (estuvieron pegados en chats) y
 actualizar `.env`.
 
+### Seguimiento (misma fecha)
+- El usuario creó su propio `.env` (nombres `MP_PUBLIC_KEY`, `MP_ACCESS_TOKEN`, `CLOVER_APP_SECRET`…); los
+  placeholders de `context/09` y de `propuesta/evidencia-postman-mp/` se alinearon con esos nombres. La identidad
+  `TEST-…` de §1 y la contraseña del usuario de prueba no se guardan en el repo ni en `.env`.
+- Remoto `origin` = GitHub `Raff4-Gauna/centro-de-pagos-universal-sdd-odd`; `main` subida. Ramas de trabajo
+  creadas: `spec/00-platform`, `log/2026-10-31-s-001-mp-sandbox`.
+
 ## Preguntas nuevas (Q-xxx)
 - Q-028 — ver `specs/00-platform/clarifications.md`.
