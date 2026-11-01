@@ -117,3 +117,9 @@ literal de la spec hasta que se decidan. **Abierta dirigida a otro módulo:** Q-
 6. ~~`context/07 §5.1` dice que la selección "persiste en la sesión".~~ **Resuelto con SPEC-01:** la organización
    activa viaja en un header por request y se revalida siempre; el JWT no lleva rol/organización/membership.
    `context/07 §5.1` debería ajustarse a esa redacción cuando se toque.
+
+## Aprobación (2026-10-31)
+El dueño **confirmó** Q-221, Q-222, Q-223 y Q-224 con su valor por defecto y **decidió** Q-225 (sí: `invitation.expired`,
+`transition.rejected`, `purpose` en soporte/recuperación), Q-226 (sí: nombre único sin distinguir mayúsculas entre
+activas) y Q-227 (sí: `code` único por organización entre activas, cuando viene informado). Quedan ✅ DECIDIDO. Q-220
+sigue abierta para SPEC-04/05 (no afecta a 02). Spec → **Approved** 1.0.0.

@@ -1,9 +1,9 @@
 ---
 id: SPEC-02
 modulo: tenancy-rbac
-estado: Designed         # Draft | Clarified | Designed | Approved | Implemented | Verified
+estado: Approved
 track: S
-version: 0.3.0
+version: 1.0.0
 depende_de: [SPEC-00, SPEC-01]
 actualizado: 2026-10-31
 ---
@@ -213,7 +213,10 @@ no listada → denegada (RN-TEN-09).
   `organization.suspended`, `organization.reactivated`, `membership.created`, `membership.role_changed`,
   `membership.revoked`, `membership.left`, `invitation.created`, `invitation.resent`, `invitation.revoked`,
   `invitation.accepted`, `invitation.rejected` (email no coincide / vencida / usada / organización suspendida),
-  `branch.created`, `branch.updated`, `branch.deactivated`, `branch.reactivated`, `owner_protection.rejected`.
+  `branch.created`, `branch.updated`, `branch.deactivated`, `branch.reactivated`, `owner_protection.rejected`,
+  `invitation.expired` (actor sistema), `invitation.auto_revoked` (Q-223, motivo `inviter_lost_permission`),
+  `transition.rejected` (C-05). Las invitaciones/memberships de soporte (Q-222) y de recuperación de owner (Q-224) llevan
+  `purpose` (`support` / `owner_recovery`) y motivo obligatorio (Q-225).
   Las acciones del operador de la plataforma por comando se auditan con el operador como actor (Q-212). Intentos
   denegados de acceso a otra organización: log operativo + métrica; a auditoría solo si se repiten, umbral en SPEC-10
   (Q-217).
@@ -383,6 +386,15 @@ auditada (`C-05`). Una invitación vencida se rechaza al aceptar aunque todavía
 - **AC-TEN-35** (RN-TEN-12, Q-206) **Dado** una invitación a `" X@Dominio.com "` **cuando** la acepta el usuario
   autenticado `x@dominio.com` **entonces** se acepta; **cuando** la intenta aceptar `x+1@dominio.com` **entonces**
   `invitation_invalid`.
+- **AC-TEN-36** (Q-223) **Dado** un `admin` de A con una invitación `pending` emitida por él **cuando** es degradado a
+  `operator`, revocado o abandona A **entonces** esa invitación pasa a `revoked` con motivo `inviter_lost_permission`,
+  en la misma transacción, y se emite `invitation.auto_revoked`; intentar aceptarla devuelve `invitation_invalid`.
+- **AC-TEN-37** (Q-225, C-05) **Dado** una invitación vencida **cuando** corre la tarea de vencimiento **entonces** pasa
+  a `expired` y se emite `invitation.expired` con actor sistema; **dado** una transición de estado inválida (p. ej.
+  reactivar una Branch activa) **entonces** se rechaza con `invalid_transition` y se emite `transition.rejected`.
+- **AC-TEN-38** (Q-226, Q-227) **Dado** una Branch activa `Centro` con `code` `C01` en A **cuando** se crea otra Branch
+  activa `centro` o con `code` `C01` en A **entonces** `409 conflict`; **dado** que la primera está desactivada
+  **entonces** la creación se acepta; en otra organización ambos valores se aceptan siempre.
 
 ## 14. Interfaz de usuario
 - **Selector empresa/sucursal** (shell en SPEC-00, `context/07 §5.1`): se alimenta de RF-TEN-02 y RF-TEN-06 (solo
@@ -437,6 +449,7 @@ Se completa al generar `tasks.md`.
 | 0.1.0 | 2026-10-31 | Borrador inicial | Tenancy + RBAC sobre Q-001, Q-006, Q-010, Q-012, Q-027 |
 | 0.2.0 | 2026-10-31 | Estado → *Clarified*. Se incorporan las decisiones Q-201…Q-219 a §3/§4/§5/§6/§7/§9/§10/§11/§12/§14; matriz completa con columnas "sin membership" y operador, más §4.1 (organización suspendida); nuevas RN-TEN-18…21; nuevas AC-TEN-25…35; organización activa por header y JWT sin rol/organización (acuerdo con SPEC-01); Invitation implementa el puerto de SPEC-01; Q-012/Q-027 tratadas como decididas; nuevas Q-220 (dirigida a 04/05) y Q-221…Q-224 (no bloqueantes); insumos para ADR-0001/0002 en §15 | Decisiones del usuario del 2026-10-31 (clarify) |
 | 0.3.0 | 2026-10-31 | Estado → *Designed*. Se agrega `design.md` (header `X-Organization-Id`, resolución en permiso DRF con 1 consulta, `TenantQuerySet` que falla cerrado, matriz como código, locks sobre `Organization`, contratos, UI, pruebas) y ADR-0001 / ADR-0002 (*Propuestos*). Q-221…Q-224 registradas como decididas por defecto (confirmables antes de *Approved*); nuevas Q-225…Q-227 (no bloqueantes). Sin cambios en RN/RF/AC | Paso 3 SDD (architect) |
+| 1.0.0 | 2026-10-31 | Estado → **Approved** por el dueño. Confirmadas Q-221…Q-224 (defaults) y decididas Q-225…Q-227 con su recomendación: RNF-TEN-04 suma `invitation.expired`, `invitation.auto_revoked`, `transition.rejected` y `purpose`; nuevos AC-TEN-36 (Q-223), AC-TEN-37 (Q-225), AC-TEN-38 (Q-226/227) | Gate humano *Approved* (2026-10-31) |
 
 ---
 **Hecho:** spec *Designed*: 21 RN, 9 RF, 7 RNF y 35 AC con destino en `design.md` (§2 y §9); ADR-0001 y ADR-0002
