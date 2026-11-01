@@ -8,7 +8,7 @@ from pathlib import Path
 
 import check_file_size
 import pytest
-from conftest import GitRepo, clean_git_env
+from conftest import GitRepo, isolate_git_env
 
 SCRIPT = Path(check_file_size.__file__).resolve()
 
@@ -92,6 +92,58 @@ def test_AC_PLT_13_last_line_without_newline_counts(
     assert "backend/apps/common/no_final_newline.py: 401 lines" in err
 
 
+def test_AC_PLT_13_cr_only_line_endings_count(
+    git_repo: GitRepo, capsys: pytest.CaptureFixture[str]
+) -> None:
+    git_repo.write_bytes("backend/apps/common/old_mac.py", b"x = 1\r" * 401)
+    git_repo.write_bytes("backend/apps/common/old_mac_ok.py", b"x = 1\r" * 400)
+
+    code, _, err = run_check(capsys)
+
+    assert code == 1
+    assert "backend/apps/common/old_mac.py: 401 lines" in err
+    assert "old_mac_ok.py" not in err
+
+
+def test_AC_PLT_13_crlf_line_endings_count(
+    git_repo: GitRepo, capsys: pytest.CaptureFixture[str]
+) -> None:
+    git_repo.write_bytes("frontend/src/lib/windows.ts", b"x = 1\r\n" * 401)
+    git_repo.write_bytes("frontend/src/lib/windows-ok.ts", b"x = 1\r\n" * 400)
+
+    code, _, err = run_check(capsys)
+
+    assert code == 1
+    assert "frontend/src/lib/windows.ts: 401 lines" in err
+    assert "windows-ok.ts" not in err
+
+
+def test_AC_PLT_13_uppercase_suffix_is_checked(
+    git_repo: GitRepo, capsys: pytest.CaptureFixture[str]
+) -> None:
+    git_repo.write("backend/apps/common/Upper.PY", 401)
+    git_repo.write("frontend/src/components/Shout.TSX", 401)
+
+    code, _, err = run_check(capsys)
+
+    assert code == 1
+    assert "backend/apps/common/Upper.PY: 401 lines" in err
+    assert "frontend/src/components/Shout.TSX: 401 lines" in err
+
+
+def test_AC_PLT_13_limits_and_exclusions_are_pinned() -> None:
+    # Widening an exclusion or the limit must be a deliberate change to this test (C-14, Q-043).
+    assert check_file_size.MAX_LINES == 400
+    assert frozenset({".py", ".ts", ".tsx", ".jsx"}) == check_file_size.CODE_SUFFIXES
+    assert check_file_size.EXCLUDED_GLOBS == (
+        "backend/**/migrations/**",
+        "**/fixtures/**",
+        "frontend/src/types/**",
+        "**/next-env.d.ts",
+        "context/legacy-source/**",
+    )
+
+
 def test_AC_PLT_13_non_code_files_are_ignored(
     git_repo: GitRepo, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -110,6 +162,7 @@ def test_AC_PLT_13_migration_and_generated_types_are_excluded(
     git_repo: GitRepo, capsys: pytest.CaptureFixture[str]
 ) -> None:
     git_repo.write("backend/apps/charges/migrations/0001_initial.py", 900)
+    git_repo.write("backend/apps/charges/migrations/sub/helper.py", 900)
     git_repo.write("backend/apps/integrations/providers/mp/fixtures/order.py", 900)
     git_repo.write("frontend/src/types/api.d.ts", 3000)
     git_repo.write("frontend/next-env.d.ts", 401)
@@ -125,12 +178,17 @@ def test_AC_PLT_13_exclusions_do_not_leak_to_similar_paths(
 ) -> None:
     git_repo.write("backend/apps/common/migrations_helper.py", 401)
     git_repo.write("frontend/src/typesafe/api.ts", 401)
+    # Only Django migrations (backend/) are excluded; a `migrations/` dir elsewhere is code.
+    git_repo.write("frontend/src/migrations/upgrade.ts", 401)
+    git_repo.write("migrations/0001_root.py", 401)
 
     code, _, err = run_check(capsys)
 
     assert code == 1
     assert "backend/apps/common/migrations_helper.py: 401 lines" in err
     assert "frontend/src/typesafe/api.ts: 401 lines" in err
+    assert "frontend/src/migrations/upgrade.ts: 401 lines" in err
+    assert "migrations/0001_root.py: 401 lines" in err
 
 
 def test_AC_PLT_13_legacy_source_is_excluded(
@@ -166,7 +224,7 @@ def test_AC_PLT_13_non_ascii_repo_path_as_cli(non_ascii_git_repo: GitRepo) -> No
         [sys.executable, str(SCRIPT)],
         cwd=non_ascii_git_repo.root,
         capture_output=True,
-        env={**clean_git_env(), "PYTHONIOENCODING": "utf-8"},
+        env={**non_ascii_git_repo.env, "PYTHONIOENCODING": "utf-8"},
         check=False,
     )
 
@@ -218,8 +276,12 @@ def test_AC_PLT_13_explicit_paths_limit_the_check(
 
 
 def test_AC_PLT_13_outside_git_repo_exits_with_error(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    empty_git_config: Path,
 ) -> None:
+    isolate_git_env(monkeypatch, empty_git_config)
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("GIT_CEILING_DIRECTORIES", str(tmp_path.parent))
 

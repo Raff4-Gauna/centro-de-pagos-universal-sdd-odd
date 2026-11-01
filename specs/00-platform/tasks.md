@@ -45,7 +45,7 @@ Reglas: rebanada vertical · ≤ ~300 líneas de diff · mergeable sola · cita 
 ## Resumen
 | ID | Título | AC | Capa | Archivos esperados (ver detalle) | Depende de | Agente | Tamaño | Zona roja | Estado |
 |---|---|---|---|---|---|---|---|---|---|
-| T-PLT-01 | Esqueleto del repo + `check_file_size.py` | AC-PLT-13, AC-PLT-27 (parcial) | Infra | `scripts/check_file_size.py`, `.gitattributes`, … | — | backend-dev | M | Sí | ☑ (PR pendiente: reviewer) |
+| T-PLT-01 | Esqueleto del repo + `check_file_size.py` | AC-PLT-13, AC-PLT-27 (parcial) | Infra | `scripts/check_file_size.py`, `.gitattributes`, … | — | backend-dev | M | Sí | ◐ en revisión (reviewer: aprobado con observaciones; falta PR/merge) |
 | T-PLT-02 | Toolchain Python (uv) + `ruff.toml` | AC-PLT-12 | Infra | `backend/pyproject.toml`, `backend/uv.lock`, `ruff.toml` | T-PLT-01 | backend-dev | M | Sí | ☐ |
 | T-PLT-03 | CI mínimo: `lint` → `file-size` → `tests` | AC-PLT-20 (parcial), AC-PLT-13 | CI | `.github/workflows/ci.yml`, `.github/actions/setup/action.yml` | T-PLT-02 | backend-dev | M | Sí | ☐ |
 | T-PLT-04 | Pre-commit + gitleaks + job `secrets` | AC-PLT-19, AC-PLT-27, AC-PLT-13 | Infra/CI | `.pre-commit-config.yaml`, `.gitleaks.toml` | T-PLT-03 | backend-dev | M | Sí | ☐ |
@@ -173,6 +173,8 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   pip-audit 2.10.1, pyyaml 6.0.3; `requires-python ==3.12.*`), `backend/uv.lock`, `ruff.toml` (config de §3.6,
   `extend-exclude` comentado por Q-055, `force-exclude = true`, `per-file-ignores` tests `S101`, `scripts/**` `T20`),
   `scripts/tests/test_AC_PLT_12_ruff_print.py`.
+- **Cambios:** `ruff.toml` además ignora **`N802`** en tests (`per-file-ignores` para `**/tests/**` y `test_*.py`):
+  la convención `test_AC_…` de `AGENTS.md` usa mayúsculas y `select` incluye `N` (avisado por el reviewer en T-PLT-01).
 - **Fuera de esta tarea:** `[tool.mypy]` (T-PLT-10), `[tool.pytest.ini_options]` de Django (T-PLT-08),
   `[tool.coverage]` (T-PLT-21). Sin código Django.
 - **Plan de pruebas:** `test_AC_PLT_12_print_in_backend_apps_fails_lint` (`ruff check --stdin-filename
