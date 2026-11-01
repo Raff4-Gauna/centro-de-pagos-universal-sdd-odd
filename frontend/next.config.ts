@@ -13,6 +13,9 @@ const nextConfig: NextConfig = {
   output: "standalone",
   poweredByHeader: false,
   reactStrictMode: true,
+  // DRF routes end in `/`: without this Next answers `/api/x/` with a 308 to `/api/x` before the
+  // BFF runs, and the BFF keeps the request's trailing slash when it builds the target (Q-061).
+  skipTrailingSlashRedirect: true,
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },

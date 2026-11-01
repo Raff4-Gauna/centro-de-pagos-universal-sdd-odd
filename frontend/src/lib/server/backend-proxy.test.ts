@@ -94,6 +94,14 @@ describe("BFF pass-through (AC-PLT-10, RN-PLT-16, RF-PLT-06)", () => {
     expect(newId).toMatch(UUID4);
     expect(replaced.headers.get("x-request-id")).toBe(newId);
 
+    // A valid upper-case id is normalized to lower case, the same as the backend (T-PLT-12).
+    const upper = await GET(
+      new Request(`${BFF}/api/__smoke__`, { headers: { "x-request-id": VALID.toUpperCase() } }),
+      routeContext(["__smoke__"]),
+    );
+    expect(forwardedHeaders(calls[3]!)["x-request-id"]).toBe(VALID);
+    expect(upper.headers.get("x-request-id")).toBe(VALID);
+
     // Route segment config and every method go through the same proxy.
     expect(runtime).toBe("nodejs");
     expect(dynamic).toBe("force-dynamic");
@@ -111,6 +119,7 @@ describe("BFF pass-through (AC-PLT-10, RN-PLT-16, RF-PLT-06)", () => {
         accept: "application/json",
         "accept-language": "es-AR",
         "content-type": "application/json",
+        "content-length": String(body.length),
         "x-request-id": VALID,
         cookie: "session=abc",
         authorization: "Bearer from-the-browser",
@@ -129,12 +138,36 @@ describe("BFF pass-through (AC-PLT-10, RN-PLT-16, RF-PLT-06)", () => {
       accept: "application/json",
       "accept-language": "es-AR",
       "content-type": "application/json",
+      // Kept so Django/gunicorn get a sized body instead of `Transfer-Encoding: chunked`.
+      "content-length": String(body.length),
       "x-request-id": VALID,
     });
     expect(calls[0]!.init.method).toBe("POST");
     // The body is streamed as-is, not parsed or rewritten.
     expect(await new Response(calls[0]!.init.body).text()).toBe(body);
     expect(calls[0]!.init.redirect).toBe("manual");
+    expect((calls[0]!.init as RequestInit & { duplex?: string }).duplex).toBe("half");
+    expect(calls[0]!.init.cache).toBe("no-store");
+
+    // A content-length that is not plain digits is dropped, and never sent without a body.
+    for (const contentLength of ["12, 12", "-1", "1e3", "0x12", "abc"]) {
+      await proxyToBackend(
+        new Request(`${BFF}/api/charges`, {
+          method: "POST",
+          body,
+          headers: { "content-length": contentLength },
+        }),
+        ["charges"],
+      );
+    }
+    await proxyToBackend(
+      new Request(`${BFF}/api/charges`, { headers: { "content-length": "18" } }),
+      ["charges"],
+    );
+    for (const call of calls.slice(1)) {
+      expect(forwardedHeaders(call)).not.toHaveProperty("content-length");
+    }
+    expect(calls.at(-1)!.init.body).toBeUndefined();
   });
 
   it("test_RN_PLT_16_bff_strips_set_cookie", async () => {

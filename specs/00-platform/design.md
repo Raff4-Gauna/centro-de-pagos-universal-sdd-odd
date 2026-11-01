@@ -1,7 +1,7 @@
 ---
 spec: SPEC-00
 estado: Aprobado         # aprobado por el usuario junto con la spec (2026-10-31)
-actualizado: 2026-11-02   # §3.2.3 (T-PLT-14, spec 1.0.3); §3.5, §3.6, §3.7.2 (T-PLT-04, spec 1.0.4 y 1.0.5); ADR-0005 Aceptado (spec 1.0.6)
+actualizado: 2026-11-02   # §3.2.3 (T-PLT-14, spec 1.0.3); §3.5, §3.6, §3.7.2 (T-PLT-04, spec 1.0.4 y 1.0.5); ADR-0005 Aceptado (spec 1.0.6); §3.3.3 (T-PLT-34, Q-061)
 ---
 # Diseño — Módulo de Plataforma (fundaciones)
 
@@ -310,22 +310,35 @@ en `modules/` (cuenta para cobertura). Sin protección de rutas ni datos.
 
 #### 3.3.3 BFF y cliente (RN-PLT-07/16, AC-PLT-10/29)
 - `app/api/[...path]/route.ts` (`runtime="nodejs"`, `dynamic="force-dynamic"`) → `lib/server/backend-proxy.ts`:
-  (1) `X-Request-ID` validado con la misma regla, si no `crypto.randomUUID()`; (2) destino
-  `new URL("/api/" + segmentos, BACKEND_INTERNAL_URL)`, rechaza `..`, `\`, `%2f`, `%5c` (`400 bff.bad_path`) y
-  exige el mismo origen; conserva query string; (3) headers de request en allowlist: `accept`, `accept-language`,
-  `content-type`, `x-request-id` (06 sumará `idempotency-key`); **nunca** `cookie` (01 la convierte acá en
-  `Authorization`, ADR-0004); (4) body en stream, timeout 30 s; (5) respuesta tal cual con headers en allowlist
-  (`content-type`, `retry-after`, `x-request-id`, `content-disposition`, `cache-control`), sin `set-cookie`, siempre
-  con `X-Request-ID`; (6) backend caído → `502 bff.upstream_unavailable`, timeout → `504 bff.upstream_timeout`.
-  `log.ts`: una línea JSON por request (`timestamp`, `level`, `component:"bff"`, `request_id`, `method`, `status`,
+  (1) `X-Request-ID` validado con la misma regla (el válido se normaliza a minúsculas, igual que el backend), si no
+  `crypto.randomUUID()`; (2) destino `new URL("/api/" + segmentos, BACKEND_INTERNAL_URL)`, rechaza `..`, `\`,
+  `%2f`, `%5c` (`400 bff.bad_path`) y exige el mismo origen; conserva query string; (3) headers de request en
+  allowlist: `accept`, `accept-language`, `content-type`, `x-request-id` (06 sumará `idempotency-key`); **nunca**
+  `cookie` (01 la convierte acá en `Authorization`, ADR-0004); (4) body en stream, timeout 30 s; (5) respuesta tal
+  cual con headers en allowlist (`content-type`, `retry-after`, `x-request-id`, `content-disposition`,
+  `cache-control`), sin `set-cookie`, siempre con `X-Request-ID`; (6) backend caído → `502 bff.upstream_unavailable`,
+  timeout → `504 bff.upstream_timeout`. `log.ts`: una línea JSON por request (`timestamp`, `level`,
+  `component:"bff"`, `event:"bff.request"`, `request_id`, `method`, `route` (plantilla `/api/[...path]`), `status`,
   `duration_ms`; sin path).
+  **(ajustado tras revisión de T-PLT-33/34)**: cada segmento se rechaza si él o cualquiera de sus formas
+  percent-decodificadas es vacío, `.`/`..` (también `%2e`, `.%2E`, `%252e`…), o contiene `/`, `\` (también `%2f`,
+  `%5c`, `%252f`, `%255c`) o caracteres de control, o si su encoding está mal formado; los aceptados pasan por
+  `encodeURIComponent` (un `#`/`?` no recorta el path) y se valida la **URL ya resuelta**: `target.origin ===
+  base.origin` y `target.pathname.startsWith("/api/")`. La **barra final** del request se conserva (`/api/x/` →
+  `/api/x/`; DRF la espera) y `next.config.ts` pone `skipTrailingSlashRedirect: true` (Q-061). Allowlist de ida
+  más `content-length` **solo si son dígitos** (sin él undici manda `Transfer-Encoding: chunked` y Django/gunicorn
+  leen el body vacío). `signal: AbortSignal.any([request.signal, AbortSignal.timeout(30_000)])` (corta también si el
+  navegador corta). `BACKEND_INTERNAL_URL` ausente o inválida → `502 bff.upstream_unavailable` sin el valor. Los
+  errores del BFF son `problem+json` (§6.2, sin `detail` en 5xx) con `X-Request-ID` y `cache-control: no-store`, y
+  también loguean su línea (con `code`); `duration_ms` mide hasta tener los headers de la respuesta.
 - `app/api/health/route.ts` → `{"status":"ok"}` sin llamar al backend.
 - `lib/server/env.ts`: `BACKEND_INTERNAL_URL` leída en runtime, validada. **Ninguna** variable `NEXT_PUBLIC_` en 00.
   `lib/server/*` con `import "server-only"`.
 - `lib/api-client.ts`: `openapi-fetch` `createClient<paths>({ baseUrl: "" })` (mismo origen) + middleware que
   convierte `problem+json` en `ApiError` (`problem.ts`). `lib/query-client.ts`: `retry: 1` queries / `0` mutations,
   `staleTime: 30_000`, `refetchOnWindowFocus: false`.
-- `next.config.ts`: `output: "standalone"`, `poweredByHeader: false`, `reactStrictMode`, headers `nosniff`,
+- `next.config.ts`: `output: "standalone"`, `poweredByHeader: false`, `reactStrictMode`,
+  `skipTrailingSlashRedirect: true` (Q-061, ajustado tras revisión de T-PLT-33/34), headers `nosniff`,
   `Referrer-Policy: same-origin`, `X-Frame-Options: DENY`, `Permissions-Policy` mínima (CSP: 01).
   `NEXT_TELEMETRY_DISABLED=1`.
 - **AC-29**: el stage `builder` construye con valores centinela para las variables solo-servidor y
