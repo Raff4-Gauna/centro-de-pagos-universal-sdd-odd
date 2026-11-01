@@ -1,66 +1,114 @@
 # Aclaraciones — Módulo 02-tenancy-rbac
 
 > Rango reservado: **Q-201 a Q-299**. Decisiones transversales que ya aplican (no se repiten acá): Q-001, Q-006,
-> Q-010 (decididas) y Q-012, Q-027 (recomendación por defecto, no bloqueantes) en `specs/00-platform/clarifications.md`.
+> Q-010, **Q-012** (Google + invitación por email) y **Q-027** (modelos propios para Organization/Membership), todas
+> decididas a nivel transversal en `specs/00-platform/clarifications.md` (Q-012 y Q-027 se registran como
+> `✅ DECIDIDO` en la rama de SPEC-00; acá se tratan como decididas).
 > "Un usuario puede pertenecer a varias organizaciones" ya está fijado en `context/02-glossary.md`: no se pregunta.
+>
+> **Coordinación con SPEC-01 (acordada 2026-10-31):** `Invitation` vive en este módulo e **implementa el puerto de
+> invitación** que define SPEC-01 (Q-108 de 01); el token de acceso (JWT) **no** lleva rol, organización ni
+> membership; la organización activa viaja en un **header por request**, elegida en el selector, y se revalida
+> siempre contra `Membership`; SPEC-02 provee el selector de memberships activas que usa `GET /api/me` de SPEC-01.
 
 ## 1. Preguntas
 | ID | Pregunta | Por qué importa | Opciones | Recomendación | ¿Bloquea? | Decisión (fecha) | Afecta |
 |---|---|---|---|---|---|---|---|
-| Q-201 | ¿Puede quedar una organización sin `owner`? ¿Puede el último owner degradarse, ser revocado o abandonar? | Organización huérfana = nadie gestiona usuarios ni integraciones | a) siempre ≥1 owner, se bloquea; b) se permite y el operador de plataforma lo resuelve | **a)** Siempre ≥1 owner vigente; el último owner solo sale tras promover a otro | Sí | | RN-TEN-14, AC-TEN-13/14 |
-| Q-202 | ¿Qué puede hacer un `admin` sobre los `owner`? ¿Puede invitar/asignar `owner`, revocar a un owner, cambiar el rol de otro admin? ¿Cómo se transfiere la propiedad? | Escalada de privilegios entre roles | a) admin = owner salvo tocar owners; b) admin igual que owner; c) solo owner gestiona personas | **a)** Solo un owner asigna/quita `owner`; admin gestiona admin/operator/viewer y sus invitaciones; transferir = owner promueve a otro y luego se degrada | Sí | | RN-TEN-13, §4, AC-TEN-15 |
-| Q-203 | ¿Cualquier miembro puede abandonar una organización por sí mismo? | Matriz §4 | a) sí, salvo último owner (Q-201); b) solo lo revoca owner/admin | **a)** | No (default completa la matriz) | | §4, RF-TEN-04 |
-| Q-204 | ¿Un `operator`/`viewer` puede estar limitado a ciertas sucursales? | Cambia el modelo de Membership y todos los selectors | a) no, la membership es por organización (MVP); b) membership con lista de Branch | **a)** No en el MVP; la sucursal del selector es solo filtro (RN-TEN-16) | Sí | | RN-TEN-16, §9 |
-| Q-205 | ¿Qué organización queda activa al iniciar sesión? ¿Qué ve un usuario sin ninguna membership? | Primera pantalla y estado vacío | a) la última usada; b) la primera; c) obligar a elegir | **a)** la última usada si sigue vigente; si no, la primera por nombre; sin memberships → pantalla "sin organización" con contacto del operador | No | | §12, §14 |
-| Q-206 | Reglas de invitación: vigencia, ¿el email de Google debe coincidir exactamente?, ¿una sola pendiente por (organización, email)?, ¿reenviar invalida la anterior?, normalización del email | Seguridad: un link reenviado no debe dar acceso a otra persona | vigencia 24 h / 7 días / sin vencimiento; coincidencia exacta o por dominio | Vence a los **7 días**; email del usuario autenticado **igual** (sin distinguir mayúsculas, sin espacios) al invitado; una sola pendiente por (org, email); reenviar revoca la anterior y emite token nuevo | Sí | | RN-TEN-12, AC-TEN-17…19 |
-| Q-207 | ¿En el MVP se envía el email de invitación o el owner comparte el link a mano? | Dependencia de un servicio de email (C-13) | a) email transaccional; b) link copiable; c) ambos | **c)** link copiable visible una sola vez al crear + email cuando haya proveedor (en dev, consola) | No | | RF-TEN-05, RNF-TEN-03 |
-| Q-208 | ¿Qué estados tiene una organización y qué implica `suspended`? ¿Quién suspende? | 06 §12 ya menciona "organización suspendida" sin definirla | a) `active`/`suspended`; b) + `closed` | **a)**, solo el operador de plataforma; suspendida = usuarios con acceso de solo lectura, sin cobros/sucursales/invitaciones nuevas; eventos de cobros `pending` se siguen procesando | Sí | | §9, §10, RN-TEN-03 |
-| Q-209 | ¿Qué "Datos de la empresa" guarda el Hub (razón social, CUIT, rubro, zona horaria) y quién los edita? | `context/07 §5.3` los nombra sin lista | — | `name` obligatorio; `legal_name`, `tax_id` (CUIT) y zona horaria (default `America/Argentina/Buenos_Aires`) opcionales; editan owner y admin | No | | RF-TEN-03, §9 |
-| Q-210 | ¿Qué campos tiene una `Branch`? ¿Nombre único por organización? ¿La ubicación completa (que MP exige para el Store, RN-MP-12) vive en la Branch o en el vínculo con el Store? | Evitar duplicar datos con SPEC-05 | — | `name` (único por organización entre activas), `code` opcional, dirección opcional; la ubicación completa se exige al crear/vincular el Store (SPEC-05) | No | | §9, RF-TEN-06 |
-| Q-211 | ¿Una Branch se borra o solo se desactiva? ¿Qué pasa con cobros `pending`, vínculos a Store y reportes históricos? | Integridad de cobros y reportes | a) solo desactivación; b) borrado físico si no tiene historia | **a)** Solo desactivación (sin borrado físico); bloquea cobros nuevos, no afecta los `pending` ni el histórico; reactivable | Sí | | RF-TEN-06, §10, §12 |
-| Q-212 | ¿Cómo se representa el operador de la plataforma y tiene acceso a datos de negocio de las organizaciones (soporte)? | Q-001 lo define como actor pero no su poder; es la cuenta más privilegiada | a) comando de gestión / Django admin solo para superusuario; b) rol global en la API | **a)** Alta por comando de gestión (y Django admin restringido); **sin** acceso implícito a datos de negocio: para ver una organización necesita una membership explícita y auditada | Sí | | RN-TEN-10, RF-TEN-07, AC-TEN-22 |
-| Q-213 | ¿Quién es el primer owner de una organización nueva? | Sin owner nadie puede invitar | a) el operador indica un email → invitación `owner`; b) el operador queda owner | **a)** Invitación `owner` al email indicado; la organización existe sin owner solo hasta que se acepta (excepción explícita a Q-201) | Sí | | RF-TEN-07, AC-TEN-22 |
-| Q-214 | Revocar una membership ¿la borra o la marca revocada? ¿Re-invitar reactiva la misma o crea otra? | Historial y auditoría | — | Marca `revoked` (se conserva); re-invitar crea una membership nueva vigente | No | | §9, §10 |
-| Q-215 | ¿Cuándo se activa RLS de PostgreSQL como segunda barrera (ADR-0001)? | Defensa en profundidad | MVP / antes de abrir a terceros / nunca | Antes de onboardear comercios ajenos (mismo gate que OAuth, Q-014); el esquema se diseña compatible desde ya | No | | RNF-TEN-05 |
-| Q-216 | ¿Qué de este módulo puede leer el ERP con API key? | Para crear un cobro el ERP necesita elegir sucursal | — | Solo lectura de Branch (scope a definir en SPEC-11); nada de memberships, invitaciones ni datos de empresa | No | | §4 |
-| Q-217 | Los intentos denegados de acceso a otra organización ¿van al log de auditoría (SPEC-10) o solo al log operativo? | Detección de abuso vs ruido | — | Log operativo estructurado siempre (RNF-TEN-02) + métrica; a auditoría solo si se repiten (umbral en SPEC-10) | No | | RNF-TEN-04 |
-| Q-218 | ¿`operator` y `viewer` pueden ver la lista de miembros de su organización? | Privacidad de emails de colegas | — | No: solo owner/admin | No (default completa la matriz) | | §4 |
-| Q-219 | ¿Qué código devuelve una organización activa inexistente o sin membership? | Debe ser indistinguible (RN-TEN-06) | 403 / 404 | `404 organization_not_found` en ambos casos (consistente con C-01) | No | | RN-TEN-06, AC-TEN-03 |
+| Q-201 | ¿Puede quedar una organización sin `owner`? ¿Puede el último owner degradarse, ser revocado o abandonar? | Organización huérfana = nadie gestiona usuarios ni integraciones | a) siempre ≥1 owner, se bloquea; b) se permite y el operador de plataforma lo resuelve | **a)** Siempre ≥1 owner vigente; el último owner solo sale tras promover a otro | Sí | ✅ DECIDIDO (2026-10-31): **a)** siempre ≥1 owner vigente; degradar, revocar o abandonar al último owner se rechaza (`last_owner`), también bajo concurrencia; el último owner solo sale después de promover a otro. Única excepción: la organización recién creada, hasta que se acepta la invitación del primer owner (Q-213). | RN-TEN-14, AC-TEN-13/14/27 |
+| Q-202 | ¿Qué puede hacer un `admin` sobre los `owner`? ¿Puede invitar/asignar `owner`, revocar a un owner, cambiar el rol de otro admin? ¿Cómo se transfiere la propiedad? | Escalada de privilegios entre roles | a) admin = owner salvo tocar owners; b) admin igual que owner; c) solo owner gestiona personas | **a)** Solo un owner asigna/quita `owner`; admin gestiona admin/operator/viewer y sus invitaciones; transferir = owner promueve a otro y luego se degrada | Sí | ✅ DECIDIDO (2026-10-31): **a)** solo un `owner` invita con rol `owner`, asigna `owner`, quita `owner` o revoca a un owner; `admin` gestiona memberships e invitaciones de `admin`/`operator`/`viewer`; transferir la propiedad = un owner promueve a otro miembro a `owner` y después se degrada o abandona. | RN-TEN-13, §4, AC-TEN-15/27 |
+| Q-203 | ¿Cualquier miembro puede abandonar una organización por sí mismo? | Matriz §4 | a) sí, salvo último owner (Q-201); b) solo lo revoca owner/admin | **a)** | No (default completa la matriz) | ✅ DECIDIDO (2026-10-31): **a)** cualquier miembro puede abandonar por sí mismo, salvo el último owner (Q-201). | §4, RF-TEN-04, RN-TEN-21, AC-TEN-31 |
+| Q-204 | ¿Un `operator`/`viewer` puede estar limitado a ciertas sucursales? | Cambia el modelo de Membership y todos los selectors | a) no, la membership es por organización (MVP); b) membership con lista de Branch | **a)** No en el MVP; la sucursal del selector es solo filtro (RN-TEN-16) | Sí | ✅ DECIDIDO (2026-10-31): **a)** sin restricción por sucursal en el MVP; la membership es por organización y la sucursal del selector es solo un filtro validado dentro de la organización activa. | RN-TEN-16, §9, AC-TEN-09/32 |
+| Q-205 | ¿Qué organización queda activa al iniciar sesión? ¿Qué ve un usuario sin ninguna membership? | Primera pantalla y estado vacío | a) la última usada; b) la primera; c) obligar a elegir | **a)** la última usada si sigue vigente; si no, la primera por nombre; sin memberships → pantalla "sin organización" con contacto del operador | No | ✅ DECIDIDO (2026-10-31): **a)** la última usada si sigue vigente; si no, la primera por nombre; sin memberships → pantalla "sin organización" con contacto del operador. Dónde se recuerda "la última usada" lo decide `design.md` (no es fuente de autorización). | §12, §14 |
+| Q-206 | Reglas de invitación: vigencia, ¿el email de Google debe coincidir exactamente?, ¿una sola pendiente por (organización, email)?, ¿reenviar invalida la anterior?, normalización del email | Seguridad: un link reenviado no debe dar acceso a otra persona | vigencia 24 h / 7 días / sin vencimiento; coincidencia exacta o por dominio | Vence a los **7 días**; email del usuario autenticado **igual** (sin distinguir mayúsculas, sin espacios) al invitado; una sola pendiente por (org, email); reenviar revoca la anterior y emite token nuevo | Sí | ✅ DECIDIDO (2026-10-31): vence a los **7 días** desde su emisión; el email de Google del usuario autenticado debe coincidir con el invitado sin distinguir mayúsculas y sin espacios al inicio/fin (no se aplican otras equivalencias como puntos o `+alias`); **una sola** invitación `pending` por (organización, email); **reenviar revoca la anterior** y emite una nueva con token nuevo y vigencia nueva. | RN-TEN-12, §9, §10, AC-TEN-17…19/25/26/35 |
+| Q-207 | ¿En el MVP se envía el email de invitación o el owner comparte el link a mano? | Dependencia de un servicio de email (C-13) | a) email transaccional; b) link copiable; c) ambos | **c)** link copiable visible una sola vez al crear + email cuando haya proveedor (en dev, consola) | No | ✅ DECIDIDO (2026-10-31): **c)** link copiable visible una sola vez al crear o reenviar + email cuando haya proveedor (en dev, backend de consola). Elegir el proveedor de email es una dependencia nueva → ADR (C-13) cuando se incorpore. | RF-TEN-05, RNF-TEN-03 |
+| Q-208 | ¿Qué estados tiene una organización y qué implica `suspended`? ¿Quién suspende? | 06 §12 ya menciona "organización suspendida" sin definirla | a) `active`/`suspended`; b) + `closed` | **a)**, solo el operador de plataforma; suspendida = usuarios con acceso de solo lectura, sin cobros/sucursales/invitaciones nuevas; eventos de cobros `pending` se siguen procesando | Sí | ✅ DECIDIDO (2026-10-31): **a)** estados `active` / `suspended`; solo el operador de la plataforma suspende y reactiva; suspendida = los miembros conservan acceso de **solo lectura** (sin cobros, sucursales, invitaciones ni ediciones nuevas); los cobros `pending` se siguen procesando servidor-a-servidor (webhooks/poller). Excepciones de escritura durante la suspensión: Q-221. | RN-TEN-03, RN-TEN-18, §9, §10, AC-TEN-28/29 |
+| Q-209 | ¿Qué "Datos de la empresa" guarda el Hub (razón social, CUIT, rubro, zona horaria) y quién los edita? | `context/07 §5.3` los nombra sin lista | — | `name` obligatorio; `legal_name`, `tax_id` (CUIT) y zona horaria (default `America/Argentina/Buenos_Aires`) opcionales; editan owner y admin | No | ✅ DECIDIDO (2026-10-31): `name` obligatorio; `legal_name`, `tax_id` (CUIT) y `timezone` (default `America/Argentina/Buenos_Aires`) opcionales; editan `owner` y `admin`. | RF-TEN-03, §9 |
+| Q-210 | ¿Qué campos tiene una `Branch`? ¿Nombre único por organización? ¿La ubicación completa (que MP exige para el Store, RN-MP-12) vive en la Branch o en el vínculo con el Store? | Evitar duplicar datos con SPEC-05 | — | `name` (único por organización entre activas), `code` opcional, dirección opcional; la ubicación completa se exige al crear/vincular el Store (SPEC-05) | No | ✅ DECIDIDO (2026-10-31): `name` obligatorio y único por organización **entre Branch activas**; `code` opcional; dirección opcional; la ubicación completa que exige MP se pide al crear/vincular el Store (SPEC-05). Largos máximos: `design.md`. | §9, RF-TEN-06, AC-TEN-30 |
+| Q-211 | ¿Una Branch se borra o solo se desactiva? ¿Qué pasa con cobros `pending`, vínculos a Store y reportes históricos? | Integridad de cobros y reportes | a) solo desactivación; b) borrado físico si no tiene historia | **a)** Solo desactivación (sin borrado físico); bloquea cobros nuevos, no afecta los `pending` ni el histórico; reactivable | Sí | ✅ DECIDIDO (2026-10-31): **a)** solo desactivación, **sin borrado físico** (ni por API ni por servicio de negocio); una Branch inactiva no admite cobros nuevos, no afecta los cobros `pending` ni el histórico/reportes, y es reactivable. | RF-TEN-06, RN-TEN-19, §10, §12, AC-TEN-30 |
+| Q-212 | ¿Cómo se representa el operador de la plataforma y tiene acceso a datos de negocio de las organizaciones (soporte)? | Q-001 lo define como actor pero no su poder; es la cuenta más privilegiada | a) comando de gestión / Django admin solo para superusuario; b) rol global en la API | **a)** Alta por comando de gestión (y Django admin restringido); **sin** acceso implícito a datos de negocio: para ver una organización necesita una membership explícita y auditada | Sí | ✅ DECIDIDO (2026-10-31): **a)** el operador actúa por **comando de gestión** (y Django admin restringido); **sin acceso implícito** a datos de negocio por la API: ser superusuario/staff no saltea la validación de membership. Para ver una organización necesita una **membership explícita y auditada** (mecanismo concreto: Q-222). | RN-TEN-10, RN-TEN-20, RF-TEN-07, AC-TEN-22/33 |
+| Q-213 | ¿Quién es el primer owner de una organización nueva? | Sin owner nadie puede invitar | a) el operador indica un email → invitación `owner`; b) el operador queda owner | **a)** Invitación `owner` al email indicado; la organización existe sin owner solo hasta que se acepta (excepción explícita a Q-201) | Sí | ✅ DECIDIDO (2026-10-31): **a)** al crear la organización el operador indica un email y se emite una invitación con rol `owner` a ese email; la organización existe sin owner solo hasta que se acepta (excepción explícita a Q-201). Si vence o hay que cambiar el email, el operador la reemite/revoca con el mismo mecanismo (reglas de Q-206). | RF-TEN-07, RN-TEN-10, RN-TEN-14, AC-TEN-22 |
+| Q-214 | Revocar una membership ¿la borra o la marca revocada? ¿Re-invitar reactiva la misma o crea otra? | Historial y auditoría | — | Marca `revoked` (se conserva); re-invitar crea una membership nueva vigente | No | ✅ DECIDIDO (2026-10-31): se marca `revoked` y se conserva (también al abandonar); re-invitar crea una membership **nueva** vigente. | §9, §10, RN-TEN-21, AC-TEN-31 |
+| Q-215 | ¿Cuándo se activa RLS de PostgreSQL como segunda barrera (ADR-0001)? | Defensa en profundidad | MVP / antes de abrir a terceros / nunca | Antes de onboardear comercios ajenos (mismo gate que OAuth, Q-014); el esquema se diseña compatible desde ya | No | ✅ DECIDIDO (2026-10-31): RLS se activa antes de onboardear comercios ajenos (mismo gate que OAuth, Q-014); el esquema se diseña compatible desde ya. Se registra en ADR-0001. | RNF-TEN-05 |
+| Q-216 | ¿Qué de este módulo puede leer el ERP con API key? | Para crear un cobro el ERP necesita elegir sucursal | — | Solo lectura de Branch (scope a definir en SPEC-11); nada de memberships, invitaciones ni datos de empresa | No | ✅ DECIDIDO (2026-10-31): solo lectura de Branch (scope en SPEC-11); nada de memberships, invitaciones ni datos de empresa. | §4 |
+| Q-217 | Los intentos denegados de acceso a otra organización ¿van al log de auditoría (SPEC-10) o solo al log operativo? | Detección de abuso vs ruido | — | Log operativo estructurado siempre (RNF-TEN-02) + métrica; a auditoría solo si se repiten (umbral en SPEC-10) | No | ✅ DECIDIDO (2026-10-31): log operativo estructurado siempre (RNF-TEN-02) + métrica; a auditoría solo si se repiten (umbral en SPEC-10). | RNF-TEN-04 |
+| Q-218 | ¿`operator` y `viewer` pueden ver la lista de miembros de su organización? | Privacidad de emails de colegas | — | No: solo owner/admin | No (default completa la matriz) | ✅ DECIDIDO (2026-10-31): no; solo `owner`/`admin` ven miembros e invitaciones pendientes. | §4, AC-TEN-34 |
+| Q-219 | ¿Qué código devuelve una organización activa inexistente o sin membership? | Debe ser indistinguible (RN-TEN-06) | 403 / 404 | `404 organization_not_found` en ambos casos (consistente con C-01) | No | ✅ DECIDIDO (2026-10-31): `404 organization_not_found` en ambos casos (y para el operador de plataforma sin membership, Q-212). | RN-TEN-06, AC-TEN-03/33 |
+| Q-220 | ¿Qué módulo es dueño de la entidad local **Caja** (la del Hub, no el POS de MP)? `context/07 §5.3` asigna "Sucursales y cajas" a 02 + 05, pero la caja depende de la integración (Q-006). | Si nadie la modela, SPEC-05/06 no tienen dónde colgar el QR estático ni el `external_id` del POS | a) SPEC-02 (junto a Branch); b) SPEC-04 (ligada a Branch + Integration); c) SPEC-05 (solo existe como POS de MP) | **b)** Caja = entidad del Hub ligada a `Branch` + `Integration`, dueña **SPEC-04**; el POS de MP es su contraparte en SPEC-05 (adaptador). SPEC-02 solo aporta la Branch y la regla RN-TEN-15 (misma organización) | **No bloquea 02** (dirigida a SPEC-04/05; bloquea su Clarified) | | §3.2, RN-TEN-15, SPEC-04, SPEC-05 |
+| Q-221 | Con la organización `suspended` (solo lectura, Q-208), ¿se permiten las escrituras que **reducen** acceso: revocar una membership, abandonar, revocar una invitación pendiente? ¿Y **aceptar** una invitación pendiente emitida antes de la suspensión? | Un empleado despedido durante una suspensión no debería conservar acceso; aceptar una invitación es una escritura que suma acceso | a) bloquear todo (solo lectura estricta); b) permitir solo las que reducen acceso y bloquear las que suman | **b)** Durante la suspensión se permiten revocar membership, abandonar y revocar invitación (auditados); se rechazan aceptar invitación, invitar, reenviar, cambiar rol, editar datos y todo lo de Branch (`organization_suspended`) | No (el default completa la matriz §4.1; confirmar antes de *Approved*) | | RN-TEN-18, §4.1, AC-TEN-28 |
+| Q-222 | ¿Cómo obtiene el operador de plataforma la "membership explícita y auditada" de Q-212? ¿Por invitación como cualquiera o el comando la crea directo? ¿Con qué rol? ¿La ven y pueden revocarla los owners? | Q-212 fija el principio pero no el mecanismo; es la vía de acceso más privilegiada a datos de terceros | a) el comando emite una invitación a su email (mismo flujo Q-206); b) el comando crea la membership directa | **a)** El comando emite una invitación con rol elegido (default `viewer`) y motivo obligatorio; el evento de auditoría marca que el actor es el operador; la membership resultante es una membership normal: visible en Colaboradores y revocable por owners. Si es `owner`, solo vía Q-224 | No (lo mínimo ya está decidido en Q-212) | | RN-TEN-20, RF-TEN-07, RNF-TEN-04 |
+| Q-223 | Si quien emitió una invitación `pending` pierde el permiso para emitirla (es revocado, abandona o es degradado), ¿la invitación sigue vigente? | Un admin removido podría haber dejado invitaciones abiertas para terceros | a) sigue vigente hasta vencer o ser revocada; b) se revoca automáticamente | **b)** Se revocan automáticamente sus invitaciones pendientes que ya no podría emitir (evento `invitation.revoked` con motivo `inviter_lost_permission`); las demás siguen | No (default) | | RN-TEN-12, RN-TEN-13, AC (a agregar si se confirma) |
+| Q-224 | Recuperación: si el único owner pierde acceso a su cuenta de Google (o fallece, se va de la empresa sin transferir), ¿puede el operador emitir una nueva invitación `owner` a una organización que ya tiene owner? | Q-201 impide que la organización quede sin owner por la API, pero no cubre la pérdida de la cuenta; Q-212 deja al operador sin poder implícito | a) no, no hay recuperación en el MVP; b) sí, por comando con motivo obligatorio y auditoría | **b)** Por comando de gestión, con motivo obligatorio, evento de auditoría propio y aviso a los owners existentes; no revoca a nadie automáticamente | No (procedimiento de soporte; el MVP opera pocas organizaciones) | | RF-TEN-07, RN-TEN-20, RNF-TEN-04 |
 
-## 2. Matriz de permisos (completar)
-Es la de `spec.sdd.md §4`. Las celdas marcadas `(Q-xxx)` asumen la recomendación de esa pregunta hasta que se
-decida. Celdas dependientes: Q-201, Q-202, Q-203, Q-208, Q-209, Q-211, Q-212, Q-216, Q-218.
+## 2. Matriz de permisos
+Es la de `spec.sdd.md §4` (organización `active`) y `§4.1` (organización `suspended`). Todas las celdas están
+completas; las que dependen de una pregunta citan su decisión. Las celdas de `§4.1` marcadas con Q-221 y las filas de
+operador que citan Q-222/Q-224 aplican la recomendación por defecto hasta que el dueño responda (no bloqueantes).
+Toda acción no listada para un rol se deniega (RN-TEN-09).
 
 ## 3. Checklist de casos límite (marcar o justificar "no aplica")
-- [x] **Concurrencia:** dos owners que se degradan a la vez (AC-TEN-14); doble aceptación de invitación (§12).
-- [x] **Reintentos y repetición:** reuso del token de invitación (AC-TEN-17); re-invitar a un miembro (AC-TEN-20).
-- [ ] **Orden:** no aplica (no hay eventos de proveedor en este módulo).
-- [ ] **Fallas parciales:** pendiente Q-207 (falla del envío de email tras crear la invitación).
-- [ ] **Proveedor caído / lento / 429:** no aplica (sin proveedores de pago); el de email, Q-207.
-- [x] **Permisos:** sin rol, rol cambiado a mitad de sesión, varias organizaciones (AC-TEN-04/05/08/16).
-- [x] **Aislamiento:** acceso por ID a otra organización (AC-TEN-01/02/09), organización ajena como activa (AC-TEN-03).
-- [x] **Estados terminales:** invitación `accepted`/`revoked`/`expired` (AC-TEN-19).
-- [ ] **Montos:** no aplica.
-- [x] **Vencimientos:** invitación vencida (Q-206, AC-TEN-19).
-- [ ] **Desactivación/borrado:** Branch (Q-211), organización suspendida (Q-208), membership revocada (Q-214).
-- [ ] **Zona horaria:** zona horaria de organización/sucursal en Q-209/Q-210; fechas en UTC en BD.
-- [ ] **Volumen:** paginación de listados (decide `design.md`).
-- [ ] **Datos vacíos / inválidos / muy largos:** normalización de email (Q-206) y límites de nombre (Q-210).
-- [x] **Privacidad:** solo email del invitado (RNF-TEN-06); visibilidad de miembros (Q-218).
-- [x] **Observabilidad:** RNF-TEN-02 y Q-217.
+- [x] **Concurrencia:** dos owners que se degradan/revocan mutuamente siendo los únicos → a lo sumo uno prospera
+  (AC-TEN-14); doble aceptación de la misma invitación → una sola membership (AC-TEN-17); aceptar y revocar/reenviar
+  la misma invitación a la vez → gana una sola transición desde `pending` (C-05); cambiar rol y revocar la misma
+  membership a la vez → se serializan, el resultado respeta Q-201; dos invitaciones simultáneas al mismo
+  (organización, email) → queda una sola `pending` (Q-206, AC-TEN-26); suspender la organización mientras hay una
+  escritura en curso → la escritura que se confirma después de la suspensión se rechaza (`design.md` define el lock).
+- [x] **Reintentos y repetición:** reuso del token de invitación → `invitation_invalid` (AC-TEN-17); token anterior
+  tras reenviar → `invitation_invalid` (AC-TEN-26); re-invitar a un miembro vigente → `already_member` (AC-TEN-20);
+  doble clic en "invitar" → la segunda falla por pendiente única (AC-TEN-26); doble clic en desactivar Branch →
+  la segunda es no-op o transición inválida, sin efecto doble.
+- [x] **Orden:** no aplica a eventos de proveedor (este módulo no los recibe). Orden lógico cubierto: el primer owner
+  acepta antes de que exista cualquier otra membership (Q-213); reactivar una Branch cuyo nombre ya tomó otra activa →
+  `validation_error` (Q-210).
+- [x] **Fallas parciales:** se crea la invitación y falla el envío del email (Q-207) → la invitación queda `pending`
+  y el link ya se mostró una vez; el envío es asíncrono con reintentos y el owner/admin puede reenviar (lo que revoca
+  la anterior). Se acepta la invitación y falla la emisión del evento de auditoría → `design.md` define que membership
+  + evento se confirmen en la misma transacción (outbox) para no perder auditoría (C-08).
+- [x] **Proveedor caído / lento / 429:** no aplica a proveedores de pago. Proveedor de email caído → mismo
+  tratamiento que fallas parciales (reintento asíncrono; el link copiable no depende del email).
+- [x] **Permisos:** sin membership (AC-TEN-03), rol cambiado o revocado a mitad de sesión (AC-TEN-04/05), varias
+  organizaciones (AC-TEN-08), admin sobre owners (AC-TEN-15), auto-elevación (AC-TEN-16), operator/viewer y la lista de
+  miembros (AC-TEN-34), operador de plataforma sin membership (AC-TEN-33), inviter que pierde permiso (Q-223).
+- [x] **Aislamiento:** acceso por ID a otra organización (AC-TEN-01/02/09), organización ajena como activa
+  (AC-TEN-03), `organization_id` ajeno en el cuerpo (AC-TEN-07), superusuario sin membership (AC-TEN-33), test de
+  arquitectura y cross-tenant parametrizado (AC-TEN-10/12).
+- [x] **Estados terminales:** invitación `accepted`/`revoked`/`expired` no se reabre (AC-TEN-19); membership
+  `revoked` no se reactiva, re-invitar crea otra (AC-TEN-31); organización `suspended` → §4.1 (AC-TEN-28).
+- [x] **Montos:** no aplica (este módulo no maneja dinero).
+- [x] **Vencimientos:** invitación vigente mientras `ahora < expires_at` (7 días desde la emisión, Q-206); aceptar
+  justo al vencer → `invitation_invalid` (AC-TEN-25); el vencimiento se evalúa al aceptar aunque un proceso aún no la
+  haya pasado a `expired`.
+- [x] **Desactivación/borrado:** Branch solo se desactiva, sin borrado físico; no admite cobros nuevos, no afecta
+  `pending` ni histórico (Q-211, AC-TEN-30); organización suspendida = solo lectura y los `pending` se siguen
+  procesando (Q-208, AC-TEN-28); membership revocada se conserva (Q-214, AC-TEN-31). Ninguna entidad de este módulo
+  se borra físicamente por la API.
+- [x] **Zona horaria:** fechas en UTC en BD (`created_at`, `expires_at`…); la organización tiene `timezone` opcional
+  con default `America/Argentina/Buenos_Aires` (Q-209) para presentación; la Branch no tiene zona horaria propia en el
+  MVP (hereda la de la organización, Q-210). La vigencia de 7 días se calcula en UTC (no depende del huso).
+- [x] **Volumen:** listados de miembros, invitaciones y sucursales paginados; tamaño y estrategia en `design.md`.
+- [x] **Datos vacíos / inválidos / muy largos:** email normalizado (recorte de espacios + minúsculas) y validado
+  como email antes de guardar o comparar (Q-206); `name` de organización y Branch obligatorio y no vacío tras recortar;
+  largos máximos en `design.md`; `tax_id` opcional (validación de formato CUIT en `design.md`).
+- [x] **Privacidad:** del invitado solo el email (RNF-TEN-06); emails de colegas solo visibles para owner/admin
+  (Q-218); el token de invitación nunca en claro fuera de la respuesta de creación/reenvío (RNF-TEN-03).
+- [x] **Observabilidad:** RNF-TEN-02 (logs con `organization_id` validado y rechazos con `request_id`), Q-217
+  (métrica de denegaciones cross-tenant) y eventos de auditoría de RNF-TEN-04.
 
 ## 4. Resumen para decisión
-**Bloqueantes abiertas:** Q-201, Q-202, Q-204, Q-206, Q-208, Q-211, Q-212, Q-213.
-**Recomendaciones por defecto (no bloqueantes):** Q-203, Q-205, Q-207, Q-209, Q-210, Q-214, Q-215, Q-216, Q-217, Q-218, Q-219.
+**Bloqueantes abiertas:** ninguna. (Q-201, Q-202, Q-204, Q-206, Q-208, Q-211, Q-212 y Q-213 decididas el 2026-10-31.)
+**Recomendaciones aceptadas (2026-10-31):** Q-203, Q-205, Q-207, Q-209, Q-210, Q-214, Q-215, Q-216, Q-217, Q-218, Q-219.
+**Abiertas no bloqueantes (aplica la recomendación por defecto hasta que responda el dueño):** Q-221, Q-222, Q-223,
+Q-224. **Abierta dirigida a otro módulo:** Q-220 (SPEC-04/05; no bloquea 02).
 
 **Contradicciones / huecos detectados al redactar (no se editaron los documentos de origen):**
-1. Q-012 y Q-027 se usan como decisiones, pero en `specs/00-platform/clarifications.md` figuran solo como
-   recomendación por defecto (no `✅ DECIDIDO`).
-2. ADR-0001 y ADR-0002 figuran como "candidatos" en `context/decisions/README.md` y se necesitan "antes de Spec 02".
-3. `context/07-frontend-ui-guidelines.md §4` dice que Point es "módulo 12, post-MVP (Q-002)", lo que contradice
-   la decisión de Q-002 (Point dentro del MVP).
-4. `context/07 §5.3` asigna "Sucursales y cajas" a `02` + `05`, pero la caja (POS) depende de la integración
-   (Q-006): falta definir qué módulo es dueño de la entidad local Caja (¿04 o 05?). Esta spec la deja fuera.
-5. `specs/06-charges §12` menciona "organización suspendida" sin que haya estados de organización definidos (Q-208).
-6. `context/07 §5.1` dice que la selección "persiste en la sesión"; con JWT (SPEC-01/ADR-0004) el mecanismo lo
-   decide `design.md`. SPEC-01 no debe usar claims del JWT como fuente de rol o membership (RN-TEN-08).
+1. ~~Q-012 y Q-027 figuran solo como recomendación por defecto en SPEC-00.~~ **Resuelto:** decididas a nivel
+   transversal; se registran como `✅ DECIDIDO` en la rama de SPEC-00.
+2. ADR-0001 y ADR-0002 siguen como "candidatos" en `context/decisions/README.md`; los escribe el architect en el paso
+   de diseño de este módulo (ver lo que deben resolver en `spec.sdd.md §15`).
+3. `context/07-frontend-ui-guidelines.md §4` dice que Point es "módulo 12, post-MVP (Q-002)", lo que contradice la
+   decisión de Q-002 (Point dentro del MVP). Fuera del alcance de 02; queda señalado para quien mantenga `context/07`.
+4. Dueño de la entidad local Caja → **Q-220** (dirigida a SPEC-04/05).
+5. `specs/06-charges §12` menciona "organización suspendida": ahora está definida por Q-208 / RN-TEN-18; SPEC-06
+   debería citarla al pasar por su clarify.
+6. ~~`context/07 §5.1` dice que la selección "persiste en la sesión".~~ **Resuelto con SPEC-01:** la organización
+   activa viaja en un header por request y se revalida siempre; el JWT no lleva rol/organización/membership.
+   `context/07 §5.1` debería ajustarse a esa redacción cuando se toque.
