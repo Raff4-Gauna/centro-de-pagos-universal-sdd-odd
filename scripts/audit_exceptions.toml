@@ -3,11 +3,15 @@
 #
 # Only when there is no fix yet (or it cannot be applied right away), add one table per
 # vulnerability. All three keys are required:
-#   id      - the advisory ID as reported (GHSA-..., PYSEC-..., CVE-...); any alias also matches.
+#   id      - the advisory ID as reported. Python (pip-audit): GHSA-..., PYSEC-... or CVE-...,
+#             any alias also matches. npm (pnpm audit): only the GHSA-... ID matches, because
+#             pnpm 12 reports no CVE aliases.
 #   reason  - why it is accepted for now (not exploitable here, waiting for the fix, ...).
-#   expires - a TOML date, valid through that day (UTC). Keep it short (weeks, not months).
-#             Once it passes, the audit fails again until the line is removed or renewed with a
-#             new reason in review.
+#   expires - a TOML date, valid through that day (UTC), at most 90 days ahead (a later date is a
+#             config error). Keep it short (weeks, not months). Once it passes, the audit fails
+#             again until the line is removed or renewed with a new reason in review.
+# This is the only channel: pnpm's auditConfig/auditLevel settings make the audit fail (exit 2).
+# An exception that matches no finding is reported as unused: remove it.
 #
 # [[exception]]
 # id = "GHSA-xxxx-xxxx-xxxx"

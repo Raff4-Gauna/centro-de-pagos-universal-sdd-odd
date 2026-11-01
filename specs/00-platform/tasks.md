@@ -321,6 +321,8 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   del veredicto `<!-- reviewer-verdict -->` / `Veredicto del reviewer: APROBADO|RECHAZADO` / `SHA: <40 hex>`; carga
   de la lista de rutas con `glob_paths`), `.github/zona-roja-paths.txt` (rutas de §3.7.2, incluidas las del gate
   por Q-058, ya decidida), `scripts/tests/test_AC_PLT_32_zona_roja_rules.py`.
+  Nota (review de T-PLT-28, B-1): la lista suma `frontend/pnpm-workspace.yaml` y `frontend/.npmrc`, porque la
+  config de pnpm (`auditConfig`, `auditLevel`) puede ocultar advisories del gate `deps-audit`.
 - **Fuera de esta tarea:** llamadas a la API, workflow (T-PLT-07).
 - **Plan de pruebas:** `test_AC_PLT_32_no_red_paths_no_label_passes`, `test_AC_PLT_32_red_path_without_label_fails`,
   `test_AC_PLT_32_label_and_approved_verdict_by_writer_on_head_sha_passes`,
@@ -1105,27 +1107,44 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
 
 ### T-PLT-28 — Auditoría de dependencias + Dependabot
 - **AC:** AC-PLT-26. RN-PLT-14 (Q-037), D-10. **Zona roja:** sí.
-- **Archivos:** `scripts/audit_deps.py` (pip-audit sobre `uv export --frozen --all-groups` + `pnpm audit --json`;
-  severidad vía OSV; desconocida = alta; excepciones con vencimiento), `scripts/audit_exceptions.toml` (vacío,
-  formato comentado), `scripts/tests/test_AC_PLT_26_audit_deps.py` (OSV y subprocesos mockeados, reloj fijo),
+- **Archivos:** `scripts/audit_deps.py` (pip-audit sobre `uv export --frozen --all-groups` + `pnpm audit --json
+  --audit-level low`; severidad vía OSV; desconocida = alta; excepciones con vencimiento),
+  `scripts/pnpm_audit_guard.py` (config de pnpm que oculta advisories → exit 2), `scripts/audit_exceptions.toml`
+  (vacío, formato comentado), `scripts/tests/test_AC_PLT_26_audit_deps.py` y
+  `scripts/tests/test_AC_PLT_26_pnpm_audit_config.py` (OSV y subprocesos mockeados, reloj fijo; fakes en
+  `scripts/tests/audit_deps_fakes.py`), `scripts/tests/test_RN_PLT_14_dependabot_and_setup.py`,
   `.github/dependabot.yml` (semanal: `uv` `/backend`, `npm` `/frontend`, `docker` `/backend`, `github-actions`;
   parches agrupados), `.github/workflows/ci.yml` (job `deps-audit`, `needs: file-size`; `typecheck` pasa a `needs:
   [secrets, deps-audit]`).
 - **Plan de pruebas:** `test_AC_PLT_26_high_vuln_without_exception_fails`, `test_AC_PLT_26_critical_vuln_fails`,
   `test_AC_PLT_26_expired_exception_fails`, `test_AC_PLT_26_valid_exception_passes`,
   `test_AC_PLT_26_unknown_severity_counts_as_high`, `test_AC_PLT_26_pnpm_high_vuln_fails`,
-  `test_RN_PLT_14_dependabot_weekly_for_all_ecosystems`.
+  `test_RN_PLT_14_dependabot_weekly_for_all_ecosystems`. Tras el review: `test_AC_PLT_26_workspace_audit_setting_exits_2`,
+  `test_AC_PLT_26_pnpm_audit_env_var_exits_2`, `test_AC_PLT_26_global_pnpm_config_with_audit_config_exits_2`,
+  `test_AC_PLT_26_pip_audit_skipped_dependency_exits_2`, `test_AC_PLT_26_osv_failure_exits_2_without_traceback`,
+  `test_AC_PLT_26_unused_exception_warns`, `test_AC_PLT_26_exception_beyond_90_days_exits_2`.
 - **Notas de implementación:**
   - **Cadena:** `secrets` todavía no existe (T-PLT-04), así que `typecheck` queda en `needs: deps-audit`, con el
     comentario de que pasa a `[secrets, deps-audit]` cuando llegue T-PLT-04 (lo verifica
     `test_AC_PLT_20_pipeline_chain.py`).
   - **Reglas de `audit_deps.py`:** pip-audit con `--disable-pip --require-hashes --vulnerability-service osv`
     sobre el export (hasheado) de `uv.lock`; severidad = primer `database_specific.severity` reconocido en OSV
-    entre el ID y sus alias (GHSA primero); sin severidad, OSV inalcanzable o valor no reconocido = alta. Bloquea
-    `high`/`critical`; `moderate`/`low`/`info` se informan sin fallar (hoy: 1 moderada de `minimatch`, dev). Una
-    excepción vale hasta su fecha inclusive (UTC) y matchea por ID o alias; una excepción **vencida** falla aunque
-    la vulnerabilidad ya no esté (design §3.5: "excepción vencida" es causa de fallo propia). Salida: 0 ok,
-    1 hallazgos bloqueantes, 2 error de herramienta o de `audit_exceptions.toml`.
+    entre el ID y sus alias (GHSA primero); sin severidad (PYSEC), sin registro (404) o valor no reconocido = alta;
+    OSV inalcanzable o con respuesta inválida = error (exit 2). Una dependencia que pip-audit saltea (`skip_reason`)
+    = error (exit 2); residual: con `--disable-pip` no se auditan los requisitos cuyo marker no aplica al runner
+    Linux. Bloquea `high`/`critical`; `moderate`/`low`/`info` se informan sin fallar (hoy: 1 moderada de
+    `minimatch`, dev). Una excepción vale hasta su fecha inclusive (UTC), como máximo a 90 días (si no, exit 2), y
+    matchea por ID o alias (en npm solo el GHSA: pnpm 12 no emite `cves`); una vigente que no matchea nada da
+    warning; una **vencida** falla aunque la vulnerabilidad ya no esté (design §3.5: "excepción vencida" es causa de
+    fallo propia). Salida: 0 ok, 1 hallazgos bloqueantes, 2 error de herramienta, de OSV, de
+    `audit_exceptions.toml` o de config de pnpm.
+  - **Config de pnpm (review, B-1):** pnpm 12.16.1 respeta `auditLevel` y `auditConfig.ignoreGhsas`/`ignoreCves`
+    (workspace, `config.yaml` global, `PNPM_CONFIG_AUDIT*`), que llevaban los advisories a 0 con exit 0. Ahora
+    `--audit-level low` en el argv (le gana al workspace y al env; verificado en Docker) y `pnpm_audit_guard.py`
+    falla con exit 2 si el `pnpm-workspace.yaml` o el `config.yaml` global (`pnpm config get globalconfig`) tienen
+    una clave `audit*` de nivel superior, o si hay una variable `PNPM_CONFIG_AUDIT*`/`NPM_CONFIG_AUDIT*`.
+    `pnpm config get auditConfig` no sirve: da `undefined` aunque esté seteado. `.npmrc` no aplica (pnpm 12 lo
+    ignora para audit); ambos archivos son ruta de zona roja (T-PLT-06).
   - **Dependabot:** `docker` cubre `/backend` y `/frontend` (design §3.5 dice "ambos Dockerfiles"; llegan con
     T-PLT-25 y T-PLT-36), `github-actions` cubre `/` y `/.github/actions/*` (la acción compuesta). Grupos solo de
     parches; menores y mayores en PRs separados.
@@ -1141,8 +1160,10 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   - **Corrida real (2026-11-01, Docker, uv 0.13.6 + pip-audit 2.10.1 + OSV real):** el gate **falla** hoy:
     `djangorestframework` 3.16.1 tiene 3 vulnerabilidades **altas** (GHSA-33wh-fxxf-88vv, GHSA-3547-9m27-7rxg,
     GHSA-xw6w-gcfp-cf8m; arregladas en 3.18.2) y 2 moderadas (arregladas en 3.17.2). Subir DRF choca con Q-059
-    (según Q-059, los stubs de DRF 3.18 exigen `django-stubs` ≥ 6.1, pensado para Django 6.1). Decisión pendiente del dueño antes de mergear: subir DRF
-    (tarea aparte, C-13) o excepciones fechadas en `audit_exceptions.toml` con su motivo.
+    (según Q-059, los stubs de DRF 3.18 exigen `django-stubs` ≥ 6.1, pensado para Django 6.1). **Decidido:** DRF
+    3.16.1 → 3.18.2 en la rama de T-PLT-13 (Q-059, revisión 2026-11-01), sin excepciones en
+    `audit_exceptions.toml`; ese cambio tiene que llegar a `main` **antes** que T-PLT-28 (en esta rama el gate da
+    exit 1, a propósito).
 
 ### T-PLT-29 — Pre-commit de eslint/prettier
 - **AC:** ninguno propio (RF-PLT-12: eslint/prettier en pre-commit; Q-060). **Zona roja:** sí.
@@ -1251,9 +1272,10 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   check/`runtime` standalone con `USER node`), `frontend/.dockerignore`, `frontend/scripts/check-client-bundle.ts`,
   `frontend/scripts/check-client-bundle.test.ts`, `frontend/vitest.config.mts` (incluye `scripts/`),
   `infra/docker-compose.yml` (servicio `frontend`, volúmenes `frontend_node_modules` y `pnpm_store`,
-  `WATCHPACK_POLLING`), `.github/dependabot.yml` (`docker` `/frontend`), `scripts/tests/test_AC_PLT_25_dockerfiles.py`,
+  `WATCHPACK_POLLING`), `scripts/tests/test_AC_PLT_25_dockerfiles.py`,
   `scripts/tests/test_RF_PLT_02_compose_dev.py`. Nota: pnpm 12 usa `pnpm_config_store_dir` (ignora
-  `npm_config_store_dir`); sin eso crea `.pnpm-store/` en el bind mount.
+  `npm_config_store_dir`); sin eso crea `.pnpm-store/` en el bind mount. El `docker` `/frontend` de
+  `.github/dependabot.yml` ya lo agregó T-PLT-28.
 - **Plan de pruebas:** `test_AC_PLT_29_bundle_with_sentinel_fails`, `test_AC_PLT_29_bundle_with_non_public_var_name_fails`,
   `test_AC_PLT_29_clean_bundle_passes`, `test_AC_PLT_25_frontend_frozen_lockfile_and_non_root`,
   `test_RF_PLT_02_frontend_depends_on_healthy_backend`.
