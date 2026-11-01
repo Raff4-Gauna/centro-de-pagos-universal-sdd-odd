@@ -1,7 +1,7 @@
 """AC-PLT-26 (RN-PLT-14, Q-037, D-10): ``audit_deps.py`` blocks high/critical vulnerabilities.
 
-Fakes in ``audit_deps_fakes.py`` (no network, no real tools, fixed clock). The pnpm config guard is
-in ``test_AC_PLT_26_pnpm_audit_config.py``; CI job, Dependabot and setup in
+Fakes in ``audit_deps_fakes.py`` (no network, no real tools, fixed clock). The isolated pnpm run is
+in ``test_AC_PLT_26_pnpm_audit_isolation.py``; CI job, Dependabot and setup in
 ``test_RN_PLT_14_dependabot_and_setup.py``.
 """
 
@@ -180,16 +180,17 @@ def test_AC_PLT_26_audits_frozen_lockfiles_of_both_ecosystems(
     code, _, _ = run_audit(capsys, tmp_path, runner)
 
     assert code == 0
-    (uv, uv_cwd), (pip_audit, _), (config, _), (pnpm, pnpm_cwd) = runner.calls
+    (uv, uv_cwd), (pip_audit, _), (pnpm, pnpm_cwd) = runner.calls
     assert uv[:5] == ["uv", "export", "--frozen", "--all-groups", "--no-emit-project"]
     assert uv_cwd == REPO_ROOT / "backend"
     requirements = uv[uv.index("--output-file") + 1]
     assert pip_audit[:3] == ["pip-audit", "-r", requirements]
     assert {"--disable-pip", "--require-hashes", "--format"} <= set(pip_audit)
-    # The config guard runs first; --audit-level low beats any auditLevel setting (B-1).
-    assert config == ["pnpm", "config", "get", "globalconfig"]
-    assert pnpm == ["pnpm", "audit", "--json", "--audit-level", "low"]
-    assert pnpm_cwd == REPO_ROOT / "frontend"
+    # Isolated run (B-1): fixed flags, in a temp dir with the real lockfile.
+    assert pnpm == list(audit_deps.pnpm_isolation.PNPM_AUDIT)
+    assert pnpm_cwd != REPO_ROOT / "frontend"
+    (run,) = runner.pnpm_runs
+    assert run.files["pnpm-lock.yaml"] == (REPO_ROOT / "frontend" / "pnpm-lock.yaml").read_bytes()
 
 
 @pytest.mark.parametrize(
@@ -198,7 +199,6 @@ def test_AC_PLT_26_audits_frozen_lockfiles_of_both_ecosystems(
         {"uv": (2, "", "error: the lockfile needs to be updated")},
         {"pip-audit": (1, "", "ERROR: invalid requirements input")},
         {"pip-audit": (2, json.dumps(pip_audit_report()), "")},
-        {"pnpm-config": (1, "", "ERR_PNPM_CONFIG")},
         {"pnpm": (1, json.dumps({"error": {"code": "ERR_PNPM_AUDIT_BAD_RESPONSE"}}), "")},
         {"pnpm": (1, "not json", "")},
     ],
@@ -206,7 +206,6 @@ def test_AC_PLT_26_audits_frozen_lockfiles_of_both_ecosystems(
         "uv-export",
         "pip-audit-no-json",
         "pip-audit-exit-2",
-        "pnpm-config",
         "pnpm-error",
         "pnpm-no-json",
     ],

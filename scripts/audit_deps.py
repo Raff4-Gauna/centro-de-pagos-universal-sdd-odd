@@ -9,10 +9,14 @@ Usage (from anywhere; CI job ``deps-audit``):
   A dependency pip-audit skips (``skip_reason``, e.g. not on PyPI) is an error: unknown = high.
   Residual: with ``--disable-pip`` pip-audit evaluates the environment markers for the runner
   (Linux, CPython 3.12), so a requirement whose marker does not apply there is not audited.
-- Frontend: ``pnpm audit --json --audit-level low`` (exactly ``pnpm-lock.yaml``), which already
-  carries the severity. pnpm settings that hide advisories (``auditConfig``, ``auditLevel``,
-  ``PNPM_CONFIG_AUDIT*``) fail the run with exit 2 (``pnpm_audit_guard.py``): exceptions only come
-  from the exceptions file (Q-037).
+- Frontend: ``pnpm audit`` (exactly ``pnpm-lock.yaml``), which already carries the severity, run
+  **isolated** so that no project or user setting can hide advisories: pnpm reads them from many
+  places (``pnpm-workspace.yaml`` in any YAML form, ``.pnpmfile.*`` hooks, ``.npmrc``/workspace
+  ``registry``, global ``config.yaml``, ``PNPM_*``/``NPM_*`` variables), so instead of parsing them
+  the run never sees them: a fresh temp dir with only the lockfile and a ``package.json`` reduced to
+  its dependency keys, ``--ignore-pnpmfile``, the public registry, an allowlisted environment and
+  ``HOME``/``XDG_*``/``APPDATA`` pointing at empty dirs. Exceptions only come from the exceptions
+  file (Q-037). The project config files stay red-zone paths (T-PLT-06).
 - A severity that is missing or not recognised counts as **high** (fail closed): records with no
   ``database_specific.severity`` (PYSEC, most CVE-only records) or no OSV record at all (HTTP 404)
   block. A false positive is resolved with a dated exception, never by guessing a severity.
@@ -22,7 +26,7 @@ Usage (from anywhere; CI job ``deps-audit``):
   matches no finding gets a warning (remove it).
 
 Exit codes: 0 ok, 1 blocking findings (each one named on stderr), 2 tool/config error (a tool
-failed, OSV unreachable or answering garbage, invalid exceptions file, pnpm audit settings).
+failed, OSV unreachable or answering garbage, invalid exceptions file).
 Stdlib only.
 """
 
@@ -43,9 +47,9 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 
-import pnpm_audit_guard
+import pnpm_isolation
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_EXCEPTIONS = REPO_ROOT / "scripts" / "audit_exceptions.toml"
@@ -54,16 +58,18 @@ OSV_TIMEOUT_SECONDS = 20
 ERROR_DETAIL_CHARS = 300
 # An exception is a short-lived patch, not a way to forget a vulnerability (T-PLT-28 review).
 MAX_EXCEPTION_DAYS = 90
-# --audit-level low: the CLI beats any auditLevel in the workspace file or the environment.
-PNPM_AUDIT = ("pnpm", "audit", "--json", "--audit-level", "low")
-PNPM_GLOBAL_CONFIG = ("pnpm", "config", "get", "globalconfig")
-
 # GHSA/OSV use LOW/MODERATE/HIGH/CRITICAL; pnpm adds "info". Blocking: high and above.
 SEVERITY_RANK = {"info": 0, "low": 1, "moderate": 2, "medium": 2, "high": 3, "critical": 4}
 BLOCKING_RANK = SEVERITY_RANK["high"]
 UNKNOWN = "unknown"
 
-Runner = Callable[[Sequence[str], Path], subprocess.CompletedProcess[str]]
+
+class Runner(Protocol):
+    def __call__(
+        self, argv: Sequence[str], cwd: Path, env: Mapping[str, str] | None = None
+    ) -> subprocess.CompletedProcess[str]: ...
+
+
 OsvFetcher = Callable[[str], dict[str, Any] | None]
 
 
@@ -92,10 +98,19 @@ class AuditException:
     expires: date
 
 
-def run_command(argv: Sequence[str], cwd: Path) -> subprocess.CompletedProcess[str]:
+def run_command(
+    argv: Sequence[str], cwd: Path, env: Mapping[str, str] | None = None
+) -> subprocess.CompletedProcess[str]:
+    """Run ``argv`` in ``cwd``; ``env`` replaces the whole environment when given."""
     try:
         return subprocess.run(  # noqa: S603 - fixed argv, no shell
-            list(argv), cwd=cwd, capture_output=True, text=True, encoding="utf-8", check=False
+            list(argv),
+            cwd=cwd,
+            env=None if env is None else dict(env),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            check=False,
         )
     except FileNotFoundError as exc:
         raise AuditError(f"{argv[0]} not found on PATH") from exc
@@ -221,32 +236,18 @@ def python_vulnerabilities(backend: Path, runner: Runner) -> list[Vulnerability]
     return found
 
 
-def pnpm_global_config(frontend: Path, runner: Runner) -> Path | None:
-    """The global pnpm ``config.yaml`` as pnpm resolves it (XDG and friends); None if undefined."""
-    completed = runner(list(PNPM_GLOBAL_CONFIG), frontend)
-    value = (completed.stdout or "").strip()
-    if completed.returncode != 0 or not value:
-        raise AuditError(f"pnpm config get globalconfig failed: {_detail(completed)}")
-    return None if value == "undefined" else Path(value)
-
-
-def check_pnpm_config(frontend: Path, runner: Runner, environ: Mapping[str, str]) -> None:
-    problems = pnpm_audit_guard.config_problems(
-        frontend, environ, pnpm_global_config(frontend, runner)
-    )
-    if problems:
-        raise AuditError(
-            "pnpm settings could hide advisories (" + "; ".join(problems) + "): remove them; "
-            "a vulnerability is accepted only in scripts/audit_exceptions.toml (Q-037)"
-        )
-
-
 def node_vulnerabilities(
     frontend: Path, runner: Runner, environ: Mapping[str, str]
 ) -> list[Vulnerability]:
-    """``pnpm audit`` (prod and dev dependencies) after the config guard; exits 1 on findings."""
-    check_pnpm_config(frontend, runner, environ)
-    completed = runner(list(PNPM_AUDIT), frontend)
+    """Isolated ``pnpm audit`` (prod and dev dependencies); pnpm exits 1 on findings."""
+    with tempfile.TemporaryDirectory(prefix="audit-pnpm-") as tmp:
+        root = Path(tmp)
+        try:
+            project = pnpm_isolation.isolated_project(frontend, root)
+        except (OSError, ValueError) as exc:
+            raise AuditError(f"cannot read the frontend manifest or lockfile: {exc}") from exc
+        env = pnpm_isolation.isolated_env(root, environ)
+        completed = runner(list(pnpm_isolation.PNPM_AUDIT), project, env)
     report = _parse_json(completed, "pnpm audit")
     advisories = report.get("advisories")
     if not isinstance(advisories, dict):

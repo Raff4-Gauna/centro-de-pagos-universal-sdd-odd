@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import subprocess
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -54,11 +55,19 @@ def osv_record(severity: str | None) -> dict[str, Any]:
     return {"database_specific": {"severity": severity}} if severity else {"id": "x"}
 
 
-class FakeRunner:
-    """Answers ``uv export``, ``pip-audit``, ``pnpm config get`` and ``pnpm audit`` like the tools.
+@dataclass
+class PnpmRun:
+    """What ``pnpm audit`` saw: its cwd (deleted afterwards) with the files in it, and its env."""
 
-    ``overrides`` replace an answer: keys ``uv``, ``pip-audit``, ``pnpm`` (audit) and
-    ``pnpm-config`` (``pnpm config get globalconfig``).
+    cwd: Path
+    files: dict[str, bytes]
+    env: dict[str, str]
+
+
+class FakeRunner:
+    """Answers ``uv export``, ``pip-audit`` and ``pnpm audit`` like the real tools would.
+
+    ``overrides`` replace an answer by tool name (``uv``, ``pip-audit``, ``pnpm``).
     """
 
     def __init__(
@@ -66,18 +75,22 @@ class FakeRunner:
         pip_report: dict[str, Any] | None = None,
         pnpm: dict[str, Any] | None = None,
         overrides: dict[str, tuple[int, str, str]] | None = None,
-        global_config: str = "undefined",
     ) -> None:
         self.pip_report = pip_report or pip_audit_report()
         self.pnpm = pnpm or pnpm_report()
         self.overrides = overrides or {}
-        self.global_config = global_config
         self.calls: list[tuple[list[str], Path]] = []
+        self.pnpm_runs: list[PnpmRun] = []
 
-    def __call__(self, argv: Sequence[str], cwd: Path) -> subprocess.CompletedProcess[str]:
+    def __call__(
+        self, argv: Sequence[str], cwd: Path, env: Mapping[str, str] | None = None
+    ) -> subprocess.CompletedProcess[str]:
         argv = list(argv)
         self.calls.append((argv, cwd))
-        tool = "pnpm-config" if argv[:2] == ["pnpm", "config"] else argv[0]
+        tool = argv[0]
+        if tool == "pnpm":
+            files = {p.name: p.read_bytes() if p.is_file() else b"<dir>" for p in cwd.iterdir()}
+            self.pnpm_runs.append(PnpmRun(cwd, files, dict(env or {})))
         if tool in self.overrides:
             code, out, err = self.overrides[tool]
         elif tool == "uv":
@@ -85,8 +98,6 @@ class FakeRunner:
         elif tool == "pip-audit":
             has_vulns = any(dep.get("vulns") for dep in self.pip_report["dependencies"])
             code, out, err = int(has_vulns), json.dumps(self.pip_report), ""
-        elif tool == "pnpm-config":
-            code, out, err = 0, self.global_config + "\n", ""
         else:
             code, out, err = int(bool(self.pnpm.get("advisories"))), json.dumps(self.pnpm), ""
         return subprocess.CompletedProcess(argv, code, out, err)

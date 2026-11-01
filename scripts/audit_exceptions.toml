@@ -10,7 +10,7 @@
 #   expires - a TOML date, valid through that day (UTC), at most 90 days ahead (a later date is a
 #             config error). Keep it short (weeks, not months). Once it passes, the audit fails
 #             again until the line is removed or renewed with a new reason in review.
-# This is the only channel: pnpm's auditConfig/auditLevel settings make the audit fail (exit 2).
+# This is the only channel: pnpm audit runs isolated, so pnpm settings (auditConfig, ...) do nothing.
 # An exception that matches no finding is reported as unused: remove it.
 #
 # [[exception]]
