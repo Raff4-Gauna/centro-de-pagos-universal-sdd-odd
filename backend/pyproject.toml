@@ -50,3 +50,8 @@ DJANGO_SETTINGS_MODULE = "config.settings.test"
 pythonpath = ["."]
 testpaths = ["tests"]
 addopts = ["--strict-markers", "--strict-config"]
+# `integration` tests need the PostgreSQL and Redis of DATABASE_URL/REDIS_URL: the CI `tests` job
+# services or Compose. Without them: `pytest -m "not integration"`.
+markers = [
+    "integration: needs the real PostgreSQL and Redis (DATABASE_URL, REDIS_URL)",
+]
