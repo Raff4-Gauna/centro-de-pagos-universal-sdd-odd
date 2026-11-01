@@ -2,6 +2,9 @@
 # ruff picks this file from the repo root; backend/pyproject.toml has no [tool.ruff] on purpose.
 target-version = "py312"
 line-length = 100
+# backend/ is the import root of the Django project (pytest `pythonpath = ["."]` there), so `config`
+# and `apps` are first-party for isort (T-PLT-08 review O-2).
+src = ["backend"]
 
 # Excluded on top of ruff's defaults (.venv, .git, caches, node_modules, ...):
 # - context/legacy-source: read-only evidence from the old project, not ours to lint (Q-055, D-13).
@@ -40,9 +43,9 @@ select = [
 ]
 
 [lint.per-file-ignores]
-# Tests: plain `assert` is the point (S101); `test_AC_PLT_12_...` names carry the uppercase AC ID
-# required by AGENTS.md (N802).
-"**/tests/**" = ["S101", "N802"]
-"**/test_*.py" = ["S101", "N802"]
+# Tests: plain `assert` is the point (S101); `test_AC_PLT_12_...` functions and modules carry the
+# uppercase AC/RN/RF/C ID required by AGENTS.md (N802, and N999 for modules inside a tests package).
+"**/tests/**" = ["S101", "N802", "N999"]
+"**/test_*.py" = ["S101", "N802", "N999"]
 # scripts/ are CLIs: printing to stdout/stderr is their interface.
 "scripts/**" = ["T20"]

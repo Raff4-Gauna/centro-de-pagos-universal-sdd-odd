@@ -1,5 +1,3 @@
-# ruff: noqa: N999 - the module name carries the uppercase AC/RF/C ID (AGENTS.md); flagged
-# since tests/config/ is a package. The repo-wide fix belongs in ruff.toml (T-PLT-08 review).
 """C-06 (RN-PLT-02): the validated environment never shows a secret (T-PLT-08 review B-2, N-1).
 
 ``DJANGO_SECRET_KEY``, ``DATABASE_URL`` and ``REDIS_URL`` carry credentials: ``repr``, ``str`` and
@@ -16,8 +14,9 @@ import traceback
 from collections.abc import Callable
 
 import pytest
-from config.settings.env import PlatformEnv, load_env
 from django.core.exceptions import ImproperlyConfigured
+
+from config.settings.env import PlatformEnv, load_env
 
 RunDjango = Callable[..., subprocess.CompletedProcess[str]]
 

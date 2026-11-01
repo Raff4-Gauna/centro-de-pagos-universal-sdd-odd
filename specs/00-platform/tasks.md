@@ -280,10 +280,11 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   `test_C_06_env_secrets.py` (`repr`/`str`/`model_dump` y `__context__` sin valores; `del _env`) y
   `test_RF_PLT_03_env_parsing.py` (`databases()`, vacío = ausente).
 
-- **Pendiente tras la revisión (O-2):** `ruff.toml` (dueño T-PLT-02) debe sumar `N999` a los `per-file-ignores` de
-  `**/tests/**` y `test_*.py` y `src = ["backend"]` (para que `config`/`apps` sean first-party); después se quitan los
-  3 `# ruff: noqa: N999` de `backend/tests/config/` y se corre `ruff --fix` de imports. Va como corrección de
-  T-PLT-02 o, si ya está mergeada, como entrada de Carril O **antes de T-PLT-09** (que suma 3 módulos de test más).
+- **Pendiente tras la revisión (O-2) — ✅ resuelto** en la rama de T-PLT-12 (commit `chore(platform): treat backend
+  as first-party in ruff and drop N999 noqa`): `ruff.toml` suma `N999` a los `per-file-ignores` de `**/tests/**` y
+  `**/test_*.py` y `src = ["backend"]` (`config`/`apps` son first-party); se quitaron los 4 `# ruff: noqa: N999`
+  (los 3 de `backend/tests/config/` y el de `backend/tests/health/`) y `ruff check --fix` reordenó los imports
+  (también `backend/config/urls.py` y `backend/tests/conftest.py`).
 
 ### T-PLT-09 — `prod` endurecido + lecturas de entorno + feature flags
 - **AC:** AC-PLT-04; AC-PLT-06 (parte AST + patrones). RNF-PLT-02, RN-PLT-04, RF-PLT-19 (Q-052). **Zona roja:** no.

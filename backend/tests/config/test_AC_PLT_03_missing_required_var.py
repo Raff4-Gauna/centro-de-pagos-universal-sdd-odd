@@ -1,5 +1,3 @@
-# ruff: noqa: N999 - the module name carries the uppercase AC/RF/C ID (AGENTS.md); flagged
-# since tests/config/ is a package. The repo-wide fix belongs in ruff.toml (T-PLT-08 review).
 """AC-PLT-03 (RN-PLT-02) and RF-PLT-03: settings validated at start-up, errors without values.
 
 Every start runs in a subprocess (``run_django``) with ``config.settings.prod``: the process must

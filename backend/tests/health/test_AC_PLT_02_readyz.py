@@ -1,5 +1,3 @@
-# ruff: noqa: N999 - the module name carries the uppercase AC ID (AGENTS.md); flagged since
-# tests/health/ is a package. The repo-wide fix belongs in ruff.toml (T-PLT-08 review).
 """AC-PLT-02 (RN-PLT-17, RF-PLT-07, Q-039): /healthz and /readyz (T-PLT-11).
 
 ``/readyz`` answers 200 only when PostgreSQL and Redis answer; otherwise 503 with a fixed body and
@@ -22,11 +20,12 @@ from collections.abc import Iterator
 from typing import Any
 
 import pytest
-from apps.common.health import checks
 from django.db import connections
 from django.test import Client
 from pytest_django import DjangoDbBlocker
 from pytest_django.fixtures import Settings as SettingsWrapper
+
+from apps.common.health import checks
 
 SENTINEL = "sentinel"
 FULL_SHA = "0123456789abcdef0123456789abcdef01234567"

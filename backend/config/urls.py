@@ -6,8 +6,9 @@ design.md §3.2.2); business modules add their routes here.
 
 from __future__ import annotations
 
-from apps.common.health import views as health_views
 from django.urls import URLPattern, URLResolver, path
+
+from apps.common.health import views as health_views
 
 urlpatterns: list[URLPattern | URLResolver] = [
     path("healthz", health_views.healthz, name="healthz"),
