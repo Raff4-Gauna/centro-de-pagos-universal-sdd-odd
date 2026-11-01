@@ -10,3 +10,7 @@ node_modules/
 .DS_Store
 ngrok*
 *.log
+coverage/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
