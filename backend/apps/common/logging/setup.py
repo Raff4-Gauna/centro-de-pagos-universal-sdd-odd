@@ -6,9 +6,11 @@ settings module from ``LOG_LEVEL``), gunicorn (``logconfig_dict``, T-PLT-25) and
 
 One handler, on the root logger: ``StdoutHandler``, one JSON object per line on stdout, no file.
 structlog loggers and stdlib loggers (Django, libraries) share the processors and the renderer:
-``merge_contextvars`` -> ``level`` -> ``component`` -> ``timestamp`` (ISO-8601 UTC) -> [redaction,
-T-PLT-14] -> ``format_exc_info`` -> ``message`` -> ``JSONRenderer``. Tracebacks and line breaks are
-escaped inside the JSON string, so an event never spans two lines.
+``merge_contextvars`` -> ``level`` -> ``component`` -> ``timestamp`` (ISO-8601 UTC) ->
+``format_exc_info`` -> redaction (T-PLT-14, AC-PLT-08) -> ``message`` -> ``JSONRenderer``. The
+redaction runs after the traceback is rendered, so the traceback text is scrubbed too (design.md
+§3.2.3 lists it before ``format_exc_info``). Tracebacks and line breaks are escaped inside the JSON
+string, so an event never spans two lines.
 
 Django applies its ``DEFAULT_LOGGING`` before this one; here the ``django`` logger loses those
 handlers (a text console handler and ``mail_admins``, whose e-mail embeds the error report with the
@@ -27,7 +29,7 @@ from typing import Any, TextIO
 import structlog
 from structlog.typing import Processor
 
-from apps.common.logging.processors import add_component, add_record_extras
+from apps.common.logging.processors import add_component, add_record_extras, redact_event
 
 LOG_LEVELS = ("DEBUG", "INFO", "WARNING", "ERROR")
 SILENCED_LOGGERS = ("django.request", "django.security.csrf", "django.server")
@@ -68,8 +70,8 @@ def json_formatter() -> structlog.stdlib.ProcessorFormatter:
         foreign_pre_chain=[*_shared_processors(), add_record_extras],
         processors=[
             structlog.stdlib.ProcessorFormatter.remove_processors_meta,
-            # T-PLT-14: the redaction processor goes here, before anything is rendered.
             structlog.processors.format_exc_info,
+            redact_event,
             structlog.processors.EventRenamer("message"),
             structlog.processors.JSONRenderer(),
         ],
