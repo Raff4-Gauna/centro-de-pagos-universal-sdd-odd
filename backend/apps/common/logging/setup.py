@@ -24,6 +24,8 @@ An event that cannot be rendered (bad ``%`` args, a failing formatter) becomes o
 ``log.render_failed``, instead of logging's text traceback on stderr with the message and its args
 (``StdoutHandler.handleError``, T-PLT-12 review N-2). ``NaN``/``Infinity`` never reach the
 renderer as floats (redaction) and the renderer rejects them anyway (``allow_nan=False``, N-4).
+Python warnings are captured (``logging.captureWarnings``, T-PLT-14 review N-1): they become
+``py.warnings`` events, JSON on stdout and redacted, instead of plain text on stderr.
 """
 
 from __future__ import annotations
@@ -43,7 +45,9 @@ from apps.common.logging.processors import add_component, add_record_extras, red
 
 LOG_LEVELS = ("DEBUG", "INFO", "WARNING", "ERROR")
 SILENCED_LOGGERS = ("django.request", "django.security.csrf", "django.server")
-# DEBUG records of these carry SQL with its parameters (C-06); INFO and up still go out.
+# DEBUG records of these carry SQL with its parameters (C-06); INFO and up still go out. A logger
+# level holds for its children too: this also cuts django.db.backends.schema, which logs each DDL
+# statement (migrations) with its parameters at DEBUG.
 SQL_LOGGERS = ("django.db.backends",)
 RENDER_FAILED_EVENT = "log.render_failed"
 
@@ -146,6 +150,8 @@ def logging_config(level: str) -> dict[str, Any]:
 def configure_logging(config: dict[str, Any]) -> None:
     """Apply ``config`` (``logging_config(...)``) and send structlog through the same handler."""
     logging.config.dictConfig(config)
+    # warnings.warn(...) -> the "py.warnings" logger -> the same handler and redaction (N-1).
+    logging.captureWarnings(True)
     structlog.configure(
         processors=[
             structlog.stdlib.filter_by_level,

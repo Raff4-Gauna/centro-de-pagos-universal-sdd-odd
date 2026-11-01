@@ -160,3 +160,31 @@ def test_RN_PLT_05_render_failure_outside_pytest_writes_nothing_to_stderr(
     assert (failed["message"], failed["error_type"]) == (RENDER_FAILED_EVENT, "TypeError")
     assert after["message"] == "demo.after"  # logging goes on
     assert SENTINEL not in result.stdout
+
+
+# T-PLT-14 review N-1: Python warnings went to stderr as plain text, outside the redaction.
+WARNING_PROBE = f"""
+import warnings
+import django
+django.setup()
+warnings.warn("deprecated client, password=" + "{SENTINEL}")
+"""
+
+
+def test_AC_PLT_08_python_warnings_are_json_and_redacted(run_django: RunDjango) -> None:
+    result = run_django(
+        "-c",
+        WARNING_PROBE,
+        settings_module="config.settings.test",
+        values={
+            "DJANGO_SECRET_KEY": "test-only-not-a-secret",
+            "DATABASE_URL": "postgres://db.example/hub",
+            "REDIS_URL": "redis://redis.example:6379/0",
+        },
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stderr == ""
+    assert SENTINEL not in result.stdout
+    (event,) = (strict_json(line) for line in result.stdout.splitlines())
+    assert (event["component"], event["level"]) == ("py.warnings", "warning")
+    assert "UserWarning: deprecated client, password=[REDACTED]" in event["message"]
