@@ -1,9 +1,9 @@
 ---
 id: SPEC-00
 modulo: platform
-estado: Clarified
+estado: Designed
 track: S
-version: 0.2.0
+version: 0.3.0
 depende_de: []
 actualizado: 2026-10-31
 ---
@@ -56,12 +56,14 @@ C-01/C-09/C-14/C-15/C-16/C-17 o filtre un secreto pueda llegar a `main`**, porqu
 | `GET /healthz`, `GET /readyz`, health del BFF | ✔ | ✔ | ✔ | ✔ | ✔ | ✔ |
 | Ver el esqueleto del shell (sin datos) | ✔ | ✔ | ✔ | ✔ | ✘ | ✔ provisorio (no hay login hasta 01) |
 | Reenvío del BFF hacia el backend | ✔ | ✔ | ✔ | ✔ | ✘ (directo al backend) | ✔ provisorio (solo endpoints públicos en 00) |
-| Encolar tarea de diagnóstico / Swagger UI | según Q-056 (recomendado: solo `dev`/`test`, inexistente en `prod`) | = | = | = | = | = |
+| Encolar tarea de diagnóstico / Swagger UI | solo en `dev`/`test`, inexistente en `prod` (Q-056) | = | = | = | = | = |
 | Llamar al backend directo desde el navegador | ✘ (CORS cerrado, Q-050) | ✘ | ✘ | ✘ | n/a | ✘ |
 
 Actores técnicos: **desarrollador/agente** (corre Compose y pre-commit), **CI** (GitHub Actions, sin secretos),
 **reviewer** (agente de solo lectura; su veredicto en zona roja es un comentario del PR que cita el SHA, Q-042),
-**dueño del repo** (mergea, etiqueta y es el único que cambia ajustes; si el agente también puede mergear: Q-057) y **colaborador
+**dueño del repo** (mergea, etiqueta y es el único que cambia ajustes; el agente abre los PR y puede mergear solo
+con certeza total —pipeline completo en verde en el último commit, veredicto del reviewer sin bloqueantes, DoD
+completo, squash—; ante cualquier duda mergea el dueño: Q-057) y **colaborador
 externo** (repo público: puede forkear, abrir PR y comentar, nada más). Matriz completa en
 `clarifications.md §H`.
 
@@ -221,12 +223,15 @@ Detalle en `specs/00-platform/clarifications.md` §G. **Bloqueantes para *Clarif
 el usuario el 2026-10-31: repo público; Q-029..Q-053 decididas con su recomendación). *Designed* exige que el
 architect escriba **ADR-0005** con la decisión de Q-035.
 
-Abiertas que no bloquean *Clarified*:
+*Designed* (0.3.0): `design.md` + `ADR-0005` (Propuesto) escritos. Cerradas en `/design`: Q-055 y Q-056 (default
+recomendado), Q-057 (decidida por el usuario: el agente mergea solo con certeza total).
+
+Abiertas que no bloquean *Designed*:
 - **Q-048** (parte del usuario): permitir a los agentes leer `.env.example` o renombrarlo — bloquea solo la tarea de RF-PLT-04.
 - **Q-054** (decide el usuario): qué del contenido ya commiteado puede quedar público — **bloquea el cambio de visibilidad** (tarea de RF-PLT-13).
-- **Q-055**: exclusión de `context/legacy-source/` de los chequeos de código (recomendado: excluir).
-- **Q-056**: endpoints solo de `dev`/`test` (tarea de diagnóstico, Swagger UI) (recomendado: no existen en `prod`).
-- **Q-057** (decide el usuario): quién mergea a `main` (recomendado: solo el dueño).
+- **Q-058**: rutas del propio gate de CI como zona roja (recomendado: sí; aplicado provisoriamente en design).
+- **Q-059** (decide el usuario): actualizar versiones de Q-029 ya superadas — conviene responderla antes de *Approved*.
+- **Q-060**: prerrequisitos del host para pre-commit (recomendado: Node 24 + pnpm en el host).
 
 ## 17. Trazabilidad
 Se completa al generar `tasks.md`.
@@ -236,3 +241,4 @@ Se completa al generar `tasks.md`.
 |---|---|---|---|
 | 0.1.0 | 2026-10-31 | Borrador inicial (reemplaza el placeholder) | `/spec 00-platform` |
 | 0.2.0 | 2026-10-31 | Estado → *Clarified*. Repo público: RN-PLT-12/13 reescritas, nueva RN-PLT-18, RF-PLT-11/13 ampliados, AC-PLT-24 ampliado, nuevos AC-PLT-32/33. RN/RF/AC con los valores decididos de Q-029..Q-053 (UUIDv4, 400 líneas con tests incluidos, uv/pnpm, structlog, pydantic-settings, mypy, cobertura 85/70, `problem+json`). Throttling y chequeo de C-02 pasan de "sujeto a" a RN-PLT-19/20 con AC-PLT-30/31 definitivos; nuevo RF-PLT-19 (feature flags, Q-052), RNF-PLT-08/09, AC-PLT-34. Matriz de permisos y casos límite completados (`clarifications.md §H–§I`). §15 sin el supuesto de repo privado. Nuevas Q-054..Q-057, ninguna bloquea *Clarified* | `/clarify 00-platform`: el usuario decidió Q-042 (repo público) y aceptó las recomendaciones de Q-012, Q-013, Q-027 y Q-029..Q-053 |
+| 0.3.0 | 2026-10-31 | Estado → *Designed*. `design.md` (cobertura RN/RF/RNF sin huecos, Compose, pipeline, pre-commit, gobierno del repo, dependencias con versión exacta verificada) y `ADR-0005` (Propuesto). §4 y §16 actualizados: Q-055/Q-056 cerradas con su recomendación, Q-057 decidida por el usuario (el agente mergea solo con certeza total; si no, el dueño). Nuevas Q-058..Q-060 (no bloquean). Sin cambios en RN/RF/AC | `/design 00-platform`; decisión del usuario sobre Q-057 |
