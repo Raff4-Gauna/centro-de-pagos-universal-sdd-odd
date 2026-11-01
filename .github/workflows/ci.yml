@@ -23,10 +23,15 @@ concurrency:
   # Cancel superseded runs of a PR; never cancel a run on main or a tag.
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
-# Common, non-secret env. The Django/DB/Redis values of design.md §3.5 come with the jobs that use
-# them (T-PLT-08, T-PLT-11).
+# Common, non-secret env (design.md §3.5). config.settings.test requires these variables (T-PLT-08);
+# they are fixed test values, not secrets. DATABASE_URL/REDIS_URL point at the job services that
+# T-PLT-11 adds; until then nothing connects to them.
 env:
   TZ: UTC
+  DJANGO_SETTINGS_MODULE: config.settings.test
+  DJANGO_SECRET_KEY: ci-only-not-a-secret-ci-only-not-a-secret-ci-only-not-a-secret
+  DATABASE_URL: postgres://hub:hub@localhost:5432/hub
+  REDIS_URL: redis://localhost:6379/0
 
 jobs:
   # Step 1. eslint/prettier (T-PLT-27) and check_workflows.py (T-PLT-05) are added here later.
@@ -60,8 +65,7 @@ jobs:
       - name: check_file_size.py
         run: python scripts/check_file_size.py
 
-  # Step 6. Hooked to file-size until secrets/deps-audit/typecheck/architecture exist; the backend
-  # pytest run comes with T-PLT-08.
+  # Step 6. Hooked to file-size until secrets/deps-audit/typecheck/architecture exist.
   tests:
     needs: file-size
     runs-on: ubuntu-24.04
@@ -73,5 +77,8 @@ jobs:
       - uses: ./.github/actions/setup
         with:
           python: "true"
+      - name: pytest backend
+        working-directory: backend
+        run: pytest
       - name: pytest scripts/tests
         run: pytest -c scripts/pytest.ini scripts/tests

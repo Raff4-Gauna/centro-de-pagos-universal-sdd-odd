@@ -40,3 +40,13 @@ dev = [
 
 [tool.uv]
 package = false
+
+[tool.pytest.ini_options]
+# Run from backend/: `pytest`. pytest-django loads these settings before collecting, so the
+# variables that config.settings.test requires (DJANGO_SECRET_KEY, DATABASE_URL, REDIS_URL) must be
+# in the environment: the CI job sets non-secret test values. Tests that need another settings
+# module or environment start Django in a subprocess (tests/conftest.py).
+DJANGO_SETTINGS_MODULE = "config.settings.test"
+pythonpath = ["."]
+testpaths = ["tests"]
+addopts = ["--strict-markers", "--strict-config"]
