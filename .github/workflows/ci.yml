@@ -239,6 +239,8 @@ jobs:
   # Step 3 (with `secrets`). AC-PLT-26 (RN-PLT-14, D-10): pip-audit over the frozen uv.lock export
   # + pnpm audit; severity from OSV (unknown = high); fails on high/critical without a valid
   # exception in scripts/audit_exceptions.toml, and on any expired exception.
+  # frontend-deps "false": only the pnpm binary, no Node and no `pnpm install`, so no code of the PR
+  # (postinstall, .pnpmfile.*) runs before the gate (T-PLT-28 review, B-2).
   deps-audit:
     needs: file-size
     runs-on: ubuntu-24.04
@@ -251,6 +253,7 @@ jobs:
         with:
           python: "true"
           node: "true"
+          frontend-deps: "false"
       - name: audit_deps.py
         run: python scripts/audit_deps.py
 

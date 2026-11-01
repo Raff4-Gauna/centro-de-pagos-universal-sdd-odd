@@ -1114,7 +1114,8 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   (argv, directorio y entorno de la corrida aislada de pnpm), `scripts/audit_exceptions.toml` (vacío, formato
   comentado), `scripts/tests/test_AC_PLT_26_audit_deps.py` y `scripts/tests/test_AC_PLT_26_pnpm_audit_isolation.py`
   (OSV y subprocesos mockeados, reloj fijo; fakes en `scripts/tests/audit_deps_fakes.py`),
-  `scripts/tests/test_RN_PLT_14_dependabot_and_setup.py`,
+  `scripts/tests/test_RN_PLT_14_dependabot_and_setup.py`, `.github/actions/setup/action.yml` (input
+  `frontend-deps`; install con `--ignore-scripts --ignore-pnpmfile`),
   `.github/dependabot.yml` (semanal: `uv` `/backend`, `npm` `/frontend`, `docker` `/backend`, `github-actions`;
   parches agrupados), `.github/workflows/ci.yml` (job `deps-audit`, `needs: file-size`; `typecheck` pasa a `needs:
   [secrets, deps-audit]`).
@@ -1125,7 +1126,12 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   `test_AC_PLT_26_pnpm_audit_sees_only_lockfile_and_reduced_manifest`,
   `test_AC_PLT_26_pnpm_audit_argv_ignores_pnpmfile_and_pins_registry`, `test_AC_PLT_26_pnpm_audit_env_is_allowlisted`,
   `test_AC_PLT_26_pnpm_audit_home_and_xdg_are_empty_dirs_in_the_temp`, `test_AC_PLT_26_pnpm_temp_dir_is_removed`,
-  `test_AC_PLT_26_unreadable_frontend_manifest_or_lockfile_exits_2`; y
+  `test_AC_PLT_26_unreadable_frontend_manifest_or_lockfile_exits_2`,
+  `test_AC_PLT_26_isolated_pnpm_must_be_the_package_manager_version`,
+  `test_AC_PLT_26_pnpm_version_is_checked_with_the_isolated_env`, `test_AC_PLT_26_isolated_env_is_pure`,
+  `test_AC_PLT_26_temp_cleanup_errors_do_not_break_the_gate`; sin código del PR antes del gate (B-2):
+  `test_AC_PLT_26_deps_audit_job_runs_audit_deps`, `test_AC_PLT_26_frontend_deps_input_gates_only_node_and_install`,
+  `test_AC_PLT_26_shared_install_runs_no_scripts_nor_pnpmfile`; y
   `test_AC_PLT_26_pip_audit_skipped_dependency_exits_2`, `test_AC_PLT_26_osv_failure_exits_2_without_traceback`,
   `test_AC_PLT_26_unused_exception_warns`, `test_AC_PLT_26_exception_beyond_90_days_exits_2`.
 - **Notas de implementación:**
@@ -1156,6 +1162,17 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
     del temp. Verificado en Docker: pnpm 12 no lee `package.json#pnpm`; con el manifest reducido y el lock original
     no se queja del lockfile; un `pnpm-workspace.yaml` en un directorio padre del temp da
     `ERR_PNPM_AUDIT_NO_LOCKFILE` (exit 2, falla cerrado). Los archivos de config de pnpm son ruta roja (T-PLT-06).
+    Dentro de la corrida, `pnpm --version` (mismo cwd y env) tiene que ser exactamente la versión de
+    `packageManager` sin `+sha512` (si no, exit 2: shim en `PATH`, corepack eligiendo otra). Los dos
+    `TemporaryDirectory` usan `ignore_cleanup_errors=True` (un handle abierto en Windows no rompe el gate).
+  - **Sin código del PR antes del gate (review, B-2):** el install compartido de la acción de setup corría
+    `postinstall`, el código de nivel superior de `.pnpmfile.cjs` y `readPackage`, que pueden escribir
+    `$GITHUB_PATH` o reescribir `scripts/audit_deps.py`. `deps-audit` pasa `frontend-deps: "false"`: solo
+    `pnpm/action-setup` (pnpm 12 es un ejecutable nativo, no necesita Node; verificado en Docker sin Node y sin
+    `node_modules`) y su chequeo de versión; sin `setup-node` ni `pnpm install`. Además el install compartido
+    (resto de los jobs) es `pnpm install --frozen-lockfile --ignore-scripts --ignore-pnpmfile` (ninguna dependencia
+    necesita build script: `allowBuilds`). **Residual:** `uv sync --frozen` (input `python`) ejecutaría un build
+    backend propio solo si `backend/pyproject.toml` pasa a `package = true`; ese archivo es zona roja (Q-058).
   - **Dependabot:** `docker` cubre `/backend` y `/frontend` (design §3.5 dice "ambos Dockerfiles"; llegan con
     T-PLT-25 y T-PLT-36), `github-actions` cubre `/` y `/.github/actions/*` (la acción compuesta). Grupos solo de
     parches; menores y mayores en PRs separados.
@@ -1286,7 +1303,8 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   `WATCHPACK_POLLING`), `scripts/tests/test_AC_PLT_25_dockerfiles.py`,
   `scripts/tests/test_RF_PLT_02_compose_dev.py`. Nota: pnpm 12 usa `pnpm_config_store_dir` (ignora
   `npm_config_store_dir`); sin eso crea `.pnpm-store/` en el bind mount. El `docker` `/frontend` de
-  `.github/dependabot.yml` ya lo agregó T-PLT-28.
+  `.github/dependabot.yml` ya lo agregó T-PLT-28. El `pnpm install` del Dockerfile usa las mismas flags que el
+  install de CI: `--frozen-lockfile --ignore-scripts --ignore-pnpmfile` (review de T-PLT-28, B-2).
 - **Plan de pruebas:** `test_AC_PLT_29_bundle_with_sentinel_fails`, `test_AC_PLT_29_bundle_with_non_public_var_name_fails`,
   `test_AC_PLT_29_clean_bundle_passes`, `test_AC_PLT_25_frontend_frozen_lockfile_and_non_root`,
   `test_RF_PLT_02_frontend_depends_on_healthy_backend`.

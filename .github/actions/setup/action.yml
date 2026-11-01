@@ -2,6 +2,8 @@
 # Node 24.22.2 (frontend/.nvmrc), pnpm 12.16.1 (frontend/package.json `packageManager`).
 # Input `python`: uv + Python + the backend env from the lockfile (dev group included), put on PATH.
 # Input `node`: pnpm + Node + the frontend deps from the lockfile (pnpm install --frozen-lockfile).
+# Input `frontend-deps` ("true" by default): with "false", only pnpm (a native binary since v12) and its
+# version check; no setup-node and no `pnpm install`, so no code of the PR runs (deps-audit, T-PLT-28).
 name: setup
 description: Install the pinned toolchain for a CI job.
 
@@ -14,6 +16,10 @@ inputs:
     description: "Install pnpm 12.16.1, Node 24.22.2 and the frontend deps (pnpm install --frozen-lockfile)."
     required: false
     default: "false"
+  frontend-deps:
+    description: "With node: also set up Node and install the frontend deps. 'false' = pnpm only."
+    required: false
+    default: "true"
 
 runs:
   using: composite
@@ -73,7 +79,7 @@ runs:
         echo "pnpm ${actual} matches packageManager"
 
     - name: Set up Node
-      if: inputs.node == 'true'
+      if: inputs.node == 'true' && inputs.frontend-deps == 'true'
       uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
       with:
         node-version-file: frontend/.nvmrc
@@ -83,8 +89,10 @@ runs:
         cache-dependency-path: frontend/pnpm-lock.yaml
 
     - name: Install the frontend deps from the lockfile
-      if: inputs.node == 'true'
+      if: inputs.node == 'true' && inputs.frontend-deps == 'true'
       shell: bash
       working-directory: frontend
       # --frozen-lockfile: install exactly pnpm-lock.yaml, never re-resolve (C-13, RN-PLT-14).
-      run: pnpm install --frozen-lockfile
+      # --ignore-scripts --ignore-pnpmfile: no lifecycle script nor .pnpmfile.* code of the PR runs
+      # while installing (T-PLT-28 review, B-2); no dependency needs a build script (allowBuilds).
+      run: pnpm install --frozen-lockfile --ignore-scripts --ignore-pnpmfile

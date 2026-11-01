@@ -65,9 +65,11 @@ class PnpmRun:
 
 
 class FakeRunner:
-    """Answers ``uv export``, ``pip-audit`` and ``pnpm audit`` like the real tools would.
+    """Answers ``uv export``, ``pip-audit``, ``pnpm --version`` and ``pnpm audit`` like the tools.
 
-    ``overrides`` replace an answer by tool name (``uv``, ``pip-audit``, ``pnpm``).
+    ``overrides`` replace an answer by tool name (``uv``, ``pip-audit``, ``pnpm`` = audit,
+    ``pnpm-version``). ``pnpm_runs`` holds what each ``pnpm audit`` saw; ``version_envs`` the env
+    of each ``pnpm --version``.
     """
 
     def __init__(
@@ -75,22 +77,27 @@ class FakeRunner:
         pip_report: dict[str, Any] | None = None,
         pnpm: dict[str, Any] | None = None,
         overrides: dict[str, tuple[int, str, str]] | None = None,
+        pnpm_version: str = "12.16.1",
     ) -> None:
         self.pip_report = pip_report or pip_audit_report()
         self.pnpm = pnpm or pnpm_report()
         self.overrides = overrides or {}
+        self.pnpm_version = pnpm_version
         self.calls: list[tuple[list[str], Path]] = []
         self.pnpm_runs: list[PnpmRun] = []
+        self.version_envs: list[dict[str, str]] = []
 
     def __call__(
         self, argv: Sequence[str], cwd: Path, env: Mapping[str, str] | None = None
     ) -> subprocess.CompletedProcess[str]:
         argv = list(argv)
         self.calls.append((argv, cwd))
-        tool = argv[0]
+        tool = "pnpm-version" if argv == ["pnpm", "--version"] else argv[0]
         if tool == "pnpm":
             files = {p.name: p.read_bytes() if p.is_file() else b"<dir>" for p in cwd.iterdir()}
             self.pnpm_runs.append(PnpmRun(cwd, files, dict(env or {})))
+        elif tool == "pnpm-version":
+            self.version_envs.append(dict(env or {}))
         if tool in self.overrides:
             code, out, err = self.overrides[tool]
         elif tool == "uv":
@@ -98,6 +105,8 @@ class FakeRunner:
         elif tool == "pip-audit":
             has_vulns = any(dep.get("vulns") for dep in self.pip_report["dependencies"])
             code, out, err = int(has_vulns), json.dumps(self.pip_report), ""
+        elif tool == "pnpm-version":
+            code, out, err = 0, self.pnpm_version + "\n", ""
         else:
             code, out, err = int(bool(self.pnpm.get("advisories"))), json.dumps(self.pnpm), ""
         return subprocess.CompletedProcess(argv, code, out, err)

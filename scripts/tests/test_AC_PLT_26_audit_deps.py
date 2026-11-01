@@ -180,13 +180,14 @@ def test_AC_PLT_26_audits_frozen_lockfiles_of_both_ecosystems(
     code, _, _ = run_audit(capsys, tmp_path, runner)
 
     assert code == 0
-    (uv, uv_cwd), (pip_audit, _), (pnpm, pnpm_cwd) = runner.calls
+    (uv, uv_cwd), (pip_audit, _), (version, _), (pnpm, pnpm_cwd) = runner.calls
     assert uv[:5] == ["uv", "export", "--frozen", "--all-groups", "--no-emit-project"]
     assert uv_cwd == REPO_ROOT / "backend"
     requirements = uv[uv.index("--output-file") + 1]
     assert pip_audit[:3] == ["pip-audit", "-r", requirements]
     assert {"--disable-pip", "--require-hashes", "--format"} <= set(pip_audit)
-    # Isolated run (B-1): fixed flags, in a temp dir with the real lockfile.
+    # Isolated run (B-1): the pinned pnpm, fixed flags, a temp dir with the real lockfile.
+    assert version == ["pnpm", "--version"]
     assert pnpm == list(audit_deps.pnpm_isolation.PNPM_AUDIT)
     assert pnpm_cwd != REPO_ROOT / "frontend"
     (run,) = runner.pnpm_runs

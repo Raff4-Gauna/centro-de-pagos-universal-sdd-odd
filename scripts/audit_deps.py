@@ -15,8 +15,9 @@ Usage (from anywhere; CI job ``deps-audit``):
   ``registry``, global ``config.yaml``, ``PNPM_*``/``NPM_*`` variables), so instead of parsing them
   the run never sees them: a fresh temp dir with only the lockfile and a ``package.json`` reduced to
   its dependency keys, ``--ignore-pnpmfile``, the public registry, an allowlisted environment and
-  ``HOME``/``XDG_*``/``APPDATA`` pointing at empty dirs. Exceptions only come from the exceptions
-  file (Q-037). The project config files stay red-zone paths (T-PLT-06).
+  ``HOME``/``XDG_*``/``APPDATA`` pointing at empty dirs; there, ``pnpm --version`` must be exactly
+  the ``packageManager`` version. Exceptions only come from the exceptions file (Q-037). The project
+  config files stay red-zone paths (T-PLT-06). In CI the job installs no frontend deps (B-2).
 - A severity that is missing or not recognised counts as **high** (fail closed): records with no
   ``database_specific.severity`` (PYSEC, most CVE-only records) or no OSV record at all (HTTP 404)
   block. A false positive is resolved with a dated exception, never by guessing a severity.
@@ -185,7 +186,7 @@ def _parse_json(completed: subprocess.CompletedProcess[str], tool: str) -> dict[
 
 def python_vulnerabilities(backend: Path, runner: Runner) -> list[Vulnerability]:
     """pip-audit over ``uv export --frozen --all-groups`` (runtime + every dependency group)."""
-    with tempfile.TemporaryDirectory(prefix="audit-deps-") as tmp:
+    with tempfile.TemporaryDirectory(prefix="audit-deps-", ignore_cleanup_errors=True) as tmp:
         requirements = str(Path(tmp) / "requirements.txt")
         export = runner(
             [
@@ -240,14 +241,14 @@ def node_vulnerabilities(
     frontend: Path, runner: Runner, environ: Mapping[str, str]
 ) -> list[Vulnerability]:
     """Isolated ``pnpm audit`` (prod and dev dependencies); pnpm exits 1 on findings."""
-    with tempfile.TemporaryDirectory(prefix="audit-pnpm-") as tmp:
-        root = Path(tmp)
+    # A temp dir that cannot be removed (an open handle on Windows) must not fail the gate.
+    with tempfile.TemporaryDirectory(prefix="audit-pnpm-", ignore_cleanup_errors=True) as tmp:
         try:
-            project = pnpm_isolation.isolated_project(frontend, root)
+            run = pnpm_isolation.prepare(frontend, Path(tmp), environ)
+            pnpm_isolation.check_pnpm_version(run, runner)
         except (OSError, ValueError) as exc:
-            raise AuditError(f"cannot read the frontend manifest or lockfile: {exc}") from exc
-        env = pnpm_isolation.isolated_env(root, environ)
-        completed = runner(list(pnpm_isolation.PNPM_AUDIT), project, env)
+            raise AuditError(f"cannot prepare the isolated pnpm audit: {exc}") from exc
+        completed = runner(list(pnpm_isolation.PNPM_AUDIT), run.project, run.env)
     report = _parse_json(completed, "pnpm audit")
     advisories = report.get("advisories")
     if not isinstance(advisories, dict):

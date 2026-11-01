@@ -11,7 +11,10 @@ Every evasion of the review is planted here at once; the real pnpm run is checke
 from __future__ import annotations
 
 import json
+import os
+import shutil
 from pathlib import Path
+from typing import Any
 
 import pnpm_isolation
 import pytest
@@ -103,6 +106,7 @@ def test_AC_PLT_26_pnpm_audit_argv_ignores_pnpmfile_and_pins_registry(
 
     pnpm = [argv for argv, _ in runner.calls if argv[0] == "pnpm"]
     assert pnpm == [
+        ["pnpm", "--version"],
         [
             "pnpm",
             "audit",
@@ -111,7 +115,7 @@ def test_AC_PLT_26_pnpm_audit_argv_ignores_pnpmfile_and_pins_registry(
             "low",
             "--ignore-pnpmfile",
             "--registry=https://registry.npmjs.org/",
-        ]
+        ],
     ]
 
 
@@ -136,7 +140,7 @@ def test_AC_PLT_26_pnpm_audit_home_and_xdg_are_empty_dirs_in_the_temp(
     original = FakeRunner.__call__
 
     def spy(self: FakeRunner, argv, cwd, env=None):  # type: ignore[no-untyped-def]
-        if argv[0] == "pnpm":
+        if argv[:2] == ["pnpm", "audit"]:
             for name in pnpm_isolation.PNPM_ISOLATED_DIRS:
                 seen[name] = sorted(item.name for item in Path(env[name]).iterdir())
         return original(self, argv, cwd, env)
@@ -179,5 +183,86 @@ def test_AC_PLT_26_unreadable_frontend_manifest_or_lockfile_exits_2(
     code, _, err = run_audit(capsys, tmp_path, runner, frontend=frontend)
 
     assert code == 2
-    assert "cannot read the frontend manifest or lockfile" in err
+    assert "cannot prepare the isolated pnpm audit" in err
     assert runner.pnpm_runs == []
+
+
+@pytest.mark.parametrize(
+    ("answer", "package_manager"),
+    [
+        ((0, "11.0.0\n", ""), "pnpm@12.16.1+sha512.abc"),
+        ((0, "12.16.1-shim\n", ""), "pnpm@12.16.1"),
+        ((1, "", "corepack: cannot download"), "pnpm@12.16.1"),
+        ((0, "12.16.1\n", ""), "npm@10.9.0"),
+        ((0, "12.16.1\n", ""), None),
+    ],
+    ids=["other-version", "shim", "not-runnable", "not-pnpm", "no-package-manager"],
+)
+def test_AC_PLT_26_isolated_pnpm_must_be_the_package_manager_version(
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+    answer: tuple[int, str, str],
+    package_manager: str | None,
+) -> None:
+    frontend = evasive_frontend(tmp_path)
+    manifest = {key: value for key, value in MANIFEST.items() if key != "packageManager"}
+    if package_manager:
+        manifest["packageManager"] = package_manager
+    (frontend / "package.json").write_text(json.dumps(manifest), encoding="utf-8")
+    runner = FakeRunner(overrides={"pnpm-version": answer})
+
+    code, _, err = run_audit(capsys, tmp_path, runner, frontend=frontend, environ=ENVIRON)
+
+    assert code == 2
+    assert "cannot prepare the isolated pnpm audit" in err
+    assert runner.pnpm_runs == []
+
+
+def test_AC_PLT_26_pnpm_version_is_checked_with_the_isolated_env(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    runner = FakeRunner()
+
+    code, _, err = run_audit(
+        capsys, tmp_path, runner, frontend=evasive_frontend(tmp_path), environ=ENVIRON
+    )
+
+    assert code == 0, err
+    (version_env,) = runner.version_envs
+    (run,) = runner.pnpm_runs
+    assert version_env == run.env
+    assert pnpm_isolation.expected_pnpm_version(MANIFEST) == "12.16.1"
+
+
+def test_AC_PLT_26_isolated_env_is_pure(tmp_path: Path) -> None:
+    dirs = {"HOME": tmp_path / "nowhere"}
+
+    env = pnpm_isolation.isolated_env({"Path": "/bin", "PNPM_HOME": "/x"}, dirs)
+
+    assert env == {"PATH": "/bin", "HOME": str(tmp_path / "nowhere")}
+    assert not (tmp_path / "nowhere").exists()
+
+
+def test_AC_PLT_26_temp_cleanup_errors_do_not_break_the_gate(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Both temp dirs (uv export, pnpm) ignore cleanup errors (an open handle on Windows)."""
+    real_rmtree = shutil.rmtree
+    leaked: list[str] = []
+
+    def locked(path: str, *args: object, onexc: Any = None, **kwargs: object) -> None:
+        leaked.append(path)
+        onexc(os.rmdir, path, OSError("directory is locked"))
+
+    monkeypatch.setattr(shutil, "rmtree", locked)
+    try:
+        code, _, err = run_audit(
+            capsys, tmp_path, FakeRunner(), frontend=evasive_frontend(tmp_path)
+        )
+    finally:
+        monkeypatch.setattr(shutil, "rmtree", real_rmtree)
+        for path in leaked:
+            real_rmtree(path, ignore_errors=True)
+
+    assert code == 0, err
+    assert sorted(Path(path).name.split("-")[1] for path in leaked) == ["deps", "pnpm"]

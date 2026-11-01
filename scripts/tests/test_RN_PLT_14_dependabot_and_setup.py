@@ -16,12 +16,36 @@ def load_yaml(*parts: str) -> dict[Any, Any]:
     return yaml.safe_load(REPO_ROOT.joinpath(*parts).read_text(encoding="utf-8"))
 
 
+def setup_steps() -> dict[str, dict[str, Any]]:
+    steps = load_yaml(".github", "actions", "setup", "action.yml")["runs"]["steps"]
+    return {step["name"]: step for step in steps}
+
+
 def test_AC_PLT_26_deps_audit_job_runs_audit_deps() -> None:
     job = load_yaml(".github", "workflows", "ci.yml")["jobs"]["deps-audit"]
     assert job["needs"] == "file-size"
     setup = next(step for step in job["steps"] if step.get("uses") == "./.github/actions/setup")
-    assert setup["with"] == {"python": "true", "node": "true"}
+    # B-2: pnpm only; no setup-node, no `pnpm install`: no code of the PR runs before the gate.
+    assert setup["with"] == {"python": "true", "node": "true", "frontend-deps": "false"}
+    assert not [step for step in job["steps"] if "pnpm install" in step.get("run", "")]
     assert any("python scripts/audit_deps.py" in step.get("run", "") for step in job["steps"])
+
+
+def test_AC_PLT_26_frontend_deps_input_gates_only_node_and_install() -> None:
+    inputs = load_yaml(".github", "actions", "setup", "action.yml")["inputs"]
+    assert inputs["frontend-deps"]["default"] == "true"
+    steps = setup_steps()
+    gated = "inputs.node == 'true' && inputs.frontend-deps == 'true'"
+    assert steps["Set up Node"]["if"] == gated
+    assert steps["Install the frontend deps from the lockfile"]["if"] == gated
+    # pnpm itself and its version check still run with frontend-deps "false".
+    assert steps["Set up pnpm"]["if"] == "inputs.node == 'true'"
+    assert steps["Check pnpm matches packageManager"]["if"] == "inputs.node == 'true'"
+
+
+def test_AC_PLT_26_shared_install_runs_no_scripts_nor_pnpmfile() -> None:
+    install = setup_steps()["Install the frontend deps from the lockfile"]
+    assert install["run"] == "pnpm install --frozen-lockfile --ignore-scripts --ignore-pnpmfile"
 
 
 def test_RN_PLT_14_dependabot_weekly_for_all_ecosystems() -> None:
