@@ -58,7 +58,7 @@ Reglas: rebanada vertical · ≤ ~300 líneas de diff · mergeable sola · cita 
 | T-PLT-11 | `/healthz` + `/readyz` + servicios en CI | AC-PLT-02 | Backend/CI | `apps/common/health/` | T-PLT-08 | backend-dev | M | Sí | ◐ en revisión (falta reviewer/PR) |
 | T-PLT-12 | Logger structlog JSON + `X-Request-ID` | AC-PLT-09 | Backend | `apps/common/logging/`, `middleware/request_id.py` | T-PLT-08 | backend-dev | L | No (reviewer recomendado) | ◐ en revisión (falta reviewer/PR) |
 | T-PLT-13 | Log de acceso (plantilla de ruta, `duration_ms`) | AC-PLT-07 | Backend | `middleware/access_log.py` | T-PLT-12 | backend-dev | M | No (reviewer recomendado) | ◐ en revisión (falta reviewer/PR) |
-| T-PLT-14 | Redacción de secretos en logs | AC-PLT-08 | Backend | `apps/common/domain/redaction.py` | T-PLT-13 | backend-dev | M | No (reviewer recomendado) | ☐ |
+| T-PLT-14 | Redacción de secretos en logs | AC-PLT-08 | Backend | `apps/common/domain/redaction.py` | T-PLT-13 | backend-dev | M | No (reviewer recomendado) | ◐ en revisión (falta reviewer/PR) |
 | T-PLT-15 | Errores `problem+json` | AC-PLT-34 | Backend/API | `apps/common/api/{problems,exceptions}.py` | T-PLT-12 | backend-dev | L | Sí | ☐ |
 | T-PLT-16 | Throttling DRF con Redis | AC-PLT-30 | Backend/API | `apps/common/api/throttling.py` | T-PLT-11, T-PLT-15 | backend-dev | M | No | ☐ |
 | T-PLT-17 | Celery + tarea de diagnóstico con `request_id` | AC-PLT-11 | Backend | `config/celery.py`, `apps/common/celery_signals.py` | T-PLT-11, T-PLT-12 | backend-dev | L | No (reviewer recomendado) | ☐ |
@@ -444,6 +444,44 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
     `django.db.backends` en `DEBUG` (SQL con parámetros).
 - **Pendiente de la re-revisión de T-PLT-13 (N-3):** `describe_exception` lista los frames solo de la excepción
   externa; los de `__cause__`/`__context__` (solo sus tipos van en `exception_chain`) quedan para esta tarea.
+- **Hecho (commits `feat(platform): redact secrets in every log event` y `fix(platform): log safety follow-ups
+  from T-PLT-12/13 reviews`):**
+  - **AC-PLT-08:** `domain/redaction.py` (puro, mypy strict) redacta por clave las de §3.2.3 más `location` y
+    `proxy-authorization`, comparadas sin mayúsculas, `-` ni `_` y también en forma WSGI (`HTTP_AUTHORIZATION`);
+    en todo string (mensaje y traza incluidos) quita `user:password@`, query string y fragmento de las URLs, el
+    valor de `<clave secreta>=valor` y la credencial de `Bearer`. Lo que no es JSON se vuelve JSON sin `repr`:
+    `UUID`/`Decimal` como texto, fechas ISO, `NaN`/`Infinity` como strings, el resto `"<Tipo>"` (un `request`
+    pasado como kwarg sale `"<WSGIRequest>"`); ciclos → `"[CIRCULAR]"`, más de 10 niveles → `"[TRUNCATED]"`.
+    `processors.redact_event` corre para structlog y stdlib (N-3: los `extra=` escalares también). Tests:
+    `test_AC_PLT_08_bearer_cookie_and_query_never_logged` (vista "descuidada" que loguea el request, sus headers
+    y el token por los dos caminos), `test_AC_PLT_08_access_log_shows_route_template_not_raw_path`,
+    `test_AC_PLT_08_redacts_nested_secret_like_keys`, `test_AC_PLT_08_location_and_url_credentials_are_redacted`,
+    `test_AC_PLT_08_traceback_text_is_redacted_too` y los unitarios de `test_AC_PLT_08_redaction_domain.py`.
+  - **N-2:** `StdoutHandler.handleError` escribe una línea JSON fija `log.render_failed` (`failed_component`,
+    `failed_level`, `error_type`, `request_id` si hay) sin `msg`, args ni mensaje del error. Tests en
+    `test_RN_PLT_05_render_failures.py` (args `%d` mal pasados, formatter que falla con un secreto en el mensaje,
+    dict circular, y un subproceso sin pytest: nada en stderr y el log sigue).
+  - **N-4:** normalización en la redacción + `JSONRenderer(allow_nan=False)` de respaldo. Tests:
+    `test_RN_PLT_05_non_finite_floats_render_as_strict_json`, `…_renderer_rejects_non_finite_floats_as_a_backstop`.
+  - **N-5:** `CredentialSafeReporterFilter` oculta también `…URI`. Test: `test_C_06_error_report_hides_uri_settings_and_meta`.
+  - **`django.db.backends`:** fijado en INFO en `logging_config()` (con `DEBUG` loguea cada SQL con sus parámetros
+    en mensaje y `extra`); sus ERROR siguen saliendo. Tests: `test_AC_PLT_08_sql_debug_log_is_never_emitted` y
+    `test_AC_PLT_08_real_query_parameters_never_logged` (integration, Postgres real con `force_debug_cursor`).
+  - **N-3 de T-PLT-13:** nuevo campo `exception_chain_frames` (una lista de frames por causa, paralela a
+    `exception_chain`, hasta `MAX_FRAMES` cada una). Tests: `test_AC_PLT_07_frames_of_each_cause_are_logged`,
+    `test_AC_PLT_07_chain_frames_follow_the_capped_chain`.
+  - **Revisión de `41651f0` (pedido del coordinador):** `_short_path` no lanza sin settings de Django (script,
+    Celery antes de `setup`): devuelve solo el nombre del archivo; los frames de la stdlib se recortan contra
+    `sysconfig.get_paths()["stdlib"]` (`logging/__init__.py`, no `__init__.py`). Tests:
+    `test_AC_PLT_07_frames_outside_django_settings_are_file_names`, `test_AC_PLT_07_stdlib_frames_keep_their_package`.
+- **Desvío respecto de design §3.2.3:** la redacción corre **después** de `format_exc_info` (no antes): así la traza
+  renderizada (`exception`) también se limpia, y `exc_info` (una tupla de excepción) no pasa por la redacción.
+- **Desvío de alcance (registrado):** además de los tres archivos listados se tocaron `apps/common/logging/setup.py`
+  (procesador en la cadena, N-2, N-4, `django.db.backends`), `apps/common/logging/report_filter.py` (N-5),
+  `apps/common/middleware/access_log.py` (N-3 de T-PLT-13 y los dos puntos de la revisión de `41651f0`),
+  `backend/tests/logging/test_AC_PLT_07_access_log_json.py` (sus tests) y se crearon
+  `test_AC_PLT_08_redaction_domain.py`, `test_AC_PLT_08_sql_and_reports.py` y `test_RN_PLT_05_render_failures.py`
+  (separados por tema para no pasar de ~400 líneas). Todos son los pendientes que esta sección asigna a T-PLT-14.
 
 ### T-PLT-15 — Errores `problem+json`
 - **AC:** AC-PLT-34. RN-PLT-15 (Q-036), RN-PLT-16 (sin CORS). **Zona roja:** sí (contrato de errores).
