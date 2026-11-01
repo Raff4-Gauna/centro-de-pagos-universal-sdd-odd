@@ -1,9 +1,9 @@
 ---
 id: SPEC-01
 modulo: identity-access
-estado: Clarified
+estado: Designed
 track: S
-version: 0.2.0
+version: 0.3.0
 depende_de: [SPEC-00]
 actualizado: 2026-10-31
 ---
@@ -11,8 +11,9 @@ actualizado: 2026-10-31
 # Módulo de Identidad y Acceso
 
 > **Zona roja (auth).** Todo cambio pasa por Carril S y `reviewer`. Preguntas en
-> `specs/01-identity-access/clarifications.md` (rango Q-101…Q-199). **0 bloqueantes abiertas**; Q-119…Q-123 están
-> abiertas sin bloquear y la spec usa su recomendación como valor **provisional** (marcado donde aplica).
+> `specs/01-identity-access/clarifications.md` (rango Q-101…Q-199). **0 bloqueantes abiertas**; Q-119…Q-123 quedaron
+> **decididas por defecto** en el diseño con su recomendación (marcado donde aplica), **confirmables antes de
+> Approved**; Q-124 y Q-125 (nuevas, no bloqueantes) están abiertas. Diseño: `design.md` + ADR-0004 (Propuesto).
 > SPEC-01 y SPEC-02 se cierran juntas en H1 (Q-108).
 
 ## 1. Contexto y problema
@@ -79,15 +80,15 @@ memberships (Q-109). El rol se resuelve en SPEC-02. "Operador de plataforma" = q
 - **Puerto de invitaciones:** interfaz definida por SPEC-01 e implementada por SPEC-02 para consultar y aceptar invitaciones (Q-108).
 
 ## 6. Reglas de negocio
-- **RN-IDA-01** Las personas se autentican **solo** con Google (OIDC). No existen contraseñas propias ni registro público; el alta de personas es **solo por invitación** (Q-001, Q-012, Q-101 decidido). Cualquier login sin Google para desarrollo/CI: Q-122 (abierta; provisional: solo un proveedor OIDC falso en settings de test/local, imposible de activar en staging/producción).
+- **RN-IDA-01** Las personas se autentican **solo** con Google (OIDC). No existen contraseñas propias ni registro público; el alta de personas es **solo por invitación** (Q-001, Q-012, Q-101 decidido). Cualquier login sin Google para desarrollo/CI: Q-122 (decidida por defecto, confirmable: solo un proveedor OIDC falso en settings de test/local, imposible de activar en staging/producción).
 - **RN-IDA-02** El token de identidad de Google se acepta solo si: la firma valida contra las claves públicas vigentes de Google, `iss` es Google, `aud` es el client ID del Hub, no está vencido (tolerancia 60 s, Q-104), y `state` y `nonce` coinciden con los generados al iniciar ese login. Cualquier falla → rechazo `google_auth_failed`, sin crear usuario ni sesión. Se admite cualquier cuenta de Google, sin filtrar por `hd` (Q-105).
 - **RN-IDA-03** Si el claim `email_verified` no es verdadero, el login se rechaza con `email_not_verified`, sin crear usuario ni sesión.
 - **RN-IDA-04** El identificador estable de la persona es el `sub` de Google; el email es un atributo (cambios y colisiones: RN-IDA-21).
-- **RN-IDA-05** Un login se acepta solo si **(a)** existe un usuario activo con ese `sub`, o **(b)** no existe y hay al menos una invitación pendiente y vigente para el email verificado, consultada a través del puerto de invitaciones de SPEC-02 (Q-108). La coincidencia de email es **exacta tras recortar espacios y pasar a minúsculas**, sin normalizar puntos ni alias `+` (Q-107). La vigencia se evalúa **en el callback**, no al iniciar el login. En otro caso → `not_invited` y no se crea nada. En el caso (a) el login **no** acepta invitaciones pendientes (Q-121 abierta; provisional: la aceptación por un usuario existente es un flujo explícito de SPEC-02).
-- **RN-IDA-06** En el caso (b), la creación del usuario y la aceptación de **todas** las invitaciones vigentes para ese email ocurren de forma atómica: o quedan todas, o ninguna (cantidad: Q-120 abierta; provisional: todas las vigentes).
+- **RN-IDA-05** Un login se acepta solo si **(a)** existe un usuario activo con ese `sub`, o **(b)** no existe y hay al menos una invitación pendiente y vigente para el email verificado, consultada a través del puerto de invitaciones de SPEC-02 (Q-108). La coincidencia de email es **exacta tras recortar espacios y pasar a minúsculas**, sin normalizar puntos ni alias `+` (Q-107). La vigencia se evalúa **en el callback**, no al iniciar el login. En otro caso → `not_invited` y no se crea nada. En el caso (a) el login **no** acepta invitaciones pendientes (Q-121 decidida por defecto, confirmable: la aceptación por un usuario existente es un flujo explícito de SPEC-02; ver Q-124).
+- **RN-IDA-06** En el caso (b), la creación del usuario y la aceptación de **todas** las invitaciones vigentes para ese email ocurren de forma atómica: o quedan todas, o ninguna (cantidad: Q-120 decidida por defecto, confirmable: todas las vigentes).
 - **RN-IDA-07** Un usuario inactivo no puede iniciar sesión (`user_inactive`) ni refrescar (`session_revoked`). Al desactivarse, todas sus sesiones pasan a `revoked` y el acceso se corta **en la request siguiente**, aunque su JWT de acceso no haya vencido (Q-103, RN-IDA-20). Reactivar al usuario no revive sesiones.
 - **RN-IDA-08** El Hub emite su **propio** JWT de acceso; nunca usa ni reenvía el token de Google como credencial. El JWT se valida en cada request: firma, algoritmo dentro de una lista fija permitida (nunca `none`), `iss`, `aud`, y `exp`/`iat`/`nbf` con tolerancia de reloj de **60 s** (Q-104). Falla → `401` (`token_expired` si solo venció; `token_invalid` en cualquier otro caso).
-- **RN-IDA-09** El JWT de acceso solo transporta identidad (usuario y sesión) y metadatos de validez: **no** lleva roles, organización activa, membership ni permisos. La organización activa viaja por request en un header elegido en el selector y persistido en la sesión del servidor del BFF; la autorización la resuelve SPEC-02 en cada request desde Membership (C-01, `08 §8`, Q-112). Alcance de la selección con varias pestañas: Q-119 (abierta, dueña SPEC-02/ADR-0004).
+- **RN-IDA-09** El JWT de acceso solo transporta identidad (usuario y sesión) y metadatos de validez: **no** lleva roles, organización activa, membership ni permisos. La organización activa viaja por request en un header elegido en el selector y persistido en la sesión del servidor del BFF; la autorización la resuelve SPEC-02 en cada request desde Membership (C-01, `08 §8`, Q-112). Alcance de la selección con varias pestañas: Q-119 (decidida por defecto, confirmable, dueña SPEC-02/ADR-0004: cada pestaña manda su empresa en el header; la sesión del BFF guarda la última elegida solo como valor inicial).
 - **RN-IDA-10** El refresh token es de un solo uso y se rota en cada refresh; en BD solo se guarda su hash. Presentar uno ya usado revoca la sesión completa y se audita como posible robo (`refresh_reuse_detected`). Refreshes concurrentes legítimos de la misma sesión (varias pestañas) **no** cuentan como reuso: se evitan serializando el refresh en el BFF o con una ventana de gracia acotada (Q-103; mecanismo y parámetros en ADR-0004).
 - **RN-IDA-11** Duración (Q-104): JWT de acceso **15 min**; sesión con vencimiento por **inactividad de 7 días** y **vida máxima absoluta de 30 días** desde el login; el refresh nunca extiende la vida absoluta. Vencida, la persona vuelve a Google.
 - **RN-IDA-12** Ningún token (de Google, de acceso o de refresh) es legible por JavaScript del navegador: viajan en cookie `httpOnly`, `Secure`, `SameSite` gestionada por el BFF; el backend entrega tokens solo al BFF, nunca en un cuerpo de respuesta destinado al navegador (Q-013, Q-102 decidido, ADR-0004).
@@ -101,7 +102,7 @@ memberships (Q-109). El rol se resuelve en SPEC-02. "Operador de plataforma" = q
 - **RN-IDA-20** Cada request autenticada verifica, además del JWT, que la sesión a la que pertenece siga `active` (no revocada ni vencida) y que su usuario siga activo. Una revocación o desactivación confirmada en BD rechaza la request siguiente con `401 session_revoked`; ninguna caché puede demorar ese efecto (Q-103 decidido).
 - **RN-IDA-21** Cambios de identidad (Q-110): con el mismo `sub`, si Google trae otro email verificado y ningún otro usuario lo tiene, se actualiza en ese login y se audita; si colisiona con otro usuario, el email no se cambia, el login sigue con el email anterior y se audita la colisión. Un `sub` nuevo cuyo email ya pertenece a otro usuario → `identity_conflict` + alerta operativa, sin crear usuario ni sesión (aunque haya invitación). Nombre y avatar se sincronizan desde Google en cada login.
 - **RN-IDA-22** Una persona con usuario activo y **sin memberships activas** puede iniciar sesión; `GET /api/me` devuelve memberships vacías y la UI muestra "no pertenecés a ninguna empresa" (Q-109). Quitar una membership no revoca sesiones; desactivar al usuario sí.
-- **RN-IDA-23** No hay rol global de plataforma en la API del MVP. Crear el primer owner (organización + invitación owner para un email) y desactivar/reactivar usuarios se hace **solo** por comandos de gestión en el servidor, cada ejecución auditada; no existe endpoint HTTP para ninguna de las dos cosas y el admin de Django no se expone en producción (Q-106, Q-116). Uso del comando para cada organización nueva y su comportamiento al repetirse: Q-123 (abierta; dueña SPEC-02).
+- **RN-IDA-23** No hay rol global de plataforma en la API del MVP. Crear el primer owner (organización + invitación owner para un email) y desactivar/reactivar usuarios se hace **solo** por comandos de gestión en el servidor, cada ejecución auditada; no existe endpoint HTTP para ninguna de las dos cosas y el admin de Django no se expone en producción (Q-106, Q-116). Uso del comando para cada organización nueva y su comportamiento al repetirse: Q-123 (decidida por defecto, confirmable, dueña SPEC-02: crea toda organización nueva, idempotente, auditado).
 - **RN-IDA-24** "Seguridad" (Q-113): la persona ve sus sesiones `active` con navegador/SO resumido, fecha de inicio y último uso, y puede cerrar una o "cerrar las demás" (todas salvo la actual). No hay límite de sesiones concurrentes. No se guarda la IP completa del cliente.
 - **RN-IDA-25** Retención (Q-118): los usuarios se desactivan de forma lógica (no se borran); las sesiones `revoked`/`expired` y sus refresh tokens se purgan a los **90 días**; los intentos de login se descartan al vencer o usarse.
 
@@ -156,7 +157,9 @@ Terminales: `revoked`, `expired` (purgados a los 90 días, RN-IDA-25). Cualquier
 ## 11. Contratos
 Rutas tentativas; nombres finales, quién termina el callback (BFF o Django), el flujo exacto y el nombre del header de
 organización se fijan en `design.md` y ADR-0004. Los errores del callback llegan al navegador como redirección a
-"Ingresar" con un código de error, nunca con tokens.
+"Ingresar" con un código de error, nunca con tokens. **Contratos finales: `design.md §6`** (el BFF termina el
+navegador y Django termina OIDC; los endpoints que emiten tokens son `/api/auth/bff/*`, solo-BFF; header
+`X-Organization-Id`, a confirmar con SPEC-02).
 
 | Operación | Ruta tentativa | Respuesta | Errores |
 |---|---|---|---|
@@ -168,7 +171,7 @@ organización se fijan en `design.md` y ADR-0004. Los errores del callback llega
 | Sesiones | `GET /api/auth/sessions` · `POST /api/auth/sessions/{id}/revoke` · `POST /api/auth/sessions/revoke-others` | lista propia de activas · `204` · `204` | `not_found` (sesión ajena = inexistente), `unauthenticated` |
 
 Interfaces internas:
-- **Puerto de invitaciones** (definido por SPEC-01, implementado por SPEC-02, Q-108): `find_valid_invitations(email_normalizado)` → invitaciones vigentes (provisional plural por Q-120) y `accept_invitations(invitations, user)`, ejecutado dentro de la misma transacción que crea el usuario (RN-IDA-06). Hasta que exista SPEC-02, un stub sin invitaciones (todo login nuevo → `not_invited`).
+- **Puerto de invitaciones** (definido por SPEC-01, implementado por SPEC-02, Q-108): `find_valid_invitations(email_normalizado)` → invitaciones vigentes (plural por Q-120, decidida por defecto) y `accept_invitations(invitations, user)`, ejecutado dentro de la misma transacción que crea el usuario (RN-IDA-06). Hasta que exista SPEC-02, un stub sin invitaciones (todo login nuevo → `not_invited`).
 - **Selector de memberships** de SPEC-02 para `/api/me` (Q-114); stub vacío hasta que exista.
 - **Puerto de auditoría** de SPEC-10.
 - **Comandos de gestión** (sin HTTP): bootstrap de organización + invitación owner (usa servicios de SPEC-02 para crear la organización y la invitación; Q-106, Q-123); desactivar/reactivar usuario (Q-116).
@@ -181,8 +184,8 @@ Interfaces internas:
 - Persona invitada que entra con otra cuenta de Google (otro email): `not_invited` (Q-107).
 - Invitación vencida o revocada entre el inicio del login y el callback: `not_invited` (vigencia evaluada en el callback).
 - Dos callbacks simultáneos de la misma persona invitada: un solo usuario (restricción única de `google_sub`/email); el que pierde la carrera no responde `500`: relee, encuentra al usuario y continúa por el caso (a).
-- Varias invitaciones vigentes para el mismo email en el primer login: se aceptan todas o ninguna (Q-120 provisional).
-- Usuario existente con invitación pendiente a otra empresa: el login no la acepta (Q-121 provisional; la acepta SPEC-02).
+- Varias invitaciones vigentes para el mismo email en el primer login: se aceptan todas o ninguna (Q-120 decidida por defecto).
+- Usuario existente con invitación pendiente a otra empresa: el login no la acepta (Q-121 decidida por defecto; la acepta SPEC-02; ver Q-124).
 - Usuario desactivado con JWT de acceso vigente: `401 session_revoked` en la request siguiente (RN-IDA-20).
 - Logout con el JWT de acceso ya vencido: igual revoca la sesión de la cookie (RN-IDA-14).
 - Revocación de la sesión actual desde "Seguridad": equivale a logout de este navegador.
@@ -192,7 +195,7 @@ Interfaces internas:
 - `return_path` absoluto, con esquema, `//host` o hacia otro dominio: se ignora y se redirige a "Inicio".
 - Persona con login válido pero sin memberships activas: entra y ve "no pertenecés a ninguna empresa" (Q-109).
 - Rol cambiado o membership quitada a mitad de sesión: no toca la sesión ni el JWT; SPEC-02 lo aplica en la request siguiente.
-- Varias pestañas con distintas empresas activas: Q-119 (abierta, dueña SPEC-02/ADR-0004).
+- Varias pestañas con distintas empresas activas: Q-119 (decidida por defecto b): cada pestaña manda la empresa que muestra; ADR-0004 §7).
 - Sesión que llega a su vida absoluta en medio de una operación (p. ej. un cobro): la request recibe `401`; tras volver a ingresar, el reintento queda cubierto por la idempotencia de SPEC-06 (C-03).
 - Varias cajas detrás de la misma IP pública: comparten el cupo de 10/min de inicio y callback (consecuencia directa de Q-111; con los pilotos previstos no debería alcanzarse, se vigila con la métrica de `429`).
 - Nombre o avatar de Google vacíos o demasiado largos: se guardan vacíos/recortados sin rechazar el login (límites en `design.md`).
@@ -256,7 +259,7 @@ Interfaces internas:
 - Supuesto: Google es suficiente como único IdP para los pilotos (Q-001, Q-101 decidido).
 - Supuesto: SPEC-02 implementa el puerto de invitaciones y el selector de memberships antes de cerrar H1 (Q-108); hasta entonces hay stubs.
 - **Propuesta original descartada:** §6.1 de la propuesta entregaba el JWT al frontend para mandarlo en cada request (expuesto a JS) y §8 exigía "JWT en todos los endpoints". Se reemplaza por cookie `httpOnly` gestionada por el BFF de Next.js, con tokens nunca accesibles desde JavaScript (Q-102 decidido 2026-10-31), y el ERP usa API keys (Q-011).
-- **Para el architect (ADR-0004):**
+- **Para el architect (ADR-0004):** *(resueltos el 2026-10-31 en `context/decisions/ADR-0004-sesion-y-tokens-en-navegador.md`, Propuesto, puntos 1–15, y en `design.md`)*
   1. Quién termina el callback OIDC (BFF o Django) y el flujo exacto (authorization code; PKCE además del client secret).
   2. Diseño de cookies: qué viaja (tokens o un identificador opaco de sesión), nombres/prefijo `__Host-`, `SameSite` (el retorno desde Google exige que la cookie del intento sobreviva a la navegación cruzada), `Path`, `Max-Age` alineado a la vida absoluta de 30 días, límites de tamaño.
   3. Concurrencia del refresh (Q-103): serialización en el BFF (con varias instancias de Next.js necesita un candado compartido) **o** ventana de gracia (duración y qué se devuelve dentro de ella), cumpliendo AC-IDA-28 sin debilitar AC-IDA-15.
@@ -272,11 +275,13 @@ Interfaces internas:
   13. Nuevo login en un navegador que ya tenía sesión: si la anterior se revoca (motivo "reemplazada") o queda hasta vencer.
   14. Entornos: client ID de Google separado por entorno, feature flag del login real y, según Q-122, el proveedor OIDC falso solo para test/local con chequeo de arranque.
   15. Cómo llegan los códigos de error del callback a la pantalla "Ingresar" (redirección con código, sin filtrar detalles).
-- Pendiente de otros documentos: ajustar `07 §3.2` (punto 8) y `ROADMAP.md` (01 y 02 se cierran juntas en H1, Q-108).
+- Pendiente de otros documentos: ajustar `07 §3.2` (punto 8; texto propuesto en `design.md §13`) y `ROADMAP.md` (01 y 02 se cierran juntas en H1, Q-108).
 
 ## 16. Preguntas abiertas
 Ver `specs/01-identity-access/clarifications.md`. **Bloqueantes abiertas: ninguna.** Decididas el 2026-10-31: Q-101…Q-118.
-Abiertas sin bloquear (valor provisional = recomendación, marcado en las RN): Q-119, Q-120, Q-121, Q-122, Q-123.
+Decididas por defecto en el diseño (confirmables antes de Approved): Q-119, Q-120, Q-121, Q-122, Q-123.
+Abiertas sin bloquear (nuevas, diseño): Q-124 (owner de organización nueva que ya tiene usuario), Q-125 (datos de la
+persona en el evento de login rechazado).
 Base transversal: Q-001, Q-011, Q-012, Q-013 (`specs/00-platform/clarifications.md`).
 
 ## 17. Trazabilidad
@@ -291,8 +296,9 @@ Se completa al generar `tasks.md`.
 |---|---|---|---|
 | 0.1.0 | 2026-10-31 | Borrador inicial | Primera redacción de SPEC-01 (zona roja auth); toma Q-001/Q-011/Q-012/Q-013 y corrige el manejo de JWT de la propuesta |
 | 0.2.0 | 2026-10-31 | Estado → Clarified. Se registran las decisiones del usuario sobre Q-101…Q-118; RN-IDA-01/02/05/06/07/08/09/10/11/12/14/15/17/18 con los valores decididos (duraciones 15 min / 7 días / 30 días / 60 s; rate limit 10/min por IP y 30/min por sesión); nuevas RN-IDA-20…25, RF-IDA-10 y AC-IDA-26…38; error `google_unavailable`; orden de evaluación del callback; matriz de permisos completa (anónimo, sin membership, operador de plataforma); casos límite revisados; Q-119…Q-123 agregadas como no bloqueantes; lista de puntos para ADR-0004 | Paso 2 SDD (clarifier); decisiones del usuario del 2026-10-31 y coordinación acordada con SPEC-02 (sin rol/organización en el JWT; organización activa por header; `/api/me` con selector de SPEC-02) |
+| 0.3.0 | 2026-10-31 | Estado → Designed. Se agregan `design.md` y ADR-0004 (Propuesto) que resuelve los 15 puntos de §15. Q-119…Q-123 pasan de "abiertas, provisional" a "decididas por defecto, confirmables antes de Approved" con **el mismo valor** que ya usaban las RN (sin cambio de reglas); notas de estado en RN-IDA-01/05/06/09/23, §11 (contratos finales en `design.md §6`), §12, §15, §16. Nuevas Q-124 y Q-125 (no bloqueantes, abiertas) | Paso 3 SDD (architect) |
 
 ---
-**Hecho:** spec Clarified 0.2.0 con 25 RN, 10 RF, 7 RNF, 38 AC; 0 bloqueantes; Q-119…Q-123 abiertas no bloqueantes.
-**Pendiente:** respuesta del dueño a Q-119…Q-123; ADR-0004 (15 puntos de §15); ajustar `07 §3.2` y `ROADMAP.md`.
-**Siguiente rol:** architect (`/design 01-identity-access`), coordinado con SPEC-02.
+**Hecho:** spec Designed 0.3.0 (25 RN, 10 RF, 7 RNF, 38 AC sin cambios de reglas); `design.md` con cobertura RN/RF/RNF completa; ADR-0004 Propuesto.
+**Pendiente:** confirmación del dueño de Q-119…Q-123 y respuesta a Q-124/Q-125; coordinación con SPEC-02 (`X-Organization-Id`, `MembershipSummary`, bootstrap) y SPEC-00 (modelos globales en el test C-01, `AUTH_USER_MODEL` desde el inicio); aplicar `07 §3.2` y `ROADMAP.md`.
+**Siguiente rol:** dueño — gate **Approved** (no lo pasa ningún agente); luego task-planner (`/tasks 01-identity-access`).
