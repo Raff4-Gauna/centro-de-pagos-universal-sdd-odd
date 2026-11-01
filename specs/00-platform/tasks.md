@@ -56,7 +56,7 @@ Reglas: rebanada vertical · ≤ ~300 líneas de diff · mergeable sola · cita 
 | T-PLT-09 | `prod` endurecido + lecturas de entorno + feature flags | AC-PLT-04, AC-PLT-06 (parcial) | Backend | `config/settings/prod.py`, `apps/common/feature_flags.py` | T-PLT-08 | backend-dev | L | No | ☐ |
 | T-PLT-10 | mypy + job `typecheck` (backend) | AC-PLT-21 (backend) | CI/Backend | `backend/pyproject.toml`, `tests/typing/` | T-PLT-08 | backend-dev | M | Sí | ☐ |
 | T-PLT-11 | `/healthz` + `/readyz` + servicios en CI | AC-PLT-02 | Backend/CI | `apps/common/health/` | T-PLT-08 | backend-dev | M | Sí | ◐ en revisión (falta reviewer/PR) |
-| T-PLT-12 | Logger structlog JSON + `X-Request-ID` | AC-PLT-09 | Backend | `apps/common/logging/`, `middleware/request_id.py` | T-PLT-08 | backend-dev | L | No (reviewer recomendado) | ☐ |
+| T-PLT-12 | Logger structlog JSON + `X-Request-ID` | AC-PLT-09 | Backend | `apps/common/logging/`, `middleware/request_id.py` | T-PLT-08 | backend-dev | L | No (reviewer recomendado) | ◐ en revisión (falta reviewer/PR) |
 | T-PLT-13 | Log de acceso (plantilla de ruta, `duration_ms`) | AC-PLT-07 | Backend | `middleware/access_log.py` | T-PLT-12 | backend-dev | M | No (reviewer recomendado) | ☐ |
 | T-PLT-14 | Redacción de secretos en logs | AC-PLT-08 | Backend | `apps/common/domain/redaction.py` | T-PLT-13 | backend-dev | M | No (reviewer recomendado) | ☐ |
 | T-PLT-15 | Errores `problem+json` | AC-PLT-34 | Backend/API | `apps/common/api/{problems,exceptions}.py` | T-PLT-12 | backend-dev | L | Sí | ☐ |
@@ -349,11 +349,34 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   `backend/tests/api/{__init__,urls_test}.py`.
 - **Fuera de esta tarea:** log de acceso (T-PLT-13), redacción (T-PLT-14), Celery (T-PLT-17), gunicorn (T-PLT-25).
 - **Pendiente de la revisión de T-PLT-08:** la redacción de logs/página de debug debe cubrir
-  `CACHES['default']['LOCATION']` con contraseña de Redis (N-9).
+  `CACHES['default']['LOCATION']` con contraseña de Redis (N-9). **Resuelto en esta tarea** para lo que vuelca
+  settings: `DEFAULT_EXCEPTION_REPORTER_FILTER` propio (`apps/common/logging/report_filter.py`) oculta además
+  `LOCATION`, `DSN` y toda clave que termine en `URL` en settings y en `request.META` (página de debug y reporte de
+  error), y el logger `django` pierde `mail_admins` (su mail embebe ese reporte). Tests:
+  `test_C_06_error_report_never_shows_the_redis_password`, `test_C_06_error_log_never_carries_the_settings`.
+  **Queda para T-PLT-14:** la redacción por clave de los *eventos* de log (§3.2.3) no incluye `location` ni enmascara
+  URLs con `user:password`; T-PLT-14 debe cubrirlo (y revisar `django.db.backends` en `DEBUG`, que loguea SQL con
+  parámetros).
+- **Normalización:** el `X-Request-ID` válido se devuelve y se loguea **en minúsculas**, igual que el BFF
+  (T-PLT-33/34): un UUIDv4 en mayúsculas se acepta y sale en minúsculas.
 - **Plan de pruebas:** `test_AC_PLT_09_valid_uuid4_is_kept_in_log_and_response`,
   `test_AC_PLT_09_non_uuid_is_replaced_by_new_uuid4`, `test_AC_PLT_09_trailing_newline_is_replaced`,
   `test_AC_PLT_09_oversized_header_is_replaced`; en `backend/tests/logging/test_RN_PLT_05_json_renderer.py`:
   `test_RN_PLT_05_one_json_event_per_line_on_stdout`, `test_RN_PLT_05_stdlib_logger_goes_through_same_renderer`.
+- **Notas de implementación:** `LOGGING_CONFIG = "apps.common.logging.setup.configure_logging"` (aplica el
+  `dictConfig` y configura structlog en un solo lugar, reutilizable por gunicorn/Celery). Único handler
+  `StdoutHandler` en root, que escribe en el `sys.stdout` *actual* en cada emit (los tests lo capturan con `capsys`).
+  Los `extra=` de loggers stdlib se vuelcan como campos solo si son escalares JSON (Django adjunta el `request`, cuyo
+  `repr` trae el path crudo). Los `warnings` de Python no se redirigen al log (sin `captureWarnings`). Tests
+  agregados a los del plan: header ausente, header en respuesta 500, contexto limpio tras la request, middleware
+  primero, parser puro, `organization_id` solo ligado, ningún handler a archivo/`mail_admins`, `LOG_LEVEL` filtra y
+  se valida.
+- **Desvío de alcance (registrado):** además de los archivos listados se tocaron `config/settings/{dev,test,prod}.py`
+  (dos líneas cada uno: el import y `LOGGING = logging_config(_env.LOG_LEVEL)`; el nivel validado solo existe donde
+  se carga el entorno y `base.py` no lo lee) y se creó `apps/common/logging/report_filter.py` (N-9; separado de
+  `setup.py` para no importar `django.views.debug` en cada proceso que configura logging).
+- **Para T-PLT-13:** `django.server` conserva el handler de texto de `DEFAULT_LOGGING` (solo `runserver`) y
+  `django.request` loguea `"Internal Server Error: <path crudo>"` por el renderer JSON; T-PLT-13 los silencia.
 
 ### T-PLT-13 — Log de acceso
 - **AC:** AC-PLT-07. RN-PLT-06 (plantilla de ruta), RNF-PLT-03. **Zona roja:** no (reviewer recomendado).

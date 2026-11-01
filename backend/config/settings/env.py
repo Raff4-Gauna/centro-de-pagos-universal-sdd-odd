@@ -11,7 +11,7 @@ credentials are ``SecretStr``/``Secret[...]``, masked in ``repr``, ``str`` and `
 
 from __future__ import annotations
 
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 from urllib.parse import unquote
 
 from django.core.exceptions import ImproperlyConfigured
@@ -101,6 +101,8 @@ class PlatformEnv(BaseSettings):
     DATABASE_URL: Secret[DjangoPostgresDsn]
     REDIS_URL: Secret[RedisDsn]
     APP_VERSION: NonEmptyStr = "unknown"
+    # Root level of the JSON logs (design.md §3.2.3); exactly one of these, upper case.
+    LOG_LEVEL: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
 
     @classmethod
     def settings_customise_sources(
