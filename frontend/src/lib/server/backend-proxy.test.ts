@@ -149,9 +149,10 @@ describe("BFF pass-through (AC-PLT-10, RN-PLT-16, RF-PLT-06)", () => {
     expect((calls[0]!.init as RequestInit & { duplex?: string }).duplex).toBe("half");
     expect(calls[0]!.init.cache).toBe("no-store");
 
-    // A content-length that is not plain digits is dropped, and never sent without a body.
+    // A body whose content-length is missing or not plain digits never reaches the backend
+    // (Django would read it as empty): 411 bff.length_required, covered in the errors suite.
     for (const contentLength of ["12, 12", "-1", "1e3", "0x12", "abc"]) {
-      await proxyToBackend(
+      const response = await proxyToBackend(
         new Request(`${BFF}/api/charges`, {
           method: "POST",
           body,
@@ -159,15 +160,17 @@ describe("BFF pass-through (AC-PLT-10, RN-PLT-16, RF-PLT-06)", () => {
         }),
         ["charges"],
       );
+      expect(response.status, contentLength).toBe(411);
     }
+    expect(calls).toHaveLength(1);
+    // Without a body, content-length is never sent.
     await proxyToBackend(
       new Request(`${BFF}/api/charges`, { headers: { "content-length": "18" } }),
       ["charges"],
     );
-    for (const call of calls.slice(1)) {
-      expect(forwardedHeaders(call)).not.toHaveProperty("content-length");
-    }
-    expect(calls.at(-1)!.init.body).toBeUndefined();
+    expect(calls).toHaveLength(2);
+    expect(forwardedHeaders(calls[1]!)).not.toHaveProperty("content-length");
+    expect(calls[1]!.init.body).toBeUndefined();
   });
 
   it("test_RN_PLT_16_bff_strips_set_cookie", async () => {
@@ -208,16 +211,27 @@ describe("BFF pass-through (AC-PLT-10, RN-PLT-16, RF-PLT-06)", () => {
   });
 
   it("test_RN_PLT_16_bff_preserves_query_string", async () => {
+    // What is preserved is the query's meaning (same pairs, same order, repeated keys), not its
+    // bytes: in the real server Next re-serializes the query before the handler (`a%20b` -> `a+b`,
+    // `%zz` -> `%25zz`), and both spellings decode to the same values in Django.
     const { calls } = mockBackend();
+    const expected = [
+      ["status", "paid"],
+      ["page", "2"],
+      ["q", "a b"],
+      ["q", "c"],
+    ];
 
-    await proxyToBackend(new Request(`${BFF}/api/charges/list?status=paid&page=2&q=a%20b&q=c`), [
-      "charges",
-      "list",
-    ]);
+    for (const query of ["status=paid&page=2&q=a%20b&q=c", "status=paid&page=2&q=a+b&q=c"]) {
+      await proxyToBackend(new Request(`${BFF}/api/charges/list?${query}`), ["charges", "list"]);
+    }
 
-    expect(calls[0]!.url.href).toBe(
-      "http://backend:8000/api/charges/list?status=paid&page=2&q=a%20b&q=c",
-    );
+    for (const call of calls) {
+      expect(call.url.pathname).toBe("/api/charges/list");
+      expect([...call.url.searchParams]).toEqual(expected);
+    }
+    // The BFF itself copies the search string as it gets it.
+    expect(calls[0]!.url.search).toBe("?status=paid&page=2&q=a%20b&q=c");
   });
 
   it("test_RF_PLT_06_bff_logs_one_json_line_without_path", async () => {

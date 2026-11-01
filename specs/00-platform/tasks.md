@@ -1199,6 +1199,15 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   `test_RN_PLT_16_bff_encodes_each_segment_and_keeps_backend_origin`, `test_RN_PLT_16_bff_keeps_trailing_slash`,
   `test_RN_PLT_16_bff_forwards_content_length_and_body_intact` (backend HTTP real en `127.0.0.1`),
   `test_RF_PLT_06_bff_aborts_upstream_when_browser_disconnects`.
+- **Ajustes tras revisión de T-PLT-34** (reviewer: aprobado con observaciones): `%` literal aceptado (solo el path
+  crudo mal codificado es `bad_path`), body chunked o con `content-length` no numérico → `411 bff.length_required`
+  (sin `content-length` ni `transfer-encoding` no hay body: un DELETE sin cuerpo pasa), `reason`
+  del 502 solo en el log (`client_abort` como `info`), surrogate suelto → `400`, comentario del test de query
+  (se conserva la semántica, no los bytes). `spec.sdd.md` → 1.0.7 (historial; era 1.0.2, renumerada al mergear después de la línea backend). Tests nuevos:
+  `test_RN_PLT_16_bff_rejects_malformed_encoding_in_the_raw_path`,
+  `test_RN_PLT_16_bff_body_without_content_length_returns_411_problem`. Por `C-14` (el archivo de errores llegaba a
+  399 líneas) los tests se parten por AC: `backend-proxy.paths.test.ts` (RN-PLT-16, rutas),
+  `backend-proxy.errors.test.ts` (body/411 y RF-PLT-06) y `backend-proxy.test-helpers.ts` (setup compartido).
 
 ### T-PLT-35 — Cliente tipado + tipos desde OpenAPI + diff en CI
 - **AC:** AC-PLT-23 (frontend). RN-PLT-15, RF-PLT-15, ADR-0005. **Zona roja:** sí (`ci.yml`, consumidor del contrato).

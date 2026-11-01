@@ -1,7 +1,7 @@
 ---
 spec: SPEC-00
 estado: Aprobado         # aprobado por el usuario junto con la spec (2026-10-31)
-actualizado: 2026-11-02   # §3.2.3 (T-PLT-14, spec 1.0.3); §3.5, §3.6, §3.7.2 (T-PLT-04, spec 1.0.4 y 1.0.5); ADR-0005 Aceptado (spec 1.0.6); §3.3.3 (T-PLT-34, Q-061)
+actualizado: 2026-11-02   # §3.2.3 (T-PLT-14, spec 1.0.3); §3.5, §3.6, §3.7.2 (T-PLT-04, spec 1.0.4 y 1.0.5); ADR-0005 Aceptado (spec 1.0.6); §3.3.3 (T-PLT-34, Q-061, spec 1.0.7)
 ---
 # Diseño — Módulo de Plataforma (fundaciones)
 
@@ -331,6 +331,11 @@ en `modules/` (cuenta para cobertura). Sin protección de rutas ni datos.
   navegador corta). `BACKEND_INTERNAL_URL` ausente o inválida → `502 bff.upstream_unavailable` sin el valor. Los
   errores del BFF son `problem+json` (§6.2, sin `detail` en 5xx) con `X-Request-ID` y `cache-control: no-store`, y
   también loguean su línea (con `code`); `duration_ms` mide hasta tener los headers de la respuesta.
+  **(ajustado tras revisión de T-PLT-34)**: un `%` literal (`a%25b`, que Next entrega como `a%b`) se acepta
+  (solo el path crudo mal codificado es `bad_path`; un surrogate suelto también); body con `transfer-encoding` o
+  `content-length` no numérico → `411 bff.length_required` sin llamar al backend (sin ninguno de los dos no hay
+  body, RFC 9112 §6.3: Next entrega un stream vacío hasta en un DELETE sin cuerpo); el log del 502 lleva
+  `reason` (`config`/`network`/`client_abort`, nunca en la respuesta) y el corte del navegador se loguea como `info`.
 - `app/api/health/route.ts` → `{"status":"ok"}` sin llamar al backend.
 - `lib/server/env.ts`: `BACKEND_INTERNAL_URL` leída en runtime, validada. **Ninguna** variable `NEXT_PUBLIC_` en 00.
   `lib/server/*` con `import "server-only"`.
@@ -573,7 +578,7 @@ sintéticas crean tablas únicamente en la BD descartable `hub_synthetic` de sus
 
 | `code` → HTTP | |
 |---|---|
-| `validation_error` 400 (con `errors[]`) · `parse_error` 400 · `not_authenticated`/`authentication_failed` 401 (desde 01) · `permission_denied` 403 · `not_found` 404 · `method_not_allowed` 405 · `not_acceptable` 406 · `unsupported_media_type` 415 · `throttled` 429 (+`Retry-After`) · `internal_error` 500 (sin `detail`) · `bff.bad_path` 400 · `bff.upstream_unavailable` 502 · `bff.upstream_timeout` 504 | Convención: `snake_case`, prefijo de módulo para errores de negocio (`charges.duplicate_reference`); cambiar o borrar un `code` publicado es incompatible (ADR-0005) |
+| `validation_error` 400 (con `errors[]`) · `parse_error` 400 · `not_authenticated`/`authentication_failed` 401 (desde 01) · `permission_denied` 403 · `not_found` 404 · `method_not_allowed` 405 · `not_acceptable` 406 · `unsupported_media_type` 415 · `throttled` 429 (+`Retry-After`) · `internal_error` 500 (sin `detail`) · `bff.bad_path` 400 · `bff.length_required` 411 · `bff.upstream_unavailable` 502 · `bff.upstream_timeout` 504 | Convención: `snake_case`, prefijo de módulo para errores de negocio (`charges.duplicate_reference`); cambiar o borrar un `code` publicado es incompatible (ADR-0005) |
 
 ### 6.3 Contratos operativos (fuera del OpenAPI)
 Nombres de jobs = checks requeridos: `lint`, `file-size`, `secrets`, `deps-audit`, `typecheck`, `architecture`,
