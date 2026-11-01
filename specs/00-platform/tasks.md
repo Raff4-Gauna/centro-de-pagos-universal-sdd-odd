@@ -151,7 +151,7 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   `scripts/tests/test_AC_PLT_13_check_file_size.py`, `scripts/tests/test_glob_paths.py`, `infra/scripts/README.md`
   (bitácora vacía, `08 §5`).
 - **Cambios:** el script recorre `git ls-files -z`, cuenta líneas físicas, falla con 401+ nombrando cada archivo;
-  exclusiones explícitas en el script: `**/migrations/**`, `**/fixtures/**`, `frontend/src/types/**`,
+  exclusiones explícitas en el script: `backend/**/migrations/**` (acotada tras la revisión), `**/fixtures/**`, `frontend/src/types/**`,
   `next-env.d.ts`, `context/legacy-source/**` (Q-055), cada una comentada. Paths no ASCII (`Programación-2026`).
   Aplicar `git add --renormalize .`; si produce diff en archivos existentes, va en un commit separado dentro del PR.
 - **Fuera de esta tarea:** hook de pre-commit (T-PLT-04), job de CI (T-PLT-03), carpetas de `backend/`/`frontend/`
