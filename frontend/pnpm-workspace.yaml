@@ -1,0 +1,7 @@
+# pnpm settings (pnpm >= 11 no longer reads the "pnpm" field of package.json).
+# Build-script policy: denying is the safe default. pnpm fails on any dependency build script that has
+# no explicit decision here (ERR_PNPM_IGNORED_BUILDS), so every future one must be decided on purpose.
+allowBuilds:
+  # Denied: its postinstall only re-checks/downloads the native binding, which pnpm already installs
+  # as an optional dependency (@unrs/resolver-binding-*).
+  unrs-resolver: false

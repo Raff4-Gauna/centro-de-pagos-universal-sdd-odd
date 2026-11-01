@@ -71,7 +71,7 @@ Reglas: rebanada vertical · ≤ ~300 líneas de diff · mergeable sola · cita 
 | T-PLT-24 | Migraciones: reversibilidad + ida y vuelta | AC-PLT-17 | Migraciones/CI | `check_migrations_roundtrip.py` | T-PLT-23 | backend-dev | L | Sí | ☐ |
 | T-PLT-25 | Imagen Docker del backend | AC-PLT-25 (backend) | Infra | `backend/Dockerfile`, `config/gunicorn.conf.py` | T-PLT-12 | backend-dev | M | Sí | ☐ |
 | T-PLT-26 | Compose de desarrollo (db, redis, backend, worker, beat) | AC-PLT-01 (parcial), AC-PLT-02 (manual) | Infra | `infra/docker-compose.yml` | T-PLT-11, T-PLT-17, T-PLT-25 | backend-dev | L | Sí | ☐ |
-| T-PLT-27 | Frontend: proyecto Next + toolchain + CI frontend | AC-PLT-21 (frontend) | Frontend/CI | `frontend/package.json`, `tsconfig.json`, … | T-PLT-03 | frontend-dev | L | Sí | ☐ |
+| T-PLT-27 | Frontend: proyecto Next + toolchain + CI frontend | AC-PLT-21 (frontend) | Frontend/CI | `frontend/package.json`, `tsconfig.json`, … | T-PLT-03 | frontend-dev | L | Sí | ◐ en revisión (falta reviewer/PR) |
 | T-PLT-28 | Auditoría de dependencias + Dependabot | AC-PLT-26 | CI | `scripts/audit_deps.py`, `.github/dependabot.yml` | T-PLT-27 | backend-dev | L | Sí | ☐ |
 | T-PLT-29 | Pre-commit de eslint/prettier | — (RF-PLT-12) | Infra | `scripts/precommit_frontend.py` | T-PLT-04, T-PLT-27 | frontend-dev | M | Sí | ☐ |
 | T-PLT-30 | Base visual: tokens, tema, estados de carga | AC-PLT-28 (parcial), AC-PLT-22 (FE) | UI | `src/lib/{design-tokens,theme,query-client}.ts`, `src/components/*` | T-PLT-21, T-PLT-27 | frontend-dev | L | Sí | ☐ |
@@ -1089,6 +1089,8 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
 - **AC:** AC-PLT-21 (frontend). RN-PLT-11, RN-PLT-14 (pnpm), Q-059 (MUI 9.5.0). **Zona roja:** sí.
 - **Archivos:** `frontend/package.json` (versiones exactas de §8 incluidas MUI 9.5.0 y su ecosistema; `packageManager`
   pnpm 12.16.1 con hash; scripts `dev`, `build`, `lint`, `format:check`, `typecheck`, `test`), `frontend/pnpm-lock.yaml`,
+  `frontend/pnpm-workspace.yaml` (sumado: pnpm ≥11 lee la política de builds desde ahí; aprobado por el orquestador;
+  `allowBuilds: { unrs-resolver: false }`),
   `frontend/.nvmrc` (24.22.2), `frontend/tsconfig.json` (`strict: true`), `frontend/eslint.config.mjs`,
   `frontend/.prettierrc.json`, `frontend/vitest.config.mts`, `frontend/vitest.setup.ts`, `frontend/next.config.ts`
   (§3.3.3), `frontend/next-env.d.ts`, `frontend/src/app/layout.tsx` (mínimo), `frontend/src/app/api/health/route.ts`,
@@ -1131,6 +1133,8 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   ErrorNotice}.tsx`, `frontend/src/components/{PageSkeleton,EmptyState,ErrorNotice}.test.tsx`,
   `frontend/src/lib/{theme,query-client}.test.ts`, `scripts/coverage_thresholds.toml` (frontend 70 % en `lib/`,
   `hooks/`, `modules/`), `.github/workflows/ci.yml` (el reporte de vitest se sube con los demás y lo lee `coverage`).
+  Importar `AppRouterCacheProvider` desde `@mui/material-nextjs/v16-appRouter` (el paquete 9.5.0 exporta subpaths
+  explícitos, no `./*`; corrige design §3.3.1).
   La entrada del frontend entra acá y no en T-PLT-27 porque antes no hay código en `lib/` que medir.
 - **Plan de pruebas:** `test_AC_PLT_28_error_notice_shows_retry_and_calls_on_retry`,
   `test_AC_PLT_28_empty_state_renders_title_and_text`, `test_RF_PLT_15_page_skeleton_variants`,
@@ -1191,7 +1195,8 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   `frontend/scripts/check-client-bundle.test.ts`, `frontend/vitest.config.mts` (incluye `scripts/`),
   `infra/docker-compose.yml` (servicio `frontend`, volúmenes `frontend_node_modules` y `pnpm_store`,
   `WATCHPACK_POLLING`), `.github/dependabot.yml` (`docker` `/frontend`), `scripts/tests/test_AC_PLT_25_dockerfiles.py`,
-  `scripts/tests/test_RF_PLT_02_compose_dev.py`.
+  `scripts/tests/test_RF_PLT_02_compose_dev.py`. Nota: pnpm 12 usa `pnpm_config_store_dir` (ignora
+  `npm_config_store_dir`); sin eso crea `.pnpm-store/` en el bind mount.
 - **Plan de pruebas:** `test_AC_PLT_29_bundle_with_sentinel_fails`, `test_AC_PLT_29_bundle_with_non_public_var_name_fails`,
   `test_AC_PLT_29_clean_bundle_passes`, `test_AC_PLT_25_frontend_frozen_lockfile_and_non_root`,
   `test_RF_PLT_02_frontend_depends_on_healthy_backend`.
