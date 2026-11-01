@@ -236,6 +236,24 @@ jobs:
       - name: pytest -m gitleaks (AC-PLT-19)
         run: pytest -c scripts/pytest.ini scripts/tests -m gitleaks
 
+  # Step 3 (with `secrets`). AC-PLT-26 (RN-PLT-14, D-10): pip-audit over the frozen uv.lock export
+  # + pnpm audit; severity from OSV (unknown = high); fails on high/critical without a valid
+  # exception in scripts/audit_exceptions.toml, and on any expired exception.
+  deps-audit:
+    needs: file-size
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+        with:
+          python: "true"
+          node: "true"
+      - name: audit_deps.py
+        run: python scripts/audit_deps.py
+
   # Step 4. AC-PLT-21 (backend): mypy with the django-stubs/drf-stubs plugins over backend/ and
   # scripts/, strict in apps/common/ and every domain/ ([tool.mypy] of backend/pyproject.toml). The
   # Django plugin imports config.settings.test, which reads the workflow-level env. AC-PLT-23
@@ -244,8 +262,7 @@ jobs:
   # AC-PLT-21 (frontend, T-PLT-27): tsc --noEmit in strict mode. The frontend types diff (T-PLT-35)
   # is added here later.
   typecheck:
-    # Becomes `needs: [secrets, deps-audit]` when T-PLT-28 adds deps-audit to step 3.
-    needs: secrets
+    needs: [secrets, deps-audit]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:

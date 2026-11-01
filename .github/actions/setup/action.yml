@@ -58,12 +58,28 @@ runs:
         # No `version`: it comes from `packageManager` (exact version + hash), the single source.
         package_json_file: frontend/package.json
 
+    - name: Check pnpm matches packageManager
+      if: inputs.node == 'true'
+      shell: bash
+      # pnpm/action-setup drops the `+sha512...` suffix of `packageManager`, so check that the pnpm
+      # on PATH is exactly the pinned version (T-PLT-27 review follow-up, T-PLT-28).
+      run: |
+        expected="$(jq -r '.packageManager // ""' frontend/package.json | sed -E 's/^pnpm@([^+]+).*$/\1/')"
+        actual="$(pnpm --version)"
+        if [ -z "$expected" ] || [ "$actual" != "$expected" ]; then
+          echo "::error::pnpm ${actual} does not match packageManager '${expected}' in frontend/package.json"
+          exit 1
+        fi
+        echo "pnpm ${actual} matches packageManager"
+
     - name: Set up Node
       if: inputs.node == 'true'
       uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
       with:
         node-version-file: frontend/.nvmrc
-        cache: pnpm
+        # No pnpm cache on tag pushes (release builds start clean, like `enable-cache: auto` of
+        # setup-uv). The empty value goes last: `cond && '' || 'pnpm'` always yields 'pnpm'.
+        cache: ${{ !startsWith(github.ref, 'refs/tags/') && 'pnpm' || '' }}
         cache-dependency-path: frontend/pnpm-lock.yaml
 
     - name: Install the frontend deps from the lockfile

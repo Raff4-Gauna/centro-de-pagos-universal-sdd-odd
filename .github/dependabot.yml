@@ -1,0 +1,51 @@
+# Dependabot (RN-PLT-14, Q-037, design.md §3.5): weekly, one entry per ecosystem.
+# Patches are grouped into one PR per ecosystem; minors and majors come one PR each, so a major
+# (Q-029) is always reviewed on its own. Every PR goes through the full CI chain, deps-audit
+# included. pre-commit hooks are not covered here: `pre-commit autoupdate` by hand, monthly.
+# Checked by scripts/tests/test_AC_PLT_26_audit_deps.py.
+version: 2
+
+updates:
+  # backend/pyproject.toml + uv.lock (Q-030).
+  - package-ecosystem: uv
+    directory: /backend
+    schedule:
+      interval: weekly
+    groups:
+      uv-patches:
+        update-types: [patch]
+
+  # frontend/package.json + pnpm-lock.yaml: the npm ecosystem also handles pnpm lockfiles.
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+    groups:
+      npm-patches:
+        update-types: [patch]
+    ignore:
+      # eslint 9.x is in maintenance (deprecated in favour of 10.x), but plugins pulled by
+      # eslint-config-next 16.4.3 (eslint-plugin-import 2.32.0, eslint-plugin-jsx-a11y 6.10.2,
+      # eslint-plugin-react 7.37.5) cap their eslint peer at ^9, so major 10 is ignored.
+      # Drop this rule once those plugins support eslint 10 (design.md §8).
+      - dependency-name: eslint
+        update-types: ["version-update:semver-major"]
+
+  # Base images of backend/Dockerfile (T-PLT-25) and frontend/Dockerfile (T-PLT-36), pinned by
+  # tag + digest. Until those land the directories have nothing to update.
+  - package-ecosystem: docker
+    directories: [/backend, /frontend]
+    schedule:
+      interval: weekly
+    groups:
+      docker-patches:
+        update-types: [patch]
+
+  # Actions pinned by full SHA in .github/workflows/ and the composite .github/actions/*.
+  - package-ecosystem: github-actions
+    directories: [/, /.github/actions/*]
+    schedule:
+      interval: weekly
+    groups:
+      actions-patches:
+        update-types: [patch]

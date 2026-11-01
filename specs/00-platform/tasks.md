@@ -72,7 +72,7 @@ Reglas: rebanada vertical · ≤ ~300 líneas de diff · mergeable sola · cita 
 | T-PLT-25 | Imagen Docker del backend | AC-PLT-25 (backend) | Infra | `backend/Dockerfile`, `config/gunicorn.conf.py` | T-PLT-12 | backend-dev | M | Sí | ☐ |
 | T-PLT-26 | Compose de desarrollo (db, redis, backend, worker, beat) | AC-PLT-01 (parcial), AC-PLT-02 (manual) | Infra | `infra/docker-compose.yml` | T-PLT-11, T-PLT-17, T-PLT-25 | backend-dev | L | Sí | ☐ |
 | T-PLT-27 | Frontend: proyecto Next + toolchain + CI frontend | AC-PLT-21 (frontend) | Frontend/CI | `frontend/package.json`, `tsconfig.json`, … | T-PLT-03 | frontend-dev | L | Sí | ◐ en revisión (falta reviewer/PR) |
-| T-PLT-28 | Auditoría de dependencias + Dependabot | AC-PLT-26 | CI | `scripts/audit_deps.py`, `.github/dependabot.yml` | T-PLT-27 | backend-dev | L | Sí | ☐ |
+| T-PLT-28 | Auditoría de dependencias + Dependabot | AC-PLT-26 | CI | `scripts/audit_deps.py`, `.github/dependabot.yml` | T-PLT-27 | backend-dev | L | Sí | ◐ en revisión (falta reviewer/PR) |
 | T-PLT-29 | Pre-commit de eslint/prettier | — (RF-PLT-12) | Infra | `scripts/precommit_frontend.py` | T-PLT-04, T-PLT-27 | frontend-dev | M | Sí | ☐ |
 | T-PLT-30 | Base visual: tokens, tema, estados de carga | AC-PLT-28 (parcial), AC-PLT-22 (FE) | UI | `src/lib/{design-tokens,theme,query-client}.ts`, `src/components/*` | T-PLT-21, T-PLT-27 | frontend-dev | L | Sí | ☐ |
 | T-PLT-31 | Shell `(dashboard)` + Inicio | AC-PLT-28 | UI | `src/components/shell/*`, `app/(dashboard)/inicio/*` | T-PLT-30 | frontend-dev | L | No | ☐ |
@@ -1115,6 +1115,34 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   `test_AC_PLT_26_expired_exception_fails`, `test_AC_PLT_26_valid_exception_passes`,
   `test_AC_PLT_26_unknown_severity_counts_as_high`, `test_AC_PLT_26_pnpm_high_vuln_fails`,
   `test_RN_PLT_14_dependabot_weekly_for_all_ecosystems`.
+- **Notas de implementación:**
+  - **Cadena:** `secrets` todavía no existe (T-PLT-04), así que `typecheck` queda en `needs: deps-audit`, con el
+    comentario de que pasa a `[secrets, deps-audit]` cuando llegue T-PLT-04 (lo verifica
+    `test_AC_PLT_20_pipeline_chain.py`).
+  - **Reglas de `audit_deps.py`:** pip-audit con `--disable-pip --require-hashes --vulnerability-service osv`
+    sobre el export (hasheado) de `uv.lock`; severidad = primer `database_specific.severity` reconocido en OSV
+    entre el ID y sus alias (GHSA primero); sin severidad, OSV inalcanzable o valor no reconocido = alta. Bloquea
+    `high`/`critical`; `moderate`/`low`/`info` se informan sin fallar (hoy: 1 moderada de `minimatch`, dev). Una
+    excepción vale hasta su fecha inclusive (UTC) y matchea por ID o alias; una excepción **vencida** falla aunque
+    la vulnerabilidad ya no esté (design §3.5: "excepción vencida" es causa de fallo propia). Salida: 0 ok,
+    1 hallazgos bloqueantes, 2 error de herramienta o de `audit_exceptions.toml`.
+  - **Dependabot:** `docker` cubre `/backend` y `/frontend` (design §3.5 dice "ambos Dockerfiles"; llegan con
+    T-PLT-25 y T-PLT-36), `github-actions` cubre `/` y `/.github/actions/*` (la acción compuesta). Grupos solo de
+    parches; menores y mayores en PRs separados.
+  - **Follow-ups del review de T-PLT-27** (resueltos acá, `.github/actions/setup/action.yml` y
+    `.github/dependabot.yml`): (a) paso `Check pnpm matches packageManager`: `pnpm --version` tiene que ser
+    exactamente la versión de `packageManager` (12.16.1), porque `pnpm/action-setup` descarta el `+sha512`;
+    (b) sin caché de pnpm en pushes de tags `v*` (como `enable-cache: auto` de setup-uv) con
+    `cache: ${{ !startsWith(github.ref, 'refs/tags/') && 'pnpm' || '' }}` — la forma sugerida
+    `startsWith(...) && '' || 'pnpm'` siempre da `'pnpm'` porque `''` es falsy; actionlint 1.7.7 tipa la
+    expresión en un workflow de prueba con `setup-node`; (c) `dependabot.yml` ignora la mayor 10 de `eslint`
+    (9.x en *maintenance*/deprecado; `eslint-plugin-import` 2.32.0, `eslint-plugin-jsx-a11y` 6.10.2 y
+    `eslint-plugin-react` 7.37.5 limitan el peer a `^9`).
+  - **Corrida real (2026-11-01, Docker, uv 0.13.6 + pip-audit 2.10.1 + OSV real):** el gate **falla** hoy:
+    `djangorestframework` 3.16.1 tiene 3 vulnerabilidades **altas** (GHSA-33wh-fxxf-88vv, GHSA-3547-9m27-7rxg,
+    GHSA-xw6w-gcfp-cf8m; arregladas en 3.18.2) y 2 moderadas (arregladas en 3.17.2). Subir DRF choca con Q-059
+    (según Q-059, los stubs de DRF 3.18 exigen `django-stubs` ≥ 6.1, pensado para Django 6.1). Decisión pendiente del dueño antes de mergear: subir DRF
+    (tarea aparte, C-13) o excepciones fechadas en `audit_exceptions.toml` con su motivo.
 
 ### T-PLT-29 — Pre-commit de eslint/prettier
 - **AC:** ninguno propio (RF-PLT-12: eslint/prettier en pre-commit; Q-060). **Zona roja:** sí.

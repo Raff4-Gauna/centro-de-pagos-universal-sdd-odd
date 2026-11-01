@@ -1,0 +1,15 @@
+# Accepted dependency vulnerabilities for scripts/audit_deps.py (RN-PLT-14, Q-037, AC-PLT-26).
+# Empty on purpose: a high/critical finding is fixed by upgrading, not by adding a line here.
+#
+# Only when there is no fix yet (or it cannot be applied right away), add one table per
+# vulnerability. All three keys are required:
+#   id      - the advisory ID as reported (GHSA-..., PYSEC-..., CVE-...); any alias also matches.
+#   reason  - why it is accepted for now (not exploitable here, waiting for the fix, ...).
+#   expires - a TOML date, valid through that day (UTC). Keep it short (weeks, not months).
+#             Once it passes, the audit fails again until the line is removed or renewed with a
+#             new reason in review.
+#
+# [[exception]]
+# id = "GHSA-xxxx-xxxx-xxxx"
+# reason = "Only reachable through the dev server; upstream fix pending (link to the issue)"
+# expires = 2026-12-31
