@@ -539,9 +539,9 @@ Nombres de jobs = checks requeridos: `lint`, `file-size`, `secrets`, `deps-audit
 | Ámbito | Versiones fijadas |
 |---|---|
 | Runtimes / imágenes | Python **3.12.16** (`python:3.12.16-slim-trixie`) · PostgreSQL **17.11** (`postgres:17.11-trixie`) · Redis **7.4.12** (`redis:7.4.12-bookworm`; no hay `trixie` para 7.4) · Node **24.22.2** (`node:24.22.2-trixie-slim`; 24 hoy en *maintenance* LTS, la activa es 26) · uv **0.13.6** · pnpm **12.16.1** (corepack, con hash) · gitleaks **v8.30.1** · pre-commit **4.7.0** (host) |
-| Backend runtime | `django` **5.2.18** · `djangorestframework` **3.16.1** · `celery` **5.5.3** (→ `kombu` 5.5.4) · `redis` **5.2.1** (techo de `kombu` 5.5: `redis<=5.2.1`) · `psycopg[binary]` **3.3.6** · `pydantic-settings` **2.16.2** · `structlog` **26.1.0** · `drf-spectacular` **0.30.0** · `gunicorn` **26.2.0** |
+| Backend runtime | `django` **5.2.18** · `djangorestframework` **3.16.1** · `celery[redis]` **5.6.3** (→ `kombu` **5.6.2**) · `redis` **6.4.0** (`kombu` 5.6: `redis<6.5`; Q-059) · `psycopg[binary]` **3.3.6** · `pydantic-settings` **2.16.2** · `structlog` **26.1.0** · `drf-spectacular` **0.30.0** · `gunicorn` **26.2.0** |
 | Backend dev | `ruff` **0.17.3** · `mypy` **1.19.1** (`django-stubs` 5.2.9 exige `<1.20`) · `django-stubs` **5.2.9** (fijada para que uv no suba a 6.x, que apunta a Django 6) · `djangorestframework-stubs` **3.16.9** · `celery-types` **0.26.0** · `pytest` **9.2.0** · `pytest-django` **4.14.0** · `pytest-cov` **7.1.0** (coverage ≥ 7.10.6, `patch=subprocess`) · `pip-audit` **2.10.1** · `pyyaml` **6.0.3** |
-| Frontend deps | `next` **16.4.3** (mayor estable compatible con MUI v7: `@mui/material-nextjs` 7.3.10 acepta `^16`) · `react`/`react-dom` **19.3.1** · `@mui/material` **7.3.11** · `@mui/icons-material` **7.3.11** · `@mui/material-nextjs` **7.3.10** · `@emotion/react` **11.14.0** · `@emotion/styled` **11.14.1** · `@emotion/cache` **11.14.0** · `@tanstack/react-query` **5.105.0** · `openapi-fetch` **0.17.0** · `server-only` **0.0.1** |
+| Frontend deps | `next` **16.4.3** (`@mui/material-nextjs` 9.5.0 acepta `^16`) · `react`/`react-dom` **19.3.1** · `@mui/material` **9.5.0** · `@mui/icons-material` **9.5.0** · `@mui/material-nextjs` **9.5.0** (Q-059; verificados en npm 2026-10-31) · `@emotion/react` **11.14.0** · `@emotion/styled` **11.14.1** · `@emotion/cache` **11.14.0** · `@tanstack/react-query` **5.105.0** · `openapi-fetch` **0.17.0** · `server-only` **0.0.1** |
 | Frontend dev | `typescript` **5.9.3** (`openapi-typescript` exige `^5`) · `openapi-typescript` **7.13.0** · `@types/react`/`@types/react-dom` **19.3.0** · `@types/node` **24.19.2** (confirmar última 24.x) · `eslint` **9.39.5** (`maintenance`; ESLint 10.14.0 existe pero los plugins de `eslint-config-next` pueden no soportarlo) · `eslint-config-next` **16.4.3** · `prettier` **3.9.10** · `tailwindcss` **3.4.19** (`v3-lts`, D-07) · `postcss` **8.5.32** · `autoprefixer` **10.6.2** · `vitest`/`@vitest/coverage-v8` **5.0.5** · `vite` **8.3.5** · `@vitejs/plugin-react` **6.1.2** · `jsdom` **30.1.3** (exige Node ≥ 24.15; el local 24.14 no alcanza, los tests corren en contenedor/CI) · `@testing-library/react` **16.3.3** · `@testing-library/dom` **10.4.2** · `@testing-library/jest-dom` **7.0.1** · `@testing-library/user-event` **14.6.8** |
 | Actions (por SHA) | `actions/checkout` v7.0.1 · `astral-sh/setup-uv` v10.3.3 · `actions/setup-python` (última v6.x al implementar) · `pnpm/action-setup` v6.1.0 · `actions/setup-node` v7.1.0 · `actions/upload-artifact` v7.0.2 · `actions/download-artifact` v8.0.2 · `docker/setup-buildx-action` v4.4.1 · `docker/build-push-action` v7.4.0 |
 | **No** se agregan | `django-environ`/`dj-database-url` (pydantic-settings), `django-cors-headers` (CORS cerrado), `django-redis` (alcanza `RedisCache`), `django-structlog` (middleware propio, más control de redacción), `whitenoise` (sin estáticos), `drf-spectacular-sidecar` (Swagger solo dev, CDN), `zod`/`react-hook-form` (sin formularios), `watchfiles` (worker se reinicia a mano) |
@@ -624,7 +624,7 @@ corridos una vez → ruleset (después de publicar, Q-054).
 ### 11.2 Riesgos
 | Riesgo | Mitigación |
 |---|---|
-| Versiones de Q-029 superadas (MUI v9, Celery 5.6, DRF 3.18) y `kombu` 5.5 obliga a `redis-py` 5.2.1 (dic-2024) | **Q-059**; se fija Q-029 hasta que el usuario decida; cambiarlo antes del primer scaffold cuesta pocas líneas |
+| Versiones de Q-029 superadas | **Q-059 decidida (2026-10-31):** Celery 5.6.3 + redis-py 6.4.0, MUI 9.5.0; DRF 3.16.1, Node 24 y Tailwind 3.4 sin cambios |
 | Pipeline secuencial ~8–12 min por PR | cachés uv/pnpm/Docker; pre-commit atrapa lo barato; `cancel-in-progress` |
 | Hot-reload en Windows; Turbopack (dev por defecto en Next 16) puede ignorar `WATCHPACK_POLLING` | probar en la tarea de Compose; plan B `next dev --webpack`; documentar en `infra/README.md` |
 | Healthcheck de `beat` por mtime es indirecto | umbral 300 s con loop de 60 s; si da falsos positivos, se baja a "proceso vivo" y se documenta |
@@ -633,7 +633,7 @@ corridos una vez → ruleset (después de publicar, Q-054).
 | Merge por el agente con 0 aprobaciones | criterios cerrados de §3.7.4 + `--match-head-commit`; ante duda, mergea el usuario |
 | `W021` silenciado | único permitido, comentado, hasta tener dominio (Q-020) |
 | Node local 24.14 < 24.15 (`jsdom` 30) | tests en contenedor/CI; recomendado actualizar el Node local a 24.22.x |
-| `@mui/material-nextjs` 7.3.10 y su subpath para Next 16 (`exports: "./*"`) | verificar en la primera tarea de frontend; si falta, usar el de la mayor anterior (el peer ya acepta `^16`) |
+| `@mui/material-nextjs` 9.5.0 y su subpath para App Router de Next 16 | verificar en la primera tarea de frontend; si falta, usar el de la mayor anterior (el peer ya acepta `^16`) |
 
 ## Handoff
 ```

@@ -5,9 +5,9 @@
 ## Módulos
 | ID | Módulo | Objetivo | Depende de | Zona roja | Hito | Estado |
 |---|---|---|---|---|---|---|
-| 00 | platform | Repo, Docker, CI, settings, logging, convenciones, OpenAPI | — | **Parcial** (contrato OpenAPI, chequeo de migraciones, tests de arquitectura — Q-051) | H1 | **Clarified** |
-| 01 | identity-access | Usuarios, login con Google, JWT, sesión segura | 00 | **Sí** | H1 | **Draft** |
-| 02 | tenancy-rbac | Organizaciones, memberships, roles, sucursales, filtro obligatorio | 01 | **Sí** | H1 | **Draft** |
+| 00 | platform | Repo, Docker, CI, settings, logging, convenciones, OpenAPI | — | **Parcial** (contrato OpenAPI, chequeo de migraciones, tests de arquitectura — Q-051) | H1 | **Approved** |
+| 01 | identity-access | Usuarios, login con Google, JWT, sesión segura | 00 | **Sí** | H1 | **Approved** |
+| 02 | tenancy-rbac | Organizaciones, memberships, roles, sucursales, filtro obligatorio | 00, 01 (se cierran juntas, Q-108) | **Sí** | H1 | **Approved** |
 | 03 | integrations-engine | Contrato común: BaseAdapter, registry, capacidades, errores, FakeAdapter | 00 | **Sí** | H2 | **Draft** |
 | 04 | integration-management | Alta de integraciones, credenciales cifradas, prueba de conexión, (OAuth) | 02, 03 | **Sí** | H2 | Por redactar |
 | 05 | mercadopago-adapter | Stores/POS, órdenes QR, cancelar, devolver, parseo y firma de webhooks | 03, S-001 | **Sí** | H2 | **Draft** |

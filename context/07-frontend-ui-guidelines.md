@@ -6,7 +6,7 @@
 > una pantalla sin inventar de nuevo la base cada vez.
 
 ## 1. Por qué Material UI *y* Tailwind juntos (y cómo no chocan)
-- **Material UI (MUI v7)** (versión fijada por `Q-029`, decidida 2026-10-31) aporta los componentes que cuestan caro hacer bien a mano y que esta app usa mucho:
+- **Material UI (MUI v9)** (versión fijada por `Q-059`, decidida 2026-10-31; reemplaza la v7 de `Q-029`) aporta los componentes que cuestan caro hacer bien a mano y que esta app usa mucho:
   `DataGrid`/`Table`, `Dialog`, `Select`, `Stepper`, `Snackbar`, `Skeleton`, `Chip` de estado. Es la capa de
   **componentes con comportamiento** (foco, teclado, accesibilidad, animaciones).
 - **Tailwind** se usa solo para **layout y espaciado** alrededor de esos componentes (grillas, flex, márgenes,

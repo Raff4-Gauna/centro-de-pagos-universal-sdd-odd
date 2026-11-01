@@ -1,9 +1,9 @@
 ---
 id: SPEC-00
 modulo: platform
-estado: Designed
+estado: Approved
 track: S
-version: 0.3.0
+version: 1.0.0
 depende_de: []
 actualizado: 2026-10-31
 ---
@@ -242,3 +242,4 @@ Se completa al generar `tasks.md`.
 | 0.1.0 | 2026-10-31 | Borrador inicial (reemplaza el placeholder) | `/spec 00-platform` |
 | 0.2.0 | 2026-10-31 | Estado → *Clarified*. Repo público: RN-PLT-12/13 reescritas, nueva RN-PLT-18, RF-PLT-11/13 ampliados, AC-PLT-24 ampliado, nuevos AC-PLT-32/33. RN/RF/AC con los valores decididos de Q-029..Q-053 (UUIDv4, 400 líneas con tests incluidos, uv/pnpm, structlog, pydantic-settings, mypy, cobertura 85/70, `problem+json`). Throttling y chequeo de C-02 pasan de "sujeto a" a RN-PLT-19/20 con AC-PLT-30/31 definitivos; nuevo RF-PLT-19 (feature flags, Q-052), RNF-PLT-08/09, AC-PLT-34. Matriz de permisos y casos límite completados (`clarifications.md §H–§I`). §15 sin el supuesto de repo privado. Nuevas Q-054..Q-057, ninguna bloquea *Clarified* | `/clarify 00-platform`: el usuario decidió Q-042 (repo público) y aceptó las recomendaciones de Q-012, Q-013, Q-027 y Q-029..Q-053 |
 | 0.3.0 | 2026-10-31 | Estado → *Designed*. `design.md` (cobertura RN/RF/RNF sin huecos, Compose, pipeline, pre-commit, gobierno del repo, dependencias con versión exacta verificada) y `ADR-0005` (Propuesto). §4 y §16 actualizados: Q-055/Q-056 cerradas con su recomendación, Q-057 decidida por el usuario (el agente mergea solo con certeza total; si no, el dueño). Nuevas Q-058..Q-060 (no bloquean). Sin cambios en RN/RF/AC | `/design 00-platform`; decisión del usuario sobre Q-057 |
+| 1.0.0 | 2026-10-31 | Estado → **Approved** por el dueño. Decididas Q-058 (las rutas del gate de CI son zona roja: reviewer obligatorio), Q-059 (Celery 5.6.3 + redis-py 6.4.0; MUI v9; Tailwind 3.4, DRF 3.16, Node 24 sin cambios) y Q-060 (default). Las versiones exactas de MUI v9 y su ecosistema se fijan y verifican en la primera tarea de frontend | Gate humano *Approved* (2026-10-31) |

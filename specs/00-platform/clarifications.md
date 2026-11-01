@@ -193,3 +193,10 @@ estas preguntas respecta.
 > ambos estén "dentro del MVP" en el sentido de alcance del producto. Si en algún momento el calendario aprieta,
 > esto es lo primero que conviene recortar de nuevo — queda anotado acá para no perder la trazabilidad de por qué
 > se decidió así.
+
+## Aprobación (2026-10-31)
+El dueño **decidió** Q-058 (sí: `.github/**`, `scripts/**`, `.pre-commit-config.yaml`, `.gitleaks.toml`, `ruff.toml`,
+`backend/pyproject.toml` y configs de tsconfig/eslint/vitest son zona roja → reviewer obligatorio), Q-059 (actualizar
+Celery a 5.6.3 con redis-py 6.4.0 y MUI a v9; se mantienen Django 5.2 LTS, DRF 3.16.1, Node 24, Next 16, Python 3.12 y
+Tailwind 3.4; `context/07 §1` pasa a MUI v9) y Q-060 (default: Python 3.12 + pre-commit, Node 24 + pnpm en el host).
+Q-048 sigue abierta (permiso de lectura de `.env.example`, depende del usuario). Spec → **Approved** 1.0.0.
