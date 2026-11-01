@@ -1,9 +1,9 @@
 ---
 id: SPEC-01
 modulo: identity-access
-estado: Designed
+estado: Approved
 track: S
-version: 0.3.0
+version: 1.0.0
 depende_de: [SPEC-00]
 actualizado: 2026-10-31
 ---
@@ -297,6 +297,7 @@ Se completa al generar `tasks.md`.
 | 0.1.0 | 2026-10-31 | Borrador inicial | Primera redacción de SPEC-01 (zona roja auth); toma Q-001/Q-011/Q-012/Q-013 y corrige el manejo de JWT de la propuesta |
 | 0.2.0 | 2026-10-31 | Estado → Clarified. Se registran las decisiones del usuario sobre Q-101…Q-118; RN-IDA-01/02/05/06/07/08/09/10/11/12/14/15/17/18 con los valores decididos (duraciones 15 min / 7 días / 30 días / 60 s; rate limit 10/min por IP y 30/min por sesión); nuevas RN-IDA-20…25, RF-IDA-10 y AC-IDA-26…38; error `google_unavailable`; orden de evaluación del callback; matriz de permisos completa (anónimo, sin membership, operador de plataforma); casos límite revisados; Q-119…Q-123 agregadas como no bloqueantes; lista de puntos para ADR-0004 | Paso 2 SDD (clarifier); decisiones del usuario del 2026-10-31 y coordinación acordada con SPEC-02 (sin rol/organización en el JWT; organización activa por header; `/api/me` con selector de SPEC-02) |
 | 0.3.0 | 2026-10-31 | Estado → Designed. Se agregan `design.md` y ADR-0004 (Propuesto) que resuelve los 15 puntos de §15. Q-119…Q-123 pasan de "abiertas, provisional" a "decididas por defecto, confirmables antes de Approved" con **el mismo valor** que ya usaban las RN (sin cambio de reglas); notas de estado en RN-IDA-01/05/06/09/23, §11 (contratos finales en `design.md §6`), §12, §15, §16. Nuevas Q-124 y Q-125 (no bloqueantes, abiertas) | Paso 3 SDD (architect) |
+| 1.0.0 | 2026-10-31 | Estado → **Approved** por el dueño. Confirmadas Q-119…Q-123 (defaults); decididas Q-124 (si el owner indicado al crear la organización ya tiene usuario, el comando de bootstrap crea la membership `owner` directamente, auditada; si no, invitación) y Q-125 (el evento de login rechazado no guarda email ni `sub`) | Gate humano *Approved* (2026-10-31) |
 
 ---
 **Hecho:** spec Designed 0.3.0 (25 RN, 10 RF, 7 RNF, 38 AC sin cambios de reglas); `design.md` con cobertura RN/RF/RNF completa; ADR-0004 Propuesto.

@@ -103,3 +103,9 @@ operador de plataforma); checklist de casos límite revisado completo; Q-119…Q
 **Pendiente:** confirmación del dueño de Q-119…Q-123 (decididas por defecto) y respuesta a Q-124/Q-125, antes de
 Approved.
 **Siguiente rol:** dueño (gate Approved) → task-planner (`/tasks 01-identity-access`).
+
+## Aprobación (2026-10-31)
+El dueño **confirmó** Q-119, Q-120, Q-121, Q-122 y Q-123 con su valor por defecto y **decidió** Q-124 (el comando de
+bootstrap crea la membership `owner` directo si la persona ya tiene usuario, auditado; si no, emite invitación de
+owner — implementación en SPEC-02) y Q-125 (el evento de login rechazado no guarda email ni `sub`). Quedan
+✅ DECIDIDO. Spec → **Approved** 1.0.0.
