@@ -299,6 +299,9 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   `backend/tests/typing/synthetic/apps/common/untyped.py`, `…/synthetic/apps/demo/domain/untyped.py`,
   `…/synthetic/apps/demo/services/untyped.py`, `.github/workflows/ci.yml` (job `typecheck`, `needs: secrets`;
   `mypy . ../scripts`), arreglos de tipos mínimos en `scripts/*.py` si mypy los pide.
+- **Cambios:** si los settings usan `django_stubs_ext.monkeypatch()`, mover `django-stubs-ext` (hoy fijado
+  `==5.2.9` en el grupo dev por T-PLT-02) a las dependencias de runtime: en la imagen sin grupo dev el import
+  fallaría (NB-3 del reviewer de T-PLT-02).
 - **Fuera de esta tarea:** `export_openapi --check` (T-PLT-18), `tsc` (T-PLT-27).
 - **Plan de pruebas:** `test_AC_PLT_21_untyped_def_in_common_fails`, `test_AC_PLT_21_untyped_def_in_domain_fails`,
   `test_AC_PLT_21_untyped_def_in_services_passes`, `test_AC_PLT_21_type_error_fails` (`mypy.api.run`).
@@ -446,6 +449,9 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   `…/synthetic_apps/missing_migration/{__init__,apps,models}.py` + `migrations/{__init__,0001_initial}.py`,
   `backend/tests/migrations/test_AC_PLT_16_missing_migration.py`, `.github/workflows/ci.yml` (job `migrations`,
   `needs: coverage`, servicio Postgres; `makemigrations --check --dry-run`).
+- **Cambios:** evaluar reemplazar la exclusión total `**/migrations` de `ruff.toml` por `per-file-ignores` para
+  migraciones (p. ej. `E501`, `RUF012`, `N806`), manteniendo `T20` y `S` activos en migraciones de datos; si se
+  adopta, `ruff.toml` entra en los archivos de esta tarea (NB-2 del reviewer de T-PLT-02).
 - **Plan de pruebas:** `test_AC_PLT_16_model_change_without_migration_fails_check`,
   `test_AC_PLT_16_real_apps_have_no_missing_migrations`.
 

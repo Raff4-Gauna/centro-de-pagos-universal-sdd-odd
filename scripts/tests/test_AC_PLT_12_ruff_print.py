@@ -48,6 +48,29 @@ def test_AC_PLT_12_print_in_backend_apps_fails_lint() -> None:
     assert "T201" in result.stdout
 
 
+def test_AC_PLT_12_print_in_backend_subdir_named_frontend_fails_lint() -> None:
+    # Regression (T-PLT-02 review, B-1): only the root frontend/ is excluded, not every `frontend`.
+    result = ruff_check_stdin("backend/apps/frontend/x.py", PRINT_SOURCE)
+
+    assert result.returncode != 0, result.stdout + result.stderr
+    assert "T201" in result.stdout
+
+
+def test_AC_PLT_12_root_frontend_is_excluded() -> None:
+    result = ruff_check_stdin("frontend/x.py", PRINT_SOURCE)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "T201" not in result.stdout
+
+
+def test_AC_PLT_12_print_in_backend_tests_still_fails_lint() -> None:
+    # Tests only relax S101/N802; T20 stays active there.
+    result = ruff_check_stdin("backend/apps/demo/tests/test_x.py", PRINT_SOURCE)
+
+    assert result.returncode != 0, result.stdout + result.stderr
+    assert "T201" in result.stdout
+
+
 def test_AC_PLT_12_print_in_scripts_is_allowed() -> None:
     result = ruff_check_stdin("scripts/x.py", PRINT_SOURCE)
 

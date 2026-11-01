@@ -400,9 +400,11 @@ del host y del contenedor están separados (volumen), así que los binarios nati
 
 Sin tests, mypy ni migraciones. Si un hook reformatea, se vuelve a stagear (documentado).
 **`ruff.toml`**: `py312`, `line-length 100`, `extend-exclude = ["context/legacy-source", "**/migrations",
-"frontend"]` (comentado, Q-055), `force-exclude = true` (vale aunque pre-commit pase archivos explícitos),
+"frontend/"]` (comentado, Q-055; `frontend/` con barra para no excluir cualquier carpeta `frontend` del árbol),
+`force-exclude = true` (vale aunque pre-commit pase archivos explícitos), `[format] exclude = ["*.md"]` (el
+formatter no reescribe bloques de código de specs ni rompe el lint en PRs solo de docs),
 `select = [E, F, W, I, B, UP, S, T20, DJ, PT, SIM, RUF, N, C4, DTZ, LOG, G]`; `per-file-ignores`: tests → `S101`,
-`scripts/**` → `T20` (son CLIs). **`.gitattributes`**: `* text=auto eol=lf` + binarios. **`.gitleaks.toml`**:
+`N802` (nombres `test_AC_…`), `scripts/**` → `T20` (son CLIs) (ajustado tras revisión de T-PLT-02). **`.gitattributes`**: `* text=auto eol=lf` + binarios. **`.gitleaks.toml`**:
 `useDefault = true`; allowlist `regexes = ['''<ver \.env: [A-Z][A-Z0-9_]*>''']` con `regexTarget = "secret"` (una
 línea con placeholder **y** un token real sigue fallando); sin allowlist por ruta.
 
