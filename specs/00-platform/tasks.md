@@ -522,6 +522,12 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   `infra/README.md` (prerrequisitos del host Q-060, recrear la BD, hot-reload por polling en Windows).
 - **Fuera de esta tarea:** servicio `frontend` (T-PLT-36); bind mounts de `.env.example`/`spikes/.env.example`
   (T-PLT-39: montar un archivo inexistente crea un directorio).
+- **Digests (seguimiento de la revisión de T-PLT-11):** `db` y `redis` usan **el mismo `tag@sha256` que los servicios
+  del job `tests` de `ci.yml`** (digest del *index* multi-arquitectura, `docker buildx imagetools inspect <tag>`):
+  hoy `postgres:17.11-trixie@sha256:3b0cda93be7c8dba2ed484d19393d93845dc3dafb88973e248ba8e6d99d784e1` (verificado
+  2026-11-01; el anterior `31ba9c94…` ya no es el index del tag) y
+  `redis:7.4.12-bookworm@sha256:b6b6e3dc0c0952737748e55d5d885272840c7e42ba41ab1d5489f693419882f5`. Si se
+  actualiza uno, se actualizan los dos archivos en el mismo commit.
 - **Plan de pruebas:** `test_RF_PLT_02_every_service_has_healthcheck`, `test_RF_PLT_02_depends_on_service_healthy`,
   `test_RF_PLT_02_no_migrate_in_worker_or_beat`, `test_RF_PLT_02_single_beat_replica`,
   `test_RN_PLT_04_compose_uses_explicit_environment_without_env_file`, `test_RF_PLT_02_ports_bound_to_localhost`;
