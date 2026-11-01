@@ -23,10 +23,11 @@ INSTALLED_APPS = [
 ]
 
 # RequestId first (T-PLT-12): every log event of the request carries its id. AccessLog (T-PLT-13)
-# goes right after Security.
+# right after Security, so it times and logs everything the rest of the chain answers.
 MIDDLEWARE = [
     "apps.common.middleware.request_id.RequestIdMiddleware",
     "django.middleware.security.SecurityMiddleware",
+    "apps.common.middleware.access_log.AccessLogMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",

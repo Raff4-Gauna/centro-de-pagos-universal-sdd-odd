@@ -25,6 +25,7 @@ from pytest_django.fixtures import Settings as SettingsWrapper
 
 from apps.common.logging import context, get_logger
 from apps.common.logging.setup import StdoutHandler, configure_logging, logging_config
+from apps.common.middleware.access_log import ACCESS_EVENT
 from config.settings.env import PlatformEnv, load_env
 from tests.logging.conftest import StdoutLog
 
@@ -190,5 +191,8 @@ def test_C_06_error_log_never_carries_the_settings(
     response = Client(raise_request_exception=False).get("/test/error")
     assert response.status_code == 500
     log = stdout_log.read()
-    assert log.find("Internal Server Error: /test/error"), "the failure must reach the log"
+    # The access log (T-PLT-13) carries the failure and its traceback; django.request is silenced.
+    (access,) = log.find(ACCESS_EVENT)
+    assert access["status"] == 500
+    assert "RuntimeError: test.failure" in access["exception"]
     assert SENTINEL not in log.out + log.err
