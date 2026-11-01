@@ -28,4 +28,4 @@ caiga naturalmente en la capa que le corresponde.
 - Se gana: archivos más fáciles de revisar, de testear, y más baratos de leer para un agente (menos tokens por
   tarea). Menor probabilidad de que una tarea toque "de paso" código que no le corresponde.
 - Se paga: más archivos en el repo, más imports a mantener, una verificación más en CI.
-- Pendiente: definir el script exacto (`backend/scripts/check_file_size.py` o similar) al redactar `00-platform`.
+- Resuelto (2026-10-31, Q-043): `scripts/check_file_size.py` en la raíz del repo; 400 líneas físicas (401 falla), los tests cuentan, se excluyen migraciones, fixtures y archivos generados.

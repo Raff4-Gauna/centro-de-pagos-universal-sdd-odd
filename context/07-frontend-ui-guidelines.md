@@ -6,7 +6,7 @@
 > una pantalla sin inventar de nuevo la base cada vez.
 
 ## 1. Por qué Material UI *y* Tailwind juntos (y cómo no chocan)
-- **Material UI (MUI v6+)** aporta los componentes que cuestan caro hacer bien a mano y que esta app usa mucho:
+- **Material UI (MUI v7)** (versión fijada por `Q-029`, decidida 2026-10-31) aporta los componentes que cuestan caro hacer bien a mano y que esta app usa mucho:
   `DataGrid`/`Table`, `Dialog`, `Select`, `Stepper`, `Snackbar`, `Skeleton`, `Chip` de estado. Es la capa de
   **componentes con comportamiento** (foco, teclado, accesibilidad, animaciones).
 - **Tailwind** se usa solo para **layout y espaciado** alrededor de esos componentes (grillas, flex, márgenes,
@@ -103,7 +103,7 @@ flujo, no como pantallas separadas — así se evita duplicar la lógica de "ele
 |---|---|---|---|
 | **Generar QR** (QR dinámico) | Monto fijo cargado por el operador | `QrDisplay` a pantalla completa + cuenta regresiva | `QR_PAYMENT` modo dinámico |
 | **QR Mostrador** | Caja con monto variable/abierto (lo carga quien paga, si el proveedor lo soporta) o un monto fijo reutilizable | Mismo `QrDisplay`, variante "caja fija" sin expiración corta | `QR_PAYMENT` — fuera del MVP salvo que S-001 confirme viabilidad (Q-003) |
-| **Cobrar con Point** | Selección de terminal conectada + envío del monto al dispositivo | `PointTerminalPicker` + `PointStatus` (espera confirmación del dispositivo) | `POS_PAYMENT` — módulo 12, post-MVP (Q-002) |
+| **Cobrar con Point** | Selección de terminal conectada + envío del monto al dispositivo | `PointTerminalPicker` + `PointStatus` (espera confirmación del dispositivo) | `POS_PAYMENT` — módulo 12, **dentro del MVP, después de QR** (Q-002, decidida 2026-10-31; ver `specs/ROADMAP.md`) |
 | **Transferencia** | Datos de CBU/alias + referencia para conciliar manualmente o vía notificación del proveedor, si lo soporta | `TransferInstructions` (solo lectura) | Capacidad `TRANSFER` — se declara **no soportada** por el adaptador MP inicial; se agrega cuando haya un proveedor que la exponga por API (ninguno del alcance actual la expone como API, es dato bancario) |
 
 El frontend **nunca** hardcodea esta tabla: lee `GET /api/integrations/{id}/capabilities/` y solo muestra los
