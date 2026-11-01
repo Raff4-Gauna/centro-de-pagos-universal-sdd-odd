@@ -167,8 +167,8 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
 - **Objetivo:** entorno Python fijado con lockfile para backend y `scripts/`; lint/format únicos.
 - **AC:** AC-PLT-12. RN-PLT-11, RN-PLT-14 (lockfile). **Zona roja:** sí.
 - **Archivos:** `backend/pyproject.toml` (deps runtime y grupo dev **exactas** de `design.md §8`: django 5.2.18, DRF
-  3.16.1, celery[redis] 5.6.3, redis 6.4.0, psycopg[binary] 3.3.6, pydantic-settings 2.16.2, structlog 26.1.0,
-  drf-spectacular 0.30.0, gunicorn 26.2.0; dev: ruff 0.17.3, mypy 1.19.1, django-stubs 5.2.9,
+  3.16.1 (hoy 3.18.2: revisión de Q-059 del 2026-11-01), celery[redis] 5.6.3, redis 6.4.0, psycopg[binary] 3.3.6,
+  pydantic-settings 2.16.2, structlog 26.1.0, drf-spectacular 0.30.0, gunicorn 26.2.0; dev: ruff 0.17.3, mypy 1.19.1, django-stubs 5.2.9,
   djangorestframework-stubs 3.16.9, celery-types 0.26.0, pytest 9.2.0, pytest-django 4.14.0, pytest-cov 7.1.0,
   pip-audit 2.10.1, pyyaml 6.0.3; `requires-python ==3.12.*`), `backend/uv.lock`, `ruff.toml` (config de §3.6,
   `extend-exclude` comentado por Q-055, `force-exclude = true`, `per-file-ignores` tests `S101`, `scripts/**` `T20`),
@@ -442,6 +442,8 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   - **N-5:** `CredentialSafeReporterFilter` también para claves `*URI` (además de `*URL`, `LOCATION`, `DSN`).
   - (de T-PLT-12) la redacción de eventos debe cubrir `location` y URLs con `user:password`, y revisar
     `django.db.backends` en `DEBUG` (SQL con parámetros).
+- **Pendiente de la re-revisión de T-PLT-13 (N-3):** `describe_exception` lista los frames solo de la excepción
+  externa; los de `__cause__`/`__context__` (solo sus tipos van en `exception_chain`) quedan para esta tarea.
 
 ### T-PLT-15 — Errores `problem+json`
 - **AC:** AC-PLT-34. RN-PLT-15 (Q-036), RN-PLT-16 (sin CORS). **Zona roja:** sí (contrato de errores).
@@ -454,6 +456,11 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   `test_AC_PLT_34_trace_only_in_log_with_same_request_id`, `test_AC_PLT_34_validation_error_has_errors_list`,
   `test_AC_PLT_34_unknown_api_route_returns_problem_404`, `test_AC_PLT_34_exception_headers_are_preserved`,
   `test_RN_PLT_16_backend_sends_no_cors_headers`.
+- **Pendiente de la re-revisión de T-PLT-13 (N-5):** el access log toma la excepción de `got_request_exception`.
+  Si el `EXCEPTION_HANDLER` de DRF (o `handler500`) convierte una excepción genérica en un 500 `problem+json` sin
+  que Django la vea como no manejada, tiene que emitir `got_request_exception` dentro del `except` o loguear con
+  `apps.common.middleware.access_log.describe_exception`; si no, el evento `http.request` del 500 queda sin
+  `exception_*`.
 
 ### T-PLT-16 — Throttling DRF con Redis
 - **AC:** AC-PLT-30. RN-PLT-19, RF-PLT-17 (Q-038). **Zona roja:** no.

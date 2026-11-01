@@ -11,9 +11,11 @@ Level: DEBUG for /healthz and /readyz (probes every few seconds; a /readyz 503 a
 An unhandled exception anywhere inside this middleware (view, inner middleware, ``process_view``,
 URLconf, template response) reaches the event through Django's ``got_request_exception``, since
 ``django.request`` is silenced (it logs the raw path). Only its type, the types of its
-``__cause__``/``__context__`` chain and its frames (file, line, function) are logged, never a
-message: a message can carry a URL with a token, a Redis URL with its password, a raw path or a
-pydantic ``input_value`` (C-06; same rule as ``health.not_ready``).
+``__cause__``/``__context__`` chain (``module.QualName``, builtins bare, at most ``MAX_CHAIN``) and
+its frames (``path:line in function``, the path relative to ``site-packages`` or ``BASE_DIR``, so no
+system user nor image layout shows) are logged, never a message: a message can carry a URL with a
+token, a Redis URL with its password, a raw path or a pydantic ``input_value`` (C-06; same rule as
+``health.not_ready``).
 
 Not in the access log: responses of the middlewares *before* this one, e.g. the HTTPS redirects of
 ``SecurityMiddleware`` in prod. Streaming responses (N-7 of the T-PLT-12 review): ``duration_ms``
@@ -32,6 +34,7 @@ from collections.abc import Callable
 from contextvars import ContextVar
 from typing import Any
 
+from django.conf import settings
 from django.core.signals import got_request_exception
 from django.dispatch import receiver
 from django.http import HttpRequest, HttpResponseBase
@@ -42,6 +45,8 @@ ACCESS_EVENT = "http.request"
 UNMATCHED_ROUTE = "<unmatched>"
 HEALTH_ROUTES = frozenset({"healthz", "readyz"})
 MAX_FRAMES = 30
+MAX_CHAIN = 10
+_PACKAGE_DIRS = ("/site-packages/", "/dist-packages/")
 
 logger = get_logger(__name__)
 # The unhandled exception of the current request, from got_request_exception to the access event.
@@ -54,20 +59,41 @@ def _keep_request_exception(sender: object, **kwargs: object) -> None:
     _request_exception.set(sys.exc_info()[1])
 
 
+def _type_name(error: BaseException) -> str:
+    kind = type(error)
+    return (
+        kind.__qualname__
+        if kind.__module__ == "builtins"
+        else f"{kind.__module__}.{kind.__qualname__}"
+    )
+
+
+def _short_path(filename: str) -> str:
+    """``django/core/handlers/base.py`` or ``apps/...``: never an absolute path."""
+    path = filename.replace("\\", "/")
+    for marker in _PACKAGE_DIRS:
+        if marker in path:
+            return path.rsplit(marker, 1)[1]
+    base = str(settings.BASE_DIR).replace("\\", "/").rstrip("/") + "/"
+    if path.lower().startswith(base.lower()):
+        return path[len(base) :]
+    return path.rsplit("/", 1)[-1]  # the standard library or anything else: the file name only
+
+
 def describe_exception(error: BaseException) -> dict[str, Any]:
     """Type, chain of cause types and frames of ``error``; never its message nor its args."""
     chain: list[str] = []
     seen = {id(error)}
     cause = error.__cause__ or (None if error.__suppress_context__ else error.__context__)
-    while cause is not None and id(cause) not in seen:
+    while cause is not None and id(cause) not in seen and len(chain) < MAX_CHAIN:
         seen.add(id(cause))
-        chain.append(type(cause).__name__)
+        chain.append(_type_name(cause))
         cause = cause.__cause__ or (None if cause.__suppress_context__ else cause.__context__)
     frames = traceback.extract_tb(error.__traceback__)[-MAX_FRAMES:]
     return {
-        "exception_type": type(error).__name__,
+        "exception_type": _type_name(error),
         "exception_chain": chain,
-        "exception_frames": [f"{f.filename}:{f.lineno} in {f.name}" for f in frames],
+        "exception_frames": [f"{_short_path(f.filename)}:{f.lineno} in {f.name}" for f in frames],
     }
 
 
@@ -87,14 +113,16 @@ class AccessLogMiddleware:
         self.get_response = get_response
 
     def __call__(self, request: HttpRequest) -> HttpResponseBase:
-        token = _request_exception.set(None)
+        _request_exception.set(None)
         started = time.perf_counter()
         try:
             response = self.get_response(request)
             duration_ms = round((time.perf_counter() - started) * 1000, 2)
             route, status = _route(request), response.status_code
             exception = _request_exception.get()
-            fields = describe_exception(exception) if status >= 500 and exception else {}
+            fields = (
+                describe_exception(exception) if status >= 500 and exception is not None else {}
+            )
             logger.log(
                 _level(route, status),
                 ACCESS_EVENT,
@@ -106,4 +134,6 @@ class AccessLogMiddleware:
             )
             return response
         finally:
-            _request_exception.reset(token)
+            # set, not reset: reset would bring back an exception signalled before this request
+            # (an outer middleware, a command) and keep it, with its frames, alive in the context.
+            _request_exception.set(None)

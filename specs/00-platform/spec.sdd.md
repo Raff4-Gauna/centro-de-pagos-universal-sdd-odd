@@ -3,9 +3,9 @@ id: SPEC-00
 modulo: platform
 estado: Approved
 track: S
-version: 1.0.1
+version: 1.0.2
 depende_de: []
-actualizado: 2026-10-31
+actualizado: 2026-11-01
 ---
 
 # Módulo de Plataforma (fundaciones)
@@ -244,3 +244,4 @@ Se completa al generar `tasks.md`.
 | 0.3.0 | 2026-10-31 | Estado → *Designed*. `design.md` (cobertura RN/RF/RNF sin huecos, Compose, pipeline, pre-commit, gobierno del repo, dependencias con versión exacta verificada) y `ADR-0005` (Propuesto). §4 y §16 actualizados: Q-055/Q-056 cerradas con su recomendación, Q-057 decidida por el usuario (el agente mergea solo con certeza total; si no, el dueño). Nuevas Q-058..Q-060 (no bloquean). Sin cambios en RN/RF/AC | `/design 00-platform`; decisión del usuario sobre Q-057 |
 | 1.0.0 | 2026-10-31 | Estado → **Approved** por el dueño. Decididas Q-058 (las rutas del gate de CI son zona roja: reviewer obligatorio), Q-059 (Celery 5.6.3 + redis-py 6.4.0; MUI v9; Tailwind 3.4, DRF 3.16, Node 24 sin cambios) y Q-060 (default). Las versiones exactas de MUI v9 y su ecosistema se fijan y verifican en la primera tarea de frontend | Gate humano *Approved* (2026-10-31) |
 | 1.0.1 | 2026-10-31 | RF-PLT-15: "tema MUI v7" → "tema MUI v9" | Alinear con Q-059 (decidida al aprobar); sin cambio de comportamiento |
+| 1.0.2 | 2026-11-01 | Revisión de Q-059: DRF 3.16.1 → 3.18.2 (stubs de DRF/Django siguen en 3.16.9/5.2.9; `design.md §8`). Sin cambios en RN/RF/AC | Decisión del dueño (2026-11-01) por 3 advisories altas de DRF 3.16.1 detectadas por el auditor de dependencias |

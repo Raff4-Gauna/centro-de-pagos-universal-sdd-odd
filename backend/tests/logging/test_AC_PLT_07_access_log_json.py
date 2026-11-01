@@ -16,11 +16,18 @@ from typing import Any
 
 import pytest
 from django.conf import settings
+from django.core.signals import got_request_exception
 from django.test import Client
 from pytest_django.fixtures import Settings as SettingsWrapper
 
 from apps.common.logging.setup import configure_logging, logging_config
-from apps.common.middleware.access_log import ACCESS_EVENT, UNMATCHED_ROUTE
+from apps.common.middleware import access_log
+from apps.common.middleware.access_log import (
+    ACCESS_EVENT,
+    MAX_CHAIN,
+    UNMATCHED_ROUTE,
+    describe_exception,
+)
 from apps.common.middleware.request_id import REQUEST_ID_HEADER
 from tests.api.urls_test import LEAK_SENTINEL
 from tests.conftest import RunDjango
@@ -204,3 +211,53 @@ def test_AC_PLT_07_exception_message_never_logged(stdout_log: StdoutLog) -> None
     assert event["exception_type"] == "RuntimeError"
     assert event["exception_chain"] == ["ValueError"]
     assert "exception" not in event
+
+
+class ReportedError(Exception):
+    """A non-builtin exception: its type is logged with module and qualified name."""
+
+
+def test_AC_PLT_07_exception_frames_have_no_absolute_paths(stdout_log: StdoutLog) -> None:
+    # T-PLT-13 re-review N-2: an absolute path shows the system user (dev) or the image layout.
+    Client(raise_request_exception=False).get("/test/items/abc?outcome=500")
+    frames = only(stdout_log.read().find(ACCESS_EVENT))["exception_frames"]
+    assert frames[-1].startswith("tests/api/urls_test.py:")
+    assert frames[-1].endswith(" in item")
+    assert any(frame.startswith("django/core/handlers/") for frame in frames)
+    base_dir = str(settings.BASE_DIR).replace("\\", "/")
+    for frame in frames:
+        assert "\\" not in frame, frame
+        assert base_dir not in frame, frame
+        assert "site-packages" not in frame, frame
+        assert not frame.startswith("/"), frame
+        assert ":/" not in frame, frame  # no drive letter
+
+
+def test_AC_PLT_07_exception_types_are_qualified_and_chain_is_capped() -> None:
+    def chain(depth: int) -> BaseException:
+        try:
+            if depth == 0:
+                raise ReportedError
+            raise KeyError from chain(depth - 1)
+        except BaseException as error:
+            return error
+
+    described = describe_exception(chain(MAX_CHAIN + 5))
+    assert described["exception_type"] == "KeyError"  # builtins without a module
+    assert described["exception_chain"] == ["KeyError"] * MAX_CHAIN
+    root = describe_exception(chain(0))
+    assert root["exception_type"] == f"{__name__}.ReportedError"
+
+
+def test_AC_PLT_07_exception_signalled_outside_a_request_is_not_retained(client: Client) -> None:
+    # T-PLT-13 re-review N-1: got_request_exception sent where no access log is listening (an
+    # outer middleware, a management command) must not stay in the context after a request.
+    try:
+        raise ReportedError
+    except ReportedError:
+        got_request_exception.send(sender=None, request=None)
+    client.get("/test/items/abc")
+    assert access_log._request_exception.get() is None
+    # Nor the exception of a failed request once its access event is written.
+    Client(raise_request_exception=False).get("/test/items/abc?outcome=500")
+    assert access_log._request_exception.get() is None
