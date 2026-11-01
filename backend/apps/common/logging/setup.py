@@ -17,22 +17,35 @@ handlers (a text console handler and ``mail_admins``, whose e-mail embeds the er
 settings, C-06) and propagates to the root handler. ``django.request``, ``django.security.csrf`` and
 ``django.server`` are silenced (T-PLT-13): they log the raw path (``"Not Found: /path"``), and the
 access log (``middleware/access_log.py``) reports the same requests with the route template.
+``django.db.backends`` is held at INFO (T-PLT-14): with ``DEBUG`` on it logs every query with its
+parameters at DEBUG; its errors still propagate.
+
+An event that cannot be rendered (bad ``%`` args, a failing formatter) becomes one fixed JSON line,
+``log.render_failed``, instead of logging's text traceback on stderr with the message and its args
+(``StdoutHandler.handleError``, T-PLT-12 review N-2). ``NaN``/``Infinity`` never reach the
+renderer as floats (redaction) and the renderer rejects them anyway (``allow_nan=False``, N-4).
 """
 
 from __future__ import annotations
 
+import json
 import logging
 import logging.config
 import sys
+from datetime import UTC, datetime
 from typing import Any, TextIO
 
 import structlog
 from structlog.typing import Processor
 
+from apps.common.logging import context
 from apps.common.logging.processors import add_component, add_record_extras, redact_event
 
 LOG_LEVELS = ("DEBUG", "INFO", "WARNING", "ERROR")
 SILENCED_LOGGERS = ("django.request", "django.security.csrf", "django.server")
+# DEBUG records of these carry SQL with its parameters (C-06); INFO and up still go out.
+SQL_LOGGERS = ("django.db.backends",)
+RENDER_FAILED_EVENT = "log.render_failed"
 
 
 class StdoutHandler(logging.StreamHandler[TextIO]):
@@ -52,6 +65,32 @@ class StdoutHandler(logging.StreamHandler[TextIO]):
     @stream.setter
     def stream(self, value: TextIO) -> None:
         """Ignored: the target is always the current stdout."""
+
+    def handleError(self, record: logging.LogRecord) -> None:  # noqa: N802 - logging's API
+        """One fixed JSON line for a record that failed to render; never raises.
+
+        Only fields known to be safe: the logger name and level of the record and the type of
+        the error, never ``record.msg``, its args nor the error message (they may carry
+        anything, C-06). Replaces logging's default, a text traceback on stderr.
+        """
+        error = sys.exc_info()[1]
+        event = {
+            "timestamp": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+            "level": "error",
+            "component": __name__,
+            "message": RENDER_FAILED_EVENT,
+            "failed_component": str(record.name),
+            "failed_level": str(record.levelname).lower(),
+            "error_type": type(error).__name__ if error is not None else "unknown",
+        }
+        request_id = context.current_request_id()
+        if request_id is not None:
+            event["request_id"] = request_id
+        try:
+            self.stream.write(json.dumps(event) + self.terminator)
+            self.flush()
+        except Exception:  # noqa: S110 - stdout itself failed: nowhere left to report it
+            pass
 
 
 def _shared_processors() -> list[Processor]:
@@ -73,7 +112,7 @@ def json_formatter() -> structlog.stdlib.ProcessorFormatter:
             structlog.processors.format_exc_info,
             redact_event,
             structlog.processors.EventRenamer("message"),
-            structlog.processors.JSONRenderer(),
+            structlog.processors.JSONRenderer(allow_nan=False),
         ],
     )
 
@@ -98,6 +137,8 @@ def logging_config(level: str) -> dict[str, Any]:
             "django": {"handlers": [], "level": "NOTSET", "propagate": True},
             # They log the raw path (RN-PLT-06); the access log replaces them.
             **{name: {"handlers": ["silenced"], "propagate": False} for name in SILENCED_LOGGERS},
+            # A level of their own: the root's DEBUG (LOG_LEVEL) must not let SQL through.
+            **{name: {"handlers": [], "level": "INFO", "propagate": True} for name in SQL_LOGGERS},
         },
     }
 

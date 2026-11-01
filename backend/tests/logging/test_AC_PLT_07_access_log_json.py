@@ -15,7 +15,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 import pytest
-from django.conf import settings
+from django.conf import LazySettings, settings
 from django.core.signals import got_request_exception
 from django.test import Client
 from pytest_django.fixtures import Settings as SettingsWrapper
@@ -261,3 +261,55 @@ def test_AC_PLT_07_exception_signalled_outside_a_request_is_not_retained(client:
     # Nor the exception of a failed request once its access event is written.
     Client(raise_request_exception=False).get("/test/items/abc?outcome=500")
     assert access_log._request_exception.get() is None
+
+
+def test_AC_PLT_07_frames_of_each_cause_are_logged(stdout_log: StdoutLog) -> None:
+    # T-PLT-13 re-review N-3 (taken by T-PLT-14): where the cause was raised, not only its type.
+    Client(raise_request_exception=False).get("/test/items/abc?outcome=leaky")
+    event = only(stdout_log.read().find(ACCESS_EVENT))
+    assert event["exception_chain"] == ["ValueError"]
+    (cause_frames,) = event["exception_chain_frames"]
+    assert cause_frames[-1].startswith("tests/api/urls_test.py:")
+    assert cause_frames[-1].endswith(" in raise_leaky_chain")
+    assert LEAK_SENTINEL not in json.dumps(event)
+
+
+def test_AC_PLT_07_chain_frames_follow_the_capped_chain() -> None:
+    def chain(depth: int) -> BaseException:
+        try:
+            if depth == 0:
+                raise ReportedError
+            raise KeyError from chain(depth - 1)
+        except BaseException as error:
+            return error
+
+    described = describe_exception(chain(MAX_CHAIN + 5))
+    assert len(described["exception_chain_frames"]) == MAX_CHAIN
+    assert all(frames[-1].endswith(" in chain") for frames in described["exception_chain_frames"])
+    assert describe_exception(ReportedError())["exception_chain_frames"] == []
+
+
+def test_AC_PLT_07_stdlib_frames_keep_their_package(stdout_log: StdoutLog) -> None:
+    # Review of 41651f0: "__init__.py" alone does not say which module; "json/decoder.py" does.
+    try:
+        json.loads("{")
+    except ValueError as error:
+        frames = describe_exception(error)["exception_frames"]
+    assert any(frame.startswith("json/decoder.py:") for frame in frames), frames
+    assert all(":/" not in frame and not frame.startswith("/") for frame in frames), frames
+
+
+def test_AC_PLT_07_frames_outside_django_settings_are_file_names(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Review of 41651f0: a script or Celery before django.setup() has no settings; describing an
+    # exception must not raise ImproperlyConfigured.
+    monkeypatch.delenv("DJANGO_SETTINGS_MODULE", raising=False)
+    monkeypatch.setattr(access_log, "settings", LazySettings())
+    app_file = str(settings.BASE_DIR / "apps" / "demo" / "services.py")
+    assert access_log._short_path(app_file) == "services.py"
+    assert access_log._short_path("/usr/lib/python3.12/site-packages/x/y.py") == "x/y.py"
+    with pytest.raises(ReportedError) as raised:
+        raise ReportedError
+    frames = describe_exception(raised.value)["exception_frames"]
+    assert frames[-1].startswith("test_AC_PLT_07_access_log_json.py:")
