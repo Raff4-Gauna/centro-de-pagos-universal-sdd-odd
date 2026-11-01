@@ -296,6 +296,9 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
 - **Fuera de esta tarea:** comparación contra claves de `spikes/.env.example` (T-PLT-39).
 - **Pendiente de la revisión de T-PLT-08:** rechazar `DJANGO_ALLOWED_HOSTS='*'` en prod (N-10 de la revisión
   de T-PLT-08).
+- **Pendiente de la revisión de T-PLT-13 (N-a):** decidir `django.security.DisallowedHost`: hoy loguea ERROR con
+  `exc_info` (traza completa) por cada `Host` inválido, que en prod puede ser ruido de escaneos. Opciones: bajarlo
+  a WARNING sin `exc_info`, o silenciarlo y quedarse con el 400 del access log.
 - **Plan de pruebas:** `test_AC_PLT_04_check_deploy_has_no_warnings` (subproceso `check --deploy --fail-level
   WARNING`), `test_AC_PLT_04_debug_true_in_prod_does_not_start`, `test_AC_PLT_04_weak_secret_key_in_prod_does_not_start`;
   `test_AC_PLT_06_env_is_read_only_in_env_py` (AST sobre `config/` y `apps/`; se admite solo
@@ -393,8 +396,8 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
     `"Forbidden (...): <path>"`) y `django.server` con un `NullHandler` y `propagate=False` (sin handler, el
     `lastResort` de `logging` igual escribiría WARNING+ a stderr). El silenciamiento vive en `logging_config()`
     de `apps/common/logging/setup.py`, no en `base.py`: `dev`/`test`/`prod` reconstruyen `LOGGING` desde ahí.
-    Como `django.request` ya no muestra la traza de un 500, el access log la lleva (`exception`) cuando la causa
-    es una excepción de la vista (`process_exception`). Se rehicieron
+    Como `django.request` ya no muestra la traza de un 500, el access log la lleva cuando la causa
+    es una excepción (ver O-1/O-2 más abajo: tipo y frames, sin mensaje). Se rehicieron
     `test_AC_PLT_09_header_is_returned_on_an_error_response` y `test_C_06_error_log_never_carries_the_settings`
     sobre el evento `http.request`. Tests nuevos: `test_RN_PLT_06_no_raw_path_for_404_400_403_500` (404 resuelto y
     sin resolver, 400, 403 por permiso y por CSRF, 500; ningún segmento ni query en stdout/stderr) y
@@ -404,6 +407,18 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
     (headers), no hasta enviar el cuerpo, y lo que se loguee mientras el servidor WSGI itera el cuerpo ya no tiene
     `request_id` (el middleware limpió el contexto). No hay endpoints con streaming en 00: queda documentado en
     `access_log.py`; cuando exista uno, medir con un *closer* de la respuesta.
+- **Ampliado tras revisión de T-PLT-13 (commit `fix(platform): access log follow-ups from T-PLT-13 review`):**
+  - **O-1:** la excepción se toma de la señal `got_request_exception` (Django la emite dentro del `except`) y no de
+    `process_exception`: así también llegan al evento los 500 lanzados por un middleware interno, `process_view`,
+    el URLconf o `process_template_response`. Test:
+    `test_AC_PLT_07_5xx_raised_outside_the_view_is_logged_with_its_type`.
+  - **O-2 (opción a):** el evento ya no lleva `exception` (traza con mensaje) sino `exception_type`,
+    `exception_chain` (tipos de `__cause__`/`__context__`) y `exception_frames` (`archivo:línea in función`, hasta
+    30), nunca el mensaje ni los args: mismo criterio que `health.not_ready`. Test:
+    `test_AC_PLT_07_exception_message_never_logged` (token en query, `redis://:<centinela>@`, path y
+    `input_value` encadenados).
+  - **N-b / N-c:** documentado en `access_log.py` que los redirects de `SecurityMiddleware` (antes del access log)
+    no aparecen, y que `route=<unmatched>` también cuando un middleware corta o falla antes de resolver la URL.
 - **Notas de implementación:** evento `http.request`; `route` es `resolver_match.route` o `<unmatched>`; `/healthz`
   y `/readyz` siempre en DEBUG (un `/readyz` 503 ya deja `WARNING health.not_ready`), ERROR desde 500, INFO el
   resto. `duration_ms` redondeado a 2 decimales. Test agregado: `test_AC_PLT_07_health_requests_shown_at_debug_level`.

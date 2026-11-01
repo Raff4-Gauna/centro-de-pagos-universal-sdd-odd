@@ -17,10 +17,12 @@ from typing import Any
 import pytest
 from django.conf import settings
 from django.test import Client
+from pytest_django.fixtures import Settings as SettingsWrapper
 
 from apps.common.logging.setup import configure_logging, logging_config
 from apps.common.middleware.access_log import ACCESS_EVENT, UNMATCHED_ROUTE
 from apps.common.middleware.request_id import REQUEST_ID_HEADER
+from tests.api.urls_test import LEAK_SENTINEL
 from tests.conftest import RunDjango
 from tests.logging.conftest import StdoutLog
 
@@ -32,9 +34,13 @@ QUERY_SENTINEL = "qs-sentinel-91c2"
 pytestmark = pytest.mark.urls("tests.api.urls_test")
 
 
-def access_event(stdout_log: StdoutLog) -> dict[str, Any]:
-    (event,) = stdout_log.read().find(ACCESS_EVENT)
+def only(events: list[dict[str, Any]]) -> dict[str, Any]:
+    (event,) = events
     return event
+
+
+def access_event(stdout_log: StdoutLog) -> dict[str, Any]:
+    return only(stdout_log.read().find(ACCESS_EVENT))
 
 
 @pytest.fixture
@@ -100,8 +106,9 @@ def test_AC_PLT_07_5xx_logged_at_error(stdout_log: StdoutLog) -> None:
     assert response.status_code == 500
     event = access_event(stdout_log)
     assert (event["level"], event["status"], event["route"]) == ("error", 500, ITEM_ROUTE)
-    # django.request is silenced, so the traceback travels with the access event.
-    assert "RuntimeError: test.failure" in event["exception"]
+    # django.request is silenced, so the cause travels with the access event: types and frames.
+    assert event["exception_type"] == "RuntimeError"
+    assert any(frame.endswith(" in item") for frame in event["exception_frames"])
 
 
 @pytest.mark.parametrize(
@@ -163,3 +170,37 @@ def test_RN_PLT_06_silenced_loggers_write_nothing_outside_pytest(run_django: Run
     assert statuses == [404, 403, 500, 403]  # only the access log lines
     for leak in (PATH_SENTINEL, QUERY_SENTINEL):
         assert leak not in result.stdout
+
+
+@pytest.mark.parametrize("explode", ["call", "view"])
+def test_AC_PLT_07_5xx_raised_outside_the_view_is_logged_with_its_type(
+    settings: SettingsWrapper, stdout_log: StdoutLog, explode: str
+) -> None:
+    # T-PLT-13 review O-1: a failure in an inner middleware or in process_view never reaches
+    # process_exception; got_request_exception still reports it.
+    access = settings.MIDDLEWARE.index("apps.common.middleware.access_log.AccessLogMiddleware")
+    settings.MIDDLEWARE = [
+        *settings.MIDDLEWARE[: access + 1],
+        "tests.api.urls_test.ExplodingMiddleware",
+        *settings.MIDDLEWARE[access + 1 :],
+    ]
+    response = Client(raise_request_exception=False).get(f"/test/items/abc?explode={explode}")
+    assert response.status_code == 500
+    log = stdout_log.read()
+    event = only(log.find(ACCESS_EVENT))
+    assert (event["level"], event["exception_type"]) == ("error", "RuntimeError")
+    function = "__call__" if explode == "call" else "process_view"
+    assert event["exception_frames"][-1].endswith(f" in {function}")
+    assert log.err == ""
+
+
+def test_AC_PLT_07_exception_message_never_logged(stdout_log: StdoutLog) -> None:
+    # T-PLT-13 review O-2: messages can carry tokens, passwords, raw paths, input values.
+    response = Client(raise_request_exception=False).get("/test/items/abc?outcome=leaky")
+    assert response.status_code == 500
+    log = stdout_log.read()
+    assert LEAK_SENTINEL not in log.out + log.err
+    event = only(log.find(ACCESS_EVENT))
+    assert event["exception_type"] == "RuntimeError"
+    assert event["exception_chain"] == ["ValueError"]
+    assert "exception" not in event

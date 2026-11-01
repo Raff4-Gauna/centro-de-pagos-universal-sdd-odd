@@ -191,8 +191,7 @@ def test_C_06_error_log_never_carries_the_settings(
     response = Client(raise_request_exception=False).get("/test/error")
     assert response.status_code == 500
     log = stdout_log.read()
-    # The access log (T-PLT-13) carries the failure and its traceback; django.request is silenced.
+    # The access log (T-PLT-13) carries the failure (its type); django.request is silenced.
     (access,) = log.find(ACCESS_EVENT)
-    assert access["status"] == 500
-    assert "RuntimeError: test.failure" in access["exception"]
+    assert (access["status"], access["exception_type"]) == (500, "RuntimeError")
     assert SENTINEL not in log.out + log.err
