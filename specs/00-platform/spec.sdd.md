@@ -3,7 +3,7 @@ id: SPEC-00
 modulo: platform
 estado: Approved
 track: S
-version: 1.0.0
+version: 1.0.1
 depende_de: []
 actualizado: 2026-10-31
 ---
@@ -112,7 +112,7 @@ permiso de escritura, que dice aprobado/rechazado y cita el SHA revisado.
 - **RF-PLT-12** Configuración de pre-commit: `ruff`, `eslint`/`prettier`, tamaño de archivo, `gitleaks`, fin de línea LF. (RN-PLT-08, RN-PLT-13)
 - **RF-PLT-13** Configuración del repo público: ruleset sobre `main` (RN-PLT-12), merge solo squash, secret scanning + push protection, aprobación del dueño para workflows de colaboradores externos nuevos; script que consulta la API de GitHub y verifica esa configuración; procedimiento previo al cambio de visibilidad (gitleaks sobre todo el historial + Q-054). (RN-PLT-12, RN-PLT-13, RN-PLT-18)
 - **RF-PLT-14** Generación de `openapi.yaml` (`drf-spectacular`, por comando) y de `frontend/src/types/` (`openapi-typescript`), con chequeo de diff en CI; manejador de errores de DRF con sobre `problem+json`. (RN-PLT-15)
-- **RF-PLT-15** Frontend base: `design-tokens.ts`, tema MUI v7 + Tailwind (`preflight: false`, prefijo `tw-`), `PageSkeleton`, `EmptyState`, aviso de error con "Reintentar", `query-client.ts`, `api-client.ts` tipado y esqueleto del layout `(dashboard)` (Q-045). (RN-PLT-16)
+- **RF-PLT-15** Frontend base: `design-tokens.ts`, tema MUI v9 + Tailwind (`preflight: false`, prefijo `tw-`), `PageSkeleton`, `EmptyState`, aviso de error con "Reintentar", `query-client.ts`, `api-client.ts` tipado y esqueleto del layout `(dashboard)` (Q-045). (RN-PLT-16)
 - **RF-PLT-16** Completar "Comandos de desarrollo" en `AGENTS.md` (levantar, resetear BD, tests, lint, regenerar contrato). (RN-PLT-01)
 - **RF-PLT-17** Throttling de DRF con caché en Redis, respuesta `429` + `Retry-After` y un límite global por defecto para anónimos. (RN-PLT-19)
 - **RF-PLT-18** Chequeo de CI contra `float` en dinero con allowlist explícita y comentada. (RN-PLT-20)
@@ -243,3 +243,4 @@ Se completa al generar `tasks.md`.
 | 0.2.0 | 2026-10-31 | Estado → *Clarified*. Repo público: RN-PLT-12/13 reescritas, nueva RN-PLT-18, RF-PLT-11/13 ampliados, AC-PLT-24 ampliado, nuevos AC-PLT-32/33. RN/RF/AC con los valores decididos de Q-029..Q-053 (UUIDv4, 400 líneas con tests incluidos, uv/pnpm, structlog, pydantic-settings, mypy, cobertura 85/70, `problem+json`). Throttling y chequeo de C-02 pasan de "sujeto a" a RN-PLT-19/20 con AC-PLT-30/31 definitivos; nuevo RF-PLT-19 (feature flags, Q-052), RNF-PLT-08/09, AC-PLT-34. Matriz de permisos y casos límite completados (`clarifications.md §H–§I`). §15 sin el supuesto de repo privado. Nuevas Q-054..Q-057, ninguna bloquea *Clarified* | `/clarify 00-platform`: el usuario decidió Q-042 (repo público) y aceptó las recomendaciones de Q-012, Q-013, Q-027 y Q-029..Q-053 |
 | 0.3.0 | 2026-10-31 | Estado → *Designed*. `design.md` (cobertura RN/RF/RNF sin huecos, Compose, pipeline, pre-commit, gobierno del repo, dependencias con versión exacta verificada) y `ADR-0005` (Propuesto). §4 y §16 actualizados: Q-055/Q-056 cerradas con su recomendación, Q-057 decidida por el usuario (el agente mergea solo con certeza total; si no, el dueño). Nuevas Q-058..Q-060 (no bloquean). Sin cambios en RN/RF/AC | `/design 00-platform`; decisión del usuario sobre Q-057 |
 | 1.0.0 | 2026-10-31 | Estado → **Approved** por el dueño. Decididas Q-058 (las rutas del gate de CI son zona roja: reviewer obligatorio), Q-059 (Celery 5.6.3 + redis-py 6.4.0; MUI v9; Tailwind 3.4, DRF 3.16, Node 24 sin cambios) y Q-060 (default). Las versiones exactas de MUI v9 y su ecosistema se fijan y verifican en la primera tarea de frontend | Gate humano *Approved* (2026-10-31) |
+| 1.0.1 | 2026-10-31 | RF-PLT-15: "tema MUI v7" → "tema MUI v9" | Alinear con Q-059 (decidida al aprobar); sin cambio de comportamiento |

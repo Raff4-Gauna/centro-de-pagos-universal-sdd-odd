@@ -1,6 +1,6 @@
 ---
 spec: SPEC-00
-estado: Draft            # Draft | Aprobado — pasa a Aprobado cuando el usuario aprueba la spec (gate humano)
+estado: Aprobado         # aprobado por el usuario junto con la spec (2026-10-31)
 actualizado: 2026-10-31
 ---
 # Diseño — Módulo de Plataforma (fundaciones)
