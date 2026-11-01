@@ -5,13 +5,16 @@
 - **Keys.** The value of a secret-like key becomes ``"[REDACTED]"``, whatever its type. Keys are
   compared without case, ``-`` nor ``_`` (``Set-Cookie``/``set_cookie``), and the WSGI form of a
   header (``HTTP_AUTHORIZATION``) is the header. Exact: ``authorization``, ``proxy-authorization``,
-  ``cookie``, ``set-cookie``, ``x-api-key`` and ``location`` (a redirect target or a cache
-  location, ``CACHES["default"]["LOCATION"]`` is the Redis URL; T-PLT-12 review). Containing:
-  ``token``, ``secret``, ``password``, ``passwd``, ``api_key``/``apikey``, ``credential``,
-  ``signature``.
+  ``cookie``, ``set-cookie``, ``x-api-key``, ``auth`` and ``location`` (a redirect target or a
+  cache location, ``CACHES["default"]["LOCATION"]`` is the Redis URL; T-PLT-12 review).
+  Containing: ``token``, ``secret``, ``password``, ``passwd``, ``api_key``/``apikey``,
+  ``credential``, ``signature``, ``private_key``, ``session`` (``sessionid``) and ``jwt``.
 - **Text** (every string, the message and a rendered traceback included): a URL loses its
-  ``user:password@``, query string and fragment; ``<secret-like key>=value`` (a query string
-  without a URL, a libpq DSN) loses the value; ``Bearer <credential>`` loses the credential.
+  ``user:password@``, query string and fragment; a secret-like key followed by ``=`` or ``:``
+  (with blanks and quotes around: ``password = x``, ``token: x``, ``{"access_token": "x"}``, a
+  query string without a URL, a libpq DSN, a header line) loses its value, after an auth scheme if
+  there is one (``Authorization: Bearer x``); ``Bearer``/``Basic <credential>`` loses the
+  credential anywhere.
   Best effort: a secret written into free text in any other shape is not recognised, which is why
   the rule stays "never log it" (RN-PLT-06) and this is the net under it.
 - **Linear time** (T-PLT-14 review B-1): records are rendered inside ``Handler.emit``, under the
@@ -47,9 +50,20 @@ MAX_TEXT = 8192  # characters of one string kept before redaction (B-1)
 
 # Compact form: lower case, no "-" nor "_".
 _EXACT_KEYS = frozenset(
-    {"authorization", "proxyauthorization", "cookie", "setcookie", "xapikey", "location"}
+    {"authorization", "proxyauthorization", "cookie", "setcookie", "xapikey", "location", "auth"}
 )
-_KEY_PARTS = ("token", "secret", "password", "passwd", "apikey", "credential", "signature")
+_KEY_PARTS = (
+    "token",
+    "secret",
+    "password",
+    "passwd",
+    "apikey",
+    "credential",
+    "signature",
+    "privatekey",
+    "session",
+    "jwt",
+)
 _WSGI_HEADER_PREFIX = "http"
 
 # Linear by construction (B-1): each pattern can only start where the previous character cannot
@@ -57,14 +71,23 @@ _WSGI_HEADER_PREFIX = "http"
 # unbounded and greedy (nothing after it can fail, so it never backtracks).
 # scheme://... up to whitespace, a quote or an angle bracket. RFC 3986 schemes are short.
 _URL = re.compile(r"(?<![A-Za-z0-9+.\-])[A-Za-z][A-Za-z0-9+.\-]{0,31}://[^\s\"'<>]+")
-# key=value where the key is secret-like; the value runs to a separator of query strings/DSNs.
-_SECRET_PAIR = re.compile(
-    r"(?i)(?<![\w.\-])"
-    r"([\w.\-]{0,64}?(?:token|secret|password|passwd|api[_\-]?key|credential|signature)"
-    r"[\w.\-]{0,64}?=)"
-    r"[^\s&;,\"']+"
+# key=value, key: value, "key": "value", password = value... where the key is secret-like (the
+# parts of _KEY_PARTS, or one of the whole keys) and the separator follows it right away. Kept in
+# group 1: the key, the separator with its quotes and an auth scheme ("Authorization: Bearer x").
+# The value runs to a blank, a quote or a separator of query strings, DSNs, JSON and cookies.
+_PAIR_KEY_PARTS = (
+    r"token|secret|password|passwd|api[_\-]?key|credential|signature|private[_\-]?key|session|jwt"
 )
-_BEARER = re.compile(r"(?i)(?<!\w)(bearer\s{1,16})[A-Za-z0-9\-._~+/]+=*")
+_PAIR_WHOLE_KEYS = r"auth|(?:proxy[_\-]?)?authorization|(?:set[_\-]?)?cookie"
+_SECRET_PAIR = re.compile(
+    r"(?i)(?<![\w.\-])("
+    rf"(?:[\w.\-]{{0,64}}?(?:{_PAIR_KEY_PARTS})[\w.\-]{{0,64}}?|{_PAIR_WHOLE_KEYS})"
+    r"[\"']?\s{0,8}[:=]\s{0,8}[\"']?"
+    r"(?:(?:bearer|basic|token)\s{1,16})?"
+    r")[^\s&;,\"'}\]]+"
+)
+# A credential after an HTTP auth scheme, anywhere in a text.
+_AUTH_SCHEME = re.compile(r"(?i)(?<!\w)((?:bearer|basic)\s{1,16})[A-Za-z0-9\-._~+/]+=*")
 _NON_FINITE = {math.inf: "Infinity", -math.inf: "-Infinity"}
 
 JsonValue = str | int | float | bool | None | list["JsonValue"] | dict[str, "JsonValue"]
@@ -112,8 +135,9 @@ def _cut(text: str) -> str:
 
 def redact_text(text: str) -> str:
     text = _URL.sub(_redact_url, _cut(text))
+    # Pairs before the bare scheme rule: a pair keeps "Bearer" in group 1 and redacts the rest.
     text = _SECRET_PAIR.sub(lambda match: match.group(1) + REDACTED, text)
-    return _BEARER.sub(lambda match: match.group(1) + REDACTED, text)
+    return _AUTH_SCHEME.sub(lambda match: match.group(1) + REDACTED, text)
 
 
 def _placeholder(value: object) -> str:

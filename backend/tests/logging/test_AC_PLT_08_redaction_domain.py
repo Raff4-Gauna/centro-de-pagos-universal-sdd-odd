@@ -55,6 +55,18 @@ SENTINEL = "sentinel-c0ffee"
         "mp-api-key",
         "credentials",
         "webhook_signature",
+        # T-PLT-14 review N-2:
+        "private_key",
+        "PRIVATE-KEY",
+        "privateKey",
+        "session",
+        "sessionid",
+        "SESSION_ID",
+        "jwt",
+        "id_jwt",
+        "auth",
+        "AUTH",
+        "HTTP_AUTH",
     ],
 )
 def test_AC_PLT_08_secret_like_keys_match_in_any_spelling(key: str) -> None:
@@ -63,7 +75,18 @@ def test_AC_PLT_08_secret_like_keys_match_in_any_spelling(key: str) -> None:
 
 @pytest.mark.parametrize(
     "key",
-    ["route", "status", "request_id", "organization_id", "message", "allocation", "cookies_ok"],
+    [
+        "route",
+        "status",
+        "request_id",
+        "organization_id",
+        "message",
+        "allocation",
+        "cookies_ok",
+        "author",
+        "oauth",
+        "authority",
+    ],
 )
 def test_AC_PLT_08_ordinary_keys_are_kept(key: str) -> None:
     assert not is_secret_key(key)
@@ -114,6 +137,42 @@ def test_AC_PLT_08_redacts_nested_secret_like_keys_at_any_depth() -> None:
 def test_AC_PLT_08_text_loses_url_credentials_queries_and_secret_pairs(
     text: str, expected: str
 ) -> None:
+    assert redact_text(text) == expected
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        # T-PLT-14 review N-2: separators ":" and "=", spaces and quotes around them.
+        ('{"access_token": "abc123"}', f'{{"access_token": "{REDACTED}"}}'),
+        ("{'password': 'x'}", f"{{'password': '{REDACTED}'}}"),
+        ("token: abc", f"token: {REDACTED}"),
+        ("X-Api-Key: v", f"X-Api-Key: {REDACTED}"),
+        ("password = x", f"password = {REDACTED}"),
+        ("client_secret:s1, next", f"client_secret:{REDACTED}, next"),
+        # Bearer and Basic, alone or as the value of a header.
+        ("Authorization: Basic dXNlcjpwYXNz", f"Authorization: Basic {REDACTED}"),
+        ("sent Basic dXNlcjpwYXNz==", f"sent Basic {REDACTED}"),
+        ("Authorization: Token abc", f"Authorization: Token {REDACTED}"),
+        ("authorization=raw-key-1", f"authorization={REDACTED}"),
+        ("token: Bearer abc", f"token: Bearer {REDACTED}"),
+        # The keys added by N-2, in text too.
+        ("auth=abc&page=2", f"auth={REDACTED}&page=2"),
+        ("Cookie: sessionid=abc; csrftoken=def", f"Cookie: {REDACTED}; csrftoken={REDACTED}"),
+        ("sessionid=abc; theme=dark", f"sessionid={REDACTED}; theme=dark"),
+        ("jwt: eyJhbGciOi.eyJzdWIi.c2ln", f"jwt: {REDACTED}"),
+        ("private_key=MIIEvQIB", f"private_key={REDACTED}"),
+        # Not secrets: no separator right after the key, or a key that only looks like one.
+        ("token refresh failed: timeout", "token refresh failed: timeout"),
+        ("author: Rafael", "author: Rafael"),
+        ("oauth: started", "oauth: started"),
+        (
+            "password authentication failed for user hub",
+            "password authentication failed for user hub",
+        ),
+    ],
+)
+def test_AC_PLT_08_text_loses_quoted_and_colon_separated_secrets(text: str, expected: str) -> None:
     assert redact_text(text) == expected
 
 

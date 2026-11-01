@@ -48,6 +48,9 @@ HOSTILE = {
     "bearer_words": "bearer " * (SIZE // 7),
     "token_and_spaces": "token " * (SIZE // 6),
     "key_separators": "token:" * (SIZE // 6),
+    "quoted_pairs": '{"token": "' * (SIZE // 11),
+    "basic_words": "basic " * (SIZE // 6),
+    "auth_words": "auth " * (SIZE // 5),
 }
 
 
@@ -57,7 +60,10 @@ def test_AC_PLT_08_redaction_is_fast_on_hostile_text(name: str) -> None:
     assert best_time(lambda: redact_text(text)) < BUDGET_SECONDS
 
 
-@pytest.mark.parametrize("name", ["letters", "token_words", "key_separators", "scheme_like"])
+@pytest.mark.parametrize(
+    "name",
+    ["letters", "token_words", "key_separators", "scheme_like", "quoted_pairs", "auth_words"],
+)
 def test_AC_PLT_08_patterns_are_linear_even_without_the_cut(name: str) -> None:
     # The cut alone would hide a quadratic pattern on 8 KB strings: time a string just under it.
     text = HOSTILE[name][: MAX_TEXT - 1]
