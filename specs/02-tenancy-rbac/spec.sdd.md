@@ -1,9 +1,9 @@
 ---
 id: SPEC-02
 modulo: tenancy-rbac
-estado: Clarified        # Draft | Clarified | Designed | Approved | Implemented | Verified
+estado: Designed         # Draft | Clarified | Designed | Approved | Implemented | Verified
 track: S
-version: 0.2.0
+version: 0.3.0
 depende_de: [SPEC-00, SPEC-01]
 actualizado: 2026-10-31
 ---
@@ -421,10 +421,12 @@ auditada (`C-05`). Una invitación vencida se rechaza al aceptar aunque todavía
 
 ## 16. Preguntas abiertas
 Ver `specs/02-tenancy-rbac/clarifications.md`. **Bloqueantes abiertas: ninguna** (Q-201, Q-202, Q-204, Q-206,
-Q-208, Q-211, Q-212, Q-213 decididas el 2026-10-31). Abiertas no bloqueantes con default aplicado: Q-221
+Q-208, Q-211, Q-212, Q-213 decididas el 2026-10-31). Decididas por defecto (confirmables antes de *Approved*): Q-221
 (escrituras durante suspensión), Q-222 (mecanismo de la membership de soporte), Q-223 (invitaciones de quien pierde
-permiso), Q-224 (recuperación de owner). Dirigida a otro módulo: Q-220 (dueño de la Caja, SPEC-04/05). Decididas
-transversales que aplican: Q-001, Q-006, Q-010, Q-012, Q-027 (`specs/00-platform/clarifications.md`).
+permiso), Q-224 (recuperación de owner). Nuevas del diseño, no bloqueantes: Q-225 (catálogo de auditoría vs
+C-05/C-08), Q-226 (nombre de Branch sin distinguir mayúsculas), Q-227 (unicidad de `code` de Branch). Dirigida a
+otro módulo: Q-220 (dueño de la Caja, SPEC-04/05). Decididas transversales que aplican: Q-001, Q-006, Q-010, Q-012,
+Q-027 (`specs/00-platform/clarifications.md`).
 
 ## 17. Trazabilidad
 Se completa al generar `tasks.md`.
@@ -434,10 +436,12 @@ Se completa al generar `tasks.md`.
 |---|---|---|---|
 | 0.1.0 | 2026-10-31 | Borrador inicial | Tenancy + RBAC sobre Q-001, Q-006, Q-010, Q-012, Q-027 |
 | 0.2.0 | 2026-10-31 | Estado → *Clarified*. Se incorporan las decisiones Q-201…Q-219 a §3/§4/§5/§6/§7/§9/§10/§11/§12/§14; matriz completa con columnas "sin membership" y operador, más §4.1 (organización suspendida); nuevas RN-TEN-18…21; nuevas AC-TEN-25…35; organización activa por header y JWT sin rol/organización (acuerdo con SPEC-01); Invitation implementa el puerto de SPEC-01; Q-012/Q-027 tratadas como decididas; nuevas Q-220 (dirigida a 04/05) y Q-221…Q-224 (no bloqueantes); insumos para ADR-0001/0002 en §15 | Decisiones del usuario del 2026-10-31 (clarify) |
+| 0.3.0 | 2026-10-31 | Estado → *Designed*. Se agrega `design.md` (header `X-Organization-Id`, resolución en permiso DRF con 1 consulta, `TenantQuerySet` que falla cerrado, matriz como código, locks sobre `Organization`, contratos, UI, pruebas) y ADR-0001 / ADR-0002 (*Propuestos*). Q-221…Q-224 registradas como decididas por defecto (confirmables antes de *Approved*); nuevas Q-225…Q-227 (no bloqueantes). Sin cambios en RN/RF/AC | Paso 3 SDD (architect) |
 
 ---
-**Hecho:** spec *Clarified* con 21 RN, 9 RF, 7 RNF, 35 AC; matriz de permisos completa (§4 y §4.1); checklist de
-casos límite revisado; 0 bloqueantes abiertas.
-**Pendiente:** Q-221…Q-224 (no bloqueantes, default aplicado) a confirmar antes de *Approved*; Q-220 para
-SPEC-04/05; ADR-0001 y ADR-0002.
-**Siguiente rol:** architect.
+**Hecho:** spec *Designed*: 21 RN, 9 RF, 7 RNF y 35 AC con destino en `design.md` (§2 y §9); ADR-0001 y ADR-0002
+*Propuestos*.
+**Pendiente:** confirmar Q-221…Q-224 (default aplicado) y decidir Q-225…Q-227 antes de *Approved* (si Q-223 o Q-225
+se confirman, agregar sus AC y ajustar RNF-TEN-04); Q-220 para SPEC-04/05; ajustar `context/07 §5.1` según
+`design.md §3.10`; firma final del puerto de invitación con SPEC-01.
+**Siguiente rol:** humano (gate *Approved*) → task-planner.
