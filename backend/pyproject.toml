@@ -1,0 +1,40 @@
+# Backend dependencies (uv; Q-030). Exact pins (`==`) from design.md §8, verified 2026-10-31; transitive
+# versions live in uv.lock, which CI and images install from with `uv sync --frozen` (C-13, RN-PLT-14).
+# Not a package: uv installs the dependencies only, never the project itself.
+# Lint/format config lives in the single /ruff.toml at the repo root (no [tool.ruff] here, D-12).
+[project]
+name = "centro-de-pagos-backend"
+version = "0.0.0"
+description = "Centro de Pagos Universal - Django + DRF backend"
+requires-python = "==3.12.*"
+dependencies = [
+    "django==5.2.18",
+    "djangorestframework==3.16.1",
+    # Celery 5.6.3 pulls kombu 5.6.2, which needs redis<6.5 (Q-059).
+    "celery[redis]==5.6.3",
+    "redis==6.4.0",
+    "psycopg[binary]==3.3.6",
+    "pydantic-settings==2.16.2",
+    "structlog==26.1.0",
+    "drf-spectacular==0.30.0",
+    "gunicorn==26.2.0",
+]
+
+[dependency-groups]
+dev = [
+    "ruff==0.17.3",
+    # django-stubs 5.2.9 requires mypy<1.20.
+    "mypy==1.19.1",
+    # Pinned so uv does not move to django-stubs 6.x, which targets Django 6.
+    "django-stubs==5.2.9",
+    "djangorestframework-stubs==3.16.9",
+    "celery-types==0.26.0",
+    "pytest==9.2.0",
+    "pytest-django==4.14.0",
+    "pytest-cov==7.1.0",
+    "pip-audit==2.10.1",
+    "pyyaml==6.0.3",
+]
+
+[tool.uv]
+package = false
