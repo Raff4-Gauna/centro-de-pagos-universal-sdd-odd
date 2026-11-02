@@ -844,7 +844,7 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
 - **Plan de pruebas:** `test_AC_PLT_23_committed_openapi_matches_generated`,
   `test_AC_PLT_23_check_mode_fails_and_prints_diff_when_outdated`, `test_AC_PLT_23_problem_component_on_4xx_5xx`,
   `test_RN_PLT_15_info_version_set_and_no_version_in_url`.
-- **Nota:** ADR-0005 figura **Propuesto**; conviene pasarlo a *Aceptado* antes de mergear esta tarea.
+- **Nota:** ADR-0005 Aceptado (2026-11-02).
 - **Hecho (commits `feat(api)` ×3 y `ci(platform)`):** `schema.py` fija todo lo que da forma al contrato
   (`API_VERSION="0.1.0"`, `OAS_VERSION="3.0.3"` explícito, `PUBLIC_URLCONF="config.urls"`, `Problem` y
   `ProblemFieldError` en `APPEND_COMPONENTS`, hook `add_problem_responses` después de `postprocess_schema_enums`:

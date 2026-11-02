@@ -1,12 +1,12 @@
 ---
 spec: SPEC-00
 estado: Aprobado         # aprobado por el usuario junto con la spec (2026-10-31)
-actualizado: 2026-11-02   # §3.2.3 (T-PLT-14, spec 1.0.3); §3.5, §3.6, §3.7.2 (T-PLT-04, spec 1.0.4 y 1.0.5)
+actualizado: 2026-11-02   # §3.2.3 (T-PLT-14, spec 1.0.3); §3.5, §3.6, §3.7.2 (T-PLT-04, spec 1.0.4 y 1.0.5); ADR-0005 Aceptado (spec 1.0.6)
 ---
 # Diseño — Módulo de Plataforma (fundaciones)
 
 > Entrada: `spec.sdd.md` (*Clarified* 0.2.0 → *Designed* 0.3.0) + `clarifications.md` (Q-029..Q-060).
-> ADR nuevo: `context/decisions/ADR-0005-contrato-openapi.md` (Propuesto).
+> ADR nuevo: `context/decisions/ADR-0005-contrato-openapi.md` (Aceptado 2026-11-02).
 > Aplicado en este diseño: **Q-055** y **Q-056** (default recomendado), **Q-057** (decidida por el usuario
 > 2026-10-31: Claude puede mergear solo con certeza total, §3.7.4). Preguntas nuevas: **Q-058, Q-059, Q-060**
 > (ninguna bloquea *Designed*). Este diseño **no** crea tablas ni reglas de negocio.

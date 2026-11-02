@@ -1,6 +1,7 @@
 # ADR-0005 — Contrato de API: OpenAPI generado por el backend, versionado en el repo y tipos del frontend generados desde ahí
 
-- **Estado:** Propuesto
+- **Estado:** Aceptado
+- **Aceptación:** 2026-11-02. Aceptado por el dueño del proyecto.
 - **Fecha:** 2026-10-31
 - **Specs afectadas:** SPEC-00 (RN-PLT-15, RF-PLT-14, AC-PLT-23, AC-PLT-34) y toda spec que agregue o cambie un
   endpoint (01, 02, 04, 06, 07, 08, 09, 11…). Decisión de origen: `Q-035` y `Q-036`
