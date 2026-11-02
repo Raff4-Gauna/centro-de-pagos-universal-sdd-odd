@@ -78,9 +78,10 @@ data_file = "coverage/.coverage"
 plugins = ["pydantic.mypy", "mypy_django_plugin.main", "mypy_drf_plugin.main"]
 check_untyped_defs = true
 warn_unused_ignores = true
-# Synthetic modules of the tests (AC-PLT-21 here, architecture later): passed explicitly, never
-# found by `mypy .`. Matched against the "/"-separated path on every OS.
-exclude = ['(^|/)synthetic/']
+# Synthetic modules of the typing tests (AC-PLT-21): passed explicitly, never found by `mypy .`.
+# Anchored so a `synthetic/` folder in real code is still checked; tests that add their own
+# synthetic tree (architecture, T-PLT-19) add their path here. "/"-separated on every OS.
+exclude = ['(^|/)tests/typing/synthetic/']
 
 [tool.django-stubs]
 django_settings_module = "config.settings.test"

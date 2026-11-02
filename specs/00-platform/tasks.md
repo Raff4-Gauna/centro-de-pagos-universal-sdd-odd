@@ -313,7 +313,7 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   `warn_unused_ignores`, override estricto enumerado para `apps.common.*` y `apps.*.domain.*`, `exclude` de
   `synthetic/`), `backend/tests/typing/__init__.py`, `backend/tests/typing/test_AC_PLT_21_mypy_strict.py`,
   `backend/tests/typing/synthetic/apps/common/untyped.py`, `…/synthetic/apps/demo/domain/untyped.py`,
-  `…/synthetic/apps/demo/services/untyped.py`, `.github/workflows/ci.yml` (job `typecheck`, `needs: secrets`;
+  `…/synthetic/apps/demo/services/untyped.py`, `.github/workflows/ci.yml` (job `typecheck`, `needs: file-size`, que pasa a `[secrets, deps-audit]` cuando existan;
   `mypy . ../scripts`), arreglos de tipos mínimos en `scripts/*.py` si mypy los pide.
 - **Cambios:** si los settings usan `django_stubs_ext.monkeypatch()`, mover `django-stubs-ext` (hoy fijado
   `==5.2.9` en el grupo dev por T-PLT-02) a las dependencias de runtime: en la imagen sin grupo dev el import
@@ -340,6 +340,19 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
 - **Preguntas para el planner (decisión conservadora aplicada):** (a) se agregó el plugin `pydantic.mypy`, que
   §3.2.9 no nombra: viene con pydantic, que ya es dependencia de runtime, así que no suma dependencias. ¿Va al
   design? (b) ¿`warn_redundant_casts` y `warn_unused_configs` globales? No los pide §3.2.9 y no se agregaron.
+- **Revisión de `f774250`: APROBADO.** Aplicado en el mismo PR: `exclude` anclado a `tests/typing/synthetic/` (antes
+  `(^|/)synthetic/` dejaba sin chequear cualquier carpeta `synthetic/` del código real; verificado con un def sin
+  anotar en `apps/common/synthetic/`), y la línea "Archivos" pasa a `needs: file-size`. Para después:
+  1. Registrar el plugin `pydantic.mypy` en design §3.2.9 con fila en el Historial (recomendado mantenerlo).
+  2. Agregar `warn_redundant_casts` y `strict_bytes` globales (hoy 0 errores) con nota en el design; **no**
+     `warn_unused_configs` (exige `--no-incremental` y avisa en las corridas de un solo sintético).
+  3. `files = [".", "../scripts"]` en `[tool.mypy]`, para que `mypy` sin argumentos (pre-commit) replique CI.
+  4. `tests/api/test_AC_PLT_34_problem_json.py:28` depende del tipo privado `_MonkeyPatchedWSGIResponse` de
+     django-stubs: alias en un solo lugar o comentario.
+  5. `tests/config/test_RF_PLT_03_env_parsing.py:22-26` repite a mano las claves de `REQUIRED`.
+- **Merge con la línea frontend:** las dos agregan `typecheck`. Resolver con un solo job: `needs: deps-audit`
+  (→ `[secrets, deps-audit]` con T-PLT-04), setup con `python: "true"` y `node: "true"`, y dos pasos:
+  `mypy . ../scripts` (`working-directory: backend`) y `pnpm typecheck` (`working-directory: frontend`).
 
 ### T-PLT-11 — `/healthz` + `/readyz` + servicios en CI
 - **AC:** AC-PLT-02. RN-PLT-17, RF-PLT-07 (Q-039). **Zona roja:** sí (`ci.yml`).
