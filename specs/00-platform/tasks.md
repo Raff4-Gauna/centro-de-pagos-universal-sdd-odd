@@ -1261,6 +1261,14 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
     3.16.1 → 3.18.2 en la rama de T-PLT-13 (Q-059, revisión 2026-11-01), sin excepciones en
     `audit_exceptions.toml`; ese cambio tiene que llegar a `main` **antes** que T-PLT-28 (en esta rama el gate da
     exit 1, a propósito).
+- **Verificación de `9dc4c25`: APROBADO** (B-1 a B-5 cerrados, sin regresiones; reproducido en Docker con todo lo
+  plantado a la vez). No bloqueantes para después:
+  1. El exit 2 con un requisito sin hash (`./evil`) arranca con "pip-audit gave no JSON report: WARNING…": que
+     nombre el requisito rechazado.
+  2. El comentario de `.github/actions/setup/action.yml` sobre `package = false` ("checked in Docker"): aclarar que
+     con `--frozen` lo que decide es la fuente `virtual` del lock (`source = { virtual = "." }`), no la setting.
+  3. Dependabot no mantiene `scripts/audit_tool_requirements.txt`: sumar el ecosistema `pip` en `/scripts` (o
+     regenerarlo a mano con el comando de su cabecera).
 
 ### T-PLT-29 — Pre-commit de eslint/prettier
 - **AC:** ninguno propio (RF-PLT-12: eslint/prettier en pre-commit; Q-060). **Zona roja:** sí.
