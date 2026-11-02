@@ -61,7 +61,7 @@ Reglas: rebanada vertical · ≤ ~300 líneas de diff · mergeable sola · cita 
 | T-PLT-14 | Redacción de secretos en logs | AC-PLT-08 | Backend | `apps/common/domain/redaction.py` | T-PLT-13 | backend-dev | M | No (reviewer recomendado) | ◐ en revisión (falta reviewer/PR) |
 | T-PLT-15 | Errores `problem+json` | AC-PLT-34 | Backend/API | `apps/common/api/{problems,exceptions}.py` | T-PLT-12 | backend-dev | L | Sí | ◐ en revisión (falta reviewer/PR) |
 | T-PLT-16 | Throttling DRF con Redis | AC-PLT-30 | Backend/API | `apps/common/api/throttling.py` | T-PLT-11, T-PLT-15 | backend-dev | M | No | ☐ |
-| T-PLT-17 | Celery + tarea de diagnóstico con `request_id` | AC-PLT-11 | Backend | `config/celery.py`, `apps/common/celery_signals.py` | T-PLT-11, T-PLT-12 | backend-dev | L | No (reviewer recomendado) | ☐ |
+| T-PLT-17 | Celery + tarea de diagnóstico con `request_id` | AC-PLT-11 | Backend | `config/celery.py`, `apps/common/celery_signals.py` | T-PLT-11, T-PLT-12 | backend-dev | L | No (reviewer recomendado) | ◐ en revisión (falta reviewer/PR; scope drift: `CELERY_BROKER_URL` en dev/test/prod) |
 | T-PLT-18 | Contrato OpenAPI commiteado + `--check` | AC-PLT-23 (backend) | API/Contrato | `export_openapi.py`, `specs/_contracts/openapi.yaml` | T-PLT-15 | backend-dev | M | Sí | ☐ |
 | T-PLT-19 | Tests de arquitectura C-09 y C-01 + job | AC-PLT-14, AC-PLT-15 | Arquitectura/CI | `backend/tests/architecture/` | T-PLT-08 | backend-dev | L | Sí | ◐ en revisión (falta reviewer/PR) |
 | T-PLT-20 | Chequeo C-02 (`float` en dinero) | AC-PLT-31 | Arquitectura | `ast_rules.py`, `allowlists.py` | T-PLT-19 | backend-dev | M | Sí | ◐ en revisión (falta reviewer/PR) |
@@ -671,6 +671,34 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   `celery.app.trace`), donde la redacción por clave no llega. Verificar con un test de centinela (excepción y args
   con un secreto, `start_worker`) que `task_failure`/`task_postrun` y `worker_hijack_root_logger=False` dejan solo
   los campos de `celery.task`; si no, silenciar o bajar de nivel esos loggers como `django.request` en T-PLT-13.
+- **Hecho (commits `feat(platform)` ×3):** `config/celery.py` (`config_from_object` con `namespace="CELERY"`,
+  `autodiscover_tasks`, `setdefault` a `prod` como `wsgi.py`) conecta `setup_logging`: worker y beat aplican
+  `settings.LOGGING` y Celery no toca el root, su nivel (`-l`) ni stdout. `base.py`: `CELERY_WORKER_HIJACK_ROOT_LOGGER
+  =False`, `CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP=True`, `CELERY_BROKER_CONNECTION_MAX_RETRIES=None`.
+  `celery_signals.py`: `before_task_publish` → header `request_id` (solo si hay uno ligado); `task_prerun` lo lee
+  (atributo o `headers`), lo valida con `resolve_request_id` y liga `request_id`, `task_id`, `task_name`;
+  `task_failure` guarda `describe_exception` (tipos y frames, de `access_log.py`); `task_postrun` emite **un**
+  evento `celery.task` con `result` (estado) y `duration_ms` (ERROR si `FAILURE`) y limpia el contexto.
+  **Pendiente de T-PLT-14 resuelto:** con el test de centinela el `celery.app.trace` sí filtraba (`raised
+  unexpected: RuntimeError('<mensaje>')`, y el valor de retorno en `succeeded in`); va a `SILENCED_LOGGERS` en
+  `logging/setup.py` (archivo fuera de la lista, cambio de una línea que pedía este pendiente). Mutación
+  verificada: sin silenciarlo fallan el test en proceso y el de `start_worker` (el centinela va en texto plano:
+  con forma `secret=` la redacción lo tapaba y el test no probaba el silenciado). `/api/dev/diagnostic-task/`
+  (`POST`, 202 `{task_id, request_id}`) solo en `config.urls_dev`. Smoke manual con `celery -A config -q worker
+  -P solo`: salida 100 % JSON. Broker caído al encolar: `OperationalError` a los ~4 s (500 problem+json), no
+  cuelga.
+- **Scope drift (para el planner):** ningún settings define `CELERY_BROKER_URL`: `base.py` no lee entorno y
+  `dev.py`/`test.py`/`prod.py` no estaban en la lista. Sin eso Celery usa su default (`amqp://localhost`) o la
+  variable `CELERY_BROKER_URL` del proceso, que Celery lee por su cuenta (lectura de entorno fuera de `env.py`,
+  roza AC-PLT-06). Propuesta: `CELERY_BROKER_URL = str(_env.REDIS_URL.get_secret_value())` en los tres (oculto en
+  reportes por `URL$`); hace falta antes de T-PLT-26. Los tests apuntan el app al broker a mano (`memory://` en
+  unitarios, `REDIS_URL` en integración).
+- **Preguntas/notas:** (a) `describe_exception` vive en `middleware/access_log.py` y ahora lo usa Celery: moverlo
+  a `logging/` cuando se toque. (b) Sin result backend: `ignore_result=True` en `diagnostic_ping`; ningún
+  `CELERY_RESULT_BACKEND` en 00. (c) Residual: otros loggers de Celery (`celery.worker.request`, con WorkerLost o
+  time limits, y `celery.utils.dispatch.signal` si un receptor falla) loguean `repr` de excepciones; no se
+  silenciaron (no aparecen en los caminos probados). (d) Una tarea `apply()` anidada dentro de otra limpia el
+  contexto de la exterior (no hay tareas anidadas en 00). (e) Sin throttle en la ruta dev hasta T-PLT-16.
 
 ### T-PLT-18 — Contrato OpenAPI commiteado + `--check`
 - **AC:** AC-PLT-23 (backend). RN-PLT-15, RF-PLT-14, ADR-0005. **Zona roja:** sí (contrato público).
