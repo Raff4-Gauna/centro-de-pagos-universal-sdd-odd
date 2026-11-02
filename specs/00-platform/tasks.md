@@ -48,7 +48,7 @@ Reglas: rebanada vertical · ≤ ~300 líneas de diff · mergeable sola · cita 
 | T-PLT-01 | Esqueleto del repo + `check_file_size.py` | AC-PLT-13, AC-PLT-27 (parcial) | Infra | `scripts/check_file_size.py`, `.gitattributes`, … | — | backend-dev | M | Sí | ◐ en revisión (reviewer: aprobado con observaciones; falta PR/merge) |
 | T-PLT-02 | Toolchain Python (uv) + `ruff.toml` | AC-PLT-12 | Infra | `backend/pyproject.toml`, `backend/uv.lock`, `ruff.toml` | T-PLT-01 | backend-dev | M | Sí | ◐ en revisión (falta reviewer/PR) |
 | T-PLT-03 | CI mínimo: `lint` → `file-size` → `tests` | AC-PLT-20 (parcial), AC-PLT-13 | CI | `.github/workflows/ci.yml`, `.github/actions/setup/action.yml` | T-PLT-02 | backend-dev | M | Sí | ◐ en revisión (falta reviewer/PR; verificación manual en GitHub pendiente: push bloqueado) |
-| T-PLT-04 | Pre-commit + gitleaks + job `secrets` | AC-PLT-19, AC-PLT-27, AC-PLT-13 | Infra/CI | `.pre-commit-config.yaml`, `.gitleaks.toml` | T-PLT-03 | backend-dev | M | Sí | ◐ en revisión (falta reviewer/PR; scope drift: `end-of-file-fixer` sobre 3 archivos de `propuesta/`) |
+| T-PLT-04 | Pre-commit + gitleaks + job `secrets` | AC-PLT-19, AC-PLT-27, AC-PLT-13 | Infra/CI | `.pre-commit-config.yaml`, `.gitleaks.toml` | T-PLT-03 | backend-dev | M | Sí | ◐ en revisión (falta reviewer/PR) |
 | T-PLT-05 | `check_workflows.py` en `lint` | AC-PLT-33 | CI | `scripts/check_workflows.py` | T-PLT-03 | backend-dev | L | Sí | ☐ |
 | T-PLT-06 | Check `zona-roja`: reglas y rutas | AC-PLT-32 | CI | `scripts/check_zona_roja.py`, `.github/zona-roja-paths.txt` | T-PLT-03 | backend-dev | L | Sí | ☐ |
 | T-PLT-07 | Check `zona-roja`: API de GitHub + workflow | AC-PLT-32 | CI | `scripts/github_api.py`, `.github/workflows/zona-roja.yml` | T-PLT-05, T-PLT-06 | backend-dev | L | Sí | ☐ |
@@ -228,18 +228,24 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
 - **Verificación manual** (clon temporal, contenedor `python:3.12.16-slim-trixie` + pre-commit 4.7.0; en el host
   Windows falló por `MAX_PATH` de la ruta del scratchpad, no por el repo): un commit con un token falso queda
   bloqueado por `gitleaks` (`github-pat`, valor `REDACTED`); un `.sh` CRLF lo reescribe `mixed-line-ending` y queda
-  `i/lf w/lf`. `pre-commit run --all-files`: todos en verde **salvo `end-of-file-fixer`**, que corrige 3 archivos
-  fuera de la tarea (sin salto final: `propuesta/evidencia-postman-mp/{1-crear-sucursal,2-crear-caja}.md`; 3 líneas
-  vacías al final: `propuesta/Universal_Payments_Hub___Propuesta_de_Proyecto.md`).
-- **Scope drift (pendiente del planner):** para que `--all-files` quede en verde hay que (a) commitear esa corrección
-  en un commit `style:` aparte (2 líneas cambiadas, 3 borradas), o (b) excluir `propuesta/` de los fixers si es
-  evidencia de solo lectura como `context/legacy-source/` (Q-055). No se aplicó ninguna.
-- **Preguntas para el planner (decisión conservadora aplicada):** (a) las reglas por defecto de gitleaks **no**
-  detectan un access token de Mercado Pago `APP_USR-…` en `MP_ACCESS_TOKEN=…` (sí `TEST-…` y los de GitHub). ¿Regla
-  propia `mercadopago-access-token` en `.gitleaks.toml`? No se agregó: §3.6 pide solo `useDefault` + allowlist.
-  (b) Repos de pre-commit fijados por SHA en vez de tag (más estricto que §3.6, mismo criterio que RN-PLT-14). ¿Va
-  al design? (c) Hoy ninguna regla por defecto marca el placeholder (tiene espacios y `<`): la allowlist es
-  defensiva y el test de forma la fija a ese patrón exacto.
+  `i/lf w/lf`. `pre-commit run --all-files`: la primera pasada dio todo en verde **salvo `end-of-file-fixer`**
+  sobre 3 archivos fuera de la tarea (sin salto final: `propuesta/evidencia-postman-mp/{1-crear-sucursal,2-crear-caja}.md`;
+  3 líneas vacías al final: `propuesta/Universal_Payments_Hub___Propuesta_de_Proyecto.md`); después del commit
+  `style(docs)` y con la regla de MP, los 15 hooks en verde (exit 0).
+- **Scope drift (resuelto por el planner, opción a):** commit `style(docs): fix end of file in propuesta/` aparte
+  (2 líneas cambiadas, 3 borradas); con eso `pre-commit run --all-files` queda en verde.
+- **Decidido por el planner (spec 1.0.4, `design.md §3.6`):** (1) las reglas por defecto de gitleaks no detectaban
+  `APP_USR-…` en ninguna forma ni `TEST-…` en JSON, headers o query strings (hueco de C-06): regla propia
+  `mercadopago-access-token` en `.gitleaks.toml`, con `useDefault = true`. Tests:
+  `test_AC_PLT_19_mercadopago_token_is_detected_in_every_form` (token falso generado en runtime, 4 formas, los dos
+  prefijos y los dos modos), `test_AC_PLT_19_repo_history_has_no_findings` (`git log -p --all` por stdin) y la regla
+  en el test de forma `RN_PLT_13`. Mutación: sin la regla fallan los 4 casos de MP. Historial completo
+  (`--log-opts=--all`, repo principal en solo lectura, 83 commits): 0 hallazgos con `.gitleaks.toml` y 0 con la
+  regla sola (control: la misma config detecta un token falso). (2) Repos de pre-commit fijados por SHA: registrado
+  en §3.6.
+- **Notas:** (3) hoy ninguna regla por defecto marca el placeholder (tiene espacios y `<`): la allowlist es
+  defensiva y el test de forma la fija a ese patrón exacto. (4) En un PR, `secrets` usa la `.gitleaks.toml` del
+  propio PR (un PR podría ampliar la allowlist); lo cubre el reviewer obligatorio de zona roja (Q-058), no el CI.
 
 ### T-PLT-05 — `check_workflows.py` en el job `lint`
 - **AC:** AC-PLT-33. RN-PLT-18, RF-PLT-11. **Zona roja:** sí.

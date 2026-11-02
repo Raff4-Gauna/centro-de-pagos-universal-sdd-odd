@@ -1,7 +1,7 @@
 ---
 spec: SPEC-00
 estado: Aprobado         # aprobado por el usuario junto con la spec (2026-10-31)
-actualizado: 2026-11-02   # §3.2.3 ajustado con T-PLT-14 (spec 1.0.3)
+actualizado: 2026-11-02   # §3.2.3 (T-PLT-14, spec 1.0.3); §3.6 (T-PLT-04, spec 1.0.4)
 ---
 # Diseño — Módulo de Plataforma (fundaciones)
 
@@ -418,6 +418,9 @@ del host y del contenedor están separados (volumen), así que los binarios nati
    quita el prefijo, excluye `src/types/`, llama a `pnpm --dir frontend exec`).
 5. `gitleaks` v8.30.1 (staged, `--redact`).
 
+Los repos remotos van fijados por **SHA del commit** del tag (`rev: <sha> # frozen: vX.Y.Z`, lo que escribe
+`pre-commit autoupdate --freeze`), no por tag: un tag se puede mover (mismo criterio que RN-PLT-14).
+
 Sin tests, mypy ni migraciones. Si un hook reformatea, se vuelve a stagear (documentado).
 **`ruff.toml`**: `py312`, `line-length 100`, `extend-exclude = ["context/legacy-source", "**/migrations",
 "frontend/"]` (comentado, Q-055; `frontend/` con barra para no excluir cualquier carpeta `frontend` del árbol),
@@ -426,7 +429,11 @@ formatter no reescribe bloques de código de specs ni rompe el lint en PRs solo 
 `select = [E, F, W, I, B, UP, S, T20, DJ, PT, SIM, RUF, N, C4, DTZ, LOG, G]`; `per-file-ignores`: tests → `S101`,
 `N802` (nombres `test_AC_…`), `scripts/**` → `T20` (son CLIs) (ajustado tras revisión de T-PLT-02). **`.gitattributes`**: `* text=auto eol=lf` + binarios. **`.gitleaks.toml`**:
 `useDefault = true`; allowlist `regexes = ['''<ver \.env: [A-Z][A-Z0-9_]*>''']` con `regexTarget = "secret"` (una
-línea con placeholder **y** un token real sigue fallando); sin allowlist por ruta.
+línea con placeholder **y** un token real sigue fallando); sin allowlist por ruta. Una regla propia,
+`mercadopago-access-token`: `\b((?:APP_USR|TEST)-\d{12,20}-\d{6}-[0-9a-fA-F]{32}-\d{6,12})\b` (`secretGroup = 1`,
+`keywords = ["app_usr-", "test-"]`), porque las reglas por defecto no detectan `APP_USR-…` en ninguna forma ni
+`TEST-…` en JSON, headers o query strings. Forma `PREFIJO-<app id>-<MMDDHH>-<32 hex>-<user id>`; el repo solo
+documenta los prefijos (`context/03`, `context/09`). No toca el placeholder ni un prefijo suelto.
 
 ### 3.7 Gobierno del repo público (RN-PLT-12/13/18, RF-PLT-13)
 

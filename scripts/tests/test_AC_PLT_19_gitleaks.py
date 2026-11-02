@@ -2,14 +2,16 @@
 
 Two groups of tests:
 
-* Shape and range (always run): ``.gitleaks.toml`` keeps the default rules with one allowlist, the
-  ``<ver .env: NAME>`` placeholder matched against the captured *secret*; the ``secrets`` job pins
+* Shape and range (always run): ``.gitleaks.toml`` keeps the default rules plus one own rule
+  (Mercado Pago access tokens, which the defaults miss) and one allowlist, the ``<ver .env: NAME>``
+  placeholder matched against the captured *secret*; the ``secrets`` job pins
   the image by digest, fetches the whole history and scans the commits of the event. Its range step
   is executed with bash in a throwaway repo: ``base..head`` on a PR, ``before..after`` on a push,
   the whole history of ``after`` on the first push of a ref (``before`` = 40 zeros).
 * ``gitleaks`` marker (Docker, the image of ``ci.yml``): deselected by default in
   ``scripts/pytest.ini``; the ``secrets`` job runs them with ``-m gitleaks``. The fake token is
-  generated at runtime, so the repo never holds one (gitleaks would flag its own tests).
+  generated at runtime, so the repo never holds one (gitleaks would flag its own tests). One of
+  them scans the whole history (``git log -p --all``) to show the config has no false positives.
 
 Today no default rule fires on the placeholder (it has spaces and ``<``), so the allowlist is
 defensive: the shape test pins it to exactly that pattern, and the same-line test proves it does not
@@ -31,7 +33,7 @@ from typing import Any
 
 import pytest
 import yaml
-from conftest import GitRepo
+from conftest import GitRepo, clean_git_env
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CI_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "ci.yml"
@@ -40,6 +42,17 @@ PRECOMMIT_CONFIG = REPO_ROOT / ".pre-commit-config.yaml"
 
 PLACEHOLDER_REGEX = r"<ver \.env: [A-Z][A-Z0-9_]*>"
 PLACEHOLDER = "<ver .env: MP_ACCESS_TOKEN>"
+# PREFIX-<app id>-<MMDDHH>-<32 hex>-<user id>; the repo only documents the prefixes (context/03,
+# context/09).
+MP_RULE_REGEX = r"\b((?:APP_USR|TEST)-\d{12,20}-\d{6}-[0-9a-fA-F]{32}-\d{6,12})\b"
+MP_RULE: dict[str, object] = {
+    "id": "mercadopago-access-token",
+    "description": "Mercado Pago access token (APP_USR- or TEST- credentials)",
+    "regex": MP_RULE_REGEX,
+    "secretGroup": 1,
+    "keywords": ["app_usr-", "test-"],
+}
+MP_PREFIXES = ("APP_USR", "TEST")
 PINNED_IMAGE = re.compile(r"^zricethezav/gitleaks:v8\.30\.1@sha256:[0-9a-f]{64}$")
 ZERO_SHA = "0" * 40
 
@@ -56,6 +69,18 @@ def fake_github_token() -> str:
     """A GitHub PAT shape (rule ``github-pat``), random per run; never a literal in the repo."""
     alphabet = string.ascii_letters + string.digits
     return "ghp" + "_" + "".join(secrets.choice(alphabet) for _ in range(36))
+
+
+def fake_mp_token(prefix: str) -> str:
+    """A Mercado Pago access token shape with random parts, built at runtime."""
+
+    def digits(count: int) -> str:
+        return "".join(secrets.choice(string.digits) for _ in range(count))
+
+    hex32 = "".join(secrets.choice("0123456789abcdef") for _ in range(32))
+    month, day, hour = secrets.randbelow(12) + 1, secrets.randbelow(28) + 1, secrets.randbelow(24)
+    stamp = f"{month:02d}{day:02d}{hour:02d}"
+    return f"{prefix}-{digits(16)}-{stamp}-{hex32}-{digits(10)}"
 
 
 def git_out(repo: GitRepo, *args: str) -> str:
@@ -126,10 +151,15 @@ def two_commits(git_repo: GitRepo) -> tuple[GitRepo, str, str]:
     return git_repo, base, head
 
 
-def test_RN_PLT_13_gitleaks_config_is_defaults_plus_placeholder_allowlist() -> None:
+def test_RN_PLT_13_gitleaks_config_is_defaults_plus_mp_rule_and_placeholder_allowlist() -> None:
     config = tomllib.loads(GITLEAKS_CONFIG.read_text(encoding="utf-8"))
 
     assert config["extend"] == {"useDefault": True}
+    assert config["rules"] == [MP_RULE]  # exact: no rule-level allowlist, path or entropy
+    for prefix in MP_PREFIXES:
+        assert re.fullmatch(MP_RULE_REGEX, fake_mp_token(prefix))
+    assert not re.search(MP_RULE_REGEX, f"MP_ACCESS_TOKEN={PLACEHOLDER}")
+    assert not re.search(MP_RULE_REGEX, "APP_USR-1234")  # a bare prefix in docs is no token
     assert "allowlist" not in config  # the deprecated single table would add a second allowlist
     [allowlist] = config["allowlists"]
     assert set(allowlist) <= {"description", "regexTarget", "regexes"}  # no paths/commits/stopwords
@@ -299,3 +329,50 @@ def test_AC_PLT_19_placeholder_and_real_token_on_same_line_still_fails(scan: Sca
     output = result.stdout + result.stderr
     assert result.returncode == 1, output
     assert token not in output
+
+
+@pytest.mark.gitleaks
+@pytest.mark.parametrize("prefix", MP_PREFIXES)
+def test_AC_PLT_19_mercadopago_token_is_detected_in_every_form(scan: Scan, prefix: str) -> None:
+    token = fake_mp_token(prefix)
+    forms = [
+        f"MP_ACCESS_TOKEN={token}",
+        f'curl -H "Authorization: Bearer {token}"',
+        f'{{"access_token": "{token}"}}',
+        f"https://api.mercadopago.com/pos?access_token={token}",
+    ]
+    result = scan("".join(f"{form}\n" for form in forms))
+
+    output = result.stdout + result.stderr
+    assert result.returncode == 1, output
+    assert len(re.findall(r"RuleID:\s+mercadopago-access-token", output)) == len(forms), output
+    assert token not in output
+
+
+@pytest.mark.gitleaks
+def test_AC_PLT_19_repo_history_has_no_findings(tmp_path: Path, empty_git_config: Path) -> None:
+    # Every commit of every ref (with fetch-depth 0 in CI): the own rule and the allowlist give no
+    # false positives on the real content, placeholders included.
+    history = subprocess.run(
+        ["git", "log", "-p", "--all", "--no-color", "--no-ext-diff"],  # noqa: S607 - git from PATH
+        cwd=REPO_ROOT,
+        capture_output=True,
+        check=True,
+        env=clean_git_env(empty_git_config),
+    ).stdout
+    assert history
+    config_dir = tmp_path / "gitleaks-config"
+    config_dir.mkdir()
+    shutil.copyfile(GITLEAKS_CONFIG, config_dir / ".gitleaks.toml")
+    image = secrets_job()["env"]["GITLEAKS_IMAGE"]
+    docker = ["docker", "run", "--rm", "-i", "-v", f"{config_dir}:/cfg:ro"]
+    options = ["--config", "/cfg/.gitleaks.toml", "--redact", "--no-banner", "--verbose"]
+    result = subprocess.run(  # noqa: S603 - fixed argv, test-only; docker from PATH
+        [*docker, image, "stdin", *options],
+        input=history,
+        capture_output=True,
+        check=False,
+        timeout=300,
+    )
+    output = (result.stdout + result.stderr).decode("utf-8", errors="replace")
+    assert result.returncode == 0, output
