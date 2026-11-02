@@ -276,10 +276,17 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
 - **Para después:** (1) chequeo propio que falle si `frontend/pnpm-lock.yaml` tiene credenciales en URLs
   (`://user:pass@`, `_authToken`): mitigación de Q-062, cuando exista el lockfile (T-PLT-27). (2) Tokens de Mercado
   Pago que la regla no cubre (N-1): formato legado `__LX_LY__`, prefijo en minúsculas y refresh tokens `TG-…`; y la
-  public key (`APP_USR-`/`TEST-` + UUID). (3) La guarda `no-allowlisted-paths` cubre las rutas que pidió el
-  reviewer; la allowlist por defecto saltea además, verificado con v8.30.1 (un token falso no se detecta en ninguna):
-  `env/lib/`, `virtualenv/lib/`, `venv/lib64/`, `lib/python3.12/`, `*-1.0.dist-info/`, `vendor/bundle/`,
-  `vendor/github.com/…` y `*.svg`. ¿Se amplía la guarda? (4) Ninguno de estos bloquea T-PLT-04.
+  public key (`APP_USR-`/`TEST-` + UUID). (3) **Pendiente del planner:** la guarda bloquea `frontend/pnpm-lock.yaml`
+  (entrada de lockfiles de la allowlist por defecto), que ya trackean T-PLT-27/28/33/34: al mergear la línea
+  frontend `secrets` falla. No se excluyó (Q-062). (4) Ninguno de estos bloquea T-PLT-04.
+- **Guarda ampliada (después de B-7, decisión del coordinador):** `no-allowlisted-paths` lleva textuales las 21
+  entradas de directorios o rutas de la allowlist por defecto de v8.30.1 (las 4 de extensiones quedan como riesgo
+  aceptado en Q-062, `.svg` aparte) y falla cerrada si `grep` da error. Tests:
+  `test_AC_PLT_19_guard_covers_every_directory_entry_of_the_default_allowlist` (`gitleaks`: lee la allowlist del
+  binario de la imagen fijada y exige que la guarda y los ejemplos coincidan con ella),
+  `test_AC_PLT_19_every_guard_entry_has_an_example_that_fails_the_guard` (un archivo por entrada; `sub/.git` git
+  lo ignora), y los casos `env/lib/`, `virtualenv/lib/`, `venv/lib64/`, `lib/python3.12/`, `*-1.0.dist-info/`,
+  `vendor/bundle/` y `vendor/github.com/…`. Con la guarda de B-7 fallan los 9 tests nuevos (verificado).
 
 ### T-PLT-05 — `check_workflows.py` en el job `lint`
 - **AC:** AC-PLT-33. RN-PLT-18, RF-PLT-11. **Zona roja:** sí.

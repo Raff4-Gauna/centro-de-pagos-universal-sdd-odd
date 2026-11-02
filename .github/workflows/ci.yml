@@ -132,12 +132,49 @@ jobs:
           fi
       # The global allowlist of the default rules (useDefault, Q-062) never scans these paths, at any
       # depth, so code there would hide a secret. Only the repo's own .gitleaks.toml may match (red
-      # zone, reviewer). Case-insensitive; NUL-separated so any file name is read as is.
+      # zone, reviewer). The list is every directory/path entry of `[allowlist] paths` of gitleaks
+      # v8.30.1, verbatim (config/gitleaks.toml at 83d9cd68, embedded in the pinned image); the
+      # file-extension entries (images, fonts, binaries) stay out on purpose (Q-062). A gitleaks test
+      # reads the list from the image and fails if this one drifts. Case-insensitive, PCRE (the
+      # entries use `(?:` and `(?i)`), NUL-separated so any file name is read as is.
       - name: No tracked files under paths gitleaks skips
         id: no-allowlisted-paths
         run: |
-          skipped='gitleaks\.toml|(^|/)(node_modules|bower_components)/|(^|/)venv/lib/'
-          found="$(git ls-files -z | grep -ziE "$skipped" | grep -zvx '\.gitleaks\.toml' | tr '\0' '\n' || true)"
+          skipped=(
+            'gitleaks\.toml'
+            'go\.(?:mod|sum|work(?:\.sum)?)$'
+            '(?:^|/)vendor/modules\.txt$'
+            '(?:^|/)vendor/(?:github\.com|golang\.org/x|google\.golang\.org|gopkg\.in|istio\.io|k8s\.io|sigs\.k8s\.io)(?:/.*)?$'
+            '(?:^|/)gradlew(?:\.bat)?$'
+            '(?:^|/)gradle\.lockfile$'
+            '(?:^|/)mvnw(?:\.cmd)?$'
+            '(?:^|/)\.mvn/wrapper/MavenWrapperDownloader\.java$'
+            '(?:^|/)node_modules(?:/.*)?$'
+            '(?:^|/)(?:deno\.lock|npm-shrinkwrap\.json|package-lock\.json|pnpm-lock\.yaml|yarn\.lock)$'
+            '(?:^|/)bower_components(?:/.*)?$'
+            '(?:^|/)(?:angular|bootstrap|jquery(?:-?ui)?|plotly|swagger-?ui)[a-zA-Z0-9.-]*(?:\.min)?\.js(?:\.map)?$'
+            '(?:^|/)javascript\.json$'
+            '(?:^|/)(?:Pipfile|poetry)\.lock$'
+            '(?i)(?:^|/)(?:v?env|virtualenv)/lib(?:64)?(?:/.*)?$'
+            '(?i)(?:^|/)(?:lib(?:64)?/python[23](?:\.\d{1,2})+|python/[23](?:\.\d{1,2})+/lib(?:64)?)(?:/.*)?$'
+            '(?i)(?:^|/)[a-z0-9_.]+-[0-9.]+\.dist-info(?:/.+)?$'
+            '(?:^|/)vendor/(?:bundle|ruby)(?:/.*?)?$'
+            'verification-metadata\.xml'
+            'Database.refactorlog'
+            '(?:^|/)\.git$'
+          )
+          pattern="$(printf '(?:%s)|' "${skipped[@]}")"
+          pattern="${pattern%|}"
+          files="$(mktemp)"
+          git ls-files -z > "$files"
+          # Fail closed: grep exits 1 for "no match", 2 for an error (bad regex, no PCRE).
+          status=0
+          LC_ALL=C.UTF-8 grep -ziP "$pattern" "$files" > "$files.match" || status=$?
+          if [ "$status" -gt 1 ]; then
+            echo "::error::grep failed (exit $status): the path guard did not run"
+            exit 1
+          fi
+          found="$(grep -zvx '\.gitleaks\.toml' "$files.match" | tr '\0' '\n' || true)"
           if [ -n "$found" ]; then
             echo "::error::tracked files that gitleaks never scans (default path allowlist, Q-062):"
             echo "$found"

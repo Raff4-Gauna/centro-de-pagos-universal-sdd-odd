@@ -7,6 +7,9 @@ Found in the review of ``3d50418`` and reproduced there with gitleaks v8.30.1. M
 
 from __future__ import annotations
 
+import re
+import subprocess
+import tomllib
 from pathlib import Path
 
 import gitleaks_support as gl
@@ -15,6 +18,38 @@ from conftest import GitRepo, Scan
 
 pytestmark = pytest.mark.gitleaks
 IDENTITY = ("-c", "user.name=t", "-c", "user.email=t@example.invalid")
+# The default config is embedded in the binary (go:embed of config/gitleaks.toml).
+GLOBAL_ALLOWLIST = re.compile(
+    rb'\[allowlist\]\ndescription = "global allow lists"\npaths = \[\n.*?\n\]\n', re.DOTALL
+)
+
+
+def default_path_allowlist() -> list[str]:
+    """`[allowlist] paths` of the default config, read from the binary of the pinned image."""
+    binary = subprocess.run(  # noqa: S603 - fixed argv, test-only; docker from PATH
+        ["docker", "run", "--rm", "--entrypoint", "cat", gl.gitleaks_image(), "/usr/bin/gitleaks"],  # noqa: S607
+        capture_output=True,
+        check=True,
+        timeout=gl.DOCKER_TIMEOUT,
+    ).stdout
+    found = GLOBAL_ALLOWLIST.search(binary)
+    assert found, "global allowlist not found in the gitleaks binary: the format changed"
+    return tomllib.loads(found.group(0).decode("utf-8"))["allowlist"]["paths"]
+
+
+def test_AC_PLT_19_guard_covers_every_directory_entry_of_the_default_allowlist() -> None:
+    # B-7: the guard is the default allowlist minus its file-extension entries, verbatim. A newer
+    # gitleaks that adds, drops or changes a path entry makes this fail until the guard (and its
+    # example in gitleaks_support) follow.
+    paths = default_path_allowlist()
+    directories = [entry for entry in paths if not gl.is_extension_entry(entry)]
+    extensions = [entry for entry in paths if gl.is_extension_entry(entry)]
+
+    assert gl.guard_entries() == directories
+    assert list(gl.ALLOWLISTED_PATH_EXAMPLES) == directories
+    # Accepted risk (Q-062): images, fonts, binaries the frontend has legitimately; .svg included.
+    assert extensions
+    assert any("svg" in entry for entry in extensions)
 
 
 def test_AC_PLT_19_inline_gitleaks_allow_does_not_hide_a_token(scan: Scan) -> None:

@@ -423,8 +423,11 @@ staged que lee no lleva `--text`, así que un archivo con atributo `-diff` o con
 job cubre esos casos (`--text`, `--diff-merges=first-parent` para los merges) y tiene dos pasos de guarda antes
 del escaneo: falla con un `.gitleaksignore` trackeado a cualquier profundidad y en cualquier caja
 (`':(glob,icase)**/.gitleaksignore'`; gitleaks lo carga solo y cada huella que lista anula un hallazgo), y falla si
-algún archivo trackeado distinto de `.gitleaks.toml` cae en rutas que la allowlist global por defecto nunca escanea
-(`gitleaks\.toml|(^|/)(node_modules|bower_components)/|(^|/)venv/lib/`, sin distinguir mayúsculas; Q-062). `--verbose` queda en
+algún archivo trackeado distinto de `.gitleaks.toml` cae en rutas que la allowlist global por defecto nunca escanea:
+las 21 entradas de directorios o rutas de `[allowlist] paths` de v8.30.1, copiadas textuales (PCRE, sin distinguir
+mayúsculas); las 4 de extensiones (imágenes, fuentes, binarios, `.svg` incluido) quedan fuera como riesgo aceptado
+(Q-062). Un test con marker `gitleaks` lee esa allowlist del binario de la imagen fijada y falla si la guarda se
+desincroniza al actualizar gitleaks; la guarda falla cerrada si `grep` da error. `--verbose` queda en
 el job a propósito: sin él gitleaks solo imprime la cantidad de hallazgos, sin regla, archivo, línea ni commit; con
 `--redact` el valor sale como `REDACTED`.
 

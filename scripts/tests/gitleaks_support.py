@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import base64
 import os
+import re
 import secrets
 import shlex
 import shutil
@@ -33,6 +34,43 @@ ZERO_SHA = "0" * 40
 DOCKER_TIMEOUT = 300
 
 
+# One example file per directory/path entry of the default `[allowlist] paths` of gitleaks v8.30.1
+# (Q-062). Each must match its entry, so gitleaks never scans it, and must fail the guard step
+# `no-allowlisted-paths`. A new entry in a newer gitleaks needs a new example here.
+ALLOWLISTED_PATH_EXAMPLES = {
+    r"gitleaks\.toml": "a/gitleaks.toml/b.py",
+    r"go\.(?:mod|sum|work(?:\.sum)?)$": "tools/go.sum",
+    r"(?:^|/)vendor/modules\.txt$": "x/vendor/modules.txt",
+    r"(?:^|/)vendor/(?:github\.com|golang\.org/x|google\.golang\.org|gopkg\.in|istio\.io|k8s\.io"
+    r"|sigs\.k8s\.io)(?:/.*)?$": "vendor/github.com/acme/lib/k.go",
+    r"(?:^|/)gradlew(?:\.bat)?$": "android/gradlew.bat",
+    r"(?:^|/)gradle\.lockfile$": "android/gradle.lockfile",
+    r"(?:^|/)mvnw(?:\.cmd)?$": "java/mvnw",
+    r"(?:^|/)\.mvn/wrapper/MavenWrapperDownloader\.java$": (
+        ".mvn/wrapper/MavenWrapperDownloader.java"
+    ),
+    r"(?:^|/)node_modules(?:/.*)?$": "x/node_modules/c.py",
+    r"(?:^|/)(?:deno\.lock|npm-shrinkwrap\.json|package-lock\.json|pnpm-lock\.yaml|yarn\.lock)$": (
+        "web/package-lock.json"
+    ),
+    r"(?:^|/)bower_components(?:/.*)?$": "web/bower_components/e.py",
+    r"(?:^|/)(?:angular|bootstrap|jquery(?:-?ui)?|plotly|swagger-?ui)[a-zA-Z0-9.-]*(?:\.min)?\.js"
+    r"(?:\.map)?$": "static/jquery-3.7.1.min.js",
+    r"(?:^|/)javascript\.json$": "conf/javascript.json",
+    r"(?:^|/)(?:Pipfile|poetry)\.lock$": "py/poetry.lock",
+    r"(?i)(?:^|/)(?:v?env|virtualenv)/lib(?:64)?(?:/.*)?$": "virtualenv/lib64/a.py",
+    r"(?i)(?:^|/)(?:lib(?:64)?/python[23](?:\.\d{1,2})+|python/[23](?:\.\d{1,2})+/lib(?:64)?)"
+    r"(?:/.*)?$": "lib/python3.12/d.py",
+    r"(?i)(?:^|/)[a-z0-9_.]+-[0-9.]+\.dist-info(?:/.+)?$": "pkg-1.0.dist-info/e.py",
+    r"(?:^|/)vendor/(?:bundle|ruby)(?:/.*?)?$": "vendor/bundle/f.rb",
+    r"verification-metadata\.xml": "gradle/verification-metadata.xml",
+    r"Database.refactorlog": "db/Database.refactorlog",
+    # git ignores a `.git` path component ("Ignoring path"), so this one can never reach the guard.
+    r"(?:^|/)\.git$": "sub/.git",
+}
+UNTRACKABLE_EXAMPLES = {"sub/.git"}
+
+
 def secrets_job() -> dict[str, Any]:
     return yaml.safe_load(CI_WORKFLOW.read_text(encoding="utf-8"))["jobs"]["secrets"]
 
@@ -43,6 +81,18 @@ def step(job: dict[str, Any], step_id: str) -> dict[str, Any]:
 
 def gitleaks_image() -> str:
     return secrets_job()["env"]["GITLEAKS_IMAGE"]
+
+
+def guard_entries() -> list[str]:
+    """The regexes of the `skipped=( ... )` array of the guard step, in order."""
+    run = step(secrets_job(), "no-allowlisted-paths")["run"]
+    block = run[run.index("skipped=(") : run.index("\n)", run.index("skipped=("))]
+    return re.findall(r"^\s+'(.+)'$", block, re.MULTILINE)
+
+
+def is_extension_entry(entry: str) -> bool:
+    """A file-extension entry (images, fonts, binaries): `\\.` first and no directory part."""
+    return bool(re.match(r"^(\(\?i\))?\\\.", entry)) and "/" not in entry
 
 
 def gitleaks_hook() -> dict[str, Any]:

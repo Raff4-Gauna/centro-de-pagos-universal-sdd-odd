@@ -190,6 +190,13 @@ SKIPPED_PATHS = [
     "web/Bower_Components/e.py",
     "venv/lib/d.py",
     "tools/VENV/LIB/f.py",
+    "env/lib/a.py",
+    "virtualenv/lib/b.py",
+    "venv/lib64/c.py",
+    "lib/python3.12/d.py",
+    "pkg-1.0.dist-info/e.py",
+    "vendor/bundle/f.rb",
+    "vendor/github.com/acme/lib/g.go",
 ]
 
 
@@ -218,3 +225,26 @@ def test_AC_PLT_19_repo_gitleaks_config_alone_passes_the_guard(
 
     completed, _ = gl.run_step(repo, tmp_path, "no-allowlisted-paths", {})
     assert completed.returncode == 0, completed.stdout + completed.stderr
+
+
+def test_AC_PLT_19_every_guard_entry_has_an_example_that_fails_the_guard(
+    two_commits: tuple[GitRepo, str, str], tmp_path: Path
+) -> None:
+    # The guard copies the directory/path entries of the default allowlist verbatim (the gitleaks
+    # test checks them against the pinned image); each one needs an example that it blocks.
+    entries = gl.guard_entries()
+    examples = gl.ALLOWLISTED_PATH_EXAMPLES
+    assert entries == list(examples)
+    assert not [entry for entry in entries if gl.is_extension_entry(entry)]
+    repo, _, _ = two_commits
+    for entry, example in examples.items():
+        assert re.search(entry, example), (entry, example)  # gitleaks never scans the example
+        repo.write_bytes(example, b"x\n")
+    tracked = gl.git_out(repo, "ls-files").splitlines()
+    assert [path for path in gl.UNTRACKABLE_EXAMPLES if path in tracked] == []  # git ignores them
+
+    completed, _ = gl.run_step(repo, tmp_path, "no-allowlisted-paths", {})
+    output = completed.stdout + completed.stderr
+    assert completed.returncode != 0, output
+    blocked = set(examples.values()) - gl.UNTRACKABLE_EXAMPLES
+    assert [path for path in sorted(blocked) if path not in output.splitlines()] == []
