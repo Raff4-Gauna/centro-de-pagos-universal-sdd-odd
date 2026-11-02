@@ -26,3 +26,8 @@ ADAPTER_IMPORT_ALLOWLIST: tuple[AllowEntry, ...] = ()
 # C-01: raw manager access (``.objects``, ``._default_manager``, ``._base_manager``) in
 # ``apps/<app>/services/``. SPEC-02 fills it when the tenant-aware managers exist.
 ALLOWED_TENANT_MANAGERS: tuple[AllowEntry, ...] = ()
+
+# C-02: ``FloatField`` in models and ``float`` in domain/services/selectors/api (money_rules.py).
+# Only for a value that is not money (a ratio, a metric) and cannot be a Decimal; never for an
+# amount. Provider adapters do not need entries: the rule skips integrations/providers/.
+FLOAT_ALLOWLIST: tuple[AllowEntry, ...] = ()
