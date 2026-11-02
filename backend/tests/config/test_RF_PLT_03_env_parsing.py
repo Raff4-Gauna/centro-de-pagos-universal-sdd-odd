@@ -19,7 +19,12 @@ REQUIRED = {
 
 
 def databases_for(url: str) -> dict[str, object]:
-    return PlatformEnv(**REQUIRED, DATABASE_URL=url).databases()["default"]
+    env = PlatformEnv(
+        DJANGO_SECRET_KEY=REQUIRED["DJANGO_SECRET_KEY"],
+        REDIS_URL=REQUIRED["REDIS_URL"],
+        DATABASE_URL=url,
+    )
+    return env.databases()["default"]
 
 
 def test_RF_PLT_03_databases_decodes_percent_encoded_credentials() -> None:

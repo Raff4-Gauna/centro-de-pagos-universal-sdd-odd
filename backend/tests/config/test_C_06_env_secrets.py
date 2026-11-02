@@ -43,7 +43,9 @@ def test_C_06_env_repr_and_str_contain_no_sentinel(monkeypatch: pytest.MonkeyPat
         assert SENTINEL not in text.lower()
         assert "hub.example" in text  # the rendering did happen; only secrets are masked
     # The values are still there for the settings to use.
-    assert SENTINEL in env.DATABASE_URL.get_secret_value().hosts()[0]["password"]
+    password = env.DATABASE_URL.get_secret_value().hosts()[0]["password"]
+    assert password is not None
+    assert SENTINEL in password
 
     # A failure keeps no trace of the inputs: no chained ValidationError, nothing in the text.
     monkeypatch.setenv("DATABASE_URL", "mysql://sentinel_user:sentinel-db-pass@sentinel-host/db")
