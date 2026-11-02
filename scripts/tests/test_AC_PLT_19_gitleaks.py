@@ -68,10 +68,12 @@ def test_AC_PLT_19_mercadopago_token_is_detected_in_every_form(scan: Scan, prefi
 
 
 def test_AC_PLT_19_repo_history_has_no_findings(tmp_path: Path, empty_git_config: Path) -> None:
-    # Every commit of every ref (with fetch-depth 0 in CI): the own rule and the allowlist give no
-    # false positives on the real content, placeholders included.
-    history = subprocess.run(
-        ["git", "log", "-p", "--all", "--no-color", "--no-ext-diff"],  # noqa: S607 - git from PATH
+    # Every commit of every ref (with fetch-depth 0 in CI), merges and "binary" diffs included, as
+    # the secrets job reads them: the own rule and the allowlist give no false positives on the
+    # real content, placeholders included.
+    log = ["git", "log", "-p", "--all", "--diff-merges=first-parent", "--text", "--no-color"]
+    history = subprocess.run(  # noqa: S603 - fixed argv, test-only
+        [*log, "--no-ext-diff"],
         cwd=gl.REPO_ROOT,
         capture_output=True,
         check=True,
@@ -83,6 +85,7 @@ def test_AC_PLT_19_repo_history_has_no_findings(tmp_path: Path, empty_git_config
     shutil.copyfile(gl.GITLEAKS_CONFIG, config_dir / ".gitleaks.toml")
     docker = ["docker", "run", "--rm", "-i", "-v", f"{config_dir}:/cfg:ro"]
     options = ["--config", "/cfg/.gitleaks.toml", "--redact", "--no-banner", "--verbose"]
+    options.append("--ignore-gitleaks-allow")
     result = subprocess.run(  # noqa: S603 - fixed argv, test-only; docker from PATH
         [*docker, gl.gitleaks_image(), "stdin", *options],
         input=history,

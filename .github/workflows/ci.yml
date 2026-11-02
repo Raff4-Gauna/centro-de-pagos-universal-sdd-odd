@@ -119,6 +119,9 @@ jobs:
           echo "gitleaks range: $range"
           echo "log-opts=$range" >> "$GITHUB_OUTPUT"
       # --ignore-gitleaks-allow: an inline `gitleaks:allow` comment does not silence a finding.
+      # --diff-merges=first-parent: `git log -p` prints no diff for a merge, so a file added while
+      # merging would go unscanned. --text: a `-diff` attribute or a NUL byte would turn the
+      # content into "Binary files differ".
       - name: gitleaks git
         id: scan
         env:
@@ -126,7 +129,7 @@ jobs:
         run: >-
           docker run --rm -v "$GITHUB_WORKSPACE:/repo:ro" "$GITLEAKS_IMAGE" git /repo
           --config /repo/.gitleaks.toml --redact --no-banner --verbose --ignore-gitleaks-allow
-          --log-opts="$LOG_OPTS"
+          --log-opts="--diff-merges=first-parent --text $LOG_OPTS"
       - uses: ./.github/actions/setup
         with:
           python: "true"
