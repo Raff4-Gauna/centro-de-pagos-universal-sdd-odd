@@ -119,13 +119,27 @@ jobs:
           echo "gitleaks range: $range"
           echo "log-opts=$range" >> "$GITHUB_OUTPUT"
       # gitleaks loads a .gitleaksignore by itself, and each fingerprint in it drops a finding: none
-      # may be tracked, at any depth (red-zone path, design.md sec. 3.7.2).
+      # may be tracked, at any depth nor in any case (on Windows/macOS `.GitLeaksIgnore` is the same
+      # file for the hook) (red-zone path, design.md sec. 3.7.2).
       - name: No .gitleaksignore in the repo
         id: no-gitleaksignore
         run: |
-          found="$(git ls-files -- ':(glob)**/.gitleaksignore')"
+          found="$(git ls-files -- ':(glob,icase)**/.gitleaksignore')"
           if [ -n "$found" ]; then
             echo "::error::tracked .gitleaksignore files would silence gitleaks findings:"
+            echo "$found"
+            exit 1
+          fi
+      # The global allowlist of the default rules (useDefault, Q-062) never scans these paths, at any
+      # depth, so code there would hide a secret. Only the repo's own .gitleaks.toml may match (red
+      # zone, reviewer). Case-insensitive; NUL-separated so any file name is read as is.
+      - name: No tracked files under paths gitleaks skips
+        id: no-allowlisted-paths
+        run: |
+          skipped='gitleaks\.toml|(^|/)(node_modules|bower_components)/|(^|/)venv/lib/'
+          found="$(git ls-files -z | grep -ziE "$skipped" | grep -zvx '\.gitleaks\.toml' | tr '\0' '\n' || true)"
+          if [ -n "$found" ]; then
+            echo "::error::tracked files that gitleaks never scans (default path allowlist, Q-062):"
             echo "$found"
             exit 1
           fi

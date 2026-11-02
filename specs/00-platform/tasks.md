@@ -263,13 +263,23 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
     `test_AC_PLT_19_private_key_with_a_placeholder_inside_is_detected` (sin el ancla el hallazgo `private-key`
     desaparece); el placeholder solo sigue sin marcarse, también en los 10 archivos reales que lo usan.
   - **B-6** allowlist global de rutas heredada con `useDefault` → **Q-062**, opción (b) por defecto.
+  - **B-7** (verificación de `4790f6e`) esa allowlist saltea a cualquier profundidad rutas donde puede haber código
+    → paso de guarda `no-allowlisted-paths` (`git ls-files -z` contra
+    `gitleaks\.toml|(^|/)(node_modules|bower_components)/|(^|/)venv/lib/`, sin distinguir mayúsculas, salvo
+    `.gitleaks.toml`). Tests: `test_AC_PLT_19_file_under_a_default_allowlisted_path_fails_the_job` (6 rutas,
+    mayúsculas incluidas), `…_repo_gitleaks_config_alone_passes_the_guard`, `…_runs_before_the_scan`. Hoy 0
+    falsos positivos en wt-04 y en el repo principal. Además `no-gitleaksignore` usa `':(glob,icase)…'` (caso
+    `.GitLeaksIgnore`).
   - **N-2** gate real = CI, en design §3.6. **N-3** `--verbose` se mantiene: sin él gitleaks no dice regla,
     archivo, línea ni commit (justificado en `ci.yml` y §3.6); con `--redact` el valor no sale. **N-4** línea de
     archivos alineada (`typecheck`).
 - **Para después:** (1) chequeo propio que falle si `frontend/pnpm-lock.yaml` tiene credenciales en URLs
   (`://user:pass@`, `_authToken`): mitigación de Q-062, cuando exista el lockfile (T-PLT-27). (2) Tokens de Mercado
   Pago que la regla no cubre (N-1): formato legado `__LX_LY__`, prefijo en minúsculas y refresh tokens `TG-…`; y la
-  public key (`APP_USR-`/`TEST-` + UUID). (3) Ninguno de estos bloquea T-PLT-04.
+  public key (`APP_USR-`/`TEST-` + UUID). (3) La guarda `no-allowlisted-paths` cubre las rutas que pidió el
+  reviewer; la allowlist por defecto saltea además, verificado con v8.30.1 (un token falso no se detecta en ninguna):
+  `env/lib/`, `virtualenv/lib/`, `venv/lib64/`, `lib/python3.12/`, `*-1.0.dist-info/`, `vendor/bundle/`,
+  `vendor/github.com/…` y `*.svg`. ¿Se amplía la guarda? (4) Ninguno de estos bloquea T-PLT-04.
 
 ### T-PLT-05 — `check_workflows.py` en el job `lint`
 - **AC:** AC-PLT-33. RN-PLT-18, RF-PLT-11. **Zona roja:** sí.

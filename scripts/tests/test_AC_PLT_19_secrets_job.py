@@ -151,12 +151,16 @@ def test_AC_PLT_19_no_gitleaksignore_step_runs_before_the_scan() -> None:
     assert ids.index("no-gitleaksignore") < ids.index("scan")
 
 
-@pytest.mark.parametrize("path", [".gitleaksignore", "docs/deep/.gitleaksignore"])
+@pytest.mark.parametrize(
+    "path", [".gitleaksignore", "docs/deep/.gitleaksignore", "docs/.GitLeaksIgnore"]
+)
 def test_AC_PLT_19_tracked_gitleaksignore_fails_the_job(
     two_commits: tuple[GitRepo, str, str], tmp_path: Path, path: str
 ) -> None:
-    # B-2: gitleaks loads .gitleaksignore by itself, and a fingerprint there drops a finding.
+    # B-2: gitleaks loads .gitleaksignore by itself, and a fingerprint there drops a finding. On a
+    # case-insensitive checkout (Windows, macOS) `.GitLeaksIgnore` is that same file for the hook.
     repo, _, _ = two_commits
+    repo.git("config", "core.ignorecase", "false")  # as on the Linux runner
     repo.write_bytes(path, b"config.txt:github-pat:1\n")
 
     completed, _ = gl.run_step(repo, tmp_path, "no-gitleaksignore", {})
@@ -171,4 +175,46 @@ def test_AC_PLT_19_no_gitleaksignore_step_passes_without_one(
     repo.write_bytes("gitleaksignore.md", b"not the ignore file\n")
 
     completed, _ = gl.run_step(repo, tmp_path, "no-gitleaksignore", {})
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+
+
+def test_AC_PLT_19_no_allowlisted_paths_step_runs_before_the_scan() -> None:
+    ids = [s.get("id") for s in gl.secrets_job()["steps"]]
+    assert ids.index("no-allowlisted-paths") < ids.index("scan")
+
+
+SKIPPED_PATHS = [
+    "a/gitleaks.toml/b.py",
+    "docs/x.gitleaks.toml",
+    "x/node_modules/c.py",
+    "web/Bower_Components/e.py",
+    "venv/lib/d.py",
+    "tools/VENV/LIB/f.py",
+]
+
+
+@pytest.mark.parametrize("path", SKIPPED_PATHS)
+def test_AC_PLT_19_file_under_a_default_allowlisted_path_fails_the_job(
+    two_commits: tuple[GitRepo, str, str], tmp_path: Path, path: str
+) -> None:
+    # B-7: the global allowlist of the default config (useDefault, Q-062) never scans these paths,
+    # at any depth, so a secret in a .py there would pass unseen.
+    repo, _, _ = two_commits
+    repo.write_bytes(path, f"GITHUB_TOKEN = '{gl.fake_github_token()}'\n".encode())
+
+    completed, _ = gl.run_step(repo, tmp_path, "no-allowlisted-paths", {})
+    output = completed.stdout + completed.stderr
+    assert completed.returncode != 0, output
+    assert path in output
+
+
+def test_AC_PLT_19_repo_gitleaks_config_alone_passes_the_guard(
+    two_commits: tuple[GitRepo, str, str], tmp_path: Path
+) -> None:
+    # .gitleaks.toml is skipped by the default allowlist too, but it is a red-zone path (Q-058).
+    repo, _, _ = two_commits
+    repo.write_bytes(".gitleaks.toml", gl.GITLEAKS_CONFIG.read_bytes())
+    repo.write_bytes("docs/venv-notes.md", b"venv/lib is not tracked here\n")
+
+    completed, _ = gl.run_step(repo, tmp_path, "no-allowlisted-paths", {})
     assert completed.returncode == 0, completed.stdout + completed.stderr

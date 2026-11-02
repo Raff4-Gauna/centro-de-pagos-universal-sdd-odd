@@ -379,7 +379,7 @@ secreto: `DJANGO_SETTINGS_MODULE=config.settings.test`, `DJANGO_SECRET_KEY=ci-on
 |---|---|---|---|---|---|
 | 1 | `lint` | — | `ruff check` · `ruff format --check` · `eslint --max-warnings 0` · `prettier --check` · `check_workflows.py` | cualquier hallazgo | 12, 20, 33 |
 | 2 | `file-size` | `lint` | `check_file_size.py` sobre lo trackeado | archivo > 400 líneas fuera de exclusiones | 13 |
-| 3 | `secrets` | `file-size` | `fetch-depth: 0`; falla si hay un `.gitleaksignore` trackeado; `gitleaks git` (imagen v8.30.1 por digest) sobre `base..head` (PR) o `before..after` (push) con `--log-opts="--diff-merges=first-parent --text <rango>"`, `--redact`, `--ignore-gitleaks-allow`, `--verbose`; tests AC-19 (`-m gitleaks`) | hallazgo; `.gitleaksignore` trackeado | 19 |
+| 3 | `secrets` | `file-size` | `fetch-depth: 0`; guardas: ningún `.gitleaksignore` trackeado (cualquier caja) ni archivos en rutas que la allowlist por defecto saltea (salvo `.gitleaks.toml`, Q-062); `gitleaks git` (imagen v8.30.1 por digest) sobre `base..head` (PR) o `before..after` (push) con `--log-opts="--diff-merges=first-parent --text <rango>"`, `--redact`, `--ignore-gitleaks-allow`, `--verbose`; tests AC-19 (`-m gitleaks`) | hallazgo; `.gitleaksignore` trackeado; archivo en ruta salteada | 19 |
 | 3 | `deps-audit` | `file-size` | `audit_deps.py`: pip-audit sobre `uv export --frozen --all-groups` + `pnpm audit --json`, severidad vía OSV, excepciones con vencimiento | alta/crítica sin excepción vigente; excepción vencida; severidad desconocida (= alta) | 26 |
 | 4 | `typecheck` | `secrets`, `deps-audit` | `mypy . ../scripts` · `export_openapi --check` · `pnpm openapi:types && git diff --exit-code -- frontend/src/types` · `tsc --noEmit` | error de tipos; contrato/tipos con diff (lo imprime) | 21, 23 |
 | 5 | `architecture` | `typecheck` | `pytest tests/architecture` | violación C-01/02/09 o allowlist inválida | 14, 15, 31 |
@@ -420,8 +420,11 @@ del host y del contenedor están separados (volumen), así que los binarios nati
 
 **El gate real de secretos es CI** (job `secrets`), no este hook: `git commit --no-verify` lo saltea, y el diff
 staged que lee no lleva `--text`, así que un archivo con atributo `-diff` o con un byte NUL queda como binario. El
-job cubre esos casos (`--text`, `--diff-merges=first-parent` para los merges) y además falla con un
-`.gitleaksignore` trackeado: gitleaks lo carga solo y cada huella que lista anula un hallazgo. `--verbose` queda en
+job cubre esos casos (`--text`, `--diff-merges=first-parent` para los merges) y tiene dos pasos de guarda antes
+del escaneo: falla con un `.gitleaksignore` trackeado a cualquier profundidad y en cualquier caja
+(`':(glob,icase)**/.gitleaksignore'`; gitleaks lo carga solo y cada huella que lista anula un hallazgo), y falla si
+algún archivo trackeado distinto de `.gitleaks.toml` cae en rutas que la allowlist global por defecto nunca escanea
+(`gitleaks\.toml|(^|/)(node_modules|bower_components)/|(^|/)venv/lib/`, sin distinguir mayúsculas; Q-062). `--verbose` queda en
 el job a propósito: sin él gitleaks solo imprime la cantidad de hallazgos, sin regla, archivo, línea ni commit; con
 `--redact` el valor sale como `REDACTED`.
 
