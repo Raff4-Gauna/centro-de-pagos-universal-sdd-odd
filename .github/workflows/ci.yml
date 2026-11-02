@@ -65,7 +65,27 @@ jobs:
       - name: check_file_size.py
         run: python scripts/check_file_size.py
 
-  # Step 6. Hooked to file-size until secrets/deps-audit/typecheck/architecture exist.
+  # Step 4. AC-PLT-21 (backend): mypy with the django-stubs/drf-stubs plugins over backend/ and
+  # scripts/, strict in apps/common/ and every domain/ ([tool.mypy] of backend/pyproject.toml). The
+  # Django plugin imports config.settings.test, which reads the workflow-level env. tsc --noEmit
+  # (T-PLT-27) and the OpenAPI contract/types diff (T-PLT-18, T-PLT-35) are added here later.
+  typecheck:
+    # Becomes `needs: [secrets, deps-audit]` when T-PLT-04 and T-PLT-28 add step 3.
+    needs: file-size
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+        with:
+          python: "true"
+      - name: mypy
+        working-directory: backend
+        run: mypy . ../scripts
+
+  # Step 6. Hooked to typecheck until architecture exists.
   # Services (T-PLT-11, design.md §8): images by tag + digest (RN-PLT-14; the digest is the
   # multi-arch index of the tag, `docker buildx imagetools inspect`), throwaway test-only
   # credentials matching DATABASE_URL/REDIS_URL. The job starts once both healthchecks pass, so
@@ -74,7 +94,7 @@ jobs:
   # would report as ready before the real one listens. The Redis probe only counts a real PONG
   # reply (design.md §3.4.1).
   tests:
-    needs: file-size
+    needs: typecheck
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     services:
