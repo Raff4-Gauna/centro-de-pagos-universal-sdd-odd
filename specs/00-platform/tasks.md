@@ -555,6 +555,24 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   errores sin campo bajo `non_field_errors`; (d) títulos en español elegidos acá salvo "Datos inválidos" (§6.2);
   código desconocido → frase HTTP en inglés; (e) un cliente que manda solo `Accept: application/problem+json`
   recibe 406 (el renderer es `application/json`).
+- **Revisión de `728bce8`: APROBADO.** Las preguntas (a)–(e) se aceptan como están (no contradicen el design: §3.2.4
+  pide problem+json "aunque `Accept` no lo pida" y solo nombra `handler404`/`handler500`). No bloqueantes para
+  después (no entran en este PR):
+  1. Dev con `DEBUG=True`: una ruta desconocida bajo `/api/` muestra la página 404 técnica de Django (HTML, con los
+     patrones de URL) y una vista Django pura que falla muestra el 500 con traza, porque Django solo usa
+     `handler404`/`handler500` con `DEBUG=False`. Prod no se ve afectado. Opción: `re_path(r"^api/")` comodín al
+     final que llame a `not_found`.
+  2. mypy: `tests/api/test_AC_PLT_34_problem_json.py:40` tipa el helper con `HttpResponse` y el cliente devuelve
+     `_MonkeyPatchedWSGIResponse` (6 errores). Corregir en T-PLT-10 al activar mypy en CI.
+  3. `detail` (p. ej. el 415 con el `Content-Type` recibido) y `errors[].message` (valor inválido de un
+     `ChoiceField`) reflejan lo que mandó el cliente: el componente `Problem` (T-PLT-18/35) nunca lo renderiza
+     como HTML.
+  4. `handler400`/`handler403` con la misma lógica `_is_api`, para que `PermissionDenied`, `SuspiciousOperation` y
+     `DisallowedHost` bajo `/api/` también salgan en problem+json.
+  5. Menores: título de respaldo en inglés (pasarlo a español o exigir título por cada `code` publicado);
+     `JsonResponse` y DRF serializan con distinto espaciado. Además: (a) abrir una Q para un código `bad_request`
+     400 en §6.2 antes de la spec 01; (c) el ejemplo de §6.2 trae `"detail"` en `validation_error`: alinear
+     ejemplo o implementación con entrada en el Historial.
 
 ### T-PLT-16 — Throttling DRF con Redis
 - **AC:** AC-PLT-30. RN-PLT-19, RF-PLT-17 (Q-038). **Zona roja:** no.
