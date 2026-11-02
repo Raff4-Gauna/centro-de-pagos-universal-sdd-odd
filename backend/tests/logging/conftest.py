@@ -23,6 +23,7 @@ from unittest import mock
 import pytest
 from celery.contrib.testing.worker import start_worker
 from celery.signals import after_task_publish, task_postrun, task_rejected, task_unknown
+from pytest_django.fixtures import Settings as SettingsWrapper
 
 from apps.common.logging import context
 from config import celery_app
@@ -90,16 +91,28 @@ def drop_broker_connections() -> None:
     celery_app.__dict__.pop("amqp", None)
 
 
+def broker_transport() -> str:
+    """The transport the app publishes with right now (``memory``, ``redis``...)."""
+    with celery_app.producer_or_acquire() as producer:
+        return str(producer.connection.transport.driver_type)
+
+
 @pytest.fixture
-def memory_broker(monkeypatch: pytest.MonkeyPatch) -> Iterator[list[dict[str, Any]]]:
-    """kombu's in-memory transport; yields the headers of every message published meanwhile."""
+def memory_broker(settings: SettingsWrapper) -> Iterator[list[dict[str, Any]]]:
+    """kombu's in-memory transport; yields the headers of every message published meanwhile.
+
+    Changes the Django setting, not ``app.conf.broker_url``: Celery reads ``CELERY_BROKER_URL``
+    (namespace ``CELERY``) before the bare key, so a ``broker_url`` override would be ignored and
+    the tests would publish to the Redis of ``REDIS_URL`` (or fail without it).
+    """
     published: list[dict[str, Any]] = []
 
     def keep(sender: object = None, headers: dict[str, Any] | None = None, **kwargs: Any) -> None:
         published.append(dict(headers or {}))
 
-    monkeypatch.setattr(celery_app.conf, "broker_url", "memory://")
+    settings.CELERY_BROKER_URL = "memory://"
     drop_broker_connections()
+    assert broker_transport() == "memory"
     after_task_publish.connect(keep, weak=False)
     try:
         yield published

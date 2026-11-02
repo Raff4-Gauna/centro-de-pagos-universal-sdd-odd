@@ -31,7 +31,7 @@ from apps.common.logging import context, get_logger
 from apps.common.logging.setup import StdoutHandler
 from apps.common.middleware.request_id import REQUEST_ID_HEADER
 from config import celery_app
-from tests.logging.conftest import CapturedLog, StdoutLog, captured
+from tests.logging.conftest import CapturedLog, StdoutLog, broker_transport, captured
 
 VALID = "3f2b8c1e-9d4a-4b7e-8f21-6c0d5e9a7b13"
 TASK_EVENT = "celery.task"
@@ -149,6 +149,7 @@ def test_AC_PLT_11_diagnostic_endpoint_returns_202_with_task_id_and_request_id(
 ) -> None:
     response = client.post(DIAGNOSTIC_URL, headers={REQUEST_ID_HEADER: VALID})
     assert response.status_code == 202
+    assert broker_transport() == "memory"  # published in memory, not to REDIS_URL
     body = response.json()
     assert body["request_id"] == VALID
     assert uuid.UUID(body["task_id"]).version == 4
@@ -162,6 +163,7 @@ def test_AC_PLT_11_publish_outside_a_request_adds_no_header(
     memory_broker: list[dict[str, Any]],
 ) -> None:
     echo.apply_async(args=("a",), kwargs={"token": "b"})
+    assert broker_transport() == "memory"
     (headers,) = memory_broker
     assert "request_id" not in headers
 

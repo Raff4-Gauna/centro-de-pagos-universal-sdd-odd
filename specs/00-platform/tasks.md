@@ -722,6 +722,11 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   real con `start_worker` (`eta` en overflow `9999-12-31T23:59:59-12:00`, centinela en arg posicional y kwarg
   inocuo), plantilla desconocida con dict de tarea, con `bytes` y con un string, `received` intacto,
   constantes ausentes y falla del filtro.
+- **Regresión detectada en la verificación de `624dd7a`, arreglada en `test(logging)`:** desde `8cd05cb` el
+  fixture `memory_broker` no cambiaba el broker (Celery lee `CELERY_BROKER_URL` antes que `broker_url` por el
+  `namespace`): con Redis levantado publicaba en Redis y sin Redis fallaba. Ahora cambia el setting de Django
+  (`settings.CELERY_BROKER_URL`) y fija que el transport del producer sea `memory`. Verificado sin servicios
+  (`-m "not integration"`), con servicios y en otros órdenes (archivo solo, integración antes que memoria).
 - **Para después:** (1) `describe_exception` vive en `middleware/access_log.py` y ahora lo usa Celery: moverlo a
   `logging/` cuando se toque. (2) `celery.worker.request` (WorkerLost, time limits) y
   `celery.utils.dispatch.signal` (si un receptor falla) loguean el `repr` de excepciones y **sí** pueden aparecer
