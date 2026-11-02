@@ -680,13 +680,21 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   `test_RN_PLT_09_architecture_job_runs_architecture_tests`.
 - **Residual (no barato por AST):** imports dinámicos con nombre calculado, `__import__` con `level`, nombres armados
   en runtime (`getattr(M, "obj" + "ects")`, `vars(M)`, `M.__dict__`), alias de un paquete reasignado (`p = providers;
-  p.mercadopago`), acceso crudo escondido en un helper fuera de `services/`, `services/` anidados
-  (`apps/integrations/core/services/`) y `.pyi`.
-- **Preguntas para el planner (decisión conservadora aplicada):** (a) ¿C-01 cubre `services/` anidados bajo una app
-  (`apps/<a>/<b>/services/`)? Hoy no: se siguió `apps/*/services/**` del design. (b) Forma de
-  `ALLOWED_TENANT_MANAGERS` para SPEC-02: hoy `AllowEntry` por expresión (`Charge.objects`) y archivo; ¿o lista de
-  modelos cuyo `objects` es tenant-aware? (c) `norecursedirs` no incluye `tests/typing/synthetic/` (no hace falta: no
-  hay `test_*.py`); ¿se agrega por simetría?
+  p.mercadopago`), acceso crudo escondido en un helper fuera de `services/` y `.pyi`.
+- **Preguntas para el planner, respondidas en la revisión:** (a) `services/` anidados: sí, cubiertos (NB1). (b) La
+  forma `AllowEntry(path, symbol)` de `ALLOWED_TENANT_MANAGERS` queda hasta SPEC-02, que abre una Q en su design.
+  (c) `tests/typing/synthetic/` en `norecursedirs`: no hace falta.
+- **Revisión de `9e3c937`: APROBADO.** Aplicado en el mismo PR (commit `fix(architecture)`): NB1, C-01 cubre todo
+  `services/`/`services.py` debajo de `apps/<app>/` (`"services" in parts[2:]`), salvo rutas con un segmento `tests`
+  (`apps/integrations/core/services/a.py` falla, `apps/charges/tests/services/` no); NB3,
+  `import_module(".x", __package__)` y `package=__name__` se resuelven desde el nombre del módulo (antes daban
+  "relative import that cannot be resolved", falso positivo); NB5, docstring de `ast_rules.py` alineado con los
+  residuales. Para después:
+  1. NB2: `get_object_or_404`, `get_list_or_404` y `QuerySet(model=…)` en `services/` pasan sin detectarse.
+  2. NB4: un módulo compartido bajo `providers/` cuenta como proveedor; por eso el contrato común va en
+     `integrations/core/`. Anotarlo para SPEC-03.
+  3. Para SPEC-02: `selectors/` puede usar `.objects`. El filtro por organización lo controla el test cross-tenant
+     por endpoint, no esta regla.
 
 ### T-PLT-20 — Chequeo C-02 (`float` en dinero)
 - **AC:** AC-PLT-31. RN-PLT-20, RF-PLT-18 (Q-047). **Zona roja:** sí.

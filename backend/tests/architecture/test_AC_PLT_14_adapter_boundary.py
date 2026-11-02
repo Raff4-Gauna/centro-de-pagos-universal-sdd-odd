@@ -78,6 +78,11 @@ def test_AC_PLT_14_cross_provider_import_fails() -> None:
             "import_module('.mercadopago', package='apps.integrations.providers')\n",
             MP,
         ),
+        (
+            "from importlib import import_module\n"
+            "import_module('...integrations.providers.mercadopago', __package__)\n",
+            MP,
+        ),
         ("__import__('apps.integrations.providers.mercadopago')\n", MP),
         ("__import__('apps.integrations.providers', fromlist=['mercadopago'])\n", MP),
         (
@@ -117,6 +122,9 @@ def test_AC_PLT_14_import_evasions_detected(tmp_path: Path, source: str, symbol:
         "from apps.integrations import core\n",
         "from . import helpers\nfrom ..models import Charge\n",
         "NAME = 'apps.integrations.providers.mercadopago'\n",
+        # Relative to the module itself: resolved from its own name, not "unresolvable".
+        "from importlib import import_module\nimport_module('.signals', __package__)\n",
+        "from importlib import import_module\nimport_module('.signals', package=__name__)\n",
     ],
 )
 def test_AC_PLT_14_non_provider_imports_pass(tmp_path: Path, source: str) -> None:

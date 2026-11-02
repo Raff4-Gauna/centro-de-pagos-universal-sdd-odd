@@ -8,14 +8,16 @@ so the synthetic trees of the tests can name packages that do not exist.
   (one provider importing another included). Resolved: ``import``, ``from`` (relative too),
   ``importlib.import_module``/``__import__``/``import_string`` with literal arguments, and attribute
   chains from an imported ancestor (``providers.mercadopago``).
-- **C-01** (``raw_manager_violations``): in ``apps/<app>/services/**`` (and ``services.py``), any
+- **C-01** (``raw_manager_violations``): in any ``services/`` package or ``services.py`` module
+  below ``apps/<app>/`` (nested ones included, paths with a ``tests`` segment excluded), any
   ``.objects``/``._default_manager``/``._base_manager``, whatever the receiver (an alias such as
   ``M = Charge; M.objects`` included), ``getattr``/``attrgetter`` with those names as literals, and
   ``._meta.default_manager``/``base_manager``/``managers``/``managers_map``.
 
 Known gaps (not cheap on the AST): dynamic imports with computed names, ``__import__`` with
-``level``, names built at runtime (``getattr(M, "obj" + "ects")``, ``vars(M)``), and raw access
-hidden behind a helper defined outside ``services/``.
+``level``, names built at runtime (``getattr(M, "obj" + "ects")``, ``vars(M)``, ``M.__dict__``), a
+re-bound package alias (``p = providers; p.mercadopago``), raw access hidden behind a helper defined
+outside ``services/``, and ``.pyi`` files.
 """
 
 from __future__ import annotations
@@ -133,7 +135,16 @@ def argument(call: ast.Call, position: int, keyword: str) -> ast.expr | None:
     return call.args[position] if len(call.args) > position else None
 
 
-def dynamic_targets(call: ast.Call) -> list[str]:
+def package_argument(source: SourceFile, node: ast.expr | None) -> str | None:
+    """A literal ``package=``, or ``__package__``/``__name__`` resolved from the module's name."""
+    if isinstance(node, ast.Name) and node.id == "__name__":
+        return source.module
+    if isinstance(node, ast.Name) and node.id == "__package__":
+        return source.module if source.is_package else source.module.rpartition(".")[0]
+    return literal(node)
+
+
+def dynamic_targets(source: SourceFile, call: ast.Call) -> list[str]:
     """Modules named by a literal ``import_module``/``__import__``/``import_string`` call."""
     function = call_name(call)
     name = literal(argument(call, 0, "dotted_path" if function == "import_string" else "name"))
@@ -141,7 +152,7 @@ def dynamic_targets(call: ast.Call) -> list[str]:
         return []
     if name.startswith("."):
         # importlib.import_module(".x", package="a.b"): relative to `package`, one dot = itself.
-        package = literal(argument(call, 1, "package"))
+        package = package_argument(source, argument(call, 1, "package"))
         rest = name.lstrip(".")
         keep = len(package.split(".")) - (len(name) - len(rest) - 1) if package else 0
         if package is None or keep <= 0:
@@ -181,7 +192,7 @@ def import_targets(source: SourceFile) -> Iterator[tuple[int, str, bool]]:
                     if provider_of(base) is None:
                         yield node.lineno, f"{base}.{alias.name}", True
         elif isinstance(node, ast.Call) and call_name(node) in DYNAMIC_IMPORTERS:
-            for target in dynamic_targets(node):
+            for target in dynamic_targets(source, node):
                 yield node.lineno, target, not target.startswith(".")
     yield from attribute_targets(source.tree, bindings)
 
@@ -226,8 +237,9 @@ def adapter_boundary_violations(
 
 
 def is_service(module: str) -> bool:
+    """``apps.<app>[.<sub>...].services[...]``; an app's tests may use raw managers for fixtures."""
     parts = module.split(".")
-    return len(parts) >= 3 and parts[0] == "apps" and parts[2] == "services"
+    return parts[0] == "apps" and "services" in parts[2:] and "tests" not in parts
 
 
 def manager_access(node: ast.Attribute | ast.Call) -> bool:

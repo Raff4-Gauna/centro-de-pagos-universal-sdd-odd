@@ -68,11 +68,19 @@ def test_AC_PLT_15_manager_evasions_detected(tmp_path: Path, body: str, symbol: 
     assert [s for _, s in module(tmp_path, "charges/services/rows.py", body)] == [symbol]
 
 
-def test_AC_PLT_15_services_module_file_is_covered(tmp_path: Path) -> None:
-    # `apps/<app>/services.py` instead of a services/ package is still a service.
-    assert module(tmp_path, "charges/services.py", "Charge.objects.all()\n") == [
-        (3, "Charge.objects")
-    ]
+@pytest.mark.parametrize(
+    "relative",
+    [
+        # `apps/<app>/services.py` instead of a services/ package is still a service.
+        "charges/services.py",
+        # A services/ nested below the app.
+        "integrations/core/services/a.py",
+    ],
+)
+def test_AC_PLT_15_services_module_and_nested_services_are_covered(
+    tmp_path: Path, relative: str
+) -> None:
+    assert module(tmp_path, relative, "Charge.objects.all()\n") == [(3, "Charge.objects")]
 
 
 @pytest.mark.parametrize(
@@ -80,6 +88,8 @@ def test_AC_PLT_15_services_module_file_is_covered(tmp_path: Path) -> None:
     [
         ("charges/selectors/rows.py", "Charge.objects.all()\n"),
         ("charges/models.py", "Charge.objects.all()\n"),
+        # Tests of an app may build fixtures with raw managers, even under a services/ folder.
+        ("charges/tests/services/test_rows.py", "Charge.objects.all()\n"),
         ("charges/services/rows.py", "Charge.for_organization(org).all()\n"),
         ("charges/services/rows.py", "getattr(Charge, 'status')\n"),
     ],
