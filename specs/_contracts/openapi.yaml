@@ -1,0 +1,62 @@
+openapi: 3.0.3
+info:
+  title: Centro de Pagos Universal API
+  version: 0.1.0
+paths: {}
+components:
+  schemas:
+    Problem:
+      type: object
+      description: Sobre único de error (RFC 9457), media type application/problem+json.
+        Sin trazas, hosts ni secretos.
+      properties:
+        type:
+          type: string
+          example: urn:hub:problem:validation_error
+        title:
+          type: string
+          description: Fijo para cada code.
+        status:
+          type: integer
+          minimum: 400
+          maximum: 599
+        code:
+          type: string
+          description: 'Estable: cambiar o borrar uno publicado es incompatible.'
+          example: validation_error
+        detail:
+          type: string
+          description: 'Nunca en un 5xx. Puede reflejar lo que envió el cliente: se
+            muestra como texto plano, nunca se interpreta como HTML.'
+        request_id:
+          type: string
+          nullable: true
+          description: El mismo valor que el header X-Request-ID de la respuesta.
+        errors:
+          type: array
+          description: Solo en validation_error.
+          items:
+            $ref: '#/components/schemas/ProblemFieldError'
+      required:
+      - type
+      - title
+      - status
+      - code
+      - request_id
+    ProblemFieldError:
+      type: object
+      properties:
+        field:
+          type: string
+          example: amount
+        code:
+          type: string
+          example: required
+        message:
+          type: string
+          description: 'Puede reflejar lo que envió el cliente: se muestra como texto
+            plano, nunca se interpreta como HTML.'
+      required:
+      - field
+      - code
+      - message
