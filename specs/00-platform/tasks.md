@@ -328,6 +328,20 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   el mensaje? (c) El escáner AST no ve `getattr(os, "environ")`, `importlib`/`__import__` ni `sys.modules`:
   ¿suficiente como red, o se suma al test de arquitectura (T-PLT-2x)? (d) `tests/conftest.py` repite
   `FEATURE_PREFIX`: podría importarlo de `env.py`.
+- **Revisión de `e899175`: APROBADO.** Aplicado en el mismo PR: `SECURE_REDIRECT_EXEMPT` termina en `\Z` (con `$`,
+  `/healthz%0A` quedaba exento del redirect) y el test suma `/HEALTHZ` y `/healthz%0A`. Respuestas: (a) conservar el
+  `Host` en el log, cortado a ~255 caracteres; (b) no unificar por ahora; (c) no alcanza como única red: llevarlo al
+  test de arquitectura junto con el punto 1 de abajo; (d) sí, en un commit aparte. Para después:
+  1. AC-PLT-06: una subclase de `PlatformEnv` en `apps/` (`class MpEnv(PlatformEnv): MP_ACCESS_TOKEN: str`) y
+     `from pydantic.v1 import BaseSettings` dan 0 hallazgos. Prohibir importar `config.settings.env` fuera de
+     `config/settings/` y prohibir `pydantic.v1` (RN-PLT-04, C-09).
+  2. **Despliegue (T-PLT-25/26):** con `SECURE_PROXY_SSL_HEADER`, un cliente que mande `X-Forwarded-Proto: https`
+     saltea el redirect, y Django toma el primer valor de una lista. El proxy tiene que **pisar** el header (no
+     agregar), el contenedor no puede ser alcanzable sin pasar por el proxy, y `/healthz`/`/readyz` no se publican
+     por HTTP hacia afuera.
+  3. `load_feature_flags` (`env.py:172`) distingue mayúsculas en Linux: `feature_x` se ignora en silencio (queda
+     apagado, el default seguro de Q-052, pero un typo debería impedir arrancar).
+  4. La nota "Hecho" dice 4 commits; son 5 contando el de docs.
 
 ### T-PLT-10 — mypy + job `typecheck` (backend)
 - **AC:** AC-PLT-21 (backend). RNF-PLT-09 (Q-033). **Zona roja:** sí.

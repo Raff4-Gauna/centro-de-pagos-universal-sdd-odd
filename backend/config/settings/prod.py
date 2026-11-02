@@ -80,9 +80,10 @@ del _env
 
 # HTTPS (design.md §3.2.2, §7). TLS ends at the proxy, which sets X-Forwarded-Proto; everything
 # else redirects to https except the internal healthchecks, which speak plain HTTP. The patterns
-# match request.path without its leading "/", exactly (the routes have no trailing slash).
+# match request.path without its leading "/", exactly (the routes have no trailing slash); they
+# end in \Z, not $, because $ also matches before a trailing newline ("/healthz%0A").
 SECURE_SSL_REDIRECT = True
-SECURE_REDIRECT_EXEMPT = [r"^healthz$", r"^readyz$"]
+SECURE_REDIRECT_EXEMPT = [r"^healthz\Z", r"^readyz\Z"]
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 SECURE_HSTS_SECONDS = 31_536_000  # one year
 SECURE_HSTS_INCLUDE_SUBDOMAINS = True

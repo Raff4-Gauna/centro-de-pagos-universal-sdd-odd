@@ -100,7 +100,7 @@ def answer(path, **extra):
     response = middleware(factory.get(path, **extra))
     hsts = response.get("Strict-Transport-Security")
     return [response.status_code, response.get("Location"), hsts]
-paths = ("/healthz", "/readyz", "/healthz/", "/readyzx", "/api/v1/x")
+paths = ("/healthz", "/readyz", "/healthz/", "/readyzx", "/HEALTHZ", "/healthz%0A", "/api/v1/x")
 http = {path: answer(path) for path in paths}
 https = answer("/api/v1/x", HTTP_X_FORWARDED_PROTO="https")
 names = ("X_FRAME_OPTIONS", "SESSION_COOKIE_SECURE", "CSRF_COOKIE_SECURE", "SECURE_HSTS_PRELOAD",
@@ -118,7 +118,7 @@ def test_AC_PLT_04_http_redirects_to_https_except_health(run_django: RunDjango) 
     # Internal healthchecks speak plain HTTP: exempt, matched exactly (no trailing slash).
     assert seen["http"]["/healthz"] == [200, None, None]
     assert seen["http"]["/readyz"] == [200, None, None]
-    for path in ("/healthz/", "/readyzx", "/api/v1/x"):
+    for path in ("/healthz/", "/readyzx", "/HEALTHZ", "/healthz%0A", "/api/v1/x"):
         assert seen["http"][path] == [301, f"https://hub.example{path}", None]
     # Behind the TLS proxy (X-Forwarded-Proto): served, with HSTS for one year and subdomains.
     assert seen["https"] == [200, None, "max-age=31536000; includeSubDomains"]
