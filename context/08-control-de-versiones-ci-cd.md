@@ -8,26 +8,31 @@
 
 ## 1. Tamaño y modularidad de archivo (C-14)
 
-**Límite duro: ~400 líneas por archivo de código** (`.py`, `.ts`, `.tsx`, `.jsx`; no aplica a fixtures JSON,
-migraciones autogeneradas ni `*.md`). No es un número mágico: es la señal de que un archivo está mezclando más de
-una responsabilidad. Antes de llegar al límite, dividir por capa:
+**Límite duro: 400 líneas físicas por archivo de código** (`.py`, `.ts`, `.tsx`, `.jsx`): un archivo de 400
+líneas pasa, uno de **401 falla** (`Q-043`, decidido 2026-10-31). No aplica a migraciones, fixtures, archivos
+**generados** (tipos de OpenAPI en `frontend/src/types/`, `next-env.d.ts`) ni `*.md`. No es un número mágico: es
+la señal de que un archivo está mezclando más de una responsabilidad. Antes de llegar al límite, dividir por capa:
 
 - **Backend (Django app)**: `api/` (serializers + views finos, sin lógica) → `services/` (casos de uso,
   transacciones, un archivo por caso de uso si crece) → `selectors/` (lecturas filtradas por tenant) →
   `domain/` (lógica pura, sin Django) → `models.py` (si crece, `models/` con un archivo por entidad). Un
   adaptador de proveedor se divide en `client.py` (HTTP), `mapper.py` (DTO ↔ formato del proveedor),
-  `webhook.py` (verificación/parseo), `errors.py` — nunca un `adapter.py` único con todo.
+  `webhook.py` (verificación/parseo), `errors.py`, más un `adapter.py` que es **solo una fachada fina**
+  (implementa `BaseAdapter` y delega en los anteriores) — nunca un `adapter.py` único con todo.
 - **Frontend (Next.js)**: una pantalla grande se parte en `page.tsx` (orquesta) + componentes en
   `modules/<dominio>/components/` + hooks propios en `modules/<dominio>/hooks/`. Un formulario largo se separa en
   sub-secciones, cada una su propio componente con su propio `zod` schema parcial.
-- **Tests**: no cuentan para el límite de producción, pero igual se organizan por caso (`test_<caso>.py`), no un
-  archivo gigante de tests por módulo.
+- **Tests**: **sí cuentan** para el límite (literal de `C-14` y `ADR-0009`; `Q-043`). Se organizan por caso
+  (`test_<caso>.py`), no un archivo gigante de tests por módulo; si un archivo de tests se acerca a 400 líneas,
+  se divide por caso o por AC.
 
 Esto no cambia el límite de **~300 líneas de diff por tarea** que ya usa `task-planner` (`.claude/agents/task-planner.md`):
 son dos métricas distintas — una mide cuánto cambia una tarea, la otra cuánto mide un archivo en total.
 
-**Verificación automática**: `backend/scripts/check_file_size.py` (o equivalente) recorre los archivos trackeados
-por git, excluye migraciones y fixtures, y falla si alguno supera el límite. Corre en pre-commit y en CI (sección 3).
+**Verificación automática**: `scripts/check_file_size.py` **en la raíz del repo** (cubre backend y frontend, como
+dice `C-14`) recorre los archivos trackeados por git, excluye migraciones, fixtures y archivos generados (lista
+explícita en el propio script), y falla nombrando cada archivo que supere 400 líneas. Corre en pre-commit y en CI
+(sección 3). Alcance exacto: `specs/00-platform/spec.sdd.md` (`RN-PLT-08`, `AC-PLT-13`).
 
 ## 2. Control de versiones (C-15)
 
@@ -70,13 +75,13 @@ Reglas duras:
 ## 3. CI/CD (pipeline mínimo desde el primer commit de código, módulo 00-platform)
 
 Orden (falla rápido primero):
-1. **Lint + format** (`ruff`/`black` backend, `eslint`/`prettier` frontend).
+1. **Lint + format** (`ruff` lint + format backend, `eslint`/`prettier` frontend — Q-031).
 2. **Tamaño de archivo** (`check_file_size.py`, sección 1).
 3. **Escaneo de secretos** (`gitleaks` o equivalente) sobre el diff — bloqueante, no solo advertencia.
 4. **Type-check** (`mypy` backend si se adopta, `tsc --noEmit` frontend).
 5. **Test de arquitectura** (`C-01`, `C-09`): nada fuera de `providers/` importa de `providers/*`; no hay
    `Model.objects` crudo en `services/`.
-6. **Tests unitarios + de contrato** (pytest / vitest-jest), con el nombre `test_AC_<MOD>_NN_...` donde aplica.
+6. **Tests unitarios + de contrato** (pytest / vitest — Q-031), con el nombre `test_AC_<MOD>_NN_...` donde aplica.
 7. **Cobertura**: gate general del repo (se fija el número en la spec `00-platform`) y `≥ 90 %` específico para
    `integrations-engine` (`RNF-ENG-03`).
 8. **Chequeo de migraciones**: `makemigrations --check --dry-run` (nadie olvida generar una migración) +
@@ -154,7 +159,7 @@ corre en CI porque es más lento.
   permite moverse entre organizaciones de las que el usuario tiene `Membership`: el selector de la UI nunca
   es la fuente de verdad, el backend vuelve a validar el `organization_id` en cada request.
 - Credenciales de proveedores: cifradas en reposo (`C-06`, `ADR-0003`), nunca en logs/errores/fixtures.
-- Dependencias: versiones fijadas, sin agregar paquetes en zonas rojas sin ADR (`C-13`); `npm audit`/`pip-audit`
+- Dependencias: versiones fijadas, sin agregar paquetes en zonas rojas sin ADR (`C-13`); `pnpm audit`/`pip-audit`
   (o equivalente) como parte del pipeline antes de producción.
 - Rate limiting y protección básica de API (login, webhooks) se define al redactar `00-platform`/`01-identity-access`;
   se deja anotado acá para no perderlo de vista.
@@ -163,3 +168,4 @@ corre en CI porque es más lento.
 | Fecha | Cambio | Motivo |
 |---|---|---|
 | 2026-10-31 | Documento inicial | Pedido explícito del usuario: buenas prácticas de archivo, versionado, CI, tests, rollback y logs antes de escribir la primera línea de código |
+| 2026-10-31 | §1: script en `scripts/check_file_size.py` (raíz), límite 400 líneas físicas (401 falla), los tests **sí** cuentan, exclusión de archivos generados, `adapter.py` como fachada fina | Alinear con `C-14`/`ADR-0009` según `Q-043` (decidida); contradicción detectada al redactar SPEC-00 |
