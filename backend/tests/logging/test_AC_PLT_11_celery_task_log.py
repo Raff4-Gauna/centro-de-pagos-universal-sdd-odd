@@ -28,16 +28,18 @@ import pytest
 from celery.contrib.testing.worker import start_worker
 from celery.signals import after_task_publish, task_postrun
 from django.conf import settings
+from django.test import Client
 
 from apps.common.logging import context, get_logger
 from apps.common.logging.setup import StdoutHandler
-from apps.common.tasks import diagnostic_ping
+from apps.common.middleware.request_id import REQUEST_ID_HEADER
 from config import celery_app
 from tests.logging.conftest import CapturedLog, StdoutLog
 
 VALID = "3f2b8c1e-9d4a-4b7e-8f21-6c0d5e9a7b13"
 TASK_EVENT = "celery.task"
 INNER_EVENT = "test.inside_task"
+DIAGNOSTIC_URL = "/api/dev/diagnostic-task/"
 # What args, kwargs, a return value or an exception message may carry. Joined at runtime.
 SENTINEL = "celery-" + "sentinel-9b4e"
 # The only fields of the end-of-task event besides the shared ones and the exception description.
@@ -176,6 +178,20 @@ def memory_broker(monkeypatch: pytest.MonkeyPatch) -> Iterator[list[dict[str, An
         drop_broker_connections()
 
 
+def test_AC_PLT_11_diagnostic_endpoint_returns_202_with_task_id_and_request_id(
+    client: Client, memory_broker: list[dict[str, Any]]
+) -> None:
+    response = client.post(DIAGNOSTIC_URL, headers={REQUEST_ID_HEADER: VALID})
+    assert response.status_code == 202
+    body = response.json()
+    assert body["request_id"] == VALID
+    assert uuid.UUID(body["task_id"]).version == 4
+    assert response[REQUEST_ID_HEADER] == VALID
+    (headers,) = memory_broker
+    assert (headers["id"], headers["task"]) == (body["task_id"], "common.diagnostic_ping")
+    assert headers["request_id"] == VALID
+
+
 def test_AC_PLT_11_publish_outside_a_request_adds_no_header(
     memory_broker: list[dict[str, Any]],
 ) -> None:
@@ -234,11 +250,11 @@ def captured(capfd: pytest.CaptureFixture[str]) -> CapturedLog:
 
 @pytest.mark.integration
 def test_AC_PLT_11_task_log_is_json_with_task_id_and_origin_request_id(
-    redis_worker: threading.Event, capfd: pytest.CaptureFixture[str]
+    client: Client, redis_worker: threading.Event, capfd: pytest.CaptureFixture[str]
 ) -> None:
-    context.bind_request(VALID)  # what RequestIdMiddleware does for a request
-    task_id = diagnostic_ping.delay().id
-    context.clear()
+    response = client.post(DIAGNOSTIC_URL, headers={REQUEST_ID_HEADER: VALID})
+    assert response.status_code == 202
+    task_id = response.json()["task_id"]
     assert redis_worker.wait(timeout=30)
     log = captured(capfd)  # every line must parse as one JSON object
     (ping,) = log.find("diagnostic.ping")
