@@ -62,7 +62,7 @@ Reglas: rebanada vertical · ≤ ~300 líneas de diff · mergeable sola · cita 
 | T-PLT-15 | Errores `problem+json` | AC-PLT-34 | Backend/API | `apps/common/api/{problems,exceptions}.py` | T-PLT-12 | backend-dev | L | Sí | ◐ en revisión (falta reviewer/PR) |
 | T-PLT-16 | Throttling DRF con Redis | AC-PLT-30 | Backend/API | `apps/common/api/throttling.py` | T-PLT-11, T-PLT-15 | backend-dev | M | No | ☐ |
 | T-PLT-17 | Celery + tarea de diagnóstico con `request_id` | AC-PLT-11 | Backend | `config/celery.py`, `apps/common/celery_signals.py` | T-PLT-11, T-PLT-12 | backend-dev | L | No (reviewer recomendado) | ◐ en revisión (falta reviewer/PR) |
-| T-PLT-18 | Contrato OpenAPI commiteado + `--check` | AC-PLT-23 (backend) | API/Contrato | `export_openapi.py`, `specs/_contracts/openapi.yaml` | T-PLT-15 | backend-dev | M | Sí | ☐ |
+| T-PLT-18 | Contrato OpenAPI commiteado + `--check` | AC-PLT-23 (backend) | API/Contrato | `export_openapi.py`, `specs/_contracts/openapi.yaml` | T-PLT-15 | backend-dev | M | Sí | ◐ en revisión (falta reviewer/PR) |
 | T-PLT-19 | Tests de arquitectura C-09 y C-01 + job | AC-PLT-14, AC-PLT-15 | Arquitectura/CI | `backend/tests/architecture/` | T-PLT-08 | backend-dev | L | Sí | ◐ en revisión (falta reviewer/PR) |
 | T-PLT-20 | Chequeo C-02 (`float` en dinero) | AC-PLT-31 | Arquitectura | `ast_rules.py`, `allowlists.py` | T-PLT-19 | backend-dev | M | Sí | ◐ en revisión (falta reviewer/PR) |
 | T-PLT-21 | Gate de cobertura + job `coverage` | AC-PLT-22 | CI | `scripts/check_coverage.py`, `scripts/coverage_thresholds.toml` | T-PLT-08 | backend-dev | L | Sí | ◐ en revisión (falta reviewer/PR) |
@@ -845,6 +845,32 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   `test_AC_PLT_23_check_mode_fails_and_prints_diff_when_outdated`, `test_AC_PLT_23_problem_component_on_4xx_5xx`,
   `test_RN_PLT_15_info_version_set_and_no_version_in_url`.
 - **Nota:** ADR-0005 figura **Propuesto**; conviene pasarlo a *Aceptado* antes de mergear esta tarea.
+- **Hecho (commits `feat(api)` ×3 y `ci(platform)`):** `schema.py` fija todo lo que da forma al contrato
+  (`API_VERSION="0.1.0"`, `OAS_VERSION="3.0.3"` explícito, `PUBLIC_URLCONF="config.urls"`, `Problem` y
+  `ProblemFieldError` en `APPEND_COMPONENTS`, hook `add_problem_responses` después de `postprocess_schema_enums`:
+  `4XX`/`5XX` → `application/problem+json` solo donde la operación no declara ese rango). `detail` y
+  `errors[].message` se documentan como texto plano, nunca HTML (pendiente 3 de la revisión de T-PLT-15).
+  `export_openapi` envuelve `spectacular` (`--validate --fail-on-warn`, YAML, `lang=LANGUAGE_CODE`) en un temporal;
+  `--check` compara bytes, imprime el diff unificado con rutas relativas y sale con 1 sin escribir (también si el
+  archivo falta). En 00 `paths: {}`. Determinismo: dos generaciones iguales, LF, sin rutas locales (test); mismo
+  SHA-256 en Windows (Python 3.12.0) y en `python:3.12-slim` (`uv sync --frozen`, `TZ=Europe/Madrid`, `LANG=C`) y
+  con el dumper YAML en Python puro. `/api/dev/schema/` y `/api/dev/docs/` solo en `urls_dev`; el esquema servido
+  sale de `SERVE_URLCONF=config.urls`, o sea es el contrato commiteado (test). Tests extra:
+  `test_AC_PLT_23_export_is_deterministic_lf_and_free_of_local_paths`,
+  `test_AC_PLT_23_generation_warning_fails_the_export`, `test_Q056_dev_schema_is_the_committed_contract`,
+  `test_Q056_dev_docs_render_swagger_ui_on_the_dev_schema`. Mutación: con `PUBLIC_URLCONF="config.urls_dev"`
+  fallan 4 tests; sin el hook falla `…_problem_component_on_4xx_5xx`.
+- **Desvío de alcance:** `TEMPLATES` (`DjangoTemplates`, `APP_DIRS`) en `base.py` (archivo listado): sin eso
+  `/api/dev/docs/` da `TemplateDoesNotExist`. Afecta también a `prod`, que no tiene ninguna vista que renderice
+  templates.
+- **Preguntas (decisión conservadora aplicada):** (a) `request_id` es requerido pero `nullable` en `Problem`,
+  porque `current_request_id()` puede devolver `None` fuera de una request; si se garantiza siempre, se quita el
+  `nullable` (cambio menor de contrato). (b) OAS 3.0.3 y no 3.1 (el ADR admite ambas). (c) El `--check` compara
+  bytes: un checkout con CRLF fallaría, cosa que `.gitattributes` (`eol=lf`) evita.
+- **Para después:** (1) Swagger UI carga `swagger-ui-dist@latest` del CDN (default de drf-spectacular; solo dev):
+  fijar versión con `SWAGGER_UI_DIST`. (2) La fila de ADR-0005 en `context/decisions/README.md` no muestra el
+  estado. (3) `schema.py`: el `continue` de claves que no son operación (`parameters` de un path) no se ejercita
+  hasta que haya paths.
 
 ### T-PLT-19 — Tests de arquitectura C-09 y C-01 + job `architecture`
 - **AC:** AC-PLT-14, AC-PLT-15. RN-PLT-09, RF-PLT-09. **Zona roja:** sí.
