@@ -248,6 +248,9 @@ jobs:
     needs: file-size
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    env:
+      # No uv.toml / [tool.uv] of the PR in any uv call of this job, setup-uv's own included (B-5).
+      UV_NO_CONFIG: "1"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -260,12 +263,14 @@ jobs:
           backend-deps: "false"
       - name: Install the pinned audit tools
         # --no-config: no uv.toml / [tool.uv] of the PR (indexes, sources) is read.
+        # --no-cache: not the uv cache restored by setup-uv, which other jobs of the run (with PR
+        # code) may have written (N-1); every file is downloaded now and checked against its hash.
         run: |
           uv venv --no-config --no-project --python 3.12.16 "$RUNNER_TEMP/audit-tools"
-          uv pip install --no-config --python "$RUNNER_TEMP/audit-tools/bin/python" \
+          uv pip install --no-config --no-cache --python "$RUNNER_TEMP/audit-tools/bin/python" \
             --require-hashes --no-build -r scripts/audit_tool_requirements.txt
       - name: audit_deps.py
-        # The tools venv's Python runs the script, and pip-audit as `python -m pip_audit`.
+        # The tools venv's Python runs the script, and pip-audit as `python -I -m pip_audit`.
         run: '"$RUNNER_TEMP/audit-tools/bin/python" scripts/audit_deps.py'
 
   # Step 4. AC-PLT-21 (backend): mypy with the django-stubs/drf-stubs plugins over backend/ and

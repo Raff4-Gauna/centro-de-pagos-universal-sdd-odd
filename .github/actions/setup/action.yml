@@ -49,7 +49,9 @@ runs:
     - name: Install Python 3.12.16
       if: inputs.python == 'true'
       shell: bash
-      run: uv python install 3.12.16
+      # --no-config: a PR's /uv.toml or /pyproject.toml [tool.uv] (python-downloads-json-url,
+      # python-install-mirror) would otherwise pick the interpreter every venv is built on (B-5).
+      run: uv python install --no-config 3.12.16
 
     - name: Install the backend env from the lockfile
       if: inputs.python == 'true' && inputs.backend-deps == 'true'
@@ -58,7 +60,9 @@ runs:
       # --frozen: install exactly uv.lock, never re-resolve (C-13, RN-PLT-14).
       # --no-build: wheels only. A lock entry with a local `source = { directory = ... }` would
       # otherwise run that directory's build backend, PR code, during the install (T-PLT-28, B-3).
-      run: uv sync --frozen --no-build --python 3.12.16
+      # --no-config: no uv.toml of the PR; `package = false` of backend/pyproject.toml still applies
+      # (it is project metadata, not a setting; checked in Docker with uv 0.13.6, B-5).
+      run: uv sync --no-config --frozen --no-build --python 3.12.16
 
     - name: Put the backend env on PATH
       if: inputs.python == 'true' && inputs.backend-deps == 'true'
@@ -76,10 +80,12 @@ runs:
       if: inputs.node == 'true'
       shell: bash
       # pnpm/action-setup drops the `+sha512...` suffix of `packageManager`, so check that the pnpm
-      # on PATH is exactly the pinned version (T-PLT-27 review follow-up, T-PLT-28).
+      # on PATH is exactly the pinned version (T-PLT-27 review follow-up, T-PLT-28). `pnpm --version`
+      # runs in $RUNNER_TEMP: a PR's /package.json or /pnpm-workspace.yaml at the repo root cannot
+      # change which pnpm answers (N-3).
       run: |
         expected="$(jq -r '.packageManager // ""' frontend/package.json | sed -E 's/^pnpm@([^+]+).*$/\1/')"
-        actual="$(pnpm --version)"
+        actual="$(cd "$RUNNER_TEMP" && pnpm --version)"
         if [ -z "$expected" ] || [ "$actual" != "$expected" ]; then
           echo "::error::pnpm ${actual} does not match packageManager '${expected}' in frontend/package.json"
           exit 1

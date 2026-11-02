@@ -36,6 +36,12 @@ def deps_audit_steps() -> dict[str, dict[str, Any]]:
     return {step.get("name", step.get("uses")): step for step in job["steps"]}
 
 
+def uv_calls(run: str) -> list[list[str]]:
+    """Each ``uv`` command line of a ``run:`` script, split into words."""
+    lines = [line.split() for line in join_continuations(run).splitlines()]
+    return [words[words.index("uv") :] for words in lines if "uv" in words]
+
+
 def test_AC_PLT_26_deps_audit_job_runs_audit_deps() -> None:
     steps = deps_audit_steps()
     setup = steps["./.github/actions/setup"]
@@ -61,7 +67,8 @@ def test_AC_PLT_26_deps_audit_tools_come_pinned_and_hashed_not_from_the_lock() -
     assert install[: len(venv) + 1] == [*venv, '"$RUNNER_TEMP/audit-tools"']
     pip = install[len(venv) + 1 :]
     assert pip[:3] == ["uv", "pip", "install"]
-    assert {"--no-config", "--require-hashes", "--no-build"} <= set(pip)
+    # N-1: --no-cache, not the uv cache restored by setup-uv (other jobs of the run write it).
+    assert {"--no-config", "--no-cache", "--require-hashes", "--no-build"} <= set(pip)
     assert pip[pip.index("--python") + 1] == TOOLS_PYTHON
     assert pip[pip.index("-r") + 1] == "scripts/audit_tool_requirements.txt"
     assert "backend" not in " ".join(install)
@@ -120,7 +127,28 @@ def test_AC_PLT_26_shared_backend_sync_builds_nothing() -> None:
     # B-3 (defence in depth): wheels only, so a local `source = { directory }` in uv.lock cannot
     # run its build backend in the jobs that do install the backend env.
     sync = setup_steps()["Install the backend env from the lockfile"]
-    assert sync["run"] == "uv sync --frozen --no-build --python 3.12.16"
+    assert sync["run"] == "uv sync --no-config --frozen --no-build --python 3.12.16"
+
+
+def test_AC_PLT_26_python_install_reads_no_repo_config() -> None:
+    # B-5: a PR's /uv.toml (or [tool.uv] in /pyproject.toml) with python-downloads-json-url
+    # installed a tampered CPython, the base of the tools venv that runs the gate.
+    install = setup_steps()["Install Python 3.12.16"]
+    assert install["run"] == "uv python install --no-config 3.12.16"
+    assert "working-directory" not in install
+
+
+def test_AC_PLT_26_every_uv_call_reads_no_repo_config() -> None:
+    # B-5: every uv command line of the setup action and of ci.yml passes --no-config.
+    workflow = load_yaml(".github", "workflows", "ci.yml")
+    runs = [step.get("run", "") for step in setup_steps().values()]
+    for job in workflow["jobs"].values():
+        runs += [step.get("run", "") for step in job["steps"]]
+    calls = [call for run in runs for call in uv_calls(run)]
+    assert len(calls) >= 4
+    assert [call for call in calls if "--no-config" not in call] == []
+    # And for setup-uv's own calls in the gate job (its post-step cache prune included).
+    assert workflow["jobs"]["deps-audit"]["env"] == {"UV_NO_CONFIG": "1"}
 
 
 def test_RN_PLT_14_dependabot_weekly_for_all_ecosystems() -> None:
@@ -152,8 +180,11 @@ def test_RN_PLT_14_setup_checks_pnpm_version_and_skips_cache_on_tags() -> None:
     names = [step.get("name") for step in steps]
     check = steps[names.index("Check pnpm matches packageManager")]
     assert names.index("Set up pnpm") < names.index("Check pnpm matches packageManager")
-    assert "pnpm --version" in check["run"]
     assert "packageManager" in check["run"]
+    # N-3: from $RUNNER_TEMP, so a PR's /package.json (packageManager) cannot pick another pnpm.
+    assert 'actual="$(cd "$RUNNER_TEMP" && pnpm --version)"' in check["run"]
+    assert check["run"].count("pnpm --version") == 1
+    assert "working-directory" not in check
     node = steps[names.index("Set up Node")]["with"]
     # `cond && '' || 'pnpm'` would always yield 'pnpm' ('' is falsy): the empty value goes last.
     assert node["cache"] == "${{ !startsWith(github.ref, 'refs/tags/') && 'pnpm' || '' }}"

@@ -181,19 +181,41 @@ def test_AC_PLT_26_audits_frozen_lockfiles_of_both_ecosystems(
     code, _, _ = run_audit(capsys, tmp_path, runner)
 
     assert code == 0
-    (uv, uv_cwd), (pip_audit, _), (version, _), (pnpm, pnpm_cwd) = runner.calls
-    assert uv[:5] == ["uv", "export", "--frozen", "--all-groups", "--no-emit-project"]
+    (uv, uv_cwd), (pip_audit, pip_audit_cwd), (version, _), (pnpm, pnpm_cwd) = runner.calls
+    # N-2: --no-config, no uv.toml / [tool.uv] setting of the PR changes the export.
+    export = ["uv", "export", "--no-config", "--frozen", "--all-groups", "--no-emit-project"]
+    assert uv[: len(export)] == export
     assert uv_cwd == REPO_ROOT / "backend"
     requirements = uv[uv.index("--output-file") + 1]
     # B-3: pip-audit from the script's own interpreter (the pinned tools venv in CI), not PATH.
-    assert pip_audit[:5] == [sys.executable, "-m", "pip_audit", "-r", requirements]
+    # B-4: isolated (-I) and run from the temp dir of the export, not from backend/.
+    assert pip_audit[:6] == [sys.executable, "-I", "-m", "pip_audit", "-r", requirements]
     assert {"--disable-pip", "--require-hashes", "--format"} <= set(pip_audit)
+    assert Path(requirements).is_absolute()
+    assert pip_audit_cwd == Path(requirements).parent
+    assert pip_audit_cwd != REPO_ROOT / "backend"
     # Isolated run (B-1): the pinned pnpm, fixed flags, a temp dir with the real lockfile.
     assert version == ["pnpm", "--version"]
     assert pnpm == list(audit_deps.pnpm_isolation.PNPM_AUDIT)
     assert pnpm_cwd != REPO_ROOT / "frontend"
     (run,) = runner.pnpm_runs
     assert run.files["pnpm-lock.yaml"] == (REPO_ROOT / "frontend" / "pnpm-lock.yaml").read_bytes()
+
+
+def test_AC_PLT_26_pip_audit_is_isolated_from_planted_modules(tmp_path: Path) -> None:
+    # B-4: with plain `-m` the cwd goes first in sys.path, so a PR's backend/pip_audit.py (or a
+    # dependency of it, rich.py) replaced pip-audit and printed an empty report: exit 0.
+    assert (sys.executable, "-I", "-m", "pip_audit") == audit_deps.PIP_AUDIT
+    (tmp_path / "planted_by_pr.py").write_text('print("PLANTED")\n', encoding="utf-8")
+    flags = list(audit_deps.PIP_AUDIT[:-1])
+
+    shadowed = audit_deps.run_command([sys.executable, "-m", "planted_by_pr"], tmp_path)
+    isolated = audit_deps.run_command([*flags, "planted_by_pr"], tmp_path)
+
+    assert shadowed.stdout.strip() == "PLANTED"
+    assert isolated.returncode != 0
+    assert "PLANTED" not in isolated.stdout
+    assert "No module named planted_by_pr" in isolated.stderr
 
 
 @pytest.mark.parametrize(

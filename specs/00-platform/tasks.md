@@ -330,6 +330,11 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   `apps/`, `config/` o `tests/`** (ahí vive el build backend que esa entrada apuntaría); también
   `scripts/audit_tool_requirements.txt` si la regla de rutas del gate (Q-058) no cubre ya todo `scripts/`. El
   gate ya no instala el venv del backend ni construye nada (`--no-build`); la ruta roja suma el veredicto.
+  Nota (review final de T-PLT-28, B-4/B-5): también los **archivos sueltos nuevos en `backend/`** (no solo los
+  directorios: un `backend/pip_audit.py` o `backend/rich.py` reemplazaba a pip-audit) y las configs de la raíz
+  que leen las herramientas del gate: `/uv.toml`, `/pyproject.toml` (`[tool.uv]`), `/package.json`
+  (`packageManager`), `/.npmrc` y `/.python-version`. El gate ya corre aislado de ellas (`-I`, `--no-config`,
+  `pnpm --version` en `$RUNNER_TEMP`); la ruta roja suma el veredicto.
 - **Fuera de esta tarea:** llamadas a la API, workflow (T-PLT-07).
 - **Plan de pruebas:** `test_AC_PLT_32_no_red_paths_no_label_passes`, `test_AC_PLT_32_red_path_without_label_fails`,
   `test_AC_PLT_32_label_and_approved_verdict_by_writer_on_head_sha_passes`,
@@ -1120,8 +1125,8 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   comentado), `scripts/tests/test_AC_PLT_26_audit_deps.py` y `scripts/tests/test_AC_PLT_26_pnpm_audit_isolation.py`
   (OSV y subprocesos mockeados, reloj fijo; fakes en `scripts/tests/audit_deps_fakes.py`),
   `scripts/tests/test_RN_PLT_14_dependabot_and_setup.py`, `.github/actions/setup/action.yml` (inputs
-  `frontend-deps` y `backend-deps`; install con `--ignore-scripts --ignore-pnpmfile`; `uv sync --frozen
-  --no-build`), `scripts/audit_tool_requirements.txt` (pip-audit 2.10.1 y su cadena, con hashes; B-3),
+  `frontend-deps` y `backend-deps`; install con `--ignore-scripts --ignore-pnpmfile`; `uv sync --no-config
+  --frozen --no-build`), `scripts/audit_tool_requirements.txt` (pip-audit 2.10.1 y su cadena, con hashes; B-3),
   `.github/dependabot.yml` (semanal: `uv` `/backend`, `npm` `/frontend`, `docker` `/backend`, `github-actions`;
   parches agrupados), `.github/workflows/ci.yml` (job `deps-audit`, `needs: file-size`; `typecheck` pasa a `needs:
   [secrets, deps-audit]`).
@@ -1141,7 +1146,12 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   `test_AC_PLT_26_backend_deps_input_gates_only_sync_and_path`, `test_AC_PLT_26_shared_backend_sync_builds_nothing`,
   `test_AC_PLT_26_deps_audit_tools_come_pinned_and_hashed_not_from_the_lock`,
   `test_AC_PLT_26_audit_tool_requirements_pin_pip_audit_with_hashes` (y el argv `python -m pip_audit` en
-  `test_AC_PLT_26_audits_frozen_lockfiles_of_both_ecosystems`); y
+  `test_AC_PLT_26_audits_frozen_lockfiles_of_both_ecosystems`); pip-audit y uv aislados de la config del repo
+  (review final, B-4/B-5, N-1..N-3): `test_AC_PLT_26_pip_audit_is_isolated_from_planted_modules`,
+  `test_AC_PLT_26_python_install_reads_no_repo_config`, `test_AC_PLT_26_every_uv_call_reads_no_repo_config` (y
+  `-I`, el cwd temporal y `uv export --no-config` en `test_AC_PLT_26_audits_frozen_lockfiles_of_both_ecosystems`,
+  `--no-cache` en `test_AC_PLT_26_deps_audit_tools_come_pinned_and_hashed_not_from_the_lock`, el cwd de
+  `pnpm --version` en `test_RN_PLT_14_setup_checks_pnpm_version_and_skips_cache_on_tags`); y
   `test_AC_PLT_26_pip_audit_skipped_dependency_exits_2`, `test_AC_PLT_26_osv_failure_exits_2_without_traceback`,
   `test_AC_PLT_26_unused_exception_warns`, `test_AC_PLT_26_exception_beyond_90_days_exits_2`.
 - **Notas de implementación:**
@@ -1201,8 +1211,34 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
     ejecutar el backend); pip-audit rechaza ese requisito ("does not contain a hash") y el gate falla cerrado
     con exit 2. (3) Defensa en profundidad para el resto de los jobs: `uv sync --frozen --no-build` (con el
     lock real instala 84 paquetes, exit 0; con el alterado, exit 2 sin ejecutar nada). Ruta roja sugerida para
-    T-PLT-06: `backend/uv.lock` y los directorios nuevos bajo `backend/`. Residual: la caché de uv que
-    restaura setup-uv; un PR solo escribe la caché de su propia rama, nunca la de `main`.
+    T-PLT-06: `backend/uv.lock` y los directorios y archivos nuevos bajo `backend/`. La caché de uv que
+    restaura setup-uv **no** quedaba mitigada por "un PR solo escribe la caché de su propia rama": el gate
+    corre justamente en esa rama, y otros jobs del mismo run (que sí ejecutan código del PR) pueden haberla
+    escrito; un archivo de la caché adulterado se instalaba sin volver a chequear el hash (reproducido por el
+    reviewer). Resuelto en el review final (N-1): el install de herramientas va con `--no-cache`.
+  - **pip-audit y uv aislados de la config del repo (review final, B-4/B-5):** (B-4) `python -m pip_audit` con
+    cwd `backend/` ponía el cwd primero en `sys.path`: un `backend/pip_audit.py` (o `backend/rich.py`, una
+    dependencia de pip-audit) plantado imprimía un reporte vacío y el gate pasaba de exit 1 a exit 0. Arreglo:
+    `PIP_AUDIT = (sys.executable, "-I", "-m", "pip_audit")` (`-I`: ni el cwd ni `PYTHON*` entran a `sys.path`)
+    y pip-audit corre con cwd en el `TemporaryDirectory` del export (ruta absoluta), no en `backend/`.
+    (B-5) `uv python install 3.12.16` en la raíz leía un `/uv.toml` o `[tool.uv]` de `/pyproject.toml` del PR:
+    con `python-downloads-json-url` instalaba un CPython alterado (un `sitecustomize.py` que corría en cada
+    arranque), base del venv de herramientas que corre el gate. Arreglo: `uv python install --no-config`; además
+    todas las llamadas a `uv` de `action.yml` y `ci.yml` llevan `--no-config` (las fija un test) y el job
+    `deps-audit` define `UV_NO_CONFIG: "1"`, que cubre también las llamadas propias de setup-uv (el `uv cache
+    prune` del post-step). El `uv sync` de los demás jobs también lleva `--no-config`: verificado en Docker que
+    `package = false` de `backend/pyproject.toml` se sigue respetando (es metadata del proyecto, no un
+    setting): con un `[build-system]` agregado y `--no-build`, `uv sync --no-config` no intenta construir el
+    proyecto; con el lock real instala 84 paquetes, exit 0, sin el proyecto. Defensas en profundidad del
+    review final: (N-1) `--no-cache` en el install de herramientas (arriba); (N-2) `uv export --no-config`
+    (con el lock real el export es idéntico salvo la línea de comando del encabezado: 85 pines, DRF 3.16.1);
+    (N-3) `pnpm --version` del chequeo de `packageManager` corre en `$RUNNER_TEMP`, no en la raíz (con un
+    `/package.json` `pnpm@10.0.0`, en la raíz responde 10.0.0 y en `$RUNNER_TEMP` 12.16.1). Verificado en
+    Docker (uv 0.13.6, pnpm 12.16.1, OSV real, 2026-11-02): el job con `backend/pip_audit.py` o
+    `backend/rich.py` plantado sigue dando exit 1 por las 3 altas de DRF; con `/uv.toml` o `/pyproject.toml`
+    apuntando a un CPython alterado se instala el oficial, el `sitecustomize` no corre y el gate da exit 1 (el
+    paso viejo sin `--no-config` sí instalaba el alterado); con la caché de uv adulterada, el install sin
+    `--no-cache` copiaba el `_cli.py` modificado y con `--no-cache` el original.
   - **No bloqueantes del review (anotados, sin implementar):** N-2: el test de limpieza del temp depende de la
     firma `onexc` de `shutil.rmtree`, que existe desde Python 3.12 (el proyecto fija 3.12). N-3:
     `check_pnpm_version` muestra en el log hasta 40 caracteres del stdout del binario de pnpm.

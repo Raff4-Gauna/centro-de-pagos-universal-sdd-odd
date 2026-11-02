@@ -3,10 +3,12 @@
 Usage (from anywhere; CI job ``deps-audit``):
     python scripts/audit_deps.py [--exceptions PATH] [--backend DIR] [--frontend DIR]
 
-- Backend: ``uv export --frozen --all-groups`` (exactly ``uv.lock``; it builds nothing) piped
-  through pip-audit, run as ``python -m pip_audit`` with this script's own Python. In CI that is a
-  venv of its own with ``scripts/audit_tool_requirements.txt`` (hashed, wheels only), never the
-  backend venv: ``uv sync`` of a PR's lock could run PR code before the gate (B-3).
+- Backend: ``uv export --no-config --frozen --all-groups`` (exactly ``uv.lock``; it builds nothing
+  and reads no ``uv.toml``) piped through pip-audit, run as ``python -I -m pip_audit`` with this
+  script's own Python, from a temp dir: ``-I`` keeps the cwd and ``PYTHON*`` out of ``sys.path``, so
+  a planted ``pip_audit.py``/``rich.py`` cannot replace it (B-4). In CI that Python is a venv of its
+  own with ``scripts/audit_tool_requirements.txt`` (hashed, wheels only), never the backend venv:
+  ``uv sync`` of a PR's lock could run PR code before the gate (B-3).
   pip-audit gives no severity, so it is looked up in OSV (``api.osv.dev``): the first recognised
   ``database_specific.severity`` (the GHSA rating) among the ID and its aliases, GHSA IDs first.
   A dependency pip-audit skips (``skip_reason``, e.g. not on PyPI) is an error: unknown = high.
@@ -66,8 +68,9 @@ MAX_EXCEPTION_DAYS = 90
 SEVERITY_RANK = {"info": 0, "low": 1, "moderate": 2, "medium": 2, "high": 3, "critical": 4}
 BLOCKING_RANK = SEVERITY_RANK["high"]
 UNKNOWN = "unknown"
-# pip-audit from the interpreter running this script (B-3), not whatever is first on PATH.
-PIP_AUDIT = (sys.executable, "-m", "pip_audit")
+# pip-audit from the interpreter running this script (B-3), not whatever is first on PATH; -I
+# (isolated): neither the cwd nor PYTHONPATH enter sys.path, no planted module shadows it (B-4).
+PIP_AUDIT = (sys.executable, "-I", "-m", "pip_audit")
 
 
 class Runner(Protocol):
@@ -192,11 +195,14 @@ def _parse_json(completed: subprocess.CompletedProcess[str], tool: str) -> dict[
 def python_vulnerabilities(backend: Path, runner: Runner) -> list[Vulnerability]:
     """pip-audit over ``uv export --frozen --all-groups`` (runtime + every dependency group)."""
     with tempfile.TemporaryDirectory(prefix="audit-deps-", ignore_cleanup_errors=True) as tmp:
-        requirements = str(Path(tmp) / "requirements.txt")
+        workdir = Path(tmp).resolve()
+        requirements = str(workdir / "requirements.txt")
         export = runner(
             [
                 "uv",
                 "export",
+                # No uv.toml / [tool.uv] settings of the PR (N-2); the lock itself is read as is.
+                "--no-config",
                 "--frozen",
                 "--all-groups",
                 "--no-emit-project",
@@ -210,6 +216,7 @@ def python_vulnerabilities(backend: Path, runner: Runner) -> list[Vulnerability]
         if export.returncode != 0:
             raise AuditError(f"uv export failed: {_detail(export)}")
         # --disable-pip: audit the pins as they are (no resolver, no venv); the export is hashed.
+        # cwd = the temp dir (only the export in it), not backend/ (B-4).
         audit = runner(
             [
                 *PIP_AUDIT,
@@ -224,7 +231,7 @@ def python_vulnerabilities(backend: Path, runner: Runner) -> list[Vulnerability]
                 "--progress-spinner",
                 "off",
             ],
-            backend,
+            workdir,
         )
     # pip-audit exits 1 when it finds vulnerabilities; anything else is a failure to audit.
     if audit.returncode not in (0, 1):
