@@ -58,6 +58,9 @@ repos:
   - repo: https://github.com/gitleaks/gitleaks
     rev: 83d9cd684c87d95d656c1458ef04895a7f1cbd8e # frozen: v8.30.1
     hooks:
-      # AC-PLT-19: the staged diff, findings redacted, with the repo's .gitleaks.toml.
+      # AC-PLT-19: the staged diff, findings redacted, with the repo's .gitleaks.toml; an inline
+      # `gitleaks:allow` comment does not silence a finding.
       - id: gitleaks
-        entry: gitleaks git --pre-commit --staged --redact --verbose --config .gitleaks.toml
+        entry: >-
+          gitleaks git --pre-commit --staged --redact --verbose --config .gitleaks.toml
+          --ignore-gitleaks-allow
