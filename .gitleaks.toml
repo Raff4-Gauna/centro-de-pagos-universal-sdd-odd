@@ -1,0 +1,16 @@
+# gitleaks v8.30.1 (design.md sec. 3.6, RN-PLT-13, C-06). Read by the pre-commit hook (staged diff)
+# and by the CI job `secrets` (commits of the PR or push).
+# Default rules plus one allowlist: the `<ver .env: NAME>` placeholder that docs use instead of a
+# real value. It is matched against the secret a rule captured (regexTarget = "secret"), never the
+# whole line, so a real token next to a placeholder still fails. No path allowlist: every file is
+# scanned, context/legacy-source/ included (Q-055). Red zone (Q-058): a broad allowlist here
+# silently turns the scan off.
+title = "Centro de Pagos Universal"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Doc placeholders <ver .env: NAME>, not secrets"
+regexTarget = "secret"
+regexes = ['''<ver \.env: [A-Z][A-Z0-9_]*>''']

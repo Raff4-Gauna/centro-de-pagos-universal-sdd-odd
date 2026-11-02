@@ -1,0 +1,63 @@
+# Pre-commit (design.md sec. 3.6, RF-PLT-12): a fast local mirror of CI steps 1-3 (lint, file size,
+# secrets). No tests, mypy nor migrations: those only run in CI (RNF-PLT-04, context/08 sec. 3.1).
+# Host (Q-060): Python 3.12 + pre-commit 4.7.0, then `pre-commit install` once per clone. The
+# gitleaks hook is built from source with a Go toolchain that pre-commit downloads on first use.
+# When a hook rewrites a file the commit stops: review the change, `git add` it and commit again.
+# Remote repos are pinned by commit SHA (the tag in the comment); update with
+# `pre-commit autoupdate --freeze`. Every hook skips context/legacy-source/ (read-only evidence,
+# Q-055) except gitleaks, which scans it too. eslint/prettier for frontend/ arrive with T-PLT-29.
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: 3e8a8703264a2f4a69428a0aa4dcb512790b2c8c # frozen: v6.0.0
+    hooks:
+      - id: mixed-line-ending
+        args: [--fix=lf] # AC-PLT-27: a CRLF .sh or Dockerfile is rewritten to LF
+        exclude: &legacy ^context/legacy-source/
+      - id: end-of-file-fixer
+        exclude: *legacy
+      - id: trailing-whitespace
+        exclude: ^context/legacy-source/|\.md$
+      - id: check-yaml
+        exclude: *legacy
+      - id: check-toml
+        exclude: *legacy
+      - id: check-json
+        exclude: *legacy
+      - id: check-merge-conflict
+        exclude: *legacy
+      - id: check-case-conflict
+        exclude: *legacy
+      - id: check-added-large-files
+        args: [--maxkb=500]
+        exclude: *legacy
+      - id: detect-private-key
+        exclude: *legacy
+      - id: no-commit-to-branch
+        args: [--branch, main]
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: 25bcf95026b96e2dd3c0aec3090c3d6ef6ca2e6c # frozen: v0.17.3
+    hooks:
+      # Same ruff.toml as CI; force-exclude keeps the legacy out even for explicit paths.
+      - id: ruff-check
+        args: [--fix]
+        exclude: *legacy
+      - id: ruff-format
+        exclude: *legacy
+
+  - repo: local
+    hooks:
+      # AC-PLT-13: staged code files over 400 lines (C-14); stdlib only.
+      - id: check-file-size
+        name: check_file_size.py (C-14)
+        entry: python scripts/check_file_size.py
+        language: python
+        types_or: [python, ts, tsx, jsx]
+        exclude: *legacy
+
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: 83d9cd684c87d95d656c1458ef04895a7f1cbd8e # frozen: v8.30.1
+    hooks:
+      # AC-PLT-19: the staged diff, findings redacted, with the repo's .gitleaks.toml.
+      - id: gitleaks
+        entry: gitleaks git --pre-commit --staged --redact --verbose --config .gitleaks.toml
