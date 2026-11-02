@@ -2,8 +2,8 @@
 
 Every case builds its own thresholds file and reports under ``tmp_path`` (coverage.py JSON for
 backend/``scripts/``, istanbul ``json-summary`` for the frontend, as vitest writes it) and calls
-``check_coverage.main`` in-process: no network, no real test run. The last test pins the real
-``coverage_thresholds.toml``.
+``check_coverage.main`` in-process: no network, no real test run. The last tests pin the real
+``coverage_thresholds.toml`` and the ``tests`` -> ``coverage`` wiring of ``ci.yml``.
 """
 
 from __future__ import annotations
@@ -15,6 +15,10 @@ from typing import Any
 
 import check_coverage
 import pytest
+import yaml
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+CI_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "ci.yml"
 
 BACKEND_GATE = """
 [[gate]]
@@ -294,3 +298,33 @@ def test_AC_PLT_22_real_thresholds_match_rnf_plt_08() -> None:
     assert scripts.exclude == ("scripts/tests/**",)
     with check_coverage.DEFAULT_CONFIG.open("rb") as handle:
         assert tomllib.load(handle)  # parses as plain TOML too
+
+
+def ci_jobs() -> dict[str, Any]:
+    return yaml.safe_load(CI_WORKFLOW.read_text(encoding="utf-8"))["jobs"]
+
+
+def test_AC_PLT_22_tests_job_uploads_the_declared_reports() -> None:
+    steps = ci_jobs()["tests"]["steps"]
+    upload = next(step for step in steps if step.get("uses", "").startswith("actions/upload-"))
+    uploaded = set(upload["with"]["path"].split())
+    declared = {gate.report for gate in check_coverage.load_gates(check_coverage.DEFAULT_CONFIG)}
+    assert uploaded == declared
+    assert upload["with"]["retention-days"] == 7
+    assert upload["with"]["if-no-files-found"] == "error"
+    runs = " ".join(step.get("run", "") for step in steps)
+    assert "--cov-report=json:coverage/backend.json" in runs
+    assert "--cov-branch --cov-report=json:coverage/scripts.json" in runs
+
+
+def test_AC_PLT_22_coverage_job_downloads_and_runs_check() -> None:
+    workflow = yaml.safe_load(CI_WORKFLOW.read_text(encoding="utf-8"))
+    job = workflow["jobs"]["coverage"]
+    assert job["needs"] == "tests"
+    # Read-only token, inherited from the workflow (job-level blocks are banned, RN-PLT-18).
+    assert workflow["permissions"] == {"contents": "read"}
+    assert "permissions" not in job
+    uses = [step.get("uses", "") for step in job["steps"]]
+    assert any(ref.startswith("actions/download-artifact@") for ref in uses)
+    runs = [step.get("run", "") for step in job["steps"]]
+    assert "python scripts/check_coverage.py" in runs
