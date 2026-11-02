@@ -8,9 +8,14 @@ so the synthetic trees of the tests can name packages that do not exist.
   (one provider importing another included). Resolved: ``import``, ``from`` (relative too),
   ``importlib.import_module``/``__import__``/``import_string`` with literal arguments, and attribute
   chains from an imported ancestor (``providers.mercadopago``).
+- **C-01** (``raw_manager_violations``): in ``apps/<app>/services/**`` (and ``services.py``), any
+  ``.objects``/``._default_manager``/``._base_manager``, whatever the receiver (an alias such as
+  ``M = Charge; M.objects`` included), ``getattr``/``attrgetter`` with those names as literals, and
+  ``._meta.default_manager``/``base_manager``/``managers``/``managers_map``.
 
-Known gaps (not cheap on the AST): dynamic imports with computed names and ``__import__`` with
-``level``.
+Known gaps (not cheap on the AST): dynamic imports with computed names, ``__import__`` with
+``level``, names built at runtime (``getattr(M, "obj" + "ects")``, ``vars(M)``), and raw access
+hidden behind a helper defined outside ``services/``.
 """
 
 from __future__ import annotations
@@ -24,6 +29,9 @@ from tests.architecture.allowlists import AllowEntry
 
 PROVIDERS = "apps.integrations.providers"
 DYNAMIC_IMPORTERS = frozenset({"import_module", "__import__", "import_string"})
+MANAGER_ATTRS = frozenset({"objects", "_default_manager", "_base_manager"})
+META_MANAGER_ATTRS = frozenset({"default_manager", "base_manager", "managers", "managers_map"})
+ATTRIBUTE_GETTERS = frozenset({"getattr", "attrgetter"})
 
 
 @dataclass(frozen=True)
@@ -212,3 +220,42 @@ def adapter_boundary_violations(
                 continue
             violations.add(Violation(source.path, line, "C-09", target, msg))
     return apply_allowlist(sorted(violations), allowlist, "C-09")
+
+
+# --- C-01 -----------------------------------------------------------------------------------------
+
+
+def is_service(module: str) -> bool:
+    parts = module.split(".")
+    return len(parts) >= 3 and parts[0] == "apps" and parts[2] == "services"
+
+
+def manager_access(node: ast.Attribute | ast.Call) -> bool:
+    if isinstance(node, ast.Attribute):
+        if node.attr in MANAGER_ATTRS:
+            return True
+        meta = isinstance(node.value, ast.Attribute) and node.value.attr == "_meta"
+        return meta and node.attr in META_MANAGER_ATTRS
+    if call_name(node) in ATTRIBUTE_GETTERS:
+        names = [literal(arg) for arg in node.args]
+        return any(name and name.split(".")[0] in MANAGER_ATTRS for name in names)
+    return False
+
+
+def raw_manager_violations(
+    trees: Iterable[SourceTree], allowlist: Sequence[AllowEntry]
+) -> list[Violation]:
+    violations = [
+        Violation(
+            source.path,
+            node.lineno,
+            "C-01",
+            ast.unparse(node),
+            "raw manager in a service: read through a tenant-aware selector/manager",
+        )
+        for source in iter_sources(trees)
+        if is_service(source.module)
+        for node in ast.walk(source.tree)
+        if isinstance(node, ast.Attribute | ast.Call) and manager_access(node)
+    ]
+    return apply_allowlist(sorted(set(violations)), allowlist, "C-01")
