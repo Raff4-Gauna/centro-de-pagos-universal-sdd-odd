@@ -871,6 +871,17 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   fijar versión con `SWAGGER_UI_DIST`. (2) La fila de ADR-0005 en `context/decisions/README.md` no muestra el
   estado. (3) `schema.py`: el `continue` de claves que no son operación (`parameters` de un path) no se ejercita
   hasta que haya paths.
+- **Revisión de `fd179d2`: APROBADO.** Preguntas: (a) `request_id` requerido y `nullable` se mantiene (refleja
+  `build_problem(request_id: str | None)`); (b) OAS 3.0.3 explícito se mantiene; (c) comparación por bytes se
+  mantiene (`eol=lf` ya evita CRLF). Para después:
+  1. Swagger UI de dev carga `swagger-ui-dist@latest` y el favicon desde jsDelivr: fijar versión exacta en
+     `SWAGGER_UI_DIST`/`SWAGGER_UI_FAVICON_HREF` (`apps/common/api/schema.py:96`, C-13) o usar sidecar.
+  2. `TEMPLATES` (`config/settings/base.py:57-59`) también llega a prod sin necesidad: moverlo a `dev.py`/`test.py` o
+     testear que prod no tiene rutas que rendericen HTML.
+  3. CI genera el contrato con `config.settings.test`: sumar un test que corra `export_openapi --check` con prod
+     (`run_django`), por si algo de `config.urls` llega a depender de settings.
+  4. `test_AC_PLT_23_check_mode_fails_and_prints_diff_when_outdated` simula "desactualizado" editando el yaml: sumar
+     el caso de una vista pública nueva en memoria (como pide el AC).
 
 ### T-PLT-19 — Tests de arquitectura C-09 y C-01 + job `architecture`
 - **AC:** AC-PLT-14, AC-PLT-15. RN-PLT-09, RF-PLT-09. **Zona roja:** sí.
