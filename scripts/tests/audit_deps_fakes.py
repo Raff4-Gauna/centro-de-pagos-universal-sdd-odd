@@ -65,7 +65,8 @@ class PnpmRun:
 
 
 class FakeRunner:
-    """Answers ``uv export``, ``pip-audit``, ``pnpm --version`` and ``pnpm audit`` like the tools.
+    """Answers ``uv export``, ``pip-audit`` (``python -m pip_audit``), ``pnpm --version`` and
+    ``pnpm audit`` like the tools.
 
     ``overrides`` replace an answer by tool name (``uv``, ``pip-audit``, ``pnpm`` = audit,
     ``pnpm-version``). ``pnpm_runs`` holds what each ``pnpm audit`` saw; ``version_envs`` the env
@@ -93,6 +94,8 @@ class FakeRunner:
         argv = list(argv)
         self.calls.append((argv, cwd))
         tool = "pnpm-version" if argv == ["pnpm", "--version"] else argv[0]
+        if argv[:3] == list(audit_deps.PIP_AUDIT):
+            tool = "pip-audit"
         if tool == "pnpm":
             files = {p.name: p.read_bytes() if p.is_file() else b"<dir>" for p in cwd.iterdir()}
             self.pnpm_runs.append(PnpmRun(cwd, files, dict(env or {})))

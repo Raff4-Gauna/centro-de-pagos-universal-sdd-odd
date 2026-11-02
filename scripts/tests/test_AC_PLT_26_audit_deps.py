@@ -10,6 +10,7 @@ from __future__ import annotations
 import http.client
 import io
 import json
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -184,7 +185,8 @@ def test_AC_PLT_26_audits_frozen_lockfiles_of_both_ecosystems(
     assert uv[:5] == ["uv", "export", "--frozen", "--all-groups", "--no-emit-project"]
     assert uv_cwd == REPO_ROOT / "backend"
     requirements = uv[uv.index("--output-file") + 1]
-    assert pip_audit[:3] == ["pip-audit", "-r", requirements]
+    # B-3: pip-audit from the script's own interpreter (the pinned tools venv in CI), not PATH.
+    assert pip_audit[:5] == [sys.executable, "-m", "pip_audit", "-r", requirements]
     assert {"--disable-pip", "--require-hashes", "--format"} <= set(pip_audit)
     # Isolated run (B-1): the pinned pnpm, fixed flags, a temp dir with the real lockfile.
     assert version == ["pnpm", "--version"]

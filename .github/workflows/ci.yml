@@ -236,11 +236,14 @@ jobs:
       - name: pytest -m gitleaks (AC-PLT-19)
         run: pytest -c scripts/pytest.ini scripts/tests -m gitleaks
 
-  # Step 3 (with `secrets`). AC-PLT-26 (RN-PLT-14, D-10): pip-audit over the frozen uv.lock export
-  # + pnpm audit; severity from OSV (unknown = high); fails on high/critical without a valid
-  # exception in scripts/audit_exceptions.toml, and on any expired exception.
-  # frontend-deps "false": only the pnpm binary, no Node and no `pnpm install`, so no code of the PR
-  # (postinstall, .pnpmfile.*) runs before the gate (T-PLT-28 review, B-2).
+  # Step 3 (with `secrets`, T-PLT-04). AC-PLT-26 (RN-PLT-14, D-10): pip-audit over the frozen
+  # uv.lock export + pnpm audit; severity from OSV (unknown = high); fails on high/critical without
+  # a valid exception in scripts/audit_exceptions.toml, and on any expired exception.
+  # No code of the PR runs before the gate (T-PLT-28 review): frontend-deps "false" = only the pnpm
+  # binary, no Node and no `pnpm install` (postinstall, .pnpmfile.*; B-2); backend-deps "false" = no
+  # `uv sync` and no backend venv (a local build backend planted through uv.lock; B-3). The gate runs
+  # in a venv of its own with pip-audit and its whole chain from scripts/audit_tool_requirements.txt
+  # (hashed, wheels only), not from the PR's backend/uv.lock.
   deps-audit:
     needs: file-size
     runs-on: ubuntu-24.04
@@ -254,8 +257,16 @@ jobs:
           python: "true"
           node: "true"
           frontend-deps: "false"
+          backend-deps: "false"
+      - name: Install the pinned audit tools
+        # --no-config: no uv.toml / [tool.uv] of the PR (indexes, sources) is read.
+        run: |
+          uv venv --no-config --no-project --python 3.12.16 "$RUNNER_TEMP/audit-tools"
+          uv pip install --no-config --python "$RUNNER_TEMP/audit-tools/bin/python" \
+            --require-hashes --no-build -r scripts/audit_tool_requirements.txt
       - name: audit_deps.py
-        run: python scripts/audit_deps.py
+        # The tools venv's Python runs the script, and pip-audit as `python -m pip_audit`.
+        run: '"$RUNNER_TEMP/audit-tools/bin/python" scripts/audit_deps.py'
 
   # Step 4. AC-PLT-21 (backend): mypy with the django-stubs/drf-stubs plugins over backend/ and
   # scripts/, strict in apps/common/ and every domain/ ([tool.mypy] of backend/pyproject.toml). The

@@ -325,6 +325,11 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   `frontend/.pnpmfile.*` y `frontend/package.json` (por el campo `pnpm`), porque la config de pnpm (`auditConfig`,
   `auditLevel`, `registry`, hooks `updateConfig`) puede ocultar advisories; el gate `deps-audit` ya corre aislado
   de ellos, la ruta roja exige además el veredicto del reviewer.
+  Nota (review de T-PLT-28, B-3), sugerencia para la lista: `backend/uv.lock` (una entrada con `source = {
+  directory = ... }` mete código local en el install) y **cualquier directorio nuevo bajo `backend/` que no sea
+  `apps/`, `config/` o `tests/`** (ahí vive el build backend que esa entrada apuntaría); también
+  `scripts/audit_tool_requirements.txt` si la regla de rutas del gate (Q-058) no cubre ya todo `scripts/`. El
+  gate ya no instala el venv del backend ni construye nada (`--no-build`); la ruta roja suma el veredicto.
 - **Fuera de esta tarea:** llamadas a la API, workflow (T-PLT-07).
 - **Plan de pruebas:** `test_AC_PLT_32_no_red_paths_no_label_passes`, `test_AC_PLT_32_red_path_without_label_fails`,
   `test_AC_PLT_32_label_and_approved_verdict_by_writer_on_head_sha_passes`,
@@ -1114,8 +1119,9 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   (argv, directorio y entorno de la corrida aislada de pnpm), `scripts/audit_exceptions.toml` (vacío, formato
   comentado), `scripts/tests/test_AC_PLT_26_audit_deps.py` y `scripts/tests/test_AC_PLT_26_pnpm_audit_isolation.py`
   (OSV y subprocesos mockeados, reloj fijo; fakes en `scripts/tests/audit_deps_fakes.py`),
-  `scripts/tests/test_RN_PLT_14_dependabot_and_setup.py`, `.github/actions/setup/action.yml` (input
-  `frontend-deps`; install con `--ignore-scripts --ignore-pnpmfile`),
+  `scripts/tests/test_RN_PLT_14_dependabot_and_setup.py`, `.github/actions/setup/action.yml` (inputs
+  `frontend-deps` y `backend-deps`; install con `--ignore-scripts --ignore-pnpmfile`; `uv sync --frozen
+  --no-build`), `scripts/audit_tool_requirements.txt` (pip-audit 2.10.1 y su cadena, con hashes; B-3),
   `.github/dependabot.yml` (semanal: `uv` `/backend`, `npm` `/frontend`, `docker` `/backend`, `github-actions`;
   parches agrupados), `.github/workflows/ci.yml` (job `deps-audit`, `needs: file-size`; `typecheck` pasa a `needs:
   [secrets, deps-audit]`).
@@ -1131,7 +1137,11 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   `test_AC_PLT_26_pnpm_version_is_checked_with_the_isolated_env`, `test_AC_PLT_26_isolated_env_is_pure`,
   `test_AC_PLT_26_temp_cleanup_errors_do_not_break_the_gate`; sin código del PR antes del gate (B-2):
   `test_AC_PLT_26_deps_audit_job_runs_audit_deps`, `test_AC_PLT_26_frontend_deps_input_gates_only_node_and_install`,
-  `test_AC_PLT_26_shared_install_runs_no_scripts_nor_pnpmfile`; y
+  `test_AC_PLT_26_shared_install_runs_no_scripts_nor_pnpmfile`; sin venv del backend en el gate (B-3):
+  `test_AC_PLT_26_backend_deps_input_gates_only_sync_and_path`, `test_AC_PLT_26_shared_backend_sync_builds_nothing`,
+  `test_AC_PLT_26_deps_audit_tools_come_pinned_and_hashed_not_from_the_lock`,
+  `test_AC_PLT_26_audit_tool_requirements_pin_pip_audit_with_hashes` (y el argv `python -m pip_audit` en
+  `test_AC_PLT_26_audits_frozen_lockfiles_of_both_ecosystems`); y
   `test_AC_PLT_26_pip_audit_skipped_dependency_exits_2`, `test_AC_PLT_26_osv_failure_exits_2_without_traceback`,
   `test_AC_PLT_26_unused_exception_warns`, `test_AC_PLT_26_exception_beyond_90_days_exits_2`.
 - **Notas de implementación:**
@@ -1171,8 +1181,31 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
     `pnpm/action-setup` (pnpm 12 es un ejecutable nativo, no necesita Node; verificado en Docker sin Node y sin
     `node_modules`) y su chequeo de versión; sin `setup-node` ni `pnpm install`. Además el install compartido
     (resto de los jobs) es `pnpm install --frozen-lockfile --ignore-scripts --ignore-pnpmfile` (ninguna dependencia
-    necesita build script: `allowBuilds`). **Residual:** `uv sync --frozen` (input `python`) ejecutaría un build
-    backend propio solo si `backend/pyproject.toml` pasa a `package = true`; ese archivo es zona roja (Q-058).
+    necesita build script: `allowBuilds`).
+  - **Sin venv del backend en el gate (review, B-3):** la nota "residual" anterior (que `uv sync --frozen` solo
+    construía con `package = true`) estaba mal. Sin tocar `backend/pyproject.toml`, un PR puede sumar 6 líneas a
+    `backend/uv.lock` (el paquete raíz depende de `evil`, `source = { directory = "evil" }`) y un `backend/evil/`
+    con build backend propio: `uv sync --frozen` lo **ejecuta** (reproducido en Docker por el reviewer), y desde
+    ahí escribe `$GITHUB_PATH` o instala un `.pth` que corre en cada arranque del Python del venv, el mismo que
+    corría `audit_deps.py` y `pip-audit`: el gate entero se evade. Arreglo: (1) input `backend-deps` de la acción
+    (default `"true"`) que condiciona `uv sync` y el paso que pone el venv en `PATH`; `deps-audit` pasa `"false"`
+    (setup-uv y `uv python install` siguen). (2) El gate corre en un venv propio (`$RUNNER_TEMP/audit-tools`):
+    `uv venv --no-config --no-project --python 3.12.16` + `uv pip install --no-config --require-hashes --no-build
+    -r scripts/audit_tool_requirements.txt` (pip-audit 2.10.1 y sus 28 dependencias, cada archivo con hash, las
+    mismas versiones que fijaba `uv.lock`; cómo regenerarlo está en su cabecera). Su Python ejecuta
+    `audit_deps.py`, que llama a pip-audit como `sys.executable -m pip_audit` (no el primero del `PATH`).
+    Elegida la opción (b) y no `uvx --from pip-audit==2.10.1`, porque esta última resuelve las ~28 dependencias
+    transitivas en cada corrida sin hashes: una release nueva comprometida de cualquiera de ellas entraría al
+    gate sin pasar por un PR. `--no-config` evita que un `uv.toml`/`[tool.uv]` del PR cambie índices o fuentes.
+    `uv export --frozen` no construye nada (verificado en Docker con el lock alterado: emite `./evil` sin
+    ejecutar el backend); pip-audit rechaza ese requisito ("does not contain a hash") y el gate falla cerrado
+    con exit 2. (3) Defensa en profundidad para el resto de los jobs: `uv sync --frozen --no-build` (con el
+    lock real instala 84 paquetes, exit 0; con el alterado, exit 2 sin ejecutar nada). Ruta roja sugerida para
+    T-PLT-06: `backend/uv.lock` y los directorios nuevos bajo `backend/`. Residual: la caché de uv que
+    restaura setup-uv; un PR solo escribe la caché de su propia rama, nunca la de `main`.
+  - **No bloqueantes del review (anotados, sin implementar):** N-2: el test de limpieza del temp depende de la
+    firma `onexc` de `shutil.rmtree`, que existe desde Python 3.12 (el proyecto fija 3.12). N-3:
+    `check_pnpm_version` muestra en el log hasta 40 caracteres del stdout del binario de pnpm.
   - **Dependabot:** `docker` cubre `/backend` y `/frontend` (design §3.5 dice "ambos Dockerfiles"; llegan con
     T-PLT-25 y T-PLT-36), `github-actions` cubre `/` y `/.github/actions/*` (la acción compuesta). Grupos solo de
     parches; menores y mayores en PRs separados.

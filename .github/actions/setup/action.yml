@@ -1,6 +1,8 @@
 # Shared job setup for ci.yml (design.md §3.5). Versions from design.md §8: uv 0.13.6, Python 3.12.16,
 # Node 24.22.2 (frontend/.nvmrc), pnpm 12.16.1 (frontend/package.json `packageManager`).
 # Input `python`: uv + Python + the backend env from the lockfile (dev group included), put on PATH.
+# Input `backend-deps` ("true" by default): with "false", only uv and Python; no `uv sync` and no
+# backend venv on PATH, so nothing of backend/ (uv.lock, local sources) runs (deps-audit, B-3).
 # Input `node`: pnpm + Node + the frontend deps from the lockfile (pnpm install --frozen-lockfile).
 # Input `frontend-deps` ("true" by default): with "false", only pnpm (a native binary since v12) and its
 # version check; no setup-node and no `pnpm install`, so no code of the PR runs (deps-audit, T-PLT-28).
@@ -9,7 +11,7 @@ description: Install the pinned toolchain for a CI job.
 
 inputs:
   python:
-    description: "Install uv 0.13.6, Python 3.12.16 and the backend env (uv sync --frozen)."
+    description: "Install uv 0.13.6, Python 3.12.16 and the backend env (uv sync --frozen --no-build)."
     required: false
     default: "false"
   node:
@@ -18,6 +20,10 @@ inputs:
     default: "false"
   frontend-deps:
     description: "With node: also set up Node and install the frontend deps. 'false' = pnpm only."
+    required: false
+    default: "true"
+  backend-deps:
+    description: "With python: also install the backend env and put it on PATH. 'false' = no env."
     required: false
     default: "true"
 
@@ -46,14 +52,16 @@ runs:
       run: uv python install 3.12.16
 
     - name: Install the backend env from the lockfile
-      if: inputs.python == 'true'
+      if: inputs.python == 'true' && inputs.backend-deps == 'true'
       shell: bash
       working-directory: backend
       # --frozen: install exactly uv.lock, never re-resolve (C-13, RN-PLT-14).
-      run: uv sync --frozen --python 3.12.16
+      # --no-build: wheels only. A lock entry with a local `source = { directory = ... }` would
+      # otherwise run that directory's build backend, PR code, during the install (T-PLT-28, B-3).
+      run: uv sync --frozen --no-build --python 3.12.16
 
     - name: Put the backend env on PATH
-      if: inputs.python == 'true'
+      if: inputs.python == 'true' && inputs.backend-deps == 'true'
       shell: bash
       run: echo "$GITHUB_WORKSPACE/backend/.venv/bin" >> "$GITHUB_PATH"
 

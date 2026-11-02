@@ -3,7 +3,10 @@
 Usage (from anywhere; CI job ``deps-audit``):
     python scripts/audit_deps.py [--exceptions PATH] [--backend DIR] [--frontend DIR]
 
-- Backend: ``uv export --frozen --all-groups`` (exactly ``uv.lock``) piped through ``pip-audit``.
+- Backend: ``uv export --frozen --all-groups`` (exactly ``uv.lock``; it builds nothing) piped
+  through pip-audit, run as ``python -m pip_audit`` with this script's own Python. In CI that is a
+  venv of its own with ``scripts/audit_tool_requirements.txt`` (hashed, wheels only), never the
+  backend venv: ``uv sync`` of a PR's lock could run PR code before the gate (B-3).
   pip-audit gives no severity, so it is looked up in OSV (``api.osv.dev``): the first recognised
   ``database_specific.severity`` (the GHSA rating) among the ID and its aliases, GHSA IDs first.
   A dependency pip-audit skips (``skip_reason``, e.g. not on PyPI) is an error: unknown = high.
@@ -63,6 +66,8 @@ MAX_EXCEPTION_DAYS = 90
 SEVERITY_RANK = {"info": 0, "low": 1, "moderate": 2, "medium": 2, "high": 3, "critical": 4}
 BLOCKING_RANK = SEVERITY_RANK["high"]
 UNKNOWN = "unknown"
+# pip-audit from the interpreter running this script (B-3), not whatever is first on PATH.
+PIP_AUDIT = (sys.executable, "-m", "pip_audit")
 
 
 class Runner(Protocol):
@@ -207,7 +212,7 @@ def python_vulnerabilities(backend: Path, runner: Runner) -> list[Vulnerability]
         # --disable-pip: audit the pins as they are (no resolver, no venv); the export is hashed.
         audit = runner(
             [
-                "pip-audit",
+                *PIP_AUDIT,
                 "-r",
                 requirements,
                 "--disable-pip",
