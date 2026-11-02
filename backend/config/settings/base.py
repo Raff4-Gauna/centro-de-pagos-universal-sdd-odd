@@ -52,6 +52,11 @@ REST_FRAMEWORK = {
 
 # OpenAPI contract (ADR-0005, T-PLT-18): what shapes it lives in apps/common/api/schema.py.
 SPECTACULAR_SETTINGS = spectacular_settings()
+# Only the dev-only Swagger UI (/api/dev/docs/, config.urls_dev) renders a template:
+# drf-spectacular's own, found through APP_DIRS. No context processor: the API answers JSON only.
+TEMPLATES = [
+    {"BACKEND": "django.template.backends.django.DjangoTemplates", "DIRS": [], "APP_DIRS": True}
+]
 
 # Q-046: stored in UTC, shown in Buenos Aires time by default; per-branch time zone comes with 02.
 USE_TZ = True
