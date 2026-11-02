@@ -23,7 +23,7 @@ import pytest
 import yaml
 from conftest import GitRepo
 
-PLACEHOLDER_REGEX = r"<ver \.env: [A-Z][A-Z0-9_]*>"
+PLACEHOLDER_REGEX = r"^<ver \.env: [A-Z][A-Z0-9_]*>$"  # anchored: the whole secret (B-5)
 PINNED_IMAGE = re.compile(r"^zricethezav/gitleaks:v8\.30\.1@sha256:[0-9a-f]{64}$")
 # PREFIX-<app id>-<MMDDHH>-<32 hex>-<user id>; the repo only documents the prefixes (context/03,
 # context/09).
@@ -53,6 +53,7 @@ def test_RN_PLT_13_gitleaks_config_is_defaults_plus_mp_rule_and_placeholder_allo
     assert allowlist["regexes"] == [PLACEHOLDER_REGEX]
     assert re.search(PLACEHOLDER_REGEX, gl.PLACEHOLDER)
     assert not re.search(PLACEHOLDER_REGEX, "<ver .env: lower>")
+    assert not re.search(PLACEHOLDER_REGEX, gl.fake_rsa_private_key(gl.PLACEHOLDER))
 
 
 def test_AC_PLT_19_secrets_job_scans_event_commits_with_pinned_image() -> None:

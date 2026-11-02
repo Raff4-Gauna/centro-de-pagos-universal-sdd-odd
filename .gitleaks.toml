@@ -20,7 +20,9 @@ regex = '''\b((?:APP_USR|TEST)-\d{12,20}-\d{6}-[0-9a-fA-F]{32}-\d{6,12})\b'''
 secretGroup = 1
 keywords = ["app_usr-", "test-"]
 
+# Anchored: the captured secret must be the placeholder and nothing else. Unanchored, a multi-line
+# secret (a private key) with a `<ver .env: X>` line inside would be allowed.
 [[allowlists]]
 description = "Doc placeholders <ver .env: NAME>, not secrets"
 regexTarget = "secret"
-regexes = ['''<ver \.env: [A-Z][A-Z0-9_]*>''']
+regexes = ['''^<ver \.env: [A-Z][A-Z0-9_]*>$''']

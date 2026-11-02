@@ -28,6 +28,17 @@ def test_AC_PLT_19_inline_gitleaks_allow_does_not_hide_a_token(scan: Scan) -> No
     assert token not in output
 
 
+def test_AC_PLT_19_private_key_with_a_placeholder_inside_is_detected(scan: Scan) -> None:
+    # B-5: an unanchored allowlist regex matched the placeholder anywhere in the captured secret,
+    # so a multi-line key with a `<ver .env: X>` line in it was allowed.
+    key = gl.fake_rsa_private_key(gl.PLACEHOLDER)
+    result = scan(key)
+
+    output = result.stdout + result.stderr
+    assert result.returncode == 1, output
+    assert "private-key" in output
+
+
 def test_AC_PLT_19_secret_added_only_by_a_merge_commit_is_detected(
     two_commits: tuple[GitRepo, str, str], tmp_path: Path
 ) -> None:
