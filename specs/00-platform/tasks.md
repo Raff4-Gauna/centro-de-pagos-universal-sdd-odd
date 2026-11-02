@@ -623,6 +623,16 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   `test_AC_PLT_22_frontend_app_dir_is_not_gated`, `test_AC_PLT_22_declared_report_missing_fails`,
   `test_AC_PLT_22_exactly_at_threshold_passes`.
 - **DoD extra:** la cobertura real de backend y `scripts/` al mergear ya está ≥ 85 %.
+- **Revisión de `0f9a24a`: APROBADO.** No bloqueantes para una tarea posterior (no entran en este PR):
+  1. Fijar con test `[tool.coverage.run]` (`source`, `branch`) de `backend/pyproject.toml`, la ausencia de
+     `omit`/`exclude_lines`/`exclude_also`, y `include`/`report` de cada gate: hoy un PR podría achicar lo medido
+     sin que falle un test (solo lo frena la revisión).
+  2. Test que compare los `.py` versionados de `apps/` y `config/` con las claves del reporte (un directorio sin
+     `__init__.py` que nunca se importa quedaría fuera en silencio).
+  3. Controlar la aparición de `# pragma: no cover` (hoy hay cero): contarlos o regla de lint.
+  4. `scripts/check_coverage.py:144`: dos claves que normalizan igual (`apps\x.py` / `apps/x.py`) se pisan sin
+     aviso; lanzar `ReportError` ante duplicados.
+  5. El job `coverage` corre `setup` con `uv sync` completo aunque el script es solo stdlib (tiempo de CI).
 
 ### T-PLT-22 — Migraciones: faltante + job `migrations`
 - **AC:** AC-PLT-16. RN-PLT-10, RF-PLT-10. **Zona roja:** sí.
