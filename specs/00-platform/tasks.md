@@ -53,7 +53,7 @@ Reglas: rebanada vertical · ≤ ~300 líneas de diff · mergeable sola · cita 
 | T-PLT-06 | Check `zona-roja`: reglas y rutas | AC-PLT-32 | CI | `scripts/check_zona_roja.py`, `.github/zona-roja-paths.txt` | T-PLT-03 | backend-dev | L | Sí | ☐ |
 | T-PLT-07 | Check `zona-roja`: API de GitHub + workflow | AC-PLT-32 | CI | `scripts/github_api.py`, `.github/workflows/zona-roja.yml` | T-PLT-05, T-PLT-06 | backend-dev | L | Sí | ☐ |
 | T-PLT-08 | Proyecto Django + settings validados | AC-PLT-03 | Backend | `backend/config/settings/*`, `manage.py` | T-PLT-03 | backend-dev | L | Sí | ◐ en revisión (falta reviewer/PR) |
-| T-PLT-09 | `prod` endurecido + lecturas de entorno + feature flags | AC-PLT-04, AC-PLT-06 (parcial) | Backend | `config/settings/prod.py`, `apps/common/feature_flags.py` | T-PLT-08 | backend-dev | L | No | ☐ |
+| T-PLT-09 | `prod` endurecido + lecturas de entorno + feature flags | AC-PLT-04, AC-PLT-06 (parcial) | Backend | `config/settings/prod.py`, `apps/common/feature_flags.py` | T-PLT-08 | backend-dev | L | No | ◐ en revisión (falta reviewer/PR) |
 | T-PLT-10 | mypy + job `typecheck` (backend) | AC-PLT-21 (backend) | CI/Backend | `backend/pyproject.toml`, `tests/typing/` | T-PLT-08 | backend-dev | M | Sí | ◐ en revisión (falta reviewer/PR) |
 | T-PLT-11 | `/healthz` + `/readyz` + servicios en CI | AC-PLT-02 | Backend/CI | `apps/common/health/` | T-PLT-08 | backend-dev | M | Sí | ◐ en revisión (falta reviewer/PR) |
 | T-PLT-12 | Logger structlog JSON + `X-Request-ID` | AC-PLT-09 | Backend | `apps/common/logging/`, `middleware/request_id.py` | T-PLT-08 | backend-dev | L | No (reviewer recomendado) | ◐ en revisión (falta reviewer/PR) |
@@ -306,6 +306,28 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   `test_AC_PLT_06_no_setting_matches_provider_patterns` (`^(MP|MERCADOPAGO|CLOVER|PAYWAY|DECIDIR|PRISMA)_`);
   `test_RF_PLT_19_flag_off_by_default`, `test_RF_PLT_19_unregistered_flag_name_raises`,
   `test_RF_PLT_19_unregistered_feature_env_var_prevents_start`.
+- **Hecho (4 commits, uno por AC/pendiente):** `prod.py` con lo de §3.2.2 y `SILENCED_SYSTEM_CHECKS =
+  ["security.W021"]`; `ProdEnv` valida `DJANGO_SECRET_KEY` (≥ 50, ≥ 5 distintos, sin `django-insecure` en
+  ninguna posición; tipos `secret_key_too_short/_few_characters/_insecure`) y rechaza `*` en
+  `DJANGO_ALLOWED_HOSTS` (`allowed_hosts_wildcard`, N-10). `env.load_feature_flags(REGISTRY)` →
+  `settings.FEATURE_FLAGS` (vacío = sin definir; no registrada → `feature_unregistered`; valor no
+  `true`/`false` → `bool_format`; solo nombres). N-a: `django.security.DisallowedHost` sale como WARNING sin
+  `exception` (filtro `WarningWithoutTraceback` en `logging/setup.py`; con `LOG_LEVEL=ERROR` se descarta); se
+  conserva el mensaje, que nombra el host, para diagnosticar un `ALLOWED_HOSTS` mal puesto. Tests extra:
+  `test_AC_PLT_04_wildcard_allowed_host_in_prod_does_not_start`,
+  `test_AC_PLT_04_http_redirects_to_https_except_health`, `test_AC_PLT_06_scanner_finds_every_env_read`,
+  `test_AC_PLT_06_provider_pattern`, `test_RF_PLT_19_{flag_follows_its_variable,empty_variable_counts_as_unset,
+  invalid_value_fails_naming_only_the_variable,settings_expose_every_registered_flag}` y
+  `tests/logging/test_RN_PLT_05_disallowed_host.py`.
+- **Desvío de alcance:** `config/settings/{dev,test}.py` (cargan `FEATURE_FLAGS` igual que `prod`; sin eso
+  `is_enabled` no vería las variables en dev/test) y `apps/common/logging/setup.py` + su test (N-a, que esta
+  tarea hereda). No se tocaron `ci.yml` ni `backend/pyproject.toml`.
+- **Preguntas para el planner (decisión conservadora aplicada):** (a) `DisallowedHost`: ¿reemplazar el mensaje
+  por uno fijo para no loguear el `Host` del atacante? Hoy se conserva (útil y acotado por la redacción a 8192).
+  (b) Si fallan el entorno y los flags a la vez, primero se informa el entorno: se ven en dos arranques. ¿Unificar
+  el mensaje? (c) El escáner AST no ve `getattr(os, "environ")`, `importlib`/`__import__` ni `sys.modules`:
+  ¿suficiente como red, o se suma al test de arquitectura (T-PLT-2x)? (d) `tests/conftest.py` repite
+  `FEATURE_PREFIX`: podría importarlo de `env.py`.
 
 ### T-PLT-10 — mypy + job `typecheck` (backend)
 - **AC:** AC-PLT-21 (backend). RNF-PLT-09 (Q-033). **Zona roja:** sí.
