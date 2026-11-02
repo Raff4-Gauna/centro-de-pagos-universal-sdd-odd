@@ -106,10 +106,47 @@ def test_AC_PLT_31_float_call_in_domain_services_selectors_api_fails(
         ("total = sum(map(float, xs))\n", "float"),
         ("from collections import defaultdict\ntotals = defaultdict(float)\n", "float"),
         ("to_number = float\n", "float"),
+        # The builtins attribute bound without a call.
+        ("import builtins\nf = builtins.float\nf(x)\n", "builtins.float"),
+        # A comparison only exempts a bare `float` operand, not one nested in it.
+        ("ok = sum(map(float, xs)) == 0\n", "float"),
     ],
 )
 def test_AC_PLT_31_float_evasions_detected(tmp_path: Path, source: str, symbol: str) -> None:
     assert [s for _, s in module(tmp_path, "charges/services/x.py", source)] == [symbol]
+
+
+@pytest.mark.parametrize(
+    ("relative", "source", "symbol"),
+    [
+        (
+            "charges/api/serializers.py",
+            "from rest_framework import serializers\nserializers.FloatField()\n",
+            "serializers.FloatField",
+        ),
+        (
+            "charges/api/forms.py",
+            "from django import forms\nforms.FloatField()\n",
+            "forms.FloatField",
+        ),
+        (
+            "charges/services/x.py",
+            "from rest_framework.serializers import FloatField\nFloatField()\n",
+            "FloatField",
+        ),
+    ],
+)
+def test_AC_PLT_31_floatfield_in_money_layers_fails(
+    tmp_path: Path, relative: str, source: str, symbol: str
+) -> None:
+    assert module(tmp_path, relative, source) == [(2, symbol)]
+
+
+def test_AC_PLT_31_app_tests_are_not_checked(tmp_path: Path) -> None:
+    # Tests that check floats are rejected need floats.
+    source = "def test_rejects_float():\n    assert float('1.1')\n"
+    assert module(tmp_path, "charges/tests/domain/test_x.py", source) == []
+    assert module(tmp_path, "charges/tests/models.py", "models.FloatField()\n") == []
 
 
 @pytest.mark.parametrize(
@@ -122,6 +159,9 @@ def test_AC_PLT_31_float_evasions_detected(tmp_path: Path, source: str, symbol: 
         "def f(x: float) -> list[float]:\n    y: float = x\n    return [y]\n",
         "JsonValue = str | int | float | None | dict[str, float]\n",
         "type Number = int | float\n",
+        # Type comparisons and class patterns.
+        "ok = type(x) is float or type(x) != float or float in kinds\n",
+        "match x:\n    case float():\n        raise TypeError(x)\n",
     ],
 )
 def test_AC_PLT_31_decimal_and_type_checks_pass(tmp_path: Path, source: str) -> None:

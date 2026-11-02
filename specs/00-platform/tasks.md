@@ -768,6 +768,29 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   - (c) La exención es solo `apps/integrations/providers/`, no cualquier carpeta `providers/`; ¿alcanza?
   - (d) Los tests de las apps (`apps/<app>/tests/domain/…`) no se excluyen, a diferencia de C-01; ¿se excluyen?
   - (e) ¿Las migraciones con `FloatField` quedan fuera del chequeo? Hoy sí; el modelo que las origina ya falla.
+- **Respuestas de la revisión:**
+  - (a) Literales y anotaciones no se marcan: `Decimal(0.21)` ya lo marca ruff `RUF032`.
+  - (b) Sí: se aplicó en este PR.
+  - (c) Alcanza con exceptuar `apps/integrations/providers/`.
+  - (d) Se excluyen, como en C-01: se aplicó en este PR.
+  - (e) Las migraciones quedan afuera porque las cubre `makemigrations --check` (T-PLT-22); quedó dicho en el
+    docstring de `money_rules.py`.
+- **Revisión de `97921fd`: APROBADO.** Aplicado en el mismo PR (commit `fix(architecture)`), cada punto con su test:
+  - (b) `FloatField` también en las capas de dinero: `serializers.FloatField` y `forms.FloatField` en `api/`, y
+    `from rest_framework.serializers import FloatField`.
+  - (d) Las rutas con un segmento `tests` no se chequean (`apps/charges/tests/domain/test_x.py` con `float('1.1')`).
+  - NB1: `<alias de builtins>.float` se marca aunque no se llame (`f = builtins.float; f(x)`).
+  - NB2: no se marcan `type(x) is float`, `!=`, `==` y `float in kinds` (solo el operando suelto:
+    `sum(map(float, xs)) == 0` sigue fallando) ni `case float():`.
+  - Docstring de `money_rules.py` alineado: alcance, `tests`, migraciones y residuales.
+- **Para después:**
+  1. Otros usos como tipo que todavía se marcan: `cast(float, …)`, `NewType`/`TypeVar`, `@register(float)` y las
+     tuplas de tipos como la de `apps/common/logging/processors.py:21`. Por ahora alcanza con la allowlist.
+  2. El comentario de `ci.yml:89-90` ("C-02 joins with T-PLT-20") quedó desactualizado.
+  3. Para SPEC-04: con `COERCE_DECIMAL_TO_STRING=False` o `coerce_to_string=False`, DRF emite floats en el JSON, y
+     esta regla no lo detecta.
+  4. Uniones (`|`) y subíndices exceptúan todo su subárbol, no solo el operando suelto como `Compare`: un
+     `defaultdict(float) | other` pasaría. Es raro, pero se puede alinear con NB2.
 
 ### T-PLT-21 — Gate de cobertura + job `coverage`
 - **AC:** AC-PLT-22 (backend y `scripts/`; el parser del reporte frontend se prueba con fixture). RNF-PLT-08 (Q-032).
