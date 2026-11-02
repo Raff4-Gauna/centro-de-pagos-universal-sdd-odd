@@ -712,6 +712,16 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   format con `start_worker`; decode y ETA inconvertible, record a record. Mutación: con el filtro apagado
   fallan 8 tests. NB1: los fixtures sueltan solo el pool (sin `close()`, que desregistraba el app); NB5: test
   que fija que `conf.table()` no ve `CACHES`, `DATABASES` ni `SECRET_KEY`.
+- **Verificación de `e54c266`: APROBADA.** Ajuste en el commit `fix(logging)` siguiente: el match del ETA por
+  prefijo era frágil (si Celery cambia el texto, vuelven args y kwargs). El filtro pasa a **allowlist**: se
+  descartan los tres mensajes con señal; pasan intactas solo `CONNECTION_ERROR` (`Cannot connect`),
+  `CONNECTION_RETRY` y `LOG_RECEIVED`; todo lo demás de esos dos loggers pierde args y traza (queda
+  `error_type`), y si traía un dict de tarea (`args`/`kwargs`/`argsrepr`/`kwargsrepr`/`body`), `bytes` o es el
+  de decode, sale como `celery.task.rejected` con nombre e id. Una constante que falta en Celery se saltea
+  (sus records toman el camino seguro) y el filtro nunca lanza (si falla, deja el record sin args). Tests: ETA
+  real con `start_worker` (`eta` en overflow `9999-12-31T23:59:59-12:00`, centinela en arg posicional y kwarg
+  inocuo), plantilla desconocida con dict de tarea, con `bytes` y con un string, `received` intacto,
+  constantes ausentes y falla del filtro.
 - **Para después:** (1) `describe_exception` vive en `middleware/access_log.py` y ahora lo usa Celery: moverlo a
   `logging/` cuando se toque. (2) `celery.worker.request` (WorkerLost, time limits) y
   `celery.utils.dispatch.signal` (si un receptor falla) loguean el `repr` de excepciones y **sí** pueden aparecer
