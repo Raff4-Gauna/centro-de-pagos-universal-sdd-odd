@@ -132,7 +132,8 @@ jobs:
       # --ignore-gitleaks-allow: an inline `gitleaks:allow` comment does not silence a finding.
       # --diff-merges=first-parent: `git log -p` prints no diff for a merge, so a file added while
       # merging would go unscanned. --text: a `-diff` attribute or a NUL byte would turn the
-      # content into "Binary files differ".
+      # content into "Binary files differ". --verbose on purpose: without it gitleaks only prints a
+      # count, with no rule, file, line or commit to find the leak; --redact keeps the value out.
       - name: gitleaks git
         id: scan
         env:
