@@ -508,6 +508,18 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   `test_AC_PLT_08_redaction_domain.py`, `test_AC_PLT_08_sql_and_reports.py` y `test_RN_PLT_05_render_failures.py`
   (separados por tema para no pasar de ~400 líneas); tras la revisión, `test_AC_PLT_08_redaction_performance.py`,
   `design.md` y `spec.sdd.md` (B-2). Todos son pendientes que esta sección asigna a T-PLT-14 o que pidió la revisión.
+- **Re-revisión de `6d1c03a`: APROBADO.** No bloqueantes que quedan para una tarea posterior de endurecimiento de la
+  redacción (no entran en este PR):
+  1. Valor entre comillas con blancos: `{"password": "abc SEKRIT"}` → `"[REDACTED] SEKRIT"`; si se abrió comilla,
+     redactar hasta la comilla de cierre.
+  2. Huecos de las cotas lineales: prefijo de más de 64 caracteres antes de la parte de clave
+     (`"a"*65+"_token=x"`), más de 8 blancos alrededor del separador o más de 16 tras `Bearer`/`Basic`. Documentar
+     como límite en `design.md §3.2.3` o con un test.
+  3. Línea de header con varios segmentos: `Cookie: a=1; mp_auth=x` y `Authorization: Digest … response="x"`
+     dejan en claro lo que sigue al primer segmento.
+  4. JSON escapado (`{\"token\": \"x\"}`) y XML (`<token>x</token>`) no se reconocen.
+  5. Cosmético: `basic setup failed` → `basic [REDACTED] failed`; `(token=x)` pierde el `)`. Los warnings emitidos
+     antes de `configure_logging` siguen yendo a stderr.
 
 ### T-PLT-15 — Errores `problem+json`
 - **AC:** AC-PLT-34. RN-PLT-15 (Q-036), RN-PLT-16 (sin CORS). **Zona roja:** sí (contrato de errores).
