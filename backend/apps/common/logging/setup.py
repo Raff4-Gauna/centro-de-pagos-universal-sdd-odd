@@ -16,7 +16,9 @@ Django applies its ``DEFAULT_LOGGING`` before this one; here the ``django`` logg
 handlers (a text console handler and ``mail_admins``, whose e-mail embeds the error report with the
 settings, C-06) and propagates to the root handler. ``django.request``, ``django.security.csrf`` and
 ``django.server`` are silenced (T-PLT-13): they log the raw path (``"Not Found: /path"``), and the
-access log (``middleware/access_log.py``) reports the same requests with the route template.
+access log (``middleware/access_log.py``) reports the same requests with the route template. So is
+``celery.app.trace`` (T-PLT-17): its messages carry the exception ``repr`` and task values; the
+``celery.task`` event (``celery_signals.py``) replaces it.
 ``django.db.backends`` is held at INFO (T-PLT-14): with ``DEBUG`` on it logs every query with its
 parameters at DEBUG; its errors still propagate. ``django.security.DisallowedHost`` (an invalid
 ``Host`` header, what scanners send) goes out as one WARNING line without the traceback instead
@@ -46,7 +48,9 @@ from apps.common.logging import context
 from apps.common.logging.processors import add_component, add_record_extras, redact_event
 
 LOG_LEVELS = ("DEBUG", "INFO", "WARNING", "ERROR")
-SILENCED_LOGGERS = ("django.request", "django.security.csrf", "django.server")
+# celery.app.trace (T-PLT-17): "Task x[id] raised unexpected: <repr(exc)>", the return value and,
+# on some paths, the args; apps/common/celery_signals.py logs each task without them.
+SILENCED_LOGGERS = ("django.request", "django.security.csrf", "django.server", "celery.app.trace")
 # DEBUG records of these carry SQL with its parameters (C-06); INFO and up still go out. A logger
 # level holds for its children too: this also cuts django.db.backends.schema, which logs each DDL
 # statement (migrations) with its parameters at DEBUG.
