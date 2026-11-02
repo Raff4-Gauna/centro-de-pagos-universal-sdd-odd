@@ -204,9 +204,15 @@ def test_AC_PLT_11_publish_outside_a_request_adds_no_header(
 
 
 def test_RN_PLT_05_celery_settings_keep_root_logger_and_retry_broker() -> None:
+    assert celery_app.conf.broker_url == settings.CELERY_BROKER_URL  # REDIS_URL, via env.py
     assert celery_app.conf.worker_hijack_root_logger is False
     assert celery_app.conf.broker_connection_retry_on_startup is True
     assert celery_app.conf.broker_connection_max_retries is None
+    # Only the CELERY_* settings reach Celery's printable config (C-06: CACHES has REDIS_URL).
+    names = {name for name in dir(settings) if name.isupper()}
+    django_only = {name for name in names if not name.startswith("CELERY_")}
+    assert "CACHES" in django_only
+    assert not django_only & set(celery_app.conf.table())
 
 
 def test_RN_PLT_05_celery_logging_setup_keeps_the_json_handler(stdout_log: StdoutLog) -> None:
@@ -225,22 +231,21 @@ def test_RN_PLT_05_celery_logging_setup_keeps_the_json_handler(stdout_log: Stdou
 
 
 @pytest.fixture
-def redis_worker(monkeypatch: pytest.MonkeyPatch) -> Iterator[threading.Event]:
-    """A worker on the Redis of ``REDIS_URL``; yields an event set when a task finishes."""
+def redis_worker() -> Iterator[threading.Event]:
+    """A worker on the configured broker (``REDIS_URL``, test settings); yields an event set when a
+    task finishes."""
     done = threading.Event()
 
     def finished(**kwargs: Any) -> None:
         done.set()
 
-    use_broker(monkeypatch, os.environ["REDIS_URL"])
-    celery_app.control.purge()
+    celery_app.control.purge()  # a message left by an aborted run would be consumed first
     task_postrun.connect(finished, weak=False)
     try:
         with mock.patch.dict(os.environ), start_worker(celery_app, perform_ping_check=False):
             yield done
     finally:
         task_postrun.disconnect(finished)
-        drop_broker_connections()
 
 
 def captured(capfd: pytest.CaptureFixture[str]) -> CapturedLog:

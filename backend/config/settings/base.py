@@ -64,9 +64,10 @@ LOGGING = logging_config("INFO")
 # Error reports and the debug page hide credentials in CACHES/URLs too (C-06, T-PLT-08 review N-9).
 DEFAULT_EXCEPTION_REPORTER_FILTER = "apps.common.logging.report_filter.CredentialSafeReporterFilter"
 
-# Celery (T-PLT-17, design.md §3.2.3): config/celery.py reads every CELERY_* setting. The root
-# logger stays the platform's (its JSON handler and LOG_LEVEL), and the worker keeps retrying the
-# broker with backoff, logging each attempt, instead of exiting (Compose marks it unhealthy).
+# Celery (T-PLT-17, design.md §3.2.3): config/celery.py reads every CELERY_* setting; the broker URL
+# (REDIS_URL) is set by dev/test/prod, which read the environment. The root logger stays the
+# platform's (its JSON handler and LOG_LEVEL), and the worker keeps retrying the broker with
+# backoff, logging each attempt, instead of exiting (Compose marks it unhealthy).
 CELERY_WORKER_HIJACK_ROOT_LOGGER = False
 CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
 CELERY_BROKER_CONNECTION_MAX_RETRIES = None
