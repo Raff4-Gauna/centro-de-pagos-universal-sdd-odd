@@ -20,13 +20,10 @@ import logging
 import os
 import threading
 import uuid
-from collections.abc import Iterator
 from typing import Any
 from unittest import mock
 
 import pytest
-from celery.contrib.testing.worker import start_worker
-from celery.signals import after_task_publish, task_postrun
 from django.conf import settings
 from django.test import Client
 
@@ -34,7 +31,7 @@ from apps.common.logging import context, get_logger
 from apps.common.logging.setup import StdoutHandler
 from apps.common.middleware.request_id import REQUEST_ID_HEADER
 from config import celery_app
-from tests.logging.conftest import CapturedLog, StdoutLog
+from tests.logging.conftest import CapturedLog, StdoutLog, captured
 
 VALID = "3f2b8c1e-9d4a-4b7e-8f21-6c0d5e9a7b13"
 TASK_EVENT = "celery.task"
@@ -144,38 +141,7 @@ def test_AC_PLT_11_celery_trace_logger_is_silenced(stdout_log: StdoutLog) -> Non
     assert_no_sentinel(log)
 
 
-# --- publishing: the request_id travels as a message header ---
-
-
-def use_broker(monkeypatch: pytest.MonkeyPatch, url: str) -> None:
-    """Point the app at ``url``, dropping the pooled connections to the previous broker."""
-    monkeypatch.setattr(celery_app.conf, "broker_url", url)
-    drop_broker_connections()
-
-
-def drop_broker_connections() -> None:
-    # The app's connection pool (close) and the AMQP helper with its producer pool, rebuilt from
-    # the current broker_url on next use: Celery's own reset after a fork does the same.
-    celery_app.close()
-    celery_app.__dict__.pop("amqp", None)
-
-
-@pytest.fixture
-def memory_broker(monkeypatch: pytest.MonkeyPatch) -> Iterator[list[dict[str, Any]]]:
-    """kombu's in-memory transport; yields the headers of every message published meanwhile."""
-    published: list[dict[str, Any]] = []
-
-    def keep(sender: object = None, headers: dict[str, Any] | None = None, **kwargs: Any) -> None:
-        published.append(dict(headers or {}))
-
-    use_broker(monkeypatch, "memory://")
-    after_task_publish.connect(keep, weak=False)
-    try:
-        yield published
-    finally:
-        after_task_publish.disconnect(keep)
-        celery_app.control.purge()  # the in-memory queue outlives the connection
-        drop_broker_connections()
+# --- publishing: the request_id travels as a message header (memory_broker, conftest.py) ---
 
 
 def test_AC_PLT_11_diagnostic_endpoint_returns_202_with_task_id_and_request_id(
@@ -213,6 +179,9 @@ def test_RN_PLT_05_celery_settings_keep_root_logger_and_retry_broker() -> None:
     django_only = {name for name in names if not name.startswith("CELERY_")}
     assert "CACHES" in django_only
     assert not django_only & set(celery_app.conf.table())
+    # Pinned by name (review NB5): the settings that hold credentials.
+    table = celery_app.conf.table(with_defaults=True)
+    assert {"CACHES", "DATABASES", "SECRET_KEY"}.isdisjoint(table)
 
 
 def test_RN_PLT_05_celery_logging_setup_keeps_the_json_handler(stdout_log: StdoutLog) -> None:
@@ -227,30 +196,7 @@ def test_RN_PLT_05_celery_logging_setup_keeps_the_json_handler(stdout_log: Stdou
     assert stdout_log.read().find("test.after_setup")
 
 
-# --- integration: a real worker thread consuming from Redis ---
-
-
-@pytest.fixture
-def redis_worker() -> Iterator[threading.Event]:
-    """A worker on the configured broker (``REDIS_URL``, test settings); yields an event set when a
-    task finishes."""
-    done = threading.Event()
-
-    def finished(**kwargs: Any) -> None:
-        done.set()
-
-    celery_app.control.purge()  # a message left by an aborted run would be consumed first
-    task_postrun.connect(finished, weak=False)
-    try:
-        with mock.patch.dict(os.environ), start_worker(celery_app, perform_ping_check=False):
-            yield done
-    finally:
-        task_postrun.disconnect(finished)
-
-
-def captured(capfd: pytest.CaptureFixture[str]) -> CapturedLog:
-    out, err = capfd.readouterr()
-    return CapturedLog(out=out, err=err)
+# --- integration: a real worker thread consuming from Redis (redis_worker, conftest.py) ---
 
 
 @pytest.mark.integration

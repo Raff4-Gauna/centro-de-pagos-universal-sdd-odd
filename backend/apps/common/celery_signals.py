@@ -12,6 +12,10 @@ design.md §3.2.3, AC-PLT-11, RN-PLT-05/07, RNF-PLT-03, Q-041. Connected by ``Co
   frames of the exception and its causes) for the end-of-task event.
 - ``task_postrun``: the ``celery.task`` event, ``result`` (the final state: ``SUCCESS``,
   ``FAILURE``, ``RETRY``...) and ``duration_ms``; ERROR for a failure. Then the context is cleared.
+- ``task_unknown``/``task_rejected``: a message the worker will not run (unregistered task, invalid
+  message, unknown format) is one ``celery.task.rejected`` event with the ``reason`` and the task
+  name and id from its headers; Celery's own records of it, which dump the body, are dropped by
+  ``logging/celery_filters.py`` (T-PLT-17 review B-1).
 
 Never logged: args, kwargs, the return value, the exception message or its ``repr`` (they may carry
 anything, C-06). Celery's own ``celery.app.trace`` logger, which logs them, is silenced
@@ -25,11 +29,19 @@ import time
 from typing import Any
 
 from celery import states
-from celery.signals import before_task_publish, task_failure, task_postrun, task_prerun
+from celery.signals import (
+    before_task_publish,
+    task_failure,
+    task_postrun,
+    task_prerun,
+    task_rejected,
+    task_unknown,
+)
 from structlog.contextvars import bind_contextvars
 
 from apps.common.domain.request_id import resolve_request_id
 from apps.common.logging import context, get_logger
+from apps.common.logging.celery_filters import REJECTED_EVENT
 from apps.common.middleware.access_log import describe_exception
 
 TASK_EVENT = "celery.task"
@@ -82,3 +94,29 @@ def log_task_end(task_id: str | None = None, state: str | None = None, **kwargs:
         logger.log(level, TASK_EVENT, result=str(state), duration_ms=duration_ms, **failure)
     finally:
         context.clear()
+
+
+def _task_fields(task_id: object, task_name: object) -> dict[str, str]:
+    """``task_id``/``task_name`` if strings: the headers of a bad message may hold anything."""
+    fields = {"task_id": task_id, "task_name": task_name}
+    return {key: value for key, value in fields.items() if isinstance(value, str)}
+
+
+@task_unknown.connect(dispatch_uid="apps.common.celery_signals.unknown")
+def log_unknown_task(**kwargs: Any) -> None:
+    fields = _task_fields(kwargs.get("id"), kwargs.get("name"))
+    logger.error(REJECTED_EVENT, reason="unknown_task", **fields)
+
+
+@task_rejected.connect(dispatch_uid="apps.common.celery_signals.rejected")
+def log_rejected_message(
+    message: Any = None, exc: BaseException | None = None, **kwargs: Any
+) -> None:
+    headers = getattr(message, "headers", None)
+    headers = headers if isinstance(headers, dict) else {}
+    fields = _task_fields(headers.get("id"), headers.get("task"))
+    if exc is None:  # no task header: Celery does not know what it is
+        logger.warning(REJECTED_EVENT, reason="unknown_format", **fields)
+        return
+    error_type = describe_exception(exc)["exception_type"]
+    logger.error(REJECTED_EVENT, reason="invalid_task", error_type=error_type, **fields)

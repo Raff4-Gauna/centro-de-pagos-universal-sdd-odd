@@ -700,14 +700,31 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   (`CredentialSafeReporterFilter`, sección de settings), `repr(settings)`, `conf.humanize()` y `as_uri()` no la
   muestran. El fixture de integración ya no apunta el app a Redis a mano (usa el broker de settings); el de
   `memory://` sigue cambiando el broker.
+- **Revisión de `8cd05cb`: CAMBIOS REQUERIDOS, aplicados en el commit `fix(logging)`.** B-1 (C-06): con un
+  mensaje que el worker no ejecuta, `celery.worker.consumer.consumer` logueaba el cuerpo entero (args y kwargs,
+  `dump_body`): `UNKNOWN_TASK_ERROR`, `INVALID_TASK_ERROR`, `UNKNOWN_FORMAT` y `MESSAGE_DECODE_ERROR`, y
+  `celery.worker.strategy` el `req.info(safe=True)` del ETA inconvertible. `logging/celery_filters.py`
+  (`CeleryMessageBodyFilter`, en esos dos loggers vía `setup.py`) descarta los tres primeros, comparando con las
+  constantes de Celery, y `celery_signals.py` emite `celery.task.rejected` (`reason`, `task_name`, `task_id`;
+  `error_type` si es inválido) desde `task_unknown`/`task_rejected`. Los dos que no mandan señal (decode, ETA) se
+  reescriben en el mismo evento, sin args ni traza. El resto de esos loggers (`Cannot connect`) pasa. Tests
+  con centinela en un arg posicional y en un kwarg de clave inocua: unknown, invalid (ETA mal formado) y unknown
+  format con `start_worker`; decode y ETA inconvertible, record a record. Mutación: con el filtro apagado
+  fallan 8 tests. NB1: los fixtures sueltan solo el pool (sin `close()`, que desregistraba el app); NB5: test
+  que fija que `conf.table()` no ve `CACHES`, `DATABASES` ni `SECRET_KEY`.
 - **Para después:** (1) `describe_exception` vive en `middleware/access_log.py` y ahora lo usa Celery: moverlo a
-  `logging/` cuando se toque. (2) Otros loggers de Celery (`celery.worker.request`, con WorkerLost o time limits,
-  y `celery.utils.dispatch.signal` si un receptor falla) loguean `repr` de excepciones; no se silenciaron (no
-  aparecen en los caminos probados). (3) Una tarea `apply()` anidada dentro de otra limpia el contexto de la
-  exterior (no hay tareas anidadas en 00). (4) Sin result backend: `ignore_result=True` en `diagnostic_ping`;
-  ningún `CELERY_RESULT_BACKEND` en 00. Sin throttle en la ruta dev hasta T-PLT-16. (5) Para cambiar de broker
-  los tests hacen `celery_app.close()` y `celery_app.__dict__.pop("amqp")` (`close()` no suelta el pool de
-  productores): frágil si Celery cambia; no hay API pública equivalente.
+  `logging/` cuando se toque. (2) `celery.worker.request` (WorkerLost, time limits) y
+  `celery.utils.dispatch.signal` (si un receptor falla) loguean el `repr` de excepciones y **sí** pueden aparecer
+  (no se probaron con un worker que muere ni con un receptor que falla); no están silenciados ni filtrados.
+  (3) Una tarea `apply()` anidada dentro de otra limpia el contexto de la exterior (no hay tareas anidadas en 00).
+  (4) Sin result backend: `ignore_result=True` en `diagnostic_ping`; ningún `CELERY_RESULT_BACKEND` en 00. Sin
+  throttle en la ruta dev hasta T-PLT-16. (5) Para cambiar de broker los tests vacían `_pool` y el `amqp`
+  cacheado del app (lo que hace el reset de Celery tras un fork): frágil si Celery cambia; no hay API pública.
+  (6) NB2: silenciar `celery.app.trace` entero también oculta `Process cleanup failed` y `Failed to dispatch
+  chain/callbacks`; pasarlo a un filtro como el de B-1. (7) NB3: con WorkerLost o un hard time limit,
+  `task_failure` sale en el proceso padre sin `prerun`/`postrun`: la entrada de `_failures` no se borra y no se
+  emite `celery.task`. (8) NB4: con `LOG_LEVEL=DEBUG`, `celery.utils.functional` y `celery.bootsteps` meten
+  ruido.
 
 ### T-PLT-18 — Contrato OpenAPI commiteado + `--check`
 - **AC:** AC-PLT-23 (backend). RN-PLT-15, RF-PLT-14, ADR-0005. **Zona roja:** sí (contrato público).
