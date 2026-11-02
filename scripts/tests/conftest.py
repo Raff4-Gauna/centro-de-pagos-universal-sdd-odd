@@ -8,8 +8,10 @@ from __future__ import annotations
 
 import os
 import subprocess
+from collections.abc import Callable
 from pathlib import Path
 
+import gitleaks_support as gl
 import pytest
 
 
@@ -98,3 +100,32 @@ def non_ascii_git_repo(
     repo = init_repo(tmp_path / "Programación-2026" / "repo", empty_git_config)
     monkeypatch.chdir(repo.root)
     return repo
+
+
+@pytest.fixture
+def two_commits(git_repo: GitRepo) -> tuple[GitRepo, str, str]:
+    """A repo with a base commit and a head commit on top (AC-PLT-19, T-PLT-04)."""
+    git_repo.write_bytes("README.md", b"base\n")
+    base = gl.commit(git_repo, "base")
+    git_repo.write_bytes("notes.txt", b"change\n")
+    return git_repo, base, gl.commit(git_repo, "change")
+
+
+Scan = Callable[[str], subprocess.CompletedProcess[str]]
+
+
+@pytest.fixture(params=["pre-commit-staged", "ci-pull-request"])
+def scan(
+    request: pytest.FixtureRequest, two_commits: tuple[GitRepo, str, str], tmp_path: Path
+) -> Scan:
+    """Scan ``content`` the two ways gitleaks runs here: the hook on the staged diff, or the
+    ``secrets`` job on a PR whose head commit adds it (AC-PLT-19). Needs Docker."""
+    repo, _, head = two_commits
+
+    def run(content: str) -> subprocess.CompletedProcess[str]:
+        repo.write_bytes("config.txt", content.encode("utf-8"))
+        if request.param == "pre-commit-staged":
+            return gl.hook_scan(repo)
+        return gl.ci_scan(repo, tmp_path, head, gl.commit(repo, "add config"))
+
+    return run

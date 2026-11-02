@@ -119,6 +119,7 @@ jobs:
           echo "gitleaks range: $range"
           echo "log-opts=$range" >> "$GITHUB_OUTPUT"
       - name: gitleaks git
+        id: scan
         env:
           LOG_OPTS: ${{ steps.range.outputs.log-opts }}
         run: >-
@@ -127,8 +128,9 @@ jobs:
       - uses: ./.github/actions/setup
         with:
           python: "true"
+      # The gitleaks-marked tests run these same steps and the hook against throwaway repos.
       - name: pytest -m gitleaks (AC-PLT-19)
-        run: pytest -c scripts/pytest.ini scripts/tests/test_AC_PLT_19_gitleaks.py -m gitleaks
+        run: pytest -c scripts/pytest.ini scripts/tests -m gitleaks
 
   # Step 4. AC-PLT-21 (backend): mypy with the django-stubs/drf-stubs plugins over backend/ and
   # scripts/, strict in apps/common/ and every domain/ ([tool.mypy] of backend/pyproject.toml). The
