@@ -144,3 +144,31 @@ def test_AC_PLT_19_range_rejects_anything_but_commit_shas(
     code, log_opts = gl.run_range_step(repo, tmp_path, **event)
     assert code != 0
     assert log_opts == ""
+
+
+def test_AC_PLT_19_no_gitleaksignore_step_runs_before_the_scan() -> None:
+    ids = [s.get("id") for s in gl.secrets_job()["steps"]]
+    assert ids.index("no-gitleaksignore") < ids.index("scan")
+
+
+@pytest.mark.parametrize("path", [".gitleaksignore", "docs/deep/.gitleaksignore"])
+def test_AC_PLT_19_tracked_gitleaksignore_fails_the_job(
+    two_commits: tuple[GitRepo, str, str], tmp_path: Path, path: str
+) -> None:
+    # B-2: gitleaks loads .gitleaksignore by itself, and a fingerprint there drops a finding.
+    repo, _, _ = two_commits
+    repo.write_bytes(path, b"config.txt:github-pat:1\n")
+
+    completed, _ = gl.run_step(repo, tmp_path, "no-gitleaksignore", {})
+    assert completed.returncode != 0, completed.stdout + completed.stderr
+    assert path in completed.stdout + completed.stderr
+
+
+def test_AC_PLT_19_no_gitleaksignore_step_passes_without_one(
+    two_commits: tuple[GitRepo, str, str], tmp_path: Path
+) -> None:
+    repo, _, _ = two_commits
+    repo.write_bytes("gitleaksignore.md", b"not the ignore file\n")
+
+    completed, _ = gl.run_step(repo, tmp_path, "no-gitleaksignore", {})
+    assert completed.returncode == 0, completed.stdout + completed.stderr
