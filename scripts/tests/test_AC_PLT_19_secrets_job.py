@@ -215,6 +215,40 @@ def test_AC_PLT_19_file_under_a_default_allowlisted_path_fails_the_job(
     assert path in output
 
 
+def test_AC_PLT_19_exempt_lockfiles_are_exact_paths_scanned_after_the_main_scan() -> None:
+    # Q-062: one list, exact paths only (no generic lockfile pattern); each new one is reviewed.
+    assert gl.exempt_lockfiles() == ["frontend/pnpm-lock.yaml"]
+    ids = [s.get("id") for s in gl.secrets_job()["steps"]]
+    assert ids.index("no-allowlisted-paths") < ids.index("scan") < ids.index("scan-lockfiles")
+    for step_id in ("no-allowlisted-paths", "scan-lockfiles"):
+        assert "$GITLEAKS_EXEMPT_LOCKFILES" in gl.step(gl.secrets_job(), step_id)["run"]
+
+
+def test_AC_PLT_19_exempt_lockfile_passes_the_guard(
+    two_commits: tuple[GitRepo, str, str], tmp_path: Path
+) -> None:
+    repo, _, _ = two_commits
+    repo.write_bytes("frontend/pnpm-lock.yaml", b"lockfileVersion: '9.0'\n")
+
+    completed, _ = gl.run_step(repo, tmp_path, "no-allowlisted-paths", {})
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+
+
+@pytest.mark.parametrize(
+    "path", ["x/pnpm-lock.yaml", "pnpm-lock.yaml", "frontend/app/pnpm-lock.yaml"]
+)
+def test_AC_PLT_19_lockfile_at_another_path_still_fails_the_guard(
+    two_commits: tuple[GitRepo, str, str], tmp_path: Path, path: str
+) -> None:
+    repo, _, _ = two_commits
+    repo.write_bytes(path, b"lockfileVersion: '9.0'\n")
+
+    completed, _ = gl.run_step(repo, tmp_path, "no-allowlisted-paths", {})
+    output = completed.stdout + completed.stderr
+    assert completed.returncode != 0, output
+    assert path in output.splitlines()
+
+
 def test_AC_PLT_19_repo_gitleaks_config_alone_passes_the_guard(
     two_commits: tuple[GitRepo, str, str], tmp_path: Path
 ) -> None:

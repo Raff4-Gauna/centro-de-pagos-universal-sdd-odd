@@ -77,6 +77,9 @@ jobs:
     timeout-minutes: 10
     env:
       GITLEAKS_IMAGE: zricethezav/gitleaks:v8.30.1@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f
+      # Lockfiles the path guard lets through (Q-062), space-separated exact paths, one place for
+      # both the guard and the stdin scan. Each new one is added here by hand and reviewed.
+      GITLEAKS_EXEMPT_LOCKFILES: frontend/pnpm-lock.yaml
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -131,8 +134,9 @@ jobs:
             exit 1
           fi
       # The global allowlist of the default rules (useDefault, Q-062) never scans these paths, at any
-      # depth, so code there would hide a secret. Only the repo's own .gitleaks.toml may match (red
-      # zone, reviewer). The list is every directory/path entry of `[allowlist] paths` of gitleaks
+      # depth, so code there would hide a secret. Only the repo's own .gitleaks.toml (red zone,
+      # reviewer) and the exact paths of GITLEAKS_EXEMPT_LOCKFILES (scanned by stdin below) may
+      # match. The list is every directory/path entry of `[allowlist] paths` of gitleaks
       # v8.30.1, verbatim (config/gitleaks.toml at 83d9cd68, embedded in the pinned image); the
       # file-extension entries (images, fonts, binaries) stay out on purpose (Q-062). A gitleaks test
       # reads the list from the image and fails if this one drifts. Case-insensitive, PCRE (the
@@ -174,7 +178,16 @@ jobs:
             echo "::error::grep failed (exit $status): the path guard did not run"
             exit 1
           fi
-          found="$(grep -zvx '\.gitleaks\.toml' "$files.match" | tr '\0' '\n' || true)"
+          read -r -a exempt <<< "$GITLEAKS_EXEMPT_LOCKFILES"
+          allowed=(.gitleaks.toml "${exempt[@]}")
+          found=""
+          while IFS= read -r -d '' path; do
+            keep=1
+            for ok in "${allowed[@]}"; do
+              if [ "$path" = "$ok" ]; then keep=0; fi
+            done
+            if [ "$keep" = 1 ]; then found+="$path"$'\n'; fi
+          done < "$files.match"
           if [ -n "$found" ]; then
             echo "::error::tracked files that gitleaks never scans (default path allowlist, Q-062):"
             echo "$found"
@@ -193,6 +206,21 @@ jobs:
           docker run --rm -v "$GITHUB_WORKSPACE:/repo:ro" "$GITLEAKS_IMAGE" git /repo
           --config /repo/.gitleaks.toml --redact --no-banner --verbose --ignore-gitleaks-allow
           --log-opts="--diff-merges=first-parent --text $LOG_OPTS"
+      # The path allowlist never scans the exempted lockfiles in `gitleaks git`, and `gitleaks stdin`
+      # has no path, so their diff in the same range goes through stdin. No change in the range:
+      # empty input, passes.
+      - name: gitleaks stdin on the exempted lockfiles
+        id: scan-lockfiles
+        env:
+          LOG_OPTS: ${{ steps.range.outputs.log-opts }}
+        run: |
+          read -r -a exempt <<< "$GITLEAKS_EXEMPT_LOCKFILES"
+          for lockfile in "${exempt[@]}"; do
+            echo "gitleaks stdin: $lockfile in $LOG_OPTS"
+            git log -p --diff-merges=first-parent --text --no-color --no-ext-diff "$LOG_OPTS" -- "$lockfile" \
+              | docker run --rm -i -v "$GITHUB_WORKSPACE:/repo:ro" "$GITLEAKS_IMAGE" stdin \
+                --config /repo/.gitleaks.toml --redact --no-banner --verbose --ignore-gitleaks-allow
+          done
       - uses: ./.github/actions/setup
         with:
           python: "true"

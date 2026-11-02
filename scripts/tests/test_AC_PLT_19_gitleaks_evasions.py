@@ -7,7 +7,9 @@ Found in the review of ``3d50418`` and reproduced there with gitleaks v8.30.1. M
 
 from __future__ import annotations
 
+import base64
 import re
+import secrets
 import subprocess
 import tomllib
 from pathlib import Path
@@ -115,3 +117,55 @@ def test_AC_PLT_19_secret_in_a_file_git_treats_as_binary_is_detected(
     output = result.stdout + result.stderr
     assert result.returncode == 1, output
     assert token not in output
+
+
+LOCKFILE = "frontend/pnpm-lock.yaml"
+
+
+def lockfile_body(*extra: str) -> bytes:
+    """A small pnpm lockfile with a random integrity hash, plus ``extra`` lines."""
+    integrity = base64.b64encode(secrets.token_bytes(64)).decode("ascii")
+    lines = [
+        "lockfileVersion: '9.0'",
+        "packages:",
+        "  react@19.2.0:",
+        f"    resolution: {{integrity: sha512-{integrity}}}",
+        *extra,
+    ]
+    return "\n".join(lines).encode() + b"\n"
+
+
+def test_AC_PLT_19_token_in_the_exempt_lockfile_fails_the_lockfile_scan(
+    two_commits: tuple[GitRepo, str, str], tmp_path: Path
+) -> None:
+    # Q-062: `gitleaks git` never scans pnpm-lock.yaml (default path allowlist), so the job scans
+    # its diff in the range through stdin, which has no path to allowlist.
+    repo, _, head = two_commits
+    token = gl.fake_github_token()
+    repo.write_bytes(LOCKFILE, lockfile_body(f"    registryToken: {token}"))
+    pr_head = gl.commit(repo, "add lockfile")
+
+    main = gl.ci_scan(repo, tmp_path, head, pr_head)
+    assert main.returncode == 0, main.stdout + main.stderr  # the hole the extra step closes
+    result = gl.ci_scan(repo, tmp_path, head, pr_head, "scan-lockfiles")
+    output = result.stdout + result.stderr
+    assert result.returncode == 1, output
+    assert "github-pat" in output
+    assert token not in output
+
+
+@pytest.mark.parametrize("changed_in_range", [True, False], ids=["changed", "unchanged"])
+def test_AC_PLT_19_clean_exempt_lockfile_passes_the_lockfile_scan(
+    two_commits: tuple[GitRepo, str, str], tmp_path: Path, changed_in_range: bool
+) -> None:
+    repo, _, head = two_commits
+    repo.write_bytes(LOCKFILE, lockfile_body())
+    with_lockfile = gl.commit(repo, "add lockfile")
+    if changed_in_range:
+        start, pr_head = head, with_lockfile
+    else:  # the PR touches another file only: empty diff for the lockfile
+        repo.write_bytes("notes.txt", b"other change\n")
+        start, pr_head = with_lockfile, gl.commit(repo, "touch another file")
+
+    result = gl.ci_scan(repo, tmp_path, start, pr_head, "scan-lockfiles")
+    assert result.returncode == 0, result.stdout + result.stderr

@@ -276,9 +276,17 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
 - **Para después:** (1) chequeo propio que falle si `frontend/pnpm-lock.yaml` tiene credenciales en URLs
   (`://user:pass@`, `_authToken`): mitigación de Q-062, cuando exista el lockfile (T-PLT-27). (2) Tokens de Mercado
   Pago que la regla no cubre (N-1): formato legado `__LX_LY__`, prefijo en minúsculas y refresh tokens `TG-…`; y la
-  public key (`APP_USR-`/`TEST-` + UUID). (3) **Pendiente del planner:** la guarda bloquea `frontend/pnpm-lock.yaml`
-  (entrada de lockfiles de la allowlist por defecto), que ya trackean T-PLT-27/28/33/34: al mergear la línea
-  frontend `secrets` falla. No se excluyó (Q-062). (4) Ninguno de estos bloquea T-PLT-04.
+  public key (`APP_USR-`/`TEST-` + UUID). (3) Credenciales en URLs del lockfile: por stdin, `generic-api-key` detecta
+  `_authToken=…`, pero ninguna regla por defecto detecta `https://user:pass@registry…` (verificado con v8.30.1), así
+  que el chequeo propio de (1) sigue pendiente. (4) Ninguno de estos bloquea T-PLT-04.
+- **`frontend/pnpm-lock.yaml` (decisión del planner):** la guarda lo exceptúa solo por ruta exacta
+  (`GITLEAKS_EXEMPT_LOCKFILES`, lista única del job), y el paso `scan-lockfiles` pasa su diff del rango por
+  `gitleaks stdin`. Tests: `test_AC_PLT_19_token_in_the_exempt_lockfile_fails_the_lockfile_scan` (el escaneo
+  principal no lo ve; el paso nuevo sí), `test_AC_PLT_19_clean_exempt_lockfile_passes_the_lockfile_scan` (con y
+  sin cambios en el rango), `test_AC_PLT_19_exempt_lockfile_passes_the_guard`,
+  `test_AC_PLT_19_lockfile_at_another_path_still_fails_the_guard` (`x/`, raíz, `frontend/app/`) y la forma de la
+  lista. Con la lista vacía fallan los de la guarda, la forma y el token (verificado). La guarda pasa sobre el
+  árbol de T-PLT-27, y el historial real del lockfile da 0 hallazgos por stdin.
 - **Guarda ampliada (después de B-7, decisión del coordinador):** `no-allowlisted-paths` lleva textuales las 21
   entradas de directorios o rutas de la allowlist por defecto de v8.30.1 (las 4 de extensiones quedan como riesgo
   aceptado en Q-062, `.svg` aparte) y falla cerrada si `grep` da error. Tests:

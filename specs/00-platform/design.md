@@ -427,7 +427,11 @@ algún archivo trackeado distinto de `.gitleaks.toml` cae en rutas que la allowl
 las 21 entradas de directorios o rutas de `[allowlist] paths` de v8.30.1, copiadas textuales (PCRE, sin distinguir
 mayúsculas); las 4 de extensiones (imágenes, fuentes, binarios, `.svg` incluido) quedan fuera como riesgo aceptado
 (Q-062). Un test con marker `gitleaks` lee esa allowlist del binario de la imagen fijada y falla si la guarda se
-desincroniza al actualizar gitleaks; la guarda falla cerrada si `grep` da error. `--verbose` queda en
+desincroniza al actualizar gitleaks; la guarda falla cerrada si `grep` da error. Además de `.gitleaks.toml`, la
+guarda deja pasar solo los lockfiles de `GITLEAKS_EXEMPT_LOCKFILES` (env del job, rutas exactas; hoy
+`frontend/pnpm-lock.yaml`), y el paso `scan-lockfiles`, después del escaneo principal, pasa por `gitleaks stdin`
+el diff de cada uno en el mismo rango (`git log -p --diff-merges=first-parent --text <rango> -- <lockfile>`, con
+`--redact` y `--ignore-gitleaks-allow`): stdin no tiene ruta, así que la allowlist por ruta no lo saltea. `--verbose` queda en
 el job a propósito: sin él gitleaks solo imprime la cantidad de hallazgos, sin regla, archivo, línea ni commit; con
 `--redact` el valor sale como `REDACTED`.
 

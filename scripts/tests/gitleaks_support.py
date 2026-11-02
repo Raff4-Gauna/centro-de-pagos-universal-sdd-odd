@@ -178,7 +178,8 @@ def run_step(
     script.write_text(step(secrets_job(), step_id)["run"], encoding="utf-8", newline="\n")
     output = tmp_path / f"{step_id}.github_output"
     output.write_text("", encoding="utf-8")
-    full_env = {**repo.env, **env, "GITHUB_OUTPUT": output.as_posix()}
+    job_env = {key: str(value) for key, value in secrets_job()["env"].items()}
+    full_env = {**repo.env, **job_env, **env, "GITHUB_OUTPUT": output.as_posix()}
     # Git Bash would rewrite "/repo" and "C:/x:/repo:ro" in the docker arguments.
     full_env["MSYS_NO_PATHCONV"] = "1"
     completed = subprocess.run(  # noqa: S603 - fixed argv, test-only
@@ -210,20 +211,20 @@ def install_config(repo: GitRepo) -> None:
 
 
 def ci_scan(
-    repo: GitRepo, tmp_path: Path, base: str, head: str
+    repo: GitRepo, tmp_path: Path, base: str, head: str, step_id: str = "scan"
 ) -> subprocess.CompletedProcess[str]:
-    """The ``range`` and ``scan`` steps of ``secrets`` for a PR from ``base`` to ``head``."""
+    """The ``range`` step and then ``step_id`` (``scan`` or ``scan-lockfiles``) for a PR."""
     code, log_opts = run_range_step(
         repo, tmp_path, EVENT_NAME="pull_request", BASE_SHA=base, HEAD_SHA=head
     )
     assert code == 0
     install_config(repo)
-    env = {
-        "GITHUB_WORKSPACE": repo.root.as_posix(),
-        "GITLEAKS_IMAGE": gitleaks_image(),
-        "LOG_OPTS": log_opts,
-    }
-    return run_step(repo, tmp_path, "scan", env)[0]
+    env = {"GITHUB_WORKSPACE": repo.root.as_posix(), "LOG_OPTS": log_opts}
+    return run_step(repo, tmp_path, step_id, env)[0]
+
+
+def exempt_lockfiles() -> list[str]:
+    return str(secrets_job()["env"]["GITLEAKS_EXEMPT_LOCKFILES"]).split()
 
 
 def hook_scan(repo: GitRepo) -> subprocess.CompletedProcess[str]:
