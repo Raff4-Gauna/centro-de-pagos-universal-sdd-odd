@@ -370,7 +370,7 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   `dictConfig` y configura structlog en un solo lugar, reutilizable por gunicorn/Celery). Único handler
   `StdoutHandler` en root, que escribe en el `sys.stdout` *actual* en cada emit (los tests lo capturan con `capsys`).
   Los `extra=` de loggers stdlib se vuelcan como campos solo si son escalares JSON (Django adjunta el `request`, cuyo
-  `repr` trae el path crudo). Los `warnings` de Python no se redirigen al log (sin `captureWarnings`). Tests
+  `repr` trae el path crudo). Los `warnings` de Python no se redirigen al log (sin `captureWarnings`; **cambia en T-PLT-14**: ahora sí, como eventos `py.warnings`). Tests
   agregados a los del plan: header ausente, header en respuesta 500, contexto limpio tras la request, middleware
   primero, parser puro, `organization_id` solo ligado, ningún handler a archivo/`mail_admins`, `LOG_LEVEL` filtra y
   se valida.
@@ -474,14 +474,40 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
     Celery antes de `setup`): devuelve solo el nombre del archivo; los frames de la stdlib se recortan contra
     `sysconfig.get_paths()["stdlib"]` (`logging/__init__.py`, no `__init__.py`). Tests:
     `test_AC_PLT_07_frames_outside_django_settings_are_file_names`, `test_AC_PLT_07_stdlib_frames_keep_their_package`.
-- **Desvío respecto de design §3.2.3:** la redacción corre **después** de `format_exc_info` (no antes): así la traza
-  renderizada (`exception`) también se limpia, y `exc_info` (una tupla de excepción) no pasa por la redacción.
+- **Ampliado tras la revisión de T-PLT-14 (sobre `e127f6e`):**
+  - **B-1 (ReDoS):** `_SECRET_PAIR` y `_URL` eran cuadráticas (`"a"*10_000` 3,6 s; un `Host` de 8000 letras 9,5 s
+    dentro de `Handler.emit`, con el lock tomado). Ahora toda regex arranca con lookbehind y acota sus repeticiones
+    salvo la última (greedy, sin backtracking), y cada string se corta a 8192 caracteres antes de las regex (la
+    tira sin blancos que cruza el corte se descarta entera, sufijo `[TRUNCATED]`). Tests en
+    `test_AC_PLT_08_redaction_performance.py`: 100k caracteres hostiles, las mismas regex sobre strings justo
+    debajo del corte (el corte solo taparía una regex cuadrática) y una request con `Host` enorme de punta a
+    punta; presupuesto 250 ms (mejor de 3) contra < 30 ms medidos, holgado para CI. Mutación: volver a las regex
+    sin acotar hace fallar `…_patterns_are_linear_even_without_the_cut`.
+  - **N-2 (falsos negativos):** separador `:` o `=` con espacios y comillas (`{"access_token": "x"}`,
+    `{'password': 'x'}`, `token: x`, `X-Api-Key: v`, `password = x`), conservando el esquema
+    (`Authorization: Bearer/Basic/Token x`); `Basic <cred>` como `Bearer`; claves `private_key`, `session`
+    (`sessionid`), `jwt` y `auth` exacta (en campos y en texto; en texto también `authorization` y `cookie`
+    enteras). Test: `test_AC_PLT_08_text_loses_quoted_and_colon_separated_secrets` y casos de claves.
+    **No** se agregaron los patrones de tokens de Mercado Pago (`APP_USR-…`, `TEST-…`, `TG-…`): un patrón
+    específico de un proveedor en `apps/common` viola C-09. Pregunta abierta para el planner: un registro
+    genérico de patrones en `domain/redaction.py` que el adaptador de MP complete desde
+    `integrations/providers/mercadopago/` cuando exista (módulo de integraciones). El repo solo confirma los
+    prefijos `APP_USR-`/`TEST-` (`context/09`, `context/03`); la forma completa no está documentada.
+  - **N-1:** `logging.captureWarnings(True)` en `configure_logging`. Test en subproceso:
+    `test_AC_PLT_08_python_warnings_are_json_and_redacted`.
+  - **N-3:** comentario en `SQL_LOGGERS`: el nivel INFO también corta `django.db.backends.schema` (DDL en DEBUG).
+  - **B-2:** `design.md §3.2.3` reescrito con el orden, las claves, las reglas de texto, el corte y
+    `captureWarnings`; spec 1.0.3 (sin cambios en RN/RF/AC).
+- **Orden de procesadores:** la redacción corre **después** de `format_exc_info`: así la traza renderizada
+  (`exception`) también se limpia, y `exc_info` (una tupla de excepción) no pasa por la redacción. Reflejado en
+  `design.md §3.2.3` (spec 1.0.3).
 - **Desvío de alcance (registrado):** además de los tres archivos listados se tocaron `apps/common/logging/setup.py`
   (procesador en la cadena, N-2, N-4, `django.db.backends`), `apps/common/logging/report_filter.py` (N-5),
   `apps/common/middleware/access_log.py` (N-3 de T-PLT-13 y los dos puntos de la revisión de `41651f0`),
   `backend/tests/logging/test_AC_PLT_07_access_log_json.py` (sus tests) y se crearon
   `test_AC_PLT_08_redaction_domain.py`, `test_AC_PLT_08_sql_and_reports.py` y `test_RN_PLT_05_render_failures.py`
-  (separados por tema para no pasar de ~400 líneas). Todos son los pendientes que esta sección asigna a T-PLT-14.
+  (separados por tema para no pasar de ~400 líneas); tras la revisión, `test_AC_PLT_08_redaction_performance.py`,
+  `design.md` y `spec.sdd.md` (B-2). Todos son pendientes que esta sección asigna a T-PLT-14 o que pidió la revisión.
 
 ### T-PLT-15 — Errores `problem+json`
 - **AC:** AC-PLT-34. RN-PLT-15 (Q-036), RN-PLT-16 (sin CORS). **Zona roja:** sí (contrato de errores).
@@ -524,6 +550,11 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   integration), `test_AC_PLT_11_task_log_has_duration_ms_and_result_without_args`,
   `test_AC_PLT_11_invalid_request_id_in_task_header_is_replaced`,
   `test_AC_PLT_11_diagnostic_endpoint_returns_202_with_task_id_and_request_id`, `test_Q056_dev_routes_absent_in_prod`.
+- **Pendiente de la revisión de T-PLT-14:** Celery loguea `Task x[id] raised unexpected: <repr(exc)>` (el mensaje de
+  la excepción, que puede traer cualquier cosa) y en algunos caminos args/kwargs dentro del mensaje (logger
+  `celery.app.trace`), donde la redacción por clave no llega. Verificar con un test de centinela (excepción y args
+  con un secreto, `start_worker`) que `task_failure`/`task_postrun` y `worker_hijack_root_logger=False` dejan solo
+  los campos de `celery.task`; si no, silenciar o bajar de nivel esos loggers como `django.request` en T-PLT-13.
 
 ### T-PLT-18 — Contrato OpenAPI commiteado + `--check`
 - **AC:** AC-PLT-23 (backend). RN-PLT-15, RF-PLT-14, ADR-0005. **Zona roja:** sí (contrato público).
@@ -626,6 +657,9 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
 - **Verificación manual:** `docker build --target runtime --build-arg GIT_SHA=$(git rev-parse HEAD) backend` y `id -u` ≠ 0.
 - **Pendiente de la revisión de T-PLT-08:** la imagen `runtime` fija `ENV DJANGO_SETTINGS_MODULE=config.settings.prod`
   para que `manage.py` dentro del contenedor no use dev (N-5).
+- **Pendiente de la revisión de T-PLT-14:** el error log de gunicorn (`gunicorn.error`: arranque, workers caídos,
+  tracebacks fuera de Django) tiene que usar el mismo `logconfig_dict` (`logging_config()`), para que pase por
+  `StdoutHandler`, la redacción y `captureWarnings`; test de centinela con un worker que falla.
 
 ### T-PLT-26 — Compose de desarrollo (db, redis, backend, worker, beat)
 - **AC:** AC-PLT-01 (parcial: 5 servicios), AC-PLT-02 (manual). RN-PLT-01, RF-PLT-02, RNF-PLT-05, D-04, D-05.
