@@ -1,20 +1,31 @@
 """AC-PLT-19 (RN-PLT-13, C-06): gitleaks blocks a token-shaped secret, not a placeholder (T-PLT-04).
 
-``.gitleaks.toml`` keeps the default rules with one allowlist, the ``<ver .env: NAME>`` placeholder
-matched against the captured *secret*; the ``secrets`` job pins the image by digest, fetches the
-whole history and scans the commits of the event. Its range step is executed with bash in a
-throwaway repo: ``base..head`` on a PR, ``before..after`` on a push, the whole history of ``after``
-on the first push of a ref (``before`` = 40 zeros). The gitleaks runs themselves (Docker, fake token
-generated at runtime) join this module with the ``gitleaks`` marker.
+Two groups of tests:
+
+* Shape and range (always run): ``.gitleaks.toml`` keeps the default rules with one allowlist, the
+  ``<ver .env: NAME>`` placeholder matched against the captured *secret*; the ``secrets`` job pins
+  the image by digest, fetches the whole history and scans the commits of the event. Its range step
+  is executed with bash in a throwaway repo: ``base..head`` on a PR, ``before..after`` on a push,
+  the whole history of ``after`` on the first push of a ref (``before`` = 40 zeros).
+* ``gitleaks`` marker (Docker, the image of ``ci.yml``): deselected by default in
+  ``scripts/pytest.ini``; the ``secrets`` job runs them with ``-m gitleaks``. The fake token is
+  generated at runtime, so the repo never holds one (gitleaks would flag its own tests).
+
+Today no default rule fires on the placeholder (it has spaces and ``<``), so the allowlist is
+defensive: the shape test pins it to exactly that pattern, and the same-line test proves it does not
+hide a real token next to a placeholder (it would with ``regexTarget = "line"``).
 """
 
 from __future__ import annotations
 
 import os
 import re
+import secrets
 import shutil
+import string
 import subprocess
 import tomllib
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -39,6 +50,12 @@ def secrets_job() -> dict[str, Any]:
 
 def step(job: dict[str, Any], step_id: str) -> dict[str, Any]:
     return next(s for s in job["steps"] if s.get("id") == step_id)
+
+
+def fake_github_token() -> str:
+    """A GitHub PAT shape (rule ``github-pat``), random per run; never a literal in the repo."""
+    alphabet = string.ascii_letters + string.digits
+    return "ghp" + "_" + "".join(secrets.choice(alphabet) for _ in range(36))
 
 
 def git_out(repo: GitRepo, *args: str) -> str:
@@ -142,6 +159,7 @@ def test_AC_PLT_19_secrets_job_scans_event_commits_with_pinned_image() -> None:
     assert '"$GITLEAKS_IMAGE" git /repo' in scan
     assert "--redact" in scan
     assert '--log-opts="$LOG_OPTS"' in scan
+    assert any("-m gitleaks" in run and "test_AC_PLT_19_gitleaks.py" in run for run in runs)
 
 
 def test_AC_PLT_19_precommit_gitleaks_scans_staged_redacted_everywhere() -> None:
@@ -209,3 +227,75 @@ def test_AC_PLT_19_range_rejects_anything_but_commit_shas(
     code, log_opts = run_range_step(repo, tmp_path, **event)
     assert code != 0
     assert log_opts == ""
+
+
+# --- gitleaks in Docker (marker `gitleaks`) ------------------------------------------------------
+
+Scan = Callable[[str], subprocess.CompletedProcess[str]]
+
+
+@pytest.fixture(params=["pre-commit-staged", "ci-pull-request"])
+def scan(
+    request: pytest.FixtureRequest, two_commits: tuple[GitRepo, str, str], tmp_path: Path
+) -> Scan:
+    """Stage (pre-commit) or commit on top of ``head`` and scan it the way that path does."""
+    repo, _, head = two_commits
+    config_dir = tmp_path / "gitleaks-config"
+    config_dir.mkdir()
+    shutil.copyfile(GITLEAKS_CONFIG, config_dir / ".gitleaks.toml")
+
+    def run(content: str) -> subprocess.CompletedProcess[str]:
+        repo.write_bytes("config.txt", content.encode("utf-8"))
+        if request.param == "pre-commit-staged":
+            mode = ["--pre-commit", "--staged"]
+        else:
+            code, log_opts = run_range_step(
+                repo, tmp_path, EVENT_NAME="pull_request", BASE_SHA=head, HEAD_SHA=commit(repo, "x")
+            )
+            assert code == 0
+            mode = [f"--log-opts={log_opts}"]
+        mounts = ["-v", f"{repo.root}:/repo", "-v", f"{config_dir}:/cfg:ro"]
+        docker = ["docker", "run", "--rm", *mounts]
+        image = secrets_job()["env"]["GITLEAKS_IMAGE"]
+        options = ["--config", "/cfg/.gitleaks.toml", "--redact", "--no-banner", "--verbose"]
+        return subprocess.run(  # noqa: S603 - fixed argv, test-only; docker from PATH
+            [*docker, image, "git", "/repo", *options, *mode],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+            timeout=300,
+        )
+
+    return run
+
+
+@pytest.mark.gitleaks
+def test_AC_PLT_19_token_shaped_secret_is_detected(scan: Scan) -> None:
+    token = fake_github_token()
+    result = scan(f"GITHUB_TOKEN={token}\n")
+
+    output = result.stdout + result.stderr
+    assert result.returncode == 1, output
+    assert "github-pat" in output
+    assert token not in output  # --redact
+
+
+@pytest.mark.gitleaks
+def test_AC_PLT_19_env_placeholder_is_not_flagged(scan: Scan) -> None:
+    result = scan(
+        f"MP_ACCESS_TOKEN={PLACEHOLDER}\n| Access Token (prueba) | `{PLACEHOLDER}` |\n"
+        f'access_token = "{PLACEHOLDER}"\n'
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+@pytest.mark.gitleaks
+def test_AC_PLT_19_placeholder_and_real_token_on_same_line_still_fails(scan: Scan) -> None:
+    token = fake_github_token()
+    result = scan(f"MP_ACCESS_TOKEN={PLACEHOLDER} GITHUB_TOKEN={token}\n")
+
+    output = result.stdout + result.stderr
+    assert result.returncode == 1, output
+    assert token not in output

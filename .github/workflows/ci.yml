@@ -69,7 +69,8 @@ jobs:
   # .gitleaks.toml, findings redacted. Image by tag + digest (multi-arch index, RN-PLT-14). Range:
   # base..head on a PR, before..after on a push; the whole history of `after` on the first push of
   # a ref (before = 40 zeros) or when `before` is not in the clone. fetch-depth 0 so every commit of
-  # the range is there. deps-audit (T-PLT-28) joins this stage.
+  # the range is there. Then the `gitleaks`-marked tests against the same image. deps-audit
+  # (T-PLT-28) joins this stage.
   secrets:
     needs: file-size
     runs-on: ubuntu-24.04
@@ -123,6 +124,11 @@ jobs:
         run: >-
           docker run --rm -v "$GITHUB_WORKSPACE:/repo:ro" "$GITLEAKS_IMAGE" git /repo
           --config /repo/.gitleaks.toml --redact --no-banner --verbose --log-opts="$LOG_OPTS"
+      - uses: ./.github/actions/setup
+        with:
+          python: "true"
+      - name: pytest -m gitleaks (AC-PLT-19)
+        run: pytest -c scripts/pytest.ini scripts/tests/test_AC_PLT_19_gitleaks.py -m gitleaks
 
   # Step 4. AC-PLT-21 (backend): mypy with the django-stubs/drf-stubs plugins over backend/ and
   # scripts/, strict in apps/common/ and every domain/ ([tool.mypy] of backend/pyproject.toml). The
