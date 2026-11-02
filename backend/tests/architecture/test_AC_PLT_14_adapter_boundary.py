@@ -3,7 +3,8 @@
 The rule (``ast_rules.adapter_boundary_violations``) runs on the real ``apps/`` and ``config/``,
 on the synthetic tree under ``synthetic/`` (which stands for ``apps/``) and on one-off modules
 written to ``tmp_path``: every module is parsed as AST, none is imported. The synthetic cases pin
-the exact violations, so a rule that flags everything or nothing fails here.
+the exact violations, so a rule that flags everything or nothing fails here. A last test checks
+that the ``architecture`` job of ``ci.yml`` (RN-PLT-09) really runs these tests.
 """
 
 from __future__ import annotations
@@ -11,6 +12,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+import yaml
 
 from tests.architecture.allowlists import ADAPTER_IMPORT_ALLOWLIST, AllowEntry
 from tests.architecture.ast_rules import (
@@ -21,6 +23,7 @@ from tests.architecture.ast_rules import (
 )
 
 BACKEND = Path(__file__).resolve().parents[2]
+CI_WORKFLOW = BACKEND.parent / ".github" / "workflows" / "ci.yml"
 SYNTHETIC = SourceTree(Path(__file__).resolve().parent / "synthetic", "apps")
 MP = "apps.integrations.providers.mercadopago"
 SERVICE = "apps/charges/services/evasion.py"
@@ -149,3 +152,10 @@ def test_AC_PLT_14_real_code_has_no_violations() -> None:
     scanned = {source.path.split("/")[0] for source in iter_sources(trees)}
     assert scanned == {"apps", "config"}, "the rule scanned nothing: it would pass on anything"
     assert adapter_boundary_violations(trees, allowlist=ADAPTER_IMPORT_ALLOWLIST) == []
+
+
+def test_RN_PLT_09_architecture_job_runs_architecture_tests() -> None:
+    # From backend/, so pytest reads backend/pyproject.toml (settings, norecursedirs).
+    steps = yaml.safe_load(CI_WORKFLOW.read_text(encoding="utf-8"))["jobs"]["architecture"]["steps"]
+    runs = [(step.get("working-directory"), step["run"]) for step in steps if "run" in step]
+    assert runs == [("backend", "pytest tests/architecture")]
