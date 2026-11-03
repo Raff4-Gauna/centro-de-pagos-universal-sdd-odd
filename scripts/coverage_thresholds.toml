@@ -1,0 +1,31 @@
+# Coverage gate of CI step 7, read by scripts/check_coverage.py (RNF-PLT-08, Q-032, AC-PLT-22).
+# Thresholds can go up freely; lowering one needs a row in the change history of
+# specs/00-platform/spec.sdd.md (RNF-PLT-08), and scripts/tests/test_AC_PLT_22_check_coverage.py pins
+# them. Report paths are relative to the repo root: the `tests` job writes and uploads them, the
+# `coverage` job downloads them to the same place. A declared report that is missing fails the gate.
+# Globs follow scripts/glob_paths.py and match the paths inside each report.
+
+# Backend: `pytest --cov` from backend/ ([tool.coverage.run] in backend/pyproject.toml: branch
+# coverage, subprocesses included), so report paths are relative to backend/.
+[[gate]]
+name = "backend"
+report = "backend/coverage/backend.json"
+format = "coverage.py"
+include = ["apps/**", "config/**"]
+lines = 85
+branches = 85
+
+# Repo-level scripts: `pytest -c scripts/pytest.ini scripts/tests --cov=scripts --cov-branch` from the
+# repo root. Their own tests are measured too but are not what is gated.
+# The 85 % applies to lines and branches, as for the backend (RNF-PLT-08 names only the number).
+[[gate]]
+name = "scripts"
+report = "coverage/scripts.json"
+format = "coverage.py"
+include = ["scripts/**"]
+exclude = ["scripts/tests/**"]
+lines = 85
+branches = 85
+
+# Frontend (>= 70 % of lines in src/lib, src/hooks, src/modules; app/ and generated types are not
+# gated): added by T-PLT-30 with format = "istanbul" (vitest json-summary).

@@ -57,3 +57,14 @@ addopts = ["--strict-markers", "--strict-config"]
 markers = [
     "integration: needs the real PostgreSQL and Redis (DATABASE_URL, REDIS_URL)",
 ]
+
+# Coverage of `pytest --cov` (T-PLT-21, RNF-PLT-08). The gate itself (>= 85 % of lines and branches
+# of apps/ + config/) lives in scripts/coverage_thresholds.toml and runs in the CI `coverage` job.
+[tool.coverage.run]
+source = ["apps", "config"]
+branch = true
+# Measure the Django processes the tests start (tests/conftest.py run_django); implies `parallel`,
+# and pytest-cov combines the per-process files at the end (coverage >= 7.10).
+patch = ["subprocess"]
+# Data files under coverage/ (git-ignored), next to the JSON report the CI job uploads.
+data_file = "coverage/.coverage"

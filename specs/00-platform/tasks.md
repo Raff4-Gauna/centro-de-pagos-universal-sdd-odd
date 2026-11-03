@@ -65,7 +65,7 @@ Reglas: rebanada vertical · ≤ ~300 líneas de diff · mergeable sola · cita 
 | T-PLT-18 | Contrato OpenAPI commiteado + `--check` | AC-PLT-23 (backend) | API/Contrato | `export_openapi.py`, `specs/_contracts/openapi.yaml` | T-PLT-15 | backend-dev | M | Sí | ☐ |
 | T-PLT-19 | Tests de arquitectura C-09 y C-01 + job | AC-PLT-14, AC-PLT-15 | Arquitectura/CI | `backend/tests/architecture/` | T-PLT-08 | backend-dev | L | Sí | ☐ |
 | T-PLT-20 | Chequeo C-02 (`float` en dinero) | AC-PLT-31 | Arquitectura | `ast_rules.py`, `allowlists.py` | T-PLT-19 | backend-dev | M | Sí | ☐ |
-| T-PLT-21 | Gate de cobertura + job `coverage` | AC-PLT-22 | CI | `scripts/check_coverage.py`, `scripts/coverage_thresholds.toml` | T-PLT-08 | backend-dev | L | Sí | ☐ |
+| T-PLT-21 | Gate de cobertura + job `coverage` | AC-PLT-22 | CI | `scripts/check_coverage.py`, `scripts/coverage_thresholds.toml` | T-PLT-08 | backend-dev | L | Sí | ◐ en revisión (falta reviewer/PR) |
 | T-PLT-22 | Migraciones: faltante + job `migrations` | AC-PLT-16 | Migraciones/CI | `tests/migrations/` | T-PLT-08, T-PLT-11 | backend-dev | M | Sí | ☐ |
 | T-PLT-23 | Migraciones: nombres `auto_` y `RunPython` mezclado | AC-PLT-18 | Migraciones | `apps/common/migration_lint/`, `lint_migrations.py` | T-PLT-22 | backend-dev | L | Sí | ☐ |
 | T-PLT-24 | Migraciones: reversibilidad + ida y vuelta | AC-PLT-17 | Migraciones/CI | `check_migrations_roundtrip.py` | T-PLT-23 | backend-dev | L | Sí | ☐ |
@@ -623,6 +623,16 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   `test_AC_PLT_22_frontend_app_dir_is_not_gated`, `test_AC_PLT_22_declared_report_missing_fails`,
   `test_AC_PLT_22_exactly_at_threshold_passes`.
 - **DoD extra:** la cobertura real de backend y `scripts/` al mergear ya está ≥ 85 %.
+- **Revisión de `0f9a24a`: APROBADO.** No bloqueantes para una tarea posterior (no entran en este PR):
+  1. Fijar con test `[tool.coverage.run]` (`source`, `branch`) de `backend/pyproject.toml`, la ausencia de
+     `omit`/`exclude_lines`/`exclude_also`, y `include`/`report` de cada gate: hoy un PR podría achicar lo medido
+     sin que falle un test (solo lo frena la revisión).
+  2. Test que compare los `.py` versionados de `apps/` y `config/` con las claves del reporte (un directorio sin
+     `__init__.py` que nunca se importa quedaría fuera en silencio).
+  3. Controlar la aparición de `# pragma: no cover` (hoy hay cero): contarlos o regla de lint.
+  4. `scripts/check_coverage.py:144`: dos claves que normalizan igual (`apps\x.py` / `apps/x.py`) se pisan sin
+     aviso; lanzar `ReportError` ante duplicados.
+  5. El job `coverage` corre `setup` con `uv sync` completo aunque el script es solo stdlib (tiempo de CI).
 
 ### T-PLT-22 — Migraciones: faltante + job `migrations`
 - **AC:** AC-PLT-16. RN-PLT-10, RF-PLT-10. **Zona roja:** sí.

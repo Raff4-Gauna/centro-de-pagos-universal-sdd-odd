@@ -107,8 +107,52 @@ jobs:
       - uses: ./.github/actions/setup
         with:
           python: "true"
+      # Coverage (T-PLT-21): [tool.coverage.run] of backend/pyproject.toml (apps/ + config/, branches,
+      # subprocesses). Data and JSON reports go under the git-ignored coverage/ directories; the
+      # `coverage` job applies the thresholds of scripts/coverage_thresholds.toml.
       - name: pytest backend (unit + integration)
         working-directory: backend
-        run: pytest
+        run: >-
+          pytest --cov --cov-report=json:coverage/backend.json
+          --cov-report=term-missing:skip-covered
       - name: pytest scripts/tests
-        run: pytest -c scripts/pytest.ini scripts/tests
+        env:
+          COVERAGE_FILE: coverage/.coverage.scripts
+        run: >-
+          pytest -c scripts/pytest.ini scripts/tests
+          --cov=scripts --cov-branch --cov-report=json:coverage/scripts.json
+          --cov-report=term-missing:skip-covered
+      # One artifact, paths kept from the workspace root (their common ancestor), so the
+      # `coverage` job restores them where the thresholds file declares them.
+      - name: Upload coverage reports
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: coverage-reports
+          path: |
+            backend/coverage/backend.json
+            coverage/scripts.json
+          if-no-files-found: error
+          retention-days: 7
+
+  # Step 7. AC-PLT-22 (RNF-PLT-08, Q-032): backend apps/ + config/ and scripts/ >= 85 % of lines
+  # and branches; a declared report that is missing fails. The frontend entry arrives with
+  # T-PLT-30. Read-only token from the workflow-level `permissions`; the download needs no token
+  # (same run).
+  coverage:
+    needs: tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+        with:
+          python: "true"
+      - name: Download coverage reports
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: coverage-reports
+          path: .
+      - name: check_coverage.py
+        run: python scripts/check_coverage.py
