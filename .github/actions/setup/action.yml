@@ -1,0 +1,47 @@
+# Shared job setup for ci.yml (design.md §3.5). Versions from design.md §8: uv 0.13.6, Python 3.12.16.
+# Input `python`: uv + Python + the backend env from the lockfile (dev group included), put on PATH.
+# Input `node` (pnpm + setup-node + pnpm install) is added by T-PLT-27.
+name: setup
+description: Install the pinned toolchain for a CI job.
+
+inputs:
+  python:
+    description: "Install uv 0.13.6, Python 3.12.16 and the backend env (uv sync --frozen)."
+    required: false
+    default: "false"
+
+runs:
+  using: composite
+  steps:
+    - name: Fail when no toolchain is requested
+      if: inputs.python != 'true'
+      shell: bash
+      run: |
+        echo "::error::.github/actions/setup called without any toolchain input set to 'true'"
+        exit 1
+
+    - name: Set up uv
+      if: inputs.python == 'true'
+      uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+      with:
+        version: "0.13.6"
+        # "auto": cache on GitHub-hosted runners, but not on tag pushes (release builds start clean).
+        enable-cache: auto
+        cache-dependency-glob: backend/uv.lock
+
+    - name: Install Python 3.12.16
+      if: inputs.python == 'true'
+      shell: bash
+      run: uv python install 3.12.16
+
+    - name: Install the backend env from the lockfile
+      if: inputs.python == 'true'
+      shell: bash
+      working-directory: backend
+      # --frozen: install exactly uv.lock, never re-resolve (C-13, RN-PLT-14).
+      run: uv sync --frozen --python 3.12.16
+
+    - name: Put the backend env on PATH
+      if: inputs.python == 'true'
+      shell: bash
+      run: echo "$GITHUB_WORKSPACE/backend/.venv/bin" >> "$GITHUB_PATH"

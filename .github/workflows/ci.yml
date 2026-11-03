@@ -1,0 +1,77 @@
+# CI pipeline (design.md §3.5, RN-PLT-11, RN-PLT-18). Fail-fast chain through `needs:`:
+#   lint -> file-size -> secrets + deps-audit -> typecheck -> architecture -> tests -> coverage
+#   -> migrations -> build
+# It grows one task at a time: each task inserts its job in its place and moves the `needs` of the
+# next one (scripts/tests/test_AC_PLT_20_pipeline_chain.py checks the shape on every PR).
+# Rules: never pull_request_target nor workflow_run; read-only token; no secrets; every remote
+# `uses:` pinned by full SHA (tag in the comment); no job-level `if:` on a required job (a skipped
+# required check counts as passed on GitHub).
+name: ci
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  # Cancel superseded runs of a PR; never cancel a run on main or a tag.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# Common, non-secret env. The Django/DB/Redis values of design.md §3.5 come with the jobs that use
+# them (T-PLT-08, T-PLT-11).
+env:
+  TZ: UTC
+
+jobs:
+  # Step 1. eslint/prettier (T-PLT-27) and check_workflows.py (T-PLT-05) are added here later.
+  lint:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+        with:
+          python: "true"
+      - name: ruff check
+        run: ruff check .
+      - name: ruff format --check
+        run: ruff format --check .
+
+  # Step 2. AC-PLT-13: tracked code files over 400 lines (C-14).
+  file-size:
+    needs: lint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+        with:
+          python: "true"
+      - name: check_file_size.py
+        run: python scripts/check_file_size.py
+
+  # Step 6. Hooked to file-size until secrets/deps-audit/typecheck/architecture exist; the backend
+  # pytest run comes with T-PLT-08.
+  tests:
+    needs: file-size
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+        with:
+          python: "true"
+      - name: pytest scripts/tests
+        run: pytest -c scripts/pytest.ini scripts/tests
