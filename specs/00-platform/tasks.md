@@ -278,7 +278,12 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   Pago que la regla no cubre (N-1): formato legado `__LX_LY__`, prefijo en minúsculas y refresh tokens `TG-…`; y la
   public key (`APP_USR-`/`TEST-` + UUID). (3) Credenciales en URLs del lockfile: por stdin, `generic-api-key` detecta
   `_authToken=…`, pero ninguna regla por defecto detecta `https://user:pass@registry…` (verificado con v8.30.1), así
-  que el chequeo propio de (1) sigue pendiente. (4) Ninguno de estos bloquea T-PLT-04.
+  que el chequeo propio de (1) sigue pendiente. (4) Ninguno de estos bloquea T-PLT-04. (5) Re-verificación de
+  `962a62a`: `scan-lockfiles` falla abierto si `git log` da error (`bash -e` sin `pipefail`: stdin vacío y
+  gitleaks sale 0); no es provocable porque `range` valida las SHAs, pero conviene `set -o pipefail` al inicio del
+  `run` más un test. (6) Un secreto agregado y borrado dentro del PR bajo una ruta de la allowlist por defecto
+  (`a/node_modules/x.py`) no lo ve ningún paso (la guarda mira solo el árbol final); no llega a `main` por el
+  squash, pero queda en los commits del PR.
 - **`frontend/pnpm-lock.yaml` (decisión del planner):** la guarda lo exceptúa solo por ruta exacta
   (`GITLEAKS_EXEMPT_LOCKFILES`, lista única del job), y el paso `scan-lockfiles` pasa su diff del rango por
   `gitleaks stdin`. Tests: `test_AC_PLT_19_token_in_the_exempt_lockfile_fails_the_lockfile_scan` (el escaneo
