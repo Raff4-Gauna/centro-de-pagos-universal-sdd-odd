@@ -1,19 +1,31 @@
 # Shared job setup for ci.yml (design.md §3.5). Versions from design.md §8: uv 0.13.6, Python 3.12.16,
 # Node 24.22.2 (frontend/.nvmrc), pnpm 12.16.1 (frontend/package.json `packageManager`).
 # Input `python`: uv + Python + the backend env from the lockfile (dev group included), put on PATH.
+# Input `backend-deps` ("true" by default): with "false", only uv and Python; no `uv sync` and no
+# backend venv on PATH, so nothing of backend/ (uv.lock, local sources) runs (deps-audit, B-3).
 # Input `node`: pnpm + Node + the frontend deps from the lockfile (pnpm install --frozen-lockfile).
+# Input `frontend-deps` ("true" by default): with "false", only pnpm (a native binary since v12) and its
+# version check; no setup-node and no `pnpm install`, so no code of the PR runs (deps-audit, T-PLT-28).
 name: setup
 description: Install the pinned toolchain for a CI job.
 
 inputs:
   python:
-    description: "Install uv 0.13.6, Python 3.12.16 and the backend env (uv sync --frozen)."
+    description: "Install uv 0.13.6, Python 3.12.16 and the backend env (uv sync --frozen --no-build)."
     required: false
     default: "false"
   node:
     description: "Install pnpm 12.16.1, Node 24.22.2 and the frontend deps (pnpm install --frozen-lockfile)."
     required: false
     default: "false"
+  frontend-deps:
+    description: "With node: also set up Node and install the frontend deps. 'false' = pnpm only."
+    required: false
+    default: "true"
+  backend-deps:
+    description: "With python: also install the backend env and put it on PATH. 'false' = no env."
+    required: false
+    default: "true"
 
 runs:
   using: composite
@@ -37,17 +49,23 @@ runs:
     - name: Install Python 3.12.16
       if: inputs.python == 'true'
       shell: bash
-      run: uv python install 3.12.16
+      # --no-config: a PR's /uv.toml or /pyproject.toml [tool.uv] (python-downloads-json-url,
+      # python-install-mirror) would otherwise pick the interpreter every venv is built on (B-5).
+      run: uv python install --no-config 3.12.16
 
     - name: Install the backend env from the lockfile
-      if: inputs.python == 'true'
+      if: inputs.python == 'true' && inputs.backend-deps == 'true'
       shell: bash
       working-directory: backend
       # --frozen: install exactly uv.lock, never re-resolve (C-13, RN-PLT-14).
-      run: uv sync --frozen --python 3.12.16
+      # --no-build: wheels only. A lock entry with a local `source = { directory = ... }` would
+      # otherwise run that directory's build backend, PR code, during the install (T-PLT-28, B-3).
+      # --no-config: no uv.toml of the PR; `package = false` of backend/pyproject.toml still applies
+      # (it is project metadata, not a setting; checked in Docker with uv 0.13.6, B-5).
+      run: uv sync --no-config --frozen --no-build --python 3.12.16
 
     - name: Put the backend env on PATH
-      if: inputs.python == 'true'
+      if: inputs.python == 'true' && inputs.backend-deps == 'true'
       shell: bash
       run: echo "$GITHUB_WORKSPACE/backend/.venv/bin" >> "$GITHUB_PATH"
 
@@ -58,17 +76,37 @@ runs:
         # No `version`: it comes from `packageManager` (exact version + hash), the single source.
         package_json_file: frontend/package.json
 
-    - name: Set up Node
+    - name: Check pnpm matches packageManager
       if: inputs.node == 'true'
+      shell: bash
+      # pnpm/action-setup drops the `+sha512...` suffix of `packageManager`, so check that the pnpm
+      # on PATH is exactly the pinned version (T-PLT-27 review follow-up, T-PLT-28). `pnpm --version`
+      # runs in $RUNNER_TEMP: a PR's /package.json or /pnpm-workspace.yaml at the repo root cannot
+      # change which pnpm answers (N-3).
+      run: |
+        expected="$(jq -r '.packageManager // ""' frontend/package.json | sed -E 's/^pnpm@([^+]+).*$/\1/')"
+        actual="$(cd "$RUNNER_TEMP" && pnpm --version)"
+        if [ -z "$expected" ] || [ "$actual" != "$expected" ]; then
+          echo "::error::pnpm ${actual} does not match packageManager '${expected}' in frontend/package.json"
+          exit 1
+        fi
+        echo "pnpm ${actual} matches packageManager"
+
+    - name: Set up Node
+      if: inputs.node == 'true' && inputs.frontend-deps == 'true'
       uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
       with:
         node-version-file: frontend/.nvmrc
-        cache: pnpm
+        # No pnpm cache on tag pushes (release builds start clean, like `enable-cache: auto` of
+        # setup-uv). The empty value goes last: `cond && '' || 'pnpm'` always yields 'pnpm'.
+        cache: ${{ !startsWith(github.ref, 'refs/tags/') && 'pnpm' || '' }}
         cache-dependency-path: frontend/pnpm-lock.yaml
 
     - name: Install the frontend deps from the lockfile
-      if: inputs.node == 'true'
+      if: inputs.node == 'true' && inputs.frontend-deps == 'true'
       shell: bash
       working-directory: frontend
       # --frozen-lockfile: install exactly pnpm-lock.yaml, never re-resolve (C-13, RN-PLT-14).
-      run: pnpm install --frozen-lockfile
+      # --ignore-scripts --ignore-pnpmfile: no lifecycle script nor .pnpmfile.* code of the PR runs
+      # while installing (T-PLT-28 review, B-2); no dependency needs a build script (allowBuilds).
+      run: pnpm install --frozen-lockfile --ignore-scripts --ignore-pnpmfile

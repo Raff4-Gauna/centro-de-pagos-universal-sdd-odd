@@ -236,6 +236,43 @@ jobs:
       - name: pytest -m gitleaks (AC-PLT-19)
         run: pytest -c scripts/pytest.ini scripts/tests -m gitleaks
 
+  # Step 3 (with `secrets`, T-PLT-04). AC-PLT-26 (RN-PLT-14, D-10): pip-audit over the frozen
+  # uv.lock export + pnpm audit; severity from OSV (unknown = high); fails on high/critical without
+  # a valid exception in scripts/audit_exceptions.toml, and on any expired exception.
+  # No code of the PR runs before the gate (T-PLT-28 review): frontend-deps "false" = only the pnpm
+  # binary, no Node and no `pnpm install` (postinstall, .pnpmfile.*; B-2); backend-deps "false" = no
+  # `uv sync` and no backend venv (a local build backend planted through uv.lock; B-3). The gate runs
+  # in a venv of its own with pip-audit and its whole chain from scripts/audit_tool_requirements.txt
+  # (hashed, wheels only), not from the PR's backend/uv.lock.
+  deps-audit:
+    needs: file-size
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      # No uv.toml / [tool.uv] of the PR in any uv call of this job, setup-uv's own included (B-5).
+      UV_NO_CONFIG: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+        with:
+          python: "true"
+          node: "true"
+          frontend-deps: "false"
+          backend-deps: "false"
+      - name: Install the pinned audit tools
+        # --no-config: no uv.toml / [tool.uv] of the PR (indexes, sources) is read.
+        # --no-cache: not the uv cache restored by setup-uv, which other jobs of the run (with PR
+        # code) may have written (N-1); every file is downloaded now and checked against its hash.
+        run: |
+          uv venv --no-config --no-project --python 3.12.16 "$RUNNER_TEMP/audit-tools"
+          uv pip install --no-config --no-cache --python "$RUNNER_TEMP/audit-tools/bin/python" \
+            --require-hashes --no-build -r scripts/audit_tool_requirements.txt
+      - name: audit_deps.py
+        # The tools venv's Python runs the script, and pip-audit as `python -I -m pip_audit`.
+        run: '"$RUNNER_TEMP/audit-tools/bin/python" scripts/audit_deps.py'
+
   # Step 4. AC-PLT-21 (backend): mypy with the django-stubs/drf-stubs plugins over backend/ and
   # scripts/, strict in apps/common/ and every domain/ ([tool.mypy] of backend/pyproject.toml). The
   # Django plugin imports config.settings.test, which reads the workflow-level env. AC-PLT-23
@@ -244,8 +281,7 @@ jobs:
   # AC-PLT-21 (frontend, T-PLT-27): tsc --noEmit in strict mode. The frontend types diff (T-PLT-35)
   # is added here later.
   typecheck:
-    # Becomes `needs: [secrets, deps-audit]` when T-PLT-28 adds deps-audit to step 3.
-    needs: secrets
+    needs: [secrets, deps-audit]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
