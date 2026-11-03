@@ -64,7 +64,7 @@ Reglas: rebanada vertical · ≤ ~300 líneas de diff · mergeable sola · cita 
 | T-PLT-17 | Celery + tarea de diagnóstico con `request_id` | AC-PLT-11 | Backend | `config/celery.py`, `apps/common/celery_signals.py` | T-PLT-11, T-PLT-12 | backend-dev | L | No (reviewer recomendado) | ☐ |
 | T-PLT-18 | Contrato OpenAPI commiteado + `--check` | AC-PLT-23 (backend) | API/Contrato | `export_openapi.py`, `specs/_contracts/openapi.yaml` | T-PLT-15 | backend-dev | M | Sí | ☐ |
 | T-PLT-19 | Tests de arquitectura C-09 y C-01 + job | AC-PLT-14, AC-PLT-15 | Arquitectura/CI | `backend/tests/architecture/` | T-PLT-08 | backend-dev | L | Sí | ◐ en revisión (falta reviewer/PR) |
-| T-PLT-20 | Chequeo C-02 (`float` en dinero) | AC-PLT-31 | Arquitectura | `ast_rules.py`, `allowlists.py` | T-PLT-19 | backend-dev | M | Sí | ☐ |
+| T-PLT-20 | Chequeo C-02 (`float` en dinero) | AC-PLT-31 | Arquitectura | `ast_rules.py`, `allowlists.py` | T-PLT-19 | backend-dev | M | Sí | ◐ en revisión (falta reviewer/PR) |
 | T-PLT-21 | Gate de cobertura + job `coverage` | AC-PLT-22 | CI | `scripts/check_coverage.py`, `scripts/coverage_thresholds.toml` | T-PLT-08 | backend-dev | L | Sí | ◐ en revisión (falta reviewer/PR) |
 | T-PLT-22 | Migraciones: faltante + job `migrations` | AC-PLT-16 | Migraciones/CI | `tests/migrations/` | T-PLT-08, T-PLT-11 | backend-dev | M | Sí | ☐ |
 | T-PLT-23 | Migraciones: nombres `auto_` y `RunPython` mezclado | AC-PLT-18 | Migraciones | `apps/common/migration_lint/`, `lint_migrations.py` | T-PLT-22 | backend-dev | L | Sí | ☐ |
@@ -742,6 +742,55 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   `test_AC_PLT_31_float_call_in_domain_services_selectors_api_fails`, `test_AC_PLT_31_float_inside_providers_passes`,
   `test_AC_PLT_31_allowlisted_entry_passes`, `test_AC_PLT_31_entry_without_reason_fails`,
   `test_AC_PLT_31_dead_allowlist_entry_fails`, `test_AC_PLT_31_real_code_has_no_violations`.
+- **Hecho (commit `test(architecture)`):** la regla vive en `backend/tests/architecture/money_rules.py` y no en
+  `ast_rules.py` (C-14: este ya tiene 273 líneas). Reusa `iter_sources`, `Violation` y `apply_allowlist` de T-PLT-19.
+  `FLOAT_ALLOWLIST` arranca vacía y el símbolo de cada entrada es la expresión (`float(amount)`). Nada bajo
+  `apps/integrations/providers/` se chequea.
+  - `FloatField` se busca en `models.py` y en `models/`. Cubre `models.FloatField`, un alias (`m.`),
+    `django.db.models.FloatField`, la clase base de una subclase y `from django.db.models import FloatField [as F]`.
+  - `float` se busca en `domain`, `services`, `selectors` y `api`, sea paquete o módulo suelto y aunque esté anidado.
+    Cubre `float(...)`, `builtins.float(...)` (también con `builtins` aliasado), `from builtins import float as f`, y
+    `float` pasado o asignado como valor (`map(float, xs)`, `defaultdict(float)`, `to_number = float`).
+  - No se marca `float` cuando es un tipo: `isinstance`/`issubclass`, anotaciones, uniones, genéricos y `type`.
+    Sin esto, `JsonValue = str | int | float | …` de `apps/common/domain/redaction.py` daba un falso positivo.
+  - Mutación verificada: un `FloatField` en `apps/common/models.py` y un `float(x)` en `redaction.py` rompen
+    `real_code_has_no_violations`.
+  - Tests extra: `floatfield_evasions_detected`, `float_evasions_detected` y `decimal_and_type_checks_pass`.
+- **Residual:** literales float y `/` entre enteros, anotaciones `-> float`, un campo float definido en otro módulo y
+  usado en un modelo, `serializers.FloatField` en `api/`, JSON parseado a `float` y nombres armados en runtime
+  (`getattr(builtins, "float")`).
+- **Desvío de alcance:** `money_rules.py` no figura en "Archivos"; se agregó por C-14, a pedido del coordinador.
+  El comentario del job `architecture` en `ci.yml` todavía dice "C-02 joins with T-PLT-20". El job corre
+  `pytest tests/architecture`, así que ya incluye esta regla; no se tocó porque `ci.yml` no está en la lista.
+- **Preguntas para el planner (decisión conservadora aplicada):**
+  - (a) ¿También se marcan los literales float y las anotaciones `float`? El design no lo pide y no se agregaron.
+  - (b) ¿`serializers.FloatField` en `api/`? No se agregó por la misma razón.
+  - (c) La exención es solo `apps/integrations/providers/`, no cualquier carpeta `providers/`; ¿alcanza?
+  - (d) Los tests de las apps (`apps/<app>/tests/domain/…`) no se excluyen, a diferencia de C-01; ¿se excluyen?
+  - (e) ¿Las migraciones con `FloatField` quedan fuera del chequeo? Hoy sí; el modelo que las origina ya falla.
+- **Respuestas de la revisión:**
+  - (a) Literales y anotaciones no se marcan: `Decimal(0.21)` ya lo marca ruff `RUF032`.
+  - (b) Sí: se aplicó en este PR.
+  - (c) Alcanza con exceptuar `apps/integrations/providers/`.
+  - (d) Se excluyen, como en C-01: se aplicó en este PR.
+  - (e) Las migraciones quedan afuera porque las cubre `makemigrations --check` (T-PLT-22); quedó dicho en el
+    docstring de `money_rules.py`.
+- **Revisión de `97921fd`: APROBADO.** Aplicado en el mismo PR (commit `fix(architecture)`), cada punto con su test:
+  - (b) `FloatField` también en las capas de dinero: `serializers.FloatField` y `forms.FloatField` en `api/`, y
+    `from rest_framework.serializers import FloatField`.
+  - (d) Las rutas con un segmento `tests` no se chequean (`apps/charges/tests/domain/test_x.py` con `float('1.1')`).
+  - NB1: `<alias de builtins>.float` se marca aunque no se llame (`f = builtins.float; f(x)`).
+  - NB2: no se marcan `type(x) is float`, `!=`, `==` y `float in kinds` (solo el operando suelto:
+    `sum(map(float, xs)) == 0` sigue fallando) ni `case float():`.
+  - Docstring de `money_rules.py` alineado: alcance, `tests`, migraciones y residuales.
+- **Para después:**
+  1. Otros usos como tipo que todavía se marcan: `cast(float, …)`, `NewType`/`TypeVar`, `@register(float)` y las
+     tuplas de tipos como la de `apps/common/logging/processors.py:21`. Por ahora alcanza con la allowlist.
+  2. El comentario de `ci.yml:89-90` ("C-02 joins with T-PLT-20") quedó desactualizado.
+  3. Para SPEC-04: con `COERCE_DECIMAL_TO_STRING=False` o `coerce_to_string=False`, DRF emite floats en el JSON, y
+     esta regla no lo detecta.
+  4. Uniones (`|`) y subíndices exceptúan todo su subárbol, no solo el operando suelto como `Compare`: un
+     `defaultdict(float) | other` pasaría. Es raro, pero se puede alinear con NB2.
 
 ### T-PLT-21 — Gate de cobertura + job `coverage`
 - **AC:** AC-PLT-22 (backend y `scripts/`; el parser del reporte frontend se prueba con fixture). RNF-PLT-08 (Q-032).
