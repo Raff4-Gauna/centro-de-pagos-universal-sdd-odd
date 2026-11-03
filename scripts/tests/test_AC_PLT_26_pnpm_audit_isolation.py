@@ -139,7 +139,7 @@ def test_AC_PLT_26_pnpm_audit_home_and_xdg_are_empty_dirs_in_the_temp(
     seen: dict[str, list[str]] = {}
     original = FakeRunner.__call__
 
-    def spy(self: FakeRunner, argv, cwd, env=None):  # type: ignore[no-untyped-def]
+    def spy(self: FakeRunner, argv, cwd, env=None):
         if argv[:2] == ["pnpm", "audit"]:
             for name in pnpm_isolation.PNPM_ISOLATED_DIRS:
                 seen[name] = sorted(item.name for item in Path(env[name]).iterdir())

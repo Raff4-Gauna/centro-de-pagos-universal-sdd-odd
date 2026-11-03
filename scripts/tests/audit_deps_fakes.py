@@ -42,7 +42,7 @@ MINIMATCH_MODERATE = {
 
 
 def pip_audit_report(*vulns: dict[str, Any]) -> dict[str, Any]:
-    deps = [{"name": "django", "version": "5.2.18", "vulns": []}]
+    deps: list[dict[str, Any]] = [{"name": "django", "version": "5.2.18", "vulns": []}]
     deps.append({"name": "djangorestframework", "version": "3.16.1", "vulns": list(vulns)})
     return {"dependencies": deps, "fixes": []}
 
