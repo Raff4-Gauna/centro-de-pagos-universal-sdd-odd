@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from apps.common.api.schema import spectacular_settings
 from apps.common.logging.setup import logging_config
 
 BASE_DIR = Path(__file__).resolve().parents[2]
@@ -37,7 +38,8 @@ WSGI_APPLICATION = "config.wsgi.application"
 
 # DRF (design.md §3.2.2, §3.2.4): no authentication in 00 and AllowAny until module 01 sets deny
 # by default; no user object (no django.contrib.auth, D-03); JSON only (no browsable API); every
-# error as application/problem+json (T-PLT-15). Throttling (T-PLT-16) and schema (T-PLT-18) later.
+# error as application/problem+json (T-PLT-15); drf-spectacular's schema (T-PLT-18). Throttling
+# (T-PLT-16) later.
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [],
     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.AllowAny"],
@@ -45,7 +47,16 @@ REST_FRAMEWORK = {
     "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"],
     "DEFAULT_PARSER_CLASSES": ["rest_framework.parsers.JSONParser"],
     "EXCEPTION_HANDLER": "apps.common.api.exceptions.problem_exception_handler",
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
 }
+
+# OpenAPI contract (ADR-0005, T-PLT-18): what shapes it lives in apps/common/api/schema.py.
+SPECTACULAR_SETTINGS = spectacular_settings()
+# Only the dev-only Swagger UI (/api/dev/docs/, config.urls_dev) renders a template:
+# drf-spectacular's own, found through APP_DIRS. No context processor: the API answers JSON only.
+TEMPLATES = [
+    {"BACKEND": "django.template.backends.django.DjangoTemplates", "DIRS": [], "APP_DIRS": True}
+]
 
 # Q-046: stored in UTC, shown in Buenos Aires time by default; per-branch time zone comes with 02.
 USE_TZ = True

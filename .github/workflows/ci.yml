@@ -230,8 +230,10 @@ jobs:
 
   # Step 4. AC-PLT-21 (backend): mypy with the django-stubs/drf-stubs plugins over backend/ and
   # scripts/, strict in apps/common/ and every domain/ ([tool.mypy] of backend/pyproject.toml). The
-  # Django plugin imports config.settings.test, which reads the workflow-level env. tsc --noEmit
-  # (T-PLT-27) and the OpenAPI contract/types diff (T-PLT-18, T-PLT-35) are added here later.
+  # Django plugin imports config.settings.test, which reads the workflow-level env. AC-PLT-23
+  # (ADR-0005): export_openapi --check regenerates the contract from the public URLconf and fails
+  # printing the diff if specs/_contracts/openapi.yaml is stale; nothing connects to a service.
+  # The frontend types diff (T-PLT-35) and tsc --noEmit (T-PLT-27) are added here later.
   typecheck:
     # Becomes `needs: [secrets, deps-audit]` when T-PLT-28 adds deps-audit to step 3.
     needs: secrets
@@ -247,6 +249,9 @@ jobs:
       - name: mypy
         working-directory: backend
         run: mypy . ../scripts
+      - name: export_openapi --check
+        working-directory: backend
+        run: python manage.py export_openapi --check
 
   # Step 5. AC-PLT-14/15 (RN-PLT-09): constitution rules checked on the AST of apps/ and config/
   # (backend/tests/architecture/): C-09 adapter boundary and C-01 no raw managers in services; C-02
