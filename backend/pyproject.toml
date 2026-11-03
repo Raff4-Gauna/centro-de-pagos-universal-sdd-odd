@@ -30,7 +30,7 @@ dev = [
     # Pinned so uv does not move to django-stubs 6.x, which targets Django 6.
     "django-stubs==5.2.9",
     # Its companion, pinned for the same reason (unpinned it resolved to 6.x).
-    "django-stubs-ext==5.2.9",
+    "django-stubs-ext==6.1.2",
     "djangorestframework-stubs==3.16.9",
     "celery-types==0.26.0",
     "pytest==9.2.0",
