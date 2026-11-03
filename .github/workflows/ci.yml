@@ -32,9 +32,10 @@ env:
   DJANGO_SECRET_KEY: ci-only-not-a-secret-ci-only-not-a-secret-ci-only-not-a-secret
   DATABASE_URL: postgres://hub:hub@localhost:5432/hub
   REDIS_URL: redis://localhost:6379/0
+  NEXT_TELEMETRY_DISABLED: "1"
 
 jobs:
-  # Step 1. eslint/prettier (T-PLT-27) and check_workflows.py (T-PLT-05) are added here later.
+  # Step 1. check_workflows.py (T-PLT-05) is added here later.
   lint:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -45,10 +46,17 @@ jobs:
       - uses: ./.github/actions/setup
         with:
           python: "true"
+          node: "true"
       - name: ruff check
         run: ruff check .
       - name: ruff format --check
         run: ruff format --check .
+      - name: eslint --max-warnings 0
+        working-directory: frontend
+        run: pnpm lint
+      - name: prettier --check
+        working-directory: frontend
+        run: pnpm format:check
 
   # Step 2. AC-PLT-13: tracked code files over 400 lines (C-14).
   file-size:
@@ -233,7 +241,8 @@ jobs:
   # Django plugin imports config.settings.test, which reads the workflow-level env. AC-PLT-23
   # (ADR-0005): export_openapi --check regenerates the contract from the public URLconf and fails
   # printing the diff if specs/_contracts/openapi.yaml is stale; nothing connects to a service.
-  # The frontend types diff (T-PLT-35) and tsc --noEmit (T-PLT-27) are added here later.
+  # AC-PLT-21 (frontend, T-PLT-27): tsc --noEmit in strict mode. The frontend types diff (T-PLT-35)
+  # is added here later.
   typecheck:
     # Becomes `needs: [secrets, deps-audit]` when T-PLT-28 adds deps-audit to step 3.
     needs: secrets
@@ -246,12 +255,16 @@ jobs:
       - uses: ./.github/actions/setup
         with:
           python: "true"
+          node: "true"
       - name: mypy
         working-directory: backend
         run: mypy . ../scripts
       - name: export_openapi --check
         working-directory: backend
         run: python manage.py export_openapi --check
+      - name: tsc --noEmit
+        working-directory: frontend
+        run: pnpm typecheck
 
   # Step 5. AC-PLT-14/15 (RN-PLT-09): constitution rules checked on the AST of apps/ and config/
   # (backend/tests/architecture/): C-09 adapter boundary and C-01 no raw managers in services; C-02
@@ -313,6 +326,7 @@ jobs:
       - uses: ./.github/actions/setup
         with:
           python: "true"
+          node: "true"
       # Coverage (T-PLT-21): [tool.coverage.run] of backend/pyproject.toml (apps/ + config/, branches,
       # subprocesses). Data and JSON reports go under the git-ignored coverage/ directories; the
       # `coverage` job applies the thresholds of scripts/coverage_thresholds.toml.
@@ -328,6 +342,9 @@ jobs:
           pytest -c scripts/pytest.ini scripts/tests
           --cov=scripts --cov-branch --cov-report=json:coverage/scripts.json
           --cov-report=term-missing:skip-covered
+      - name: vitest --coverage
+        working-directory: frontend
+        run: pnpm test --coverage
       # One artifact, paths kept from the workspace root (their common ancestor), so the
       # `coverage` job restores them where the thresholds file declares them.
       - name: Upload coverage reports

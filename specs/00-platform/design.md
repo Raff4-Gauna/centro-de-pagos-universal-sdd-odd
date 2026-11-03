@@ -294,7 +294,8 @@ no-store`, sin auth ni throttle.
 `lib/design-tokens.ts` (colores, radio, tipografía, espaciado; **paleta provisoria neutra**, no hay marca) →
 `lib/theme.ts` (`createTheme`) y `tailwind.config.ts` (`theme.extend`, `prefix: "tw-"`, `corePlugins.preflight:
 false`; Tailwind 3.4, D-07). `app/providers.tsx`: `AppRouterCacheProvider` de `@mui/material-nextjs` (subpath del
-adaptador para la mayor de Next instalada; el paquete exporta `./*`, confirmar al implementar) + `ThemeProvider` +
+adaptador para la mayor de Next instalada: `@mui/material-nextjs/v16-appRouter`; el paquete exporta subpaths
+explícitos `./v16-appRouter`, no `./*` (ajustado en T-PLT-27)) + `ThemeProvider` +
 `CssBaseline` + `QueryClientProvider`. `PageSkeleton` (`variant: table|form|detail`), `EmptyState`, `ErrorNotice`
 (`Alert` + "Reintentar" → `onRetry`).
 
