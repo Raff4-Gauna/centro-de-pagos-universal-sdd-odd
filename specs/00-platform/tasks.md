@@ -52,7 +52,7 @@ Reglas: rebanada vertical · ≤ ~300 líneas de diff · mergeable sola · cita 
 | T-PLT-05 | `check_workflows.py` en `lint` | AC-PLT-33 | CI | `scripts/check_workflows.py` | T-PLT-03 | backend-dev | L | Sí | ☐ |
 | T-PLT-06 | Check `zona-roja`: reglas y rutas | AC-PLT-32 | CI | `scripts/check_zona_roja.py`, `.github/zona-roja-paths.txt` | T-PLT-03 | backend-dev | L | Sí | ☐ |
 | T-PLT-07 | Check `zona-roja`: API de GitHub + workflow | AC-PLT-32 | CI | `scripts/github_api.py`, `.github/workflows/zona-roja.yml` | T-PLT-05, T-PLT-06 | backend-dev | L | Sí | ☐ |
-| T-PLT-08 | Proyecto Django + settings validados | AC-PLT-03 | Backend | `backend/config/settings/*`, `manage.py` | T-PLT-03 | backend-dev | L | Sí | ☐ |
+| T-PLT-08 | Proyecto Django + settings validados | AC-PLT-03 | Backend | `backend/config/settings/*`, `manage.py` | T-PLT-03 | backend-dev | L | Sí | ◐ en revisión (falta reviewer/PR) |
 | T-PLT-09 | `prod` endurecido + lecturas de entorno + feature flags | AC-PLT-04, AC-PLT-06 (parcial) | Backend | `config/settings/prod.py`, `apps/common/feature_flags.py` | T-PLT-08 | backend-dev | L | No | ☐ |
 | T-PLT-10 | mypy + job `typecheck` (backend) | AC-PLT-21 (backend) | CI/Backend | `backend/pyproject.toml`, `tests/typing/` | T-PLT-08 | backend-dev | M | Sí | ☐ |
 | T-PLT-11 | `/healthz` + `/readyz` + servicios en CI | AC-PLT-02 | Backend/CI | `apps/common/health/` | T-PLT-08 | backend-dev | M | Sí | ☐ |
@@ -274,6 +274,16 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   `test_AC_PLT_03_each_missing_required_var_fails_naming_it` (parametrizado por cada obligatoria),
   `test_AC_PLT_03_invalid_format_fails_naming_it`, `test_AC_PLT_03_error_contains_no_sentinel_value`,
   `test_RF_PLT_03_timezone_and_language_defaults`.
+- **Desvío registrado (revisión, N-4):** el validador de `DEBUG` de `ProdEnv` es un `field_validator` y no el
+  `model_validator` que nombra `design.md §3.2.2`, para que el error nombre la variable
+  (`- DJANGO_DEBUG: debug_on_in_prod`). Tests agregados por la revisión: `backend/tests/config/__init__.py`,
+  `test_C_06_env_secrets.py` (`repr`/`str`/`model_dump` y `__context__` sin valores; `del _env`) y
+  `test_RF_PLT_03_env_parsing.py` (`databases()`, vacío = ausente).
+
+- **Pendiente tras la revisión (O-2):** `ruff.toml` (dueño T-PLT-02) debe sumar `N999` a los `per-file-ignores` de
+  `**/tests/**` y `test_*.py` y `src = ["backend"]` (para que `config`/`apps` sean first-party); después se quitan los
+  3 `# ruff: noqa: N999` de `backend/tests/config/` y se corre `ruff --fix` de imports. Va como corrección de
+  T-PLT-02 o, si ya está mergeada, como entrada de Carril O **antes de T-PLT-09** (que suma 3 módulos de test más).
 
 ### T-PLT-09 — `prod` endurecido + lecturas de entorno + feature flags
 - **AC:** AC-PLT-04; AC-PLT-06 (parte AST + patrones). RNF-PLT-02, RN-PLT-04, RF-PLT-19 (Q-052). **Zona roja:** no.
@@ -283,6 +293,8 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   `backend/apps/common/feature_flags.py`, `backend/tests/config/test_AC_PLT_04_check_deploy.py`,
   `backend/tests/config/test_AC_PLT_06_no_provider_env.py`, `backend/tests/config/test_RF_PLT_19_feature_flags.py`.
 - **Fuera de esta tarea:** comparación contra claves de `spikes/.env.example` (T-PLT-39).
+- **Pendiente de la revisión de T-PLT-08:** rechazar `DJANGO_ALLOWED_HOSTS='*'` en prod (N-10 de la revisión
+  de T-PLT-08).
 - **Plan de pruebas:** `test_AC_PLT_04_check_deploy_has_no_warnings` (subproceso `check --deploy --fail-level
   WARNING`), `test_AC_PLT_04_debug_true_in_prod_does_not_start`, `test_AC_PLT_04_weak_secret_key_in_prod_does_not_start`;
   `test_AC_PLT_06_env_is_read_only_in_env_py` (AST sobre `config/` y `apps/`; se admite solo
@@ -326,6 +338,8 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   `backend/tests/logging/test_AC_PLT_09_request_id.py`, `backend/tests/logging/test_RN_PLT_05_json_renderer.py`,
   `backend/tests/api/{__init__,urls_test}.py`.
 - **Fuera de esta tarea:** log de acceso (T-PLT-13), redacción (T-PLT-14), Celery (T-PLT-17), gunicorn (T-PLT-25).
+- **Pendiente de la revisión de T-PLT-08:** la redacción de logs/página de debug debe cubrir
+  `CACHES['default']['LOCATION']` con contraseña de Redis (N-9).
 - **Plan de pruebas:** `test_AC_PLT_09_valid_uuid4_is_kept_in_log_and_response`,
   `test_AC_PLT_09_non_uuid_is_replaced_by_new_uuid4`, `test_AC_PLT_09_trailing_newline_is_replaced`,
   `test_AC_PLT_09_oversized_header_is_replaced`; en `backend/tests/logging/test_RN_PLT_05_json_renderer.py`:
@@ -485,6 +499,8 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   `test_AC_PLT_25_backend_base_images_pinned_by_digest`, `test_RNF_PLT_01_dockerignore_excludes_env_and_git`,
   `test_RNF_PLT_01_runtime_has_no_dev_group_nor_tests`.
 - **Verificación manual:** `docker build --target runtime --build-arg GIT_SHA=$(git rev-parse HEAD) backend` y `id -u` ≠ 0.
+- **Pendiente de la revisión de T-PLT-08:** la imagen `runtime` fija `ENV DJANGO_SETTINGS_MODULE=config.settings.prod`
+  para que `manage.py` dentro del contenedor no use dev (N-5).
 
 ### T-PLT-26 — Compose de desarrollo (db, redis, backend, worker, beat)
 - **AC:** AC-PLT-01 (parcial: 5 servicios), AC-PLT-02 (manual). RN-PLT-01, RF-PLT-02, RNF-PLT-05, D-04, D-05.
