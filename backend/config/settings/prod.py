@@ -70,6 +70,10 @@ CACHES = {
         "KEY_PREFIX": CACHE_KEY_PREFIX,
     }
 }
+# Celery's broker is the same Redis (design.md §3.2.2). Set here, from the validated env, so Celery
+# never reads CELERY_BROKER_URL from the environment itself (AC-PLT-06); hidden in error reports
+# by the URL$ rule of CredentialSafeReporterFilter (C-06).
+CELERY_BROKER_URL = str(_env.REDIS_URL.get_secret_value())
 APP_VERSION = _env.APP_VERSION
 LOGGING = logging_config(_env.LOG_LEVEL)
 # RF-PLT-19: read through apps.common.feature_flags.is_enabled, never directly.
