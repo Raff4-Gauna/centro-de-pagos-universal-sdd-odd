@@ -9,13 +9,31 @@ export type BffRequestLog = {
   requestId: string;
   method: string;
   status: number;
+  // Measured until the response headers are available (upstream headers, or the BFF's own
+  // problem response); streaming the body afterwards is not included.
   durationMs: number;
+  // Only on the BFF's own problem responses (`bff.bad_path`, `bff.length_required`,
+  // `bff.upstream_*`).
+  code?: string;
+  // Cause of a `bff.upstream_unavailable` (`config`, `network`, `client_abort`). Log-only.
+  reason?: string;
+  // Overrides the default (`error` for 5xx, `info` otherwise).
+  level?: "info" | "error";
 };
 
-export function logBffRequest({ requestId, method, status, durationMs }: BffRequestLog): void {
+export function logBffRequest({
+  requestId,
+  method,
+  status,
+  durationMs,
+  code,
+  reason,
+  level,
+}: BffRequestLog): void {
+  // Optional fields left undefined are dropped by JSON.stringify.
   const line = JSON.stringify({
     timestamp: new Date().toISOString(),
-    level: status >= 500 ? "error" : "info",
+    level: level ?? (status >= 500 ? "error" : "info"),
     component: "bff",
     event: "bff.request",
     request_id: requestId,
@@ -23,6 +41,8 @@ export function logBffRequest({ requestId, method, status, durationMs }: BffRequ
     route: BFF_ROUTE_TEMPLATE,
     status,
     duration_ms: Math.round(durationMs),
+    code,
+    reason,
   });
   process.stdout.write(`${line}\n`);
 }

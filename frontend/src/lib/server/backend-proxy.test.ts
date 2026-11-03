@@ -94,6 +94,14 @@ describe("BFF pass-through (AC-PLT-10, RN-PLT-16, RF-PLT-06)", () => {
     expect(newId).toMatch(UUID4);
     expect(replaced.headers.get("x-request-id")).toBe(newId);
 
+    // A valid upper-case id is normalized to lower case, the same as the backend (T-PLT-12).
+    const upper = await GET(
+      new Request(`${BFF}/api/__smoke__`, { headers: { "x-request-id": VALID.toUpperCase() } }),
+      routeContext(["__smoke__"]),
+    );
+    expect(forwardedHeaders(calls[3]!)["x-request-id"]).toBe(VALID);
+    expect(upper.headers.get("x-request-id")).toBe(VALID);
+
     // Route segment config and every method go through the same proxy.
     expect(runtime).toBe("nodejs");
     expect(dynamic).toBe("force-dynamic");
@@ -111,6 +119,7 @@ describe("BFF pass-through (AC-PLT-10, RN-PLT-16, RF-PLT-06)", () => {
         accept: "application/json",
         "accept-language": "es-AR",
         "content-type": "application/json",
+        "content-length": String(body.length),
         "x-request-id": VALID,
         cookie: "session=abc",
         authorization: "Bearer from-the-browser",
@@ -129,12 +138,39 @@ describe("BFF pass-through (AC-PLT-10, RN-PLT-16, RF-PLT-06)", () => {
       accept: "application/json",
       "accept-language": "es-AR",
       "content-type": "application/json",
+      // Kept so Django/gunicorn get a sized body instead of `Transfer-Encoding: chunked`.
+      "content-length": String(body.length),
       "x-request-id": VALID,
     });
     expect(calls[0]!.init.method).toBe("POST");
     // The body is streamed as-is, not parsed or rewritten.
     expect(await new Response(calls[0]!.init.body).text()).toBe(body);
     expect(calls[0]!.init.redirect).toBe("manual");
+    expect((calls[0]!.init as RequestInit & { duplex?: string }).duplex).toBe("half");
+    expect(calls[0]!.init.cache).toBe("no-store");
+
+    // A body whose content-length is missing or not plain digits never reaches the backend
+    // (Django would read it as empty): 411 bff.length_required, covered in the errors suite.
+    for (const contentLength of ["12, 12", "-1", "1e3", "0x12", "abc"]) {
+      const response = await proxyToBackend(
+        new Request(`${BFF}/api/charges`, {
+          method: "POST",
+          body,
+          headers: { "content-length": contentLength },
+        }),
+        ["charges"],
+      );
+      expect(response.status, contentLength).toBe(411);
+    }
+    expect(calls).toHaveLength(1);
+    // Without a body, content-length is never sent.
+    await proxyToBackend(
+      new Request(`${BFF}/api/charges`, { headers: { "content-length": "18" } }),
+      ["charges"],
+    );
+    expect(calls).toHaveLength(2);
+    expect(forwardedHeaders(calls[1]!)).not.toHaveProperty("content-length");
+    expect(calls[1]!.init.body).toBeUndefined();
   });
 
   it("test_RN_PLT_16_bff_strips_set_cookie", async () => {
@@ -175,16 +211,27 @@ describe("BFF pass-through (AC-PLT-10, RN-PLT-16, RF-PLT-06)", () => {
   });
 
   it("test_RN_PLT_16_bff_preserves_query_string", async () => {
+    // What is preserved is the query's meaning (same pairs, same order, repeated keys), not its
+    // bytes: in the real server Next re-serializes the query before the handler (`a%20b` -> `a+b`,
+    // `%zz` -> `%25zz`), and both spellings decode to the same values in Django.
     const { calls } = mockBackend();
+    const expected = [
+      ["status", "paid"],
+      ["page", "2"],
+      ["q", "a b"],
+      ["q", "c"],
+    ];
 
-    await proxyToBackend(new Request(`${BFF}/api/charges/list?status=paid&page=2&q=a%20b&q=c`), [
-      "charges",
-      "list",
-    ]);
+    for (const query of ["status=paid&page=2&q=a%20b&q=c", "status=paid&page=2&q=a+b&q=c"]) {
+      await proxyToBackend(new Request(`${BFF}/api/charges/list?${query}`), ["charges", "list"]);
+    }
 
-    expect(calls[0]!.url.href).toBe(
-      "http://backend:8000/api/charges/list?status=paid&page=2&q=a%20b&q=c",
-    );
+    for (const call of calls) {
+      expect(call.url.pathname).toBe("/api/charges/list");
+      expect([...call.url.searchParams]).toEqual(expected);
+    }
+    // The BFF itself copies the search string as it gets it.
+    expect(calls[0]!.url.search).toBe("?status=paid&page=2&q=a%20b&q=c");
   });
 
   it("test_RF_PLT_06_bff_logs_one_json_line_without_path", async () => {

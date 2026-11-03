@@ -1,6 +1,6 @@
 ---
 spec: SPEC-00
-actualizado: 2026-10-31
+actualizado: 2026-11-01
 ---
 # Tareas — Módulo de Plataforma (fundaciones)
 
@@ -78,9 +78,9 @@ Reglas: rebanada vertical · ≤ ~300 líneas de diff · mergeable sola · cita 
 | T-PLT-31 | Shell `(dashboard)` + Inicio | AC-PLT-28 | UI | `src/components/shell/*`, `app/(dashboard)/inicio/*` | T-PLT-30 | frontend-dev | L | No | ☐ |
 | T-PLT-32 | Configuración (secciones deshabilitadas) | AC-PLT-28 | UI | `app/(dashboard)/configuracion/*`, `src/modules/settings/*` | T-PLT-31 | frontend-dev | M | No | ☐ |
 | T-PLT-33 | BFF pass-through con `X-Request-ID` | AC-PLT-10, AC-PLT-09 (BFF) | BFF | `app/api/[...path]/route.ts`, `src/lib/server/*` | T-PLT-27 | frontend-dev | L | No (reviewer recomendado) | ◐ en revisión (falta reviewer/PR) |
-| T-PLT-34 | BFF: rutas seguras y errores 400/502/504 | AC-PLT-10 (robustez) | BFF | `src/lib/server/backend-proxy.ts` | T-PLT-33 | frontend-dev | M | No (reviewer recomendado) | ☐ |
+| T-PLT-34 | BFF: rutas seguras y errores 400/502/504 | AC-PLT-10 (robustez) | BFF | `src/lib/server/backend-proxy.ts`, `next.config.ts` | T-PLT-33 | frontend-dev | M | No (reviewer recomendado) | ◐ en revisión (falta reviewer/PR) |
 | T-PLT-35 | Cliente tipado + tipos desde OpenAPI + diff en CI | AC-PLT-23 (frontend) | Frontend/CI | `src/lib/{api-client,problem}.ts`, `src/types/api.d.ts` | T-PLT-18, T-PLT-27 | frontend-dev | M | Sí | ☐ |
-| T-PLT-36 | Imagen del frontend + chequeo de bundle + servicio en Compose | AC-PLT-29, AC-PLT-25 (FE), AC-PLT-01 | Infra/Frontend | `frontend/Dockerfile`, `frontend/scripts/check-client-bundle.ts` | T-PLT-26, T-PLT-33 | frontend-dev | L | Sí | ☐ |
+| T-PLT-36 | Imagen del frontend + chequeo de bundle + servicio en Compose | AC-PLT-29, AC-PLT-25 (FE), AC-PLT-01 | Infra/Frontend | `frontend/Dockerfile`, `frontend/scripts/check-client-bundle.ts` | T-PLT-26, T-PLT-33, T-PLT-34 | frontend-dev | L | Sí | ☐ |
 | T-PLT-37 | Job `build` (imágenes por SHA, no root) | AC-PLT-25, AC-PLT-20 | CI | `infra/docker-compose.ci.yml`, `ci.yml` | T-PLT-24, T-PLT-36 | backend-dev | M | Sí | ☐ |
 | T-PLT-38 | Smoke del stack en el paso 9 | AC-PLT-01, AC-PLT-02, AC-PLT-10, AC-PLT-29 (E2E) | CI | `scripts/smoke_stack.py` | T-PLT-15, T-PLT-37 | backend-dev | L | Sí | ☐ |
 | T-PLT-39 | `.env.example` + `spikes/.env.example` + paridad — **BLOQUEADA por Q-048** | AC-PLT-05, AC-PLT-06, AC-PLT-01 | Config | `.env.example`, `spikes/.env.example` | T-PLT-09, T-PLT-12, T-PLT-16, T-PLT-26, T-PLT-33 | usuario / backend-dev | M | Sí | ⛔ |
@@ -136,7 +136,7 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
 | 1 (tres carriles en paralelo) | **Gobierno:** T-PLT-04, T-PLT-05, T-PLT-06 (entre sí en paralelo) → T-PLT-07 · **Backend:** T-PLT-08 · **Frontend:** T-PLT-27 | |
 | 2 | **Backend (tras T-PLT-08), en paralelo:** T-PLT-09, T-PLT-10, T-PLT-11, T-PLT-12, T-PLT-19, T-PLT-21 · **Frontend (tras T-PLT-27):** T-PLT-28, T-PLT-29, T-PLT-33 | |
 | 3 | T-PLT-13 → T-PLT-14 · T-PLT-15 → {T-PLT-16, T-PLT-18} · T-PLT-17 · T-PLT-20 · T-PLT-22 → T-PLT-23 → T-PLT-24 · T-PLT-25 → T-PLT-26 · T-PLT-30 → T-PLT-31 → T-PLT-32 · T-PLT-34 · T-PLT-35 (tras T-PLT-18) | |
-| 4 (secuencial) | T-PLT-36 → T-PLT-37 → T-PLT-38 → T-PLT-40 → T-PLT-41 | T-PLT-39 entra apenas se destrabe Q-048 (y antes de T-PLT-41) |
+| 4 (secuencial) | T-PLT-36 → T-PLT-37 → T-PLT-38 → T-PLT-40 → T-PLT-41 | T-PLT-36 espera también a T-PLT-34 (el BFF no se expone en Compose sin la validación de rutas) · T-PLT-39 entra apenas se destrabe Q-048 (y antes de T-PLT-41) |
 
 ---
 
@@ -1172,13 +1172,42 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   `test_RN_PLT_16_backend_url_read_at_runtime_server_only`.
 
 ### T-PLT-34 — BFF: rutas seguras y errores
-- **AC:** AC-PLT-10 (robustez del reenvío). RN-PLT-16, RF-PLT-06. **Zona roja:** no (reviewer recomendado).
+- **AC:** AC-PLT-10 (robustez del reenvío). RN-PLT-16, RF-PLT-06 (Q-061). **Zona roja:** no (reviewer recomendado).
 - **Archivos:** `frontend/src/lib/server/backend-proxy.ts` (rechaza `..`, `\`, `%2f`, `%5c` → `400 bff.bad_path`;
   mismo origen; timeout 30 s → `504 bff.upstream_timeout`; caído → `502 bff.upstream_unavailable`; siempre
   `problem+json` con `X-Request-ID`), `frontend/src/lib/server/backend-proxy.errors.test.ts`.
+- **Ampliado tras revisión de T-PLT-33** (hallazgos del reviewer, decididos por el orquestador):
+  - Rutas: además de la lista negra, se valida la **URL ya resuelta** (`target.origin === base.origin` y
+    `target.pathname.startsWith("/api/")`); se rechazan segmentos vacíos, `.`/`..` también codificados (`%2e`,
+    `.%2E`, `%2E%2E`) y con doble encoding (`%252e`, `%252f`, `%255c`), backslash, `%2f`/`%5c`, caracteres de
+    control y percent-encoding mal formado; cada segmento pasa por `encodeURIComponent` (un `#`/`?` decodificado no
+    recorta el path). Todo rechazo → `400 bff.bad_path`.
+  - Body: `content-length` se reenvía **solo si son dígitos** (sin él undici manda `Transfer-Encoding: chunked` y
+    Django/gunicorn leen el body vacío).
+  - Barra final (Q-061): el BFF conserva la del request original y `frontend/next.config.ts` pone
+    `skipTrailingSlashRedirect: true` (archivo adicional de esta tarea).
+  - `X-Request-ID` válido se normaliza a minúsculas (`request-id.ts`; nota en T-PLT-12).
+  - Errores: falta/invalidez de `BACKEND_INTERNAL_URL` → `502 bff.upstream_unavailable` sin revelar el valor;
+    `signal: AbortSignal.any([request.signal, AbortSignal.timeout(30_000)])`; la línea de log JSON se escribe
+    también en errores (con `code`); `log.ts` documenta que `duration_ms` mide hasta los headers de la respuesta.
+  - Archivos tocados además: `frontend/src/lib/server/{request-id,log}.ts`,
+    `frontend/src/lib/server/{backend-proxy,request-id}.test.ts` (allowlist con `content-length`, `duplex: "half"`,
+    `cache: "no-store"`, id en minúsculas), `specs/00-platform/{design,clarifications}.md`.
 - **Plan de pruebas:** `test_RN_PLT_16_bff_rejects_dotdot_and_encoded_separators`,
   `test_RN_PLT_16_bff_rejects_cross_origin_target`, `test_RF_PLT_06_bff_upstream_down_returns_502_problem`,
-  `test_RF_PLT_06_bff_timeout_returns_504_problem`.
+  `test_RF_PLT_06_bff_timeout_returns_504_problem`; agregados tras la revisión de T-PLT-33:
+  `test_RN_PLT_16_bff_encodes_each_segment_and_keeps_backend_origin`, `test_RN_PLT_16_bff_keeps_trailing_slash`,
+  `test_RN_PLT_16_bff_forwards_content_length_and_body_intact` (backend HTTP real en `127.0.0.1`),
+  `test_RF_PLT_06_bff_aborts_upstream_when_browser_disconnects`.
+- **Ajustes tras revisión de T-PLT-34** (reviewer: aprobado con observaciones): `%` literal aceptado (solo el path
+  crudo mal codificado es `bad_path`), body chunked o con `content-length` no numérico → `411 bff.length_required`
+  (sin `content-length` ni `transfer-encoding` no hay body: un DELETE sin cuerpo pasa), `reason`
+  del 502 solo en el log (`client_abort` como `info`), surrogate suelto → `400`, comentario del test de query
+  (se conserva la semántica, no los bytes). `spec.sdd.md` → 1.0.7 (historial; era 1.0.2, renumerada al mergear después de la línea backend). Tests nuevos:
+  `test_RN_PLT_16_bff_rejects_malformed_encoding_in_the_raw_path`,
+  `test_RN_PLT_16_bff_body_without_content_length_returns_411_problem`. Por `C-14` (el archivo de errores llegaba a
+  399 líneas) los tests se parten por AC: `backend-proxy.paths.test.ts` (RN-PLT-16, rutas),
+  `backend-proxy.errors.test.ts` (body/411 y RF-PLT-06) y `backend-proxy.test-helpers.ts` (setup compartido).
 
 ### T-PLT-35 — Cliente tipado + tipos desde OpenAPI + diff en CI
 - **AC:** AC-PLT-23 (frontend). RN-PLT-15, RF-PLT-15, ADR-0005. **Zona roja:** sí (`ci.yml`, consumidor del contrato).

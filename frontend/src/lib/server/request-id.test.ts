@@ -14,10 +14,12 @@ describe("X-Request-ID in the BFF (AC-PLT-09, RN-PLT-07)", () => {
   it("test_AC_PLT_09_bff_keeps_valid_uuid4", () => {
     expect(parseRequestId(VALID)).toBe(VALID);
     expect(resolveRequestId(VALID)).toBe(VALID);
-    // The match is case-insensitive and the accepted value is kept as it arrived.
+    // The match is case-insensitive and the accepted value is normalized to lower case, the same
+    // as the backend does (T-PLT-12), so both logs carry the identical id.
     const upper = VALID.toUpperCase();
-    expect(parseRequestId(upper)).toBe(upper);
-    expect(resolveRequestId(upper)).toBe(upper);
+    expect(parseRequestId(upper)).toBe(VALID);
+    expect(resolveRequestId(upper)).toBe(VALID);
+    expect(resolveRequestId("3F2B8C1E-9d4a-4B7E-8f61-2A5C9E0D7B13")).toBe(VALID);
   });
 
   it("test_AC_PLT_09_bff_replaces_invalid_or_newline", () => {
