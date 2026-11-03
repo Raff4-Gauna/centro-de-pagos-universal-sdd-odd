@@ -12,8 +12,9 @@ escaped inside the JSON string, so an event never spans two lines.
 
 Django applies its ``DEFAULT_LOGGING`` before this one; here the ``django`` logger loses those
 handlers (a text console handler and ``mail_admins``, whose e-mail embeds the error report with the
-settings, C-06) and propagates to the root handler. ``django.server`` and ``django.request`` are
-silenced by T-PLT-13 (they log the raw path).
+settings, C-06) and propagates to the root handler. ``django.request``, ``django.security.csrf`` and
+``django.server`` are silenced (T-PLT-13): they log the raw path (``"Not Found: /path"``), and the
+access log (``middleware/access_log.py``) reports the same requests with the route template.
 """
 
 from __future__ import annotations
@@ -29,6 +30,7 @@ from structlog.typing import Processor
 from apps.common.logging.processors import add_component, add_record_extras
 
 LOG_LEVELS = ("DEBUG", "INFO", "WARNING", "ERROR")
+SILENCED_LOGGERS = ("django.request", "django.security.csrf", "django.server")
 
 
 class StdoutHandler(logging.StreamHandler[TextIO]):
@@ -82,11 +84,18 @@ def logging_config(level: str) -> dict[str, Any]:
         "version": 1,
         "disable_existing_loggers": False,
         "formatters": {"json": {"()": f"{__name__}.json_formatter"}},
-        "handlers": {"stdout": {"()": f"{__name__}.StdoutHandler", "formatter": "json"}},
+        "handlers": {
+            "stdout": {"()": f"{__name__}.StdoutHandler", "formatter": "json"},
+            # A real handler, not just propagate=False: with none, logging's lastResort would
+            # still write WARNING+ to stderr.
+            "silenced": {"class": "logging.NullHandler"},
+        },
         "root": {"handlers": ["stdout"], "level": level},
         "loggers": {
             # Drops DEFAULT_LOGGING's console and mail_admins handlers; inherits the root level.
             "django": {"handlers": [], "level": "NOTSET", "propagate": True},
+            # They log the raw path (RN-PLT-06); the access log replaces them.
+            **{name: {"handlers": ["silenced"], "propagate": False} for name in SILENCED_LOGGERS},
         },
     }
 

@@ -1,0 +1,263 @@
+"""AC-PLT-07 (RN-PLT-05/06, RNF-PLT-03): the access log line of every request (T-PLT-13).
+
+One ``http.request`` JSON event with the required fields, ``method``, the route *template*,
+``status`` and ``duration_ms``; its ``request_id`` is the ``X-Request-ID`` of the response.
+RN-PLT-06 (T-PLT-12 review N-1): no line on stdout or stderr carries the raw path or the query
+string, for any status: ``django.request``, ``django.security.csrf`` and ``django.server`` are
+silenced.
+"""
+
+from __future__ import annotations
+
+import json
+from collections.abc import Iterator
+from datetime import UTC, datetime
+from typing import Any
+
+import pytest
+from django.conf import settings
+from django.core.signals import got_request_exception
+from django.test import Client
+from pytest_django.fixtures import Settings as SettingsWrapper
+
+from apps.common.logging.setup import configure_logging, logging_config
+from apps.common.middleware import access_log
+from apps.common.middleware.access_log import (
+    ACCESS_EVENT,
+    MAX_CHAIN,
+    UNMATCHED_ROUTE,
+    describe_exception,
+)
+from apps.common.middleware.request_id import REQUEST_ID_HEADER
+from tests.api.urls_test import LEAK_SENTINEL
+from tests.conftest import RunDjango
+from tests.logging.conftest import StdoutLog
+
+ITEM_ROUTE = "test/items/<str:item_id>"
+# Stand-ins for a semi-secret id in a path (Q-015) and a token in a query string.
+PATH_SENTINEL = "seg-sentinel-7f3a"
+QUERY_SENTINEL = "qs-sentinel-91c2"
+
+pytestmark = pytest.mark.urls("tests.api.urls_test")
+
+
+def only(events: list[dict[str, Any]]) -> dict[str, Any]:
+    (event,) = events
+    return event
+
+
+def access_event(stdout_log: StdoutLog) -> dict[str, Any]:
+    return only(stdout_log.read().find(ACCESS_EVENT))
+
+
+@pytest.fixture
+def debug_level() -> Iterator[None]:
+    configure_logging(logging_config("DEBUG"))
+    yield
+    configure_logging(settings.LOGGING)
+
+
+def test_AC_PLT_07_line_is_valid_json_with_required_fields_and_utc_timestamp(
+    client: Client, stdout_log: StdoutLog
+) -> None:
+    client.get("/test/items/abc")
+    event = access_event(stdout_log)
+    assert {"timestamp", "level", "component", "message", "request_id"} <= event.keys()
+    assert event["component"] == "apps.common.middleware.access_log"
+    timestamp = datetime.fromisoformat(event["timestamp"])
+    assert timestamp.utcoffset() == UTC.utcoffset(None)
+
+
+def test_AC_PLT_07_access_log_has_method_route_status_duration_ms(
+    client: Client, stdout_log: StdoutLog
+) -> None:
+    client.post("/test/items/abc?outcome=200")
+    event = access_event(stdout_log)
+    assert (event["method"], event["route"], event["status"]) == ("POST", ITEM_ROUTE, 200)
+    assert event["level"] == "info"
+    assert isinstance(event["duration_ms"], int | float)
+    assert event["duration_ms"] >= 0
+
+
+def test_AC_PLT_07_request_id_equals_response_header(client: Client, stdout_log: StdoutLog) -> None:
+    response = client.get("/test/items/abc")
+    assert access_event(stdout_log)["request_id"] == response[REQUEST_ID_HEADER]
+
+
+def test_AC_PLT_07_unmatched_route_logs_placeholder(client: Client, stdout_log: StdoutLog) -> None:
+    response = client.get(f"/no/such/{PATH_SENTINEL}")
+    assert response.status_code == 404
+    event = access_event(stdout_log)
+    assert (event["route"], event["status"], event["level"]) == (UNMATCHED_ROUTE, 404, "info")
+
+
+@pytest.mark.parametrize("path", ["/healthz", "/readyz"])
+def test_AC_PLT_07_health_requests_logged_at_debug(
+    client: Client, stdout_log: StdoutLog, path: str
+) -> None:
+    client.get(path)  # /readyz is 503 here (LocMemCache, no Redis): still DEBUG
+    assert stdout_log.read().find(ACCESS_EVENT) == []  # hidden at the default INFO level
+
+
+@pytest.mark.parametrize("path", ["/healthz", "/readyz"])
+def test_AC_PLT_07_health_requests_shown_at_debug_level(
+    client: Client, stdout_log: StdoutLog, debug_level: None, path: str
+) -> None:
+    client.get(path)
+    event = access_event(stdout_log)
+    assert (event["route"], event["level"]) == (path.lstrip("/"), "debug")
+
+
+def test_AC_PLT_07_5xx_logged_at_error(stdout_log: StdoutLog) -> None:
+    response = Client(raise_request_exception=False).get("/test/items/abc?outcome=500")
+    assert response.status_code == 500
+    event = access_event(stdout_log)
+    assert (event["level"], event["status"], event["route"]) == ("error", 500, ITEM_ROUTE)
+    # django.request is silenced, so the cause travels with the access event: types and frames.
+    assert event["exception_type"] == "RuntimeError"
+    assert any(frame.endswith(" in item") for frame in event["exception_frames"])
+
+
+@pytest.mark.parametrize(
+    ("method", "outcome", "status", "route"),
+    [
+        ("get", "404", 404, ITEM_ROUTE),  # Http404 raised by a resolved view
+        ("get", None, 404, UNMATCHED_ROUTE),  # nothing resolved
+        ("get", "400", 400, ITEM_ROUTE),  # SuspiciousOperation
+        ("get", "403", 403, ITEM_ROUTE),  # PermissionDenied
+        ("post", "200", 403, ITEM_ROUTE),  # CSRF rejection (django.security.csrf)
+        ("get", "500", 500, ITEM_ROUTE),
+    ],
+)
+def test_RN_PLT_06_no_raw_path_for_404_400_403_500(
+    stdout_log: StdoutLog, method: str, outcome: str | None, status: int, route: str
+) -> None:
+    client = Client(enforce_csrf_checks=True, raise_request_exception=False)
+    prefix = "/test/items" if outcome else "/test/nowhere"
+    query = f"outcome={outcome}&token={QUERY_SENTINEL}" if outcome else f"token={QUERY_SENTINEL}"
+    response = getattr(client, method)(f"{prefix}/{PATH_SENTINEL}?{query}")
+    assert response.status_code == status
+    log = stdout_log.read()
+    for leak in (PATH_SENTINEL, QUERY_SENTINEL, "token="):
+        assert leak not in log.out + log.err, leak
+    (event,) = log.find(ACCESS_EVENT)
+    assert (event["route"], event["status"]) == (route, status)
+
+
+# pytest attaches its capture handlers to every logger, which hides logging's lastResort (it writes
+# WARNING+ of a logger without handlers to stderr). A plain interpreter shows whether a silenced
+# logger really writes nothing.
+SILENCED_PROBE = f"""
+import django
+from django.test import Client
+from django.test.utils import override_settings
+django.setup()
+with override_settings(ROOT_URLCONF="tests.api.urls_test"):
+    client = Client(HTTP_HOST="localhost", enforce_csrf_checks=True, raise_request_exception=False)
+    for outcome in ("404", "403", "500"):
+        client.get("/test/items/{PATH_SENTINEL}?outcome=" + outcome + "&token={QUERY_SENTINEL}")
+    client.post("/test/items/{PATH_SENTINEL}")
+"""
+
+
+def test_RN_PLT_06_silenced_loggers_write_nothing_outside_pytest(run_django: RunDjango) -> None:
+    result = run_django(
+        "-c",
+        SILENCED_PROBE,
+        settings_module="config.settings.test",
+        values={
+            "DJANGO_SECRET_KEY": "test-only-not-a-secret",
+            "DATABASE_URL": "postgres://db.example/hub",
+            "REDIS_URL": "redis://redis.example:6379/0",
+        },
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stderr == ""
+    statuses = [json.loads(line)["status"] for line in result.stdout.splitlines()]
+    assert statuses == [404, 403, 500, 403]  # only the access log lines
+    for leak in (PATH_SENTINEL, QUERY_SENTINEL):
+        assert leak not in result.stdout
+
+
+@pytest.mark.parametrize("explode", ["call", "view"])
+def test_AC_PLT_07_5xx_raised_outside_the_view_is_logged_with_its_type(
+    settings: SettingsWrapper, stdout_log: StdoutLog, explode: str
+) -> None:
+    # T-PLT-13 review O-1: a failure in an inner middleware or in process_view never reaches
+    # process_exception; got_request_exception still reports it.
+    access = settings.MIDDLEWARE.index("apps.common.middleware.access_log.AccessLogMiddleware")
+    settings.MIDDLEWARE = [
+        *settings.MIDDLEWARE[: access + 1],
+        "tests.api.urls_test.ExplodingMiddleware",
+        *settings.MIDDLEWARE[access + 1 :],
+    ]
+    response = Client(raise_request_exception=False).get(f"/test/items/abc?explode={explode}")
+    assert response.status_code == 500
+    log = stdout_log.read()
+    event = only(log.find(ACCESS_EVENT))
+    assert (event["level"], event["exception_type"]) == ("error", "RuntimeError")
+    function = "__call__" if explode == "call" else "process_view"
+    assert event["exception_frames"][-1].endswith(f" in {function}")
+    assert log.err == ""
+
+
+def test_AC_PLT_07_exception_message_never_logged(stdout_log: StdoutLog) -> None:
+    # T-PLT-13 review O-2: messages can carry tokens, passwords, raw paths, input values.
+    response = Client(raise_request_exception=False).get("/test/items/abc?outcome=leaky")
+    assert response.status_code == 500
+    log = stdout_log.read()
+    assert LEAK_SENTINEL not in log.out + log.err
+    event = only(log.find(ACCESS_EVENT))
+    assert event["exception_type"] == "RuntimeError"
+    assert event["exception_chain"] == ["ValueError"]
+    assert "exception" not in event
+
+
+class ReportedError(Exception):
+    """A non-builtin exception: its type is logged with module and qualified name."""
+
+
+def test_AC_PLT_07_exception_frames_have_no_absolute_paths(stdout_log: StdoutLog) -> None:
+    # T-PLT-13 re-review N-2: an absolute path shows the system user (dev) or the image layout.
+    Client(raise_request_exception=False).get("/test/items/abc?outcome=500")
+    frames = only(stdout_log.read().find(ACCESS_EVENT))["exception_frames"]
+    assert frames[-1].startswith("tests/api/urls_test.py:")
+    assert frames[-1].endswith(" in item")
+    assert any(frame.startswith("django/core/handlers/") for frame in frames)
+    base_dir = str(settings.BASE_DIR).replace("\\", "/")
+    for frame in frames:
+        assert "\\" not in frame, frame
+        assert base_dir not in frame, frame
+        assert "site-packages" not in frame, frame
+        assert not frame.startswith("/"), frame
+        assert ":/" not in frame, frame  # no drive letter
+
+
+def test_AC_PLT_07_exception_types_are_qualified_and_chain_is_capped() -> None:
+    def chain(depth: int) -> BaseException:
+        try:
+            if depth == 0:
+                raise ReportedError
+            raise KeyError from chain(depth - 1)
+        except BaseException as error:
+            return error
+
+    described = describe_exception(chain(MAX_CHAIN + 5))
+    assert described["exception_type"] == "KeyError"  # builtins without a module
+    assert described["exception_chain"] == ["KeyError"] * MAX_CHAIN
+    root = describe_exception(chain(0))
+    assert root["exception_type"] == f"{__name__}.ReportedError"
+
+
+def test_AC_PLT_07_exception_signalled_outside_a_request_is_not_retained(client: Client) -> None:
+    # T-PLT-13 re-review N-1: got_request_exception sent where no access log is listening (an
+    # outer middleware, a management command) must not stay in the context after a request.
+    try:
+        raise ReportedError
+    except ReportedError:
+        got_request_exception.send(sender=None, request=None)
+    client.get("/test/items/abc")
+    assert access_log._request_exception.get() is None
+    # Nor the exception of a failed request once its access event is written.
+    Client(raise_request_exception=False).get("/test/items/abc?outcome=500")
+    assert access_log._request_exception.get() is None

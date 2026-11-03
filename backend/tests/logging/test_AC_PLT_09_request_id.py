@@ -16,6 +16,7 @@ from django.test import Client
 
 from apps.common.domain.request_id import parse_request_id, resolve_request_id
 from apps.common.logging import context, get_logger
+from apps.common.middleware.access_log import ACCESS_EVENT
 from apps.common.middleware.request_id import REQUEST_ID_HEADER
 from tests.api.urls_test import STDLIB_EVENT, STRUCTLOG_EVENT
 from tests.logging.conftest import CapturedLog, StdoutLog
@@ -112,9 +113,9 @@ def test_AC_PLT_09_header_is_returned_on_an_error_response(
     response = client.get("/test/error", headers={REQUEST_ID_HEADER: VALID})
     assert response.status_code == 500
     assert response[REQUEST_ID_HEADER] == VALID
-    error_events = [e for e in stdout_log.read().events if e.get("level") == "error"]
-    assert error_events, "the failure must reach the log"
-    assert {event["request_id"] for event in error_events} == {VALID}
+    # The access log (T-PLT-13) reports the failure; django.request is silenced (raw path).
+    (access,) = stdout_log.read().find(ACCESS_EVENT)
+    assert (access["level"], access["status"], access["request_id"]) == ("error", 500, VALID)
 
 
 def test_AC_PLT_09_context_does_not_outlive_the_request(

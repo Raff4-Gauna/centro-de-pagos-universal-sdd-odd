@@ -57,7 +57,7 @@ Reglas: rebanada vertical · ≤ ~300 líneas de diff · mergeable sola · cita 
 | T-PLT-10 | mypy + job `typecheck` (backend) | AC-PLT-21 (backend) | CI/Backend | `backend/pyproject.toml`, `tests/typing/` | T-PLT-08 | backend-dev | M | Sí | ☐ |
 | T-PLT-11 | `/healthz` + `/readyz` + servicios en CI | AC-PLT-02 | Backend/CI | `apps/common/health/` | T-PLT-08 | backend-dev | M | Sí | ◐ en revisión (falta reviewer/PR) |
 | T-PLT-12 | Logger structlog JSON + `X-Request-ID` | AC-PLT-09 | Backend | `apps/common/logging/`, `middleware/request_id.py` | T-PLT-08 | backend-dev | L | No (reviewer recomendado) | ◐ en revisión (falta reviewer/PR) |
-| T-PLT-13 | Log de acceso (plantilla de ruta, `duration_ms`) | AC-PLT-07 | Backend | `middleware/access_log.py` | T-PLT-12 | backend-dev | M | No (reviewer recomendado) | ☐ |
+| T-PLT-13 | Log de acceso (plantilla de ruta, `duration_ms`) | AC-PLT-07 | Backend | `middleware/access_log.py` | T-PLT-12 | backend-dev | M | No (reviewer recomendado) | ◐ en revisión (falta reviewer/PR) |
 | T-PLT-14 | Redacción de secretos en logs | AC-PLT-08 | Backend | `apps/common/domain/redaction.py` | T-PLT-13 | backend-dev | M | No (reviewer recomendado) | ☐ |
 | T-PLT-15 | Errores `problem+json` | AC-PLT-34 | Backend/API | `apps/common/api/{problems,exceptions}.py` | T-PLT-12 | backend-dev | L | Sí | ☐ |
 | T-PLT-16 | Throttling DRF con Redis | AC-PLT-30 | Backend/API | `apps/common/api/throttling.py` | T-PLT-11, T-PLT-15 | backend-dev | M | No | ☐ |
@@ -167,8 +167,8 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
 - **Objetivo:** entorno Python fijado con lockfile para backend y `scripts/`; lint/format únicos.
 - **AC:** AC-PLT-12. RN-PLT-11, RN-PLT-14 (lockfile). **Zona roja:** sí.
 - **Archivos:** `backend/pyproject.toml` (deps runtime y grupo dev **exactas** de `design.md §8`: django 5.2.18, DRF
-  3.16.1, celery[redis] 5.6.3, redis 6.4.0, psycopg[binary] 3.3.6, pydantic-settings 2.16.2, structlog 26.1.0,
-  drf-spectacular 0.30.0, gunicorn 26.2.0; dev: ruff 0.17.3, mypy 1.19.1, django-stubs 5.2.9,
+  3.16.1 (hoy 3.18.2: revisión de Q-059 del 2026-11-01), celery[redis] 5.6.3, redis 6.4.0, psycopg[binary] 3.3.6,
+  pydantic-settings 2.16.2, structlog 26.1.0, drf-spectacular 0.30.0, gunicorn 26.2.0; dev: ruff 0.17.3, mypy 1.19.1, django-stubs 5.2.9,
   djangorestframework-stubs 3.16.9, celery-types 0.26.0, pytest 9.2.0, pytest-django 4.14.0, pytest-cov 7.1.0,
   pip-audit 2.10.1, pyyaml 6.0.3; `requires-python ==3.12.*`), `backend/uv.lock`, `ruff.toml` (config de §3.6,
   `extend-exclude` comentado por Q-055, `force-exclude = true`, `per-file-ignores` tests `S101`, `scripts/**` `T20`),
@@ -296,6 +296,9 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
 - **Fuera de esta tarea:** comparación contra claves de `spikes/.env.example` (T-PLT-39).
 - **Pendiente de la revisión de T-PLT-08:** rechazar `DJANGO_ALLOWED_HOSTS='*'` en prod (N-10 de la revisión
   de T-PLT-08).
+- **Pendiente de la revisión de T-PLT-13 (N-a):** decidir `django.security.DisallowedHost`: hoy loguea ERROR con
+  `exc_info` (traza completa) por cada `Host` inválido, que en prod puede ser ruido de escaneos. Opciones: bajarlo
+  a WARNING sin `exc_info`, o silenciarlo y quedarse con el 400 del access log.
 - **Plan de pruebas:** `test_AC_PLT_04_check_deploy_has_no_warnings` (subproceso `check --deploy --fail-level
   WARNING`), `test_AC_PLT_04_debug_true_in_prod_does_not_start`, `test_AC_PLT_04_weak_secret_key_in_prod_does_not_start`;
   `test_AC_PLT_06_env_is_read_only_in_env_py` (AST sobre `config/` y `apps/`; se admite solo
@@ -387,6 +390,40 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   `test_AC_PLT_07_access_log_has_method_route_status_duration_ms`,
   `test_AC_PLT_07_request_id_equals_response_header`, `test_AC_PLT_07_unmatched_route_logs_placeholder`,
   `test_AC_PLT_07_health_requests_logged_at_debug`, `test_AC_PLT_07_5xx_logged_at_error`.
+- **Ampliado tras revisión de T-PLT-12:**
+  - **N-1 (fuga introducida por T-PLT-12):** con `django` propagando al root, cada 4xx/5xx escribía
+    `"Not Found: /path/crudo"` (`django.request`). Se silencian `django.request`, `django.security.csrf` (loguea
+    `"Forbidden (...): <path>"`) y `django.server` con un `NullHandler` y `propagate=False` (sin handler, el
+    `lastResort` de `logging` igual escribiría WARNING+ a stderr). El silenciamiento vive en `logging_config()`
+    de `apps/common/logging/setup.py`, no en `base.py`: `dev`/`test`/`prod` reconstruyen `LOGGING` desde ahí.
+    Como `django.request` ya no muestra la traza de un 500, el access log la lleva cuando la causa
+    es una excepción (ver O-1/O-2 más abajo: tipo y frames, sin mensaje). Se rehicieron
+    `test_AC_PLT_09_header_is_returned_on_an_error_response` y `test_C_06_error_log_never_carries_the_settings`
+    sobre el evento `http.request`. Tests nuevos: `test_RN_PLT_06_no_raw_path_for_404_400_403_500` (404 resuelto y
+    sin resolver, 400, 403 por permiso y por CSRF, 500; ningún segmento ni query en stdout/stderr) y
+    `test_RN_PLT_06_silenced_loggers_write_nothing_outside_pytest` (subproceso: pytest cuelga sus handlers de
+    captura de cada logger y oculta el `lastResort`).
+  - **N-7 (streaming):** con `StreamingHttpResponse`, `duration_ms` mide hasta que la vista devuelve la respuesta
+    (headers), no hasta enviar el cuerpo, y lo que se loguee mientras el servidor WSGI itera el cuerpo ya no tiene
+    `request_id` (el middleware limpió el contexto). No hay endpoints con streaming en 00: queda documentado en
+    `access_log.py`; cuando exista uno, medir con un *closer* de la respuesta.
+- **Ampliado tras revisión de T-PLT-13 (commit `fix(platform): access log follow-ups from T-PLT-13 review`):**
+  - **O-1:** la excepción se toma de la señal `got_request_exception` (Django la emite dentro del `except`) y no de
+    `process_exception`: así también llegan al evento los 500 lanzados por un middleware interno, `process_view`,
+    el URLconf o `process_template_response`. Test:
+    `test_AC_PLT_07_5xx_raised_outside_the_view_is_logged_with_its_type`.
+  - **O-2 (opción a):** el evento ya no lleva `exception` (traza con mensaje) sino `exception_type`,
+    `exception_chain` (tipos de `__cause__`/`__context__`) y `exception_frames` (`archivo:línea in función`, hasta
+    30), nunca el mensaje ni los args: mismo criterio que `health.not_ready`. Test:
+    `test_AC_PLT_07_exception_message_never_logged` (token en query, `redis://:<centinela>@`, path y
+    `input_value` encadenados).
+  - **N-b / N-c:** documentado en `access_log.py` que los redirects de `SecurityMiddleware` (antes del access log)
+    no aparecen, y que `route=<unmatched>` también cuando un middleware corta o falla antes de resolver la URL.
+- **Notas de implementación:** evento `http.request`; `route` es `resolver_match.route` o `<unmatched>`; `/healthz`
+  y `/readyz` siempre en DEBUG (un `/readyz` 503 ya deja `WARNING health.not_ready`), ERROR desde 500, INFO el
+  resto. `duration_ms` redondeado a 2 decimales. Test agregado: `test_AC_PLT_07_health_requests_shown_at_debug_level`.
+- **Desvío de alcance:** además de lo listado se tocaron `apps/common/logging/setup.py` (silenciamiento, ver N-1) y
+  los dos tests de T-PLT-12 de arriba.
 
 ### T-PLT-14 — Redacción de secretos en logs
 - **AC:** AC-PLT-08. RN-PLT-06 (C-06). **Zona roja:** no (reviewer recomendado).
@@ -395,6 +432,18 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
 - **Plan de pruebas:** `test_AC_PLT_08_bearer_cookie_and_query_never_logged` (request con `Authorization: Bearer
   <centinela>`, `Cookie`, query string a ruta con parámetro; ningún centinela en stdout),
   `test_AC_PLT_08_access_log_shows_route_template_not_raw_path`, `test_AC_PLT_08_redacts_nested_secret_like_keys`.
+- **Pendientes de la revisión de T-PLT-12 (entran en esta tarea):**
+  - **N-2:** `StdoutHandler.handleError` propio que emita una línea JSON fija (sin `record.msg` ni args) en vez de
+    la traza de texto de `logging` a stderr; test con un dict circular en un evento.
+  - **N-3:** redacción por clave en **ambos** caminos: `extra=` de loggers stdlib y kwargs de structlog, incluidos
+    objetos (p. ej. un `request` pasado como kwarg, cuyo `repr` trae el path crudo).
+  - **N-4:** `JSONRenderer` con `allow_nan=False` (o normalizar floats no finitos): `NaN`/`Infinity` no son JSON
+    válido.
+  - **N-5:** `CredentialSafeReporterFilter` también para claves `*URI` (además de `*URL`, `LOCATION`, `DSN`).
+  - (de T-PLT-12) la redacción de eventos debe cubrir `location` y URLs con `user:password`, y revisar
+    `django.db.backends` en `DEBUG` (SQL con parámetros).
+- **Pendiente de la re-revisión de T-PLT-13 (N-3):** `describe_exception` lista los frames solo de la excepción
+  externa; los de `__cause__`/`__context__` (solo sus tipos van en `exception_chain`) quedan para esta tarea.
 
 ### T-PLT-15 — Errores `problem+json`
 - **AC:** AC-PLT-34. RN-PLT-15 (Q-036), RN-PLT-16 (sin CORS). **Zona roja:** sí (contrato de errores).
@@ -407,6 +456,11 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   `test_AC_PLT_34_trace_only_in_log_with_same_request_id`, `test_AC_PLT_34_validation_error_has_errors_list`,
   `test_AC_PLT_34_unknown_api_route_returns_problem_404`, `test_AC_PLT_34_exception_headers_are_preserved`,
   `test_RN_PLT_16_backend_sends_no_cors_headers`.
+- **Pendiente de la re-revisión de T-PLT-13 (N-5):** el access log toma la excepción de `got_request_exception`.
+  Si el `EXCEPTION_HANDLER` de DRF (o `handler500`) convierte una excepción genérica en un 500 `problem+json` sin
+  que Django la vea como no manejada, tiene que emitir `got_request_exception` dentro del `except` o loguear con
+  `apps.common.middleware.access_log.describe_exception`; si no, el evento `http.request` del 500 queda sin
+  `exception_*`.
 
 ### T-PLT-16 — Throttling DRF con Redis
 - **AC:** AC-PLT-30. RN-PLT-19, RF-PLT-17 (Q-038). **Zona roja:** no.
