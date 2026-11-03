@@ -9,11 +9,10 @@ access log, under the same ``request_id``.
 from __future__ import annotations
 
 import json
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pytest
 from django.conf import settings
-from django.http import HttpResponse
 from django.test import Client
 from pytest_django.fixtures import Settings as SettingsWrapper
 from rest_framework.exceptions import AuthenticationFailed
@@ -23,6 +22,10 @@ from apps.common.api.problems import PROBLEM_CONTENT_TYPE
 from apps.common.middleware.access_log import ACCESS_EVENT
 from apps.common.middleware.request_id import REQUEST_ID_HEADER
 from tests.api.urls_test import LEAK_SENTINEL
+
+if TYPE_CHECKING:
+    # What django.test.Client returns; a stub-only type, so never imported at runtime.
+    from django.test.client import _MonkeyPatchedWSGIResponse as ClientResponse
 
 PROBLEMS = "/api/test/problems"
 ENVELOPE = {"type", "title", "status", "code", "request_id"}
@@ -36,7 +39,7 @@ def lenient_client() -> Client:
     return Client(raise_request_exception=False)
 
 
-def problem(response: HttpResponse) -> dict[str, Any]:
+def problem(response: ClientResponse) -> dict[str, Any]:
     assert response["Content-Type"] == PROBLEM_CONTENT_TYPE
     body: dict[str, Any] = json.loads(response.content)
     assert body["status"] == response.status_code

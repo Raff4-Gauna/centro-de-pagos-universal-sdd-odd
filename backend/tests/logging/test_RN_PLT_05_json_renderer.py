@@ -116,8 +116,10 @@ def own_handlers(logger: logging.Logger | logging.PlaceHolder) -> list[logging.H
 def test_RN_PLT_05_only_handler_is_stdout() -> None:
     root_handlers = own_handlers(logging.getLogger())
     assert len(root_handlers) == 1
-    assert all(isinstance(handler, StdoutHandler) for handler in root_handlers)
-    assert all(handler.stream is sys.stdout for handler in root_handlers)
+    assert all(
+        isinstance(handler, StdoutHandler) and handler.stream is sys.stdout
+        for handler in root_handlers
+    )
     # Django's own defaults (a text console handler, mail_admins) are replaced: its records go
     # through the root handler. django.server/django.request are silenced by T-PLT-13.
     assert logging.getLogger("django").handlers == []

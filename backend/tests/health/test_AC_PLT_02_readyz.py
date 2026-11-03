@@ -24,6 +24,7 @@ from django.db import connections
 from django.test import Client
 from pytest_django import DjangoDbBlocker
 from pytest_django.fixtures import Settings as SettingsWrapper
+from redis.connection import AbstractConnection
 
 from apps.common.health import checks
 
@@ -218,6 +219,7 @@ def test_AC_PLT_02_redis_url_options_cannot_lift_the_readyz_bounds() -> None:
     client = checks.redis_client(url)
     try:
         connection = client.connection_pool.make_connection()  # built, never connected
+        assert isinstance(connection, AbstractConnection)
         assert connection.socket_timeout == checks.REDIS_TIMEOUT_SECONDS
         assert connection.socket_connect_timeout == checks.REDIS_TIMEOUT_SECONDS
         assert connection.retry.get_retries() == 0
