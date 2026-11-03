@@ -7,10 +7,13 @@ whose message holds only variable names and error types, never a value, and rais
 ``except`` block so the pydantic error (which renders the inputs) is neither ``__context__`` nor
 ``__cause__``: no value reaches stderr or a log (AC-PLT-03, C-06). The variables that carry
 credentials are ``SecretStr``/``Secret[...]``, masked in ``repr``, ``str`` and ``model_dump``.
+``load_feature_flags()`` reads the ``FEATURE_*`` variables the same way (RF-PLT-19, §3.2.8).
 """
 
 from __future__ import annotations
 
+import os
+from collections.abc import Collection
 from typing import Annotated, Any, Literal
 from urllib.parse import unquote
 
@@ -35,12 +38,15 @@ from pydantic_settings import (
 
 # Custom error messages are never shown (only the type is), but they carry no value either.
 
+FEATURE_PREFIX = "FEATURE_"
+_BOOL_TEXTS = {"true", "false"}
+
 
 def _strict_bool(value: object) -> object:
     """Only ``true``/``false`` (any case): a typo such as ``ture`` or ``1`` must not start."""
     if isinstance(value, bool):
         return value
-    if isinstance(value, str) and value.lower() in {"true", "false"}:
+    if isinstance(value, str) and value.lower() in _BOOL_TEXTS:
         return value.lower() == "true"
     raise PydanticCustomError("bool_format", "expected true or false")
 
@@ -151,3 +157,28 @@ def load_env[EnvT: PlatformEnv](env_class: type[EnvT]) -> EnvT:
         message = describe_errors(env_class, error)
     # Raised outside the except block: the ValidationError is not even kept as __context__.
     raise ImproperlyConfigured(message)
+
+
+def load_feature_flags(registry: Collection[str]) -> dict[str, bool]:
+    """``FEATURE_<NAME>`` of every registered ``NAME`` (``apps.common.feature_flags.REGISTRY``).
+
+    Off when unset or empty (empty counts as unset, as for ``PlatformEnv``). A ``FEATURE_*``
+    variable whose name is not registered, or a value other than ``true``/``false`` (any case),
+    raises ``ImproperlyConfigured`` naming the variables, never their values.
+    """
+    flags = dict.fromkeys(registry, False)
+    lines = []
+    for variable, raw in os.environ.items():
+        if not variable.startswith(FEATURE_PREFIX) or not raw:
+            continue
+        name = variable.removeprefix(FEATURE_PREFIX)
+        if name not in flags:
+            lines.append(f"  - {variable}: feature_unregistered")
+        elif raw.lower() not in _BOOL_TEXTS:
+            lines.append(f"  - {variable}: bool_format")
+        else:
+            flags[name] = raw.lower() == "true"
+    if lines:
+        header = "Invalid environment for feature flags (values are never shown):"
+        raise ImproperlyConfigured("\n".join([header, *sorted(lines)]))
+    return flags

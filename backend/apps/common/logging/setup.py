@@ -18,7 +18,9 @@ settings, C-06) and propagates to the root handler. ``django.request``, ``django
 ``django.server`` are silenced (T-PLT-13): they log the raw path (``"Not Found: /path"``), and the
 access log (``middleware/access_log.py``) reports the same requests with the route template.
 ``django.db.backends`` is held at INFO (T-PLT-14): with ``DEBUG`` on it logs every query with its
-parameters at DEBUG; its errors still propagate.
+parameters at DEBUG; its errors still propagate. ``django.security.DisallowedHost`` (an invalid
+``Host`` header, what scanners send) goes out as one WARNING line without the traceback instead
+of an ERROR with it (T-PLT-13 review N-a); the access log still reports the 400.
 
 An event that cannot be rendered (bad ``%`` args, a failing formatter) becomes one fixed JSON line,
 ``log.render_failed``, instead of logging's text traceback on stderr with the message and its args
@@ -49,6 +51,8 @@ SILENCED_LOGGERS = ("django.request", "django.security.csrf", "django.server")
 # level holds for its children too: this also cuts django.db.backends.schema, which logs each DDL
 # statement (migrations) with its parameters at DEBUG.
 SQL_LOGGERS = ("django.db.backends",)
+# Loggers whose records are noise from outside, not faults: WARNING, no traceback (N-a).
+DOWNGRADED_LOGGERS = ("django.security.DisallowedHost",)
 RENDER_FAILED_EVENT = "log.render_failed"
 
 
@@ -97,6 +101,23 @@ class StdoutHandler(logging.StreamHandler[TextIO]):
             pass
 
 
+class WarningWithoutTraceback(logging.Filter):
+    """Turns a record above WARNING into a WARNING and drops its traceback and stack.
+
+    A logger filter: it runs after the logger's level check, which passed for the original level,
+    so it checks again for WARNING (``LOG_LEVEL=ERROR`` drops the record).
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if record.levelno > logging.WARNING:
+            record.levelno = logging.WARNING
+            record.levelname = logging.getLevelName(logging.WARNING)
+        record.exc_info = None
+        record.exc_text = None
+        record.stack_info = None
+        return logging.getLogger(record.name).isEnabledFor(record.levelno)
+
+
 def _shared_processors() -> list[Processor]:
     """What both kinds of event get first: context, level, component and UTC timestamp."""
     return [
@@ -129,6 +150,7 @@ def logging_config(level: str) -> dict[str, Any]:
         "version": 1,
         "disable_existing_loggers": False,
         "formatters": {"json": {"()": f"{__name__}.json_formatter"}},
+        "filters": {"warning_without_traceback": {"()": f"{__name__}.WarningWithoutTraceback"}},
         "handlers": {
             "stdout": {"()": f"{__name__}.StdoutHandler", "formatter": "json"},
             # A real handler, not just propagate=False: with none, logging's lastResort would
@@ -143,6 +165,11 @@ def logging_config(level: str) -> dict[str, Any]:
             **{name: {"handlers": ["silenced"], "propagate": False} for name in SILENCED_LOGGERS},
             # A level of their own: the root's DEBUG (LOG_LEVEL) must not let SQL through.
             **{name: {"handlers": [], "level": "INFO", "propagate": True} for name in SQL_LOGGERS},
+            # Inherit the root level; the filter downgrades and re-checks it (N-a).
+            **{
+                name: {"handlers": [], "filters": ["warning_without_traceback"], "propagate": True}
+                for name in DOWNGRADED_LOGGERS
+            },
         },
     }
 

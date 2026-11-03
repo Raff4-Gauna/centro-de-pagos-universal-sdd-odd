@@ -7,10 +7,11 @@ override it.
 
 from __future__ import annotations
 
+from apps.common.feature_flags import REGISTRY as FEATURE_REGISTRY
 from apps.common.logging.setup import logging_config
 from config.settings.base import *  # noqa: F403
 from config.settings.base import CACHE_KEY_PREFIX
-from config.settings.env import PlatformEnv, load_env
+from config.settings.env import PlatformEnv, load_env, load_feature_flags
 
 ROOT_URLCONF = "config.urls_dev"
 
@@ -28,6 +29,8 @@ CACHES = {
 }
 APP_VERSION = _env.APP_VERSION
 LOGGING = logging_config(_env.LOG_LEVEL)
+# RF-PLT-19: read through apps.common.feature_flags.is_enabled, never directly.
+FEATURE_FLAGS = load_feature_flags(FEATURE_REGISTRY)
 
 # Drop the env object: it must not outlive the settings it fed (C-06).
 del _env
