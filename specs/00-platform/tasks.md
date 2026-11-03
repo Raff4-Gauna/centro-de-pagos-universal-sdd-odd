@@ -63,7 +63,7 @@ Reglas: rebanada vertical · ≤ ~300 líneas de diff · mergeable sola · cita 
 | T-PLT-16 | Throttling DRF con Redis | AC-PLT-30 | Backend/API | `apps/common/api/throttling.py` | T-PLT-11, T-PLT-15 | backend-dev | M | No | ☐ |
 | T-PLT-17 | Celery + tarea de diagnóstico con `request_id` | AC-PLT-11 | Backend | `config/celery.py`, `apps/common/celery_signals.py` | T-PLT-11, T-PLT-12 | backend-dev | L | No (reviewer recomendado) | ☐ |
 | T-PLT-18 | Contrato OpenAPI commiteado + `--check` | AC-PLT-23 (backend) | API/Contrato | `export_openapi.py`, `specs/_contracts/openapi.yaml` | T-PLT-15 | backend-dev | M | Sí | ☐ |
-| T-PLT-19 | Tests de arquitectura C-09 y C-01 + job | AC-PLT-14, AC-PLT-15 | Arquitectura/CI | `backend/tests/architecture/` | T-PLT-08 | backend-dev | L | Sí | ☐ |
+| T-PLT-19 | Tests de arquitectura C-09 y C-01 + job | AC-PLT-14, AC-PLT-15 | Arquitectura/CI | `backend/tests/architecture/` | T-PLT-08 | backend-dev | L | Sí | ◐ en revisión (falta reviewer/PR) |
 | T-PLT-20 | Chequeo C-02 (`float` en dinero) | AC-PLT-31 | Arquitectura | `ast_rules.py`, `allowlists.py` | T-PLT-19 | backend-dev | M | Sí | ☐ |
 | T-PLT-21 | Gate de cobertura + job `coverage` | AC-PLT-22 | CI | `scripts/check_coverage.py`, `scripts/coverage_thresholds.toml` | T-PLT-08 | backend-dev | L | Sí | ◐ en revisión (falta reviewer/PR) |
 | T-PLT-22 | Migraciones: faltante + job `migrations` | AC-PLT-16 | Migraciones/CI | `tests/migrations/` | T-PLT-08, T-PLT-11 | backend-dev | M | Sí | ☐ |
@@ -666,6 +666,35 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   `test_AC_PLT_14_cross_provider_import_fails`, `test_AC_PLT_14_relative_and_importlib_imports_detected`,
   `test_AC_PLT_14_real_code_has_no_violations`; `test_AC_PLT_15_objects_in_services_fails`,
   `test_AC_PLT_15_default_and_base_manager_fail`, `test_AC_PLT_15_real_code_has_no_violations`.
+- **Hecho (commits `test(architecture)` ×2 y `ci(platform)`):** `ast_rules.py` analiza por AST `apps/` y `config/`
+  (`SourceTree(root, package)`: el árbol `synthetic/` hace de `apps/`). C-09 resuelve `import`/`from` (relativos;
+  uno que sube por encima de `apps` es violación), `import_module`/`__import__` (`fromlist`)/`import_string` con
+  literales y cadenas de atributos desde un paquete ancestro importado (`from apps.integrations import providers;
+  providers.mercadopago`). C-01 marca `.objects`/`._default_manager`/`._base_manager` con cualquier receptor (alias,
+  `self.model`), `getattr`/`attrgetter` con literal y `_meta.{default_manager,base_manager,managers,managers_map}`, en
+  `apps/<app>/services/**` **y** `apps/<app>/services.py`. `AllowEntry(path, symbol, reason)` ya nace acá (T-PLT-20 la
+  reusa): entrada sin motivo o muerta = violación. Job `architecture` (`needs: typecheck`); `tests` pasa a `needs:
+  architecture`. Mutación verificada: un import de proveedor en `apps/common/health/checks.py` y un `Thing.objects` en
+  `apps/common/services/` rompen los `real_code_has_no_violations`. Tests extra: evasiones parametrizadas,
+  `non_provider_imports_pass`, allowlist (válida, sin motivo, muerta) y
+  `test_RN_PLT_09_architecture_job_runs_architecture_tests`.
+- **Residual (no barato por AST):** imports dinámicos con nombre calculado, `__import__` con `level`, nombres armados
+  en runtime (`getattr(M, "obj" + "ects")`, `vars(M)`, `M.__dict__`), alias de un paquete reasignado (`p = providers;
+  p.mercadopago`), acceso crudo escondido en un helper fuera de `services/` y `.pyi`.
+- **Preguntas para el planner, respondidas en la revisión:** (a) `services/` anidados: sí, cubiertos (NB1). (b) La
+  forma `AllowEntry(path, symbol)` de `ALLOWED_TENANT_MANAGERS` queda hasta SPEC-02, que abre una Q en su design.
+  (c) `tests/typing/synthetic/` en `norecursedirs`: no hace falta.
+- **Revisión de `9e3c937`: APROBADO.** Aplicado en el mismo PR (commit `fix(architecture)`): NB1, C-01 cubre todo
+  `services/`/`services.py` debajo de `apps/<app>/` (`"services" in parts[2:]`), salvo rutas con un segmento `tests`
+  (`apps/integrations/core/services/a.py` falla, `apps/charges/tests/services/` no); NB3,
+  `import_module(".x", __package__)` y `package=__name__` se resuelven desde el nombre del módulo (antes daban
+  "relative import that cannot be resolved", falso positivo); NB5, docstring de `ast_rules.py` alineado con los
+  residuales. Para después:
+  1. NB2: `get_object_or_404`, `get_list_or_404` y `QuerySet(model=…)` en `services/` pasan sin detectarse.
+  2. NB4: un módulo compartido bajo `providers/` cuenta como proveedor; por eso el contrato común va en
+     `integrations/core/`. Anotarlo para SPEC-03.
+  3. Para SPEC-02: `selectors/` puede usar `.objects`. El filtro por organización lo controla el test cross-tenant
+     por endpoint, no esta regla.
 
 ### T-PLT-20 — Chequeo C-02 (`float` en dinero)
 - **AC:** AC-PLT-31. RN-PLT-20, RF-PLT-18 (Q-047). **Zona roja:** sí.

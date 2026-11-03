@@ -51,6 +51,12 @@ package = false
 DJANGO_SETTINGS_MODULE = "config.settings.test"
 pythonpath = ["."]
 testpaths = ["tests"]
+# pytest's defaults plus the synthetic tree of the architecture tests (T-PLT-19): parsed as AST,
+# never collected nor imported. A pattern with "/" is matched against the end of the full path.
+norecursedirs = [
+    "*.egg", ".*", "_darcs", "build", "CVS", "dist", "node_modules", "venv", "{arch}",
+    "tests/architecture/synthetic",
+]
 addopts = ["--strict-markers", "--strict-config"]
 # `integration` tests need the PostgreSQL and Redis of DATABASE_URL/REDIS_URL: the CI `tests` job
 # services or Compose. Without them: `pytest -m "not integration"`.
@@ -80,8 +86,9 @@ check_untyped_defs = true
 warn_unused_ignores = true
 # Synthetic modules of the typing tests (AC-PLT-21): passed explicitly, never found by `mypy .`.
 # Anchored so a `synthetic/` folder in real code is still checked; tests that add their own
-# synthetic tree (architecture, T-PLT-19) add their path here. "/"-separated on every OS.
-exclude = ['(^|/)tests/typing/synthetic/']
+# synthetic tree add their path here. "/"-separated on every OS. The architecture tree (T-PLT-19) is
+# never type-checked: its modules import packages that do not exist (they are only parsed as AST).
+exclude = ['(^|/)tests/typing/synthetic/', '(^|/)tests/architecture/synthetic/']
 
 [tool.django-stubs]
 django_settings_module = "config.settings.test"

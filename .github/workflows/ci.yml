@@ -85,8 +85,26 @@ jobs:
         working-directory: backend
         run: mypy . ../scripts
 
-  # Step 6. Hooked to typecheck until architecture exists.
-  # Services (T-PLT-11, design.md §8): images by tag + digest (RN-PLT-14; the digest is the
+  # Step 5. AC-PLT-14/15 (RN-PLT-09): constitution rules checked on the AST of apps/ and config/
+  # (backend/tests/architecture/): C-09 adapter boundary and C-01 no raw managers in services; C-02
+  # joins with T-PLT-20. Fails on a violation or an invalid allowlist entry. Nothing is imported
+  # nor connects to a database, so no services. The `tests` job runs these tests again.
+  architecture:
+    needs: typecheck
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+        with:
+          python: "true"
+      - name: pytest tests/architecture
+        working-directory: backend
+        run: pytest tests/architecture
+
+  # Step 6. Services (T-PLT-11, design.md §8): images by tag + digest (RN-PLT-14; the digest is the
   # multi-arch index of the tag, `docker buildx imagetools inspect`), throwaway test-only
   # credentials matching DATABASE_URL/REDIS_URL. The job starts once both healthchecks pass, so
   # the `integration` tests (AC-PLT-02 /readyz) find them up. pg_isready goes over TCP (-h): during
@@ -94,7 +112,7 @@ jobs:
   # would report as ready before the real one listens. The Redis probe only counts a real PONG
   # reply (design.md §3.4.1).
   tests:
-    needs: typecheck
+    needs: architecture
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     services:
