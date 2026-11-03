@@ -1,5 +1,3 @@
-# ruff: noqa: N999 - the module name carries the uppercase AC/RF/C ID (AGENTS.md); flagged
-# since tests/config/ is a package. The repo-wide fix belongs in ruff.toml (T-PLT-08 review).
 """RF-PLT-03 (RN-PLT-02): how ``PlatformEnv`` turns variables into settings.
 
 T-PLT-08 review N-3 (``databases()``) and N-6 (an empty variable counts as unset).
@@ -11,6 +9,7 @@ In-process unit tests: ``PlatformEnv`` reads the environment when it is instanti
 from __future__ import annotations
 
 import pytest
+
 from config.settings.env import PlatformEnv
 
 REQUIRED = {

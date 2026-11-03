@@ -66,16 +66,20 @@ jobs:
         run: python scripts/check_file_size.py
 
   # Step 6. Hooked to file-size until secrets/deps-audit/typecheck/architecture exist.
-  # Services (T-PLT-11, design.md §8): images by tag + digest (RN-PLT-14), throwaway test-only
+  # Services (T-PLT-11, design.md §8): images by tag + digest (RN-PLT-14; the digest is the
+  # multi-arch index of the tag, `docker buildx imagetools inspect`), throwaway test-only
   # credentials matching DATABASE_URL/REDIS_URL. The job starts once both healthchecks pass, so
-  # the `integration` tests (AC-PLT-02 /readyz) find them up.
+  # the `integration` tests (AC-PLT-02 /readyz) find them up. pg_isready goes over TCP (-h): during
+  # initdb the entrypoint runs a temporary server on the Unix socket only, which a socket probe
+  # would report as ready before the real one listens. The Redis probe only counts a real PONG
+  # reply (design.md §3.4.1).
   tests:
     needs: file-size
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     services:
       postgres:
-        image: postgres:17.11-trixie@sha256:31ba9c94a03ada9988f2bb493a22a75eef3a185884533e5cdbcd498ea835b08f
+        image: postgres:17.11-trixie@sha256:3b0cda93be7c8dba2ed484d19393d93845dc3dafb88973e248ba8e6d99d784e1
         env:
           POSTGRES_USER: hub
           POSTGRES_PASSWORD: hub
@@ -83,7 +87,7 @@ jobs:
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U hub -d hub"
+          --health-cmd "pg_isready -h 127.0.0.1 -U hub -d hub"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 12
@@ -92,7 +96,7 @@ jobs:
         ports:
           - 6379:6379
         options: >-
-          --health-cmd "redis-cli ping"
+          --health-cmd "redis-cli ping | grep -q PONG"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 12

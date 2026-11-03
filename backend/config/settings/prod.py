@@ -11,6 +11,7 @@ from __future__ import annotations
 from pydantic import field_validator
 from pydantic_core import PydanticCustomError
 
+from apps.common.logging.setup import logging_config
 from config.settings.base import *  # noqa: F403
 from config.settings.base import CACHE_KEY_PREFIX
 from config.settings.env import CsvList, PlatformEnv, load_env
@@ -43,6 +44,7 @@ CACHES = {
     }
 }
 APP_VERSION = _env.APP_VERSION
+LOGGING = logging_config(_env.LOG_LEVEL)
 
 # Drop the env object: it must not outlive the settings it fed (C-06).
 del _env

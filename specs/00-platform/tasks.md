@@ -56,7 +56,7 @@ Reglas: rebanada vertical · ≤ ~300 líneas de diff · mergeable sola · cita 
 | T-PLT-09 | `prod` endurecido + lecturas de entorno + feature flags | AC-PLT-04, AC-PLT-06 (parcial) | Backend | `config/settings/prod.py`, `apps/common/feature_flags.py` | T-PLT-08 | backend-dev | L | No | ☐ |
 | T-PLT-10 | mypy + job `typecheck` (backend) | AC-PLT-21 (backend) | CI/Backend | `backend/pyproject.toml`, `tests/typing/` | T-PLT-08 | backend-dev | M | Sí | ☐ |
 | T-PLT-11 | `/healthz` + `/readyz` + servicios en CI | AC-PLT-02 | Backend/CI | `apps/common/health/` | T-PLT-08 | backend-dev | M | Sí | ◐ en revisión (falta reviewer/PR) |
-| T-PLT-12 | Logger structlog JSON + `X-Request-ID` | AC-PLT-09 | Backend | `apps/common/logging/`, `middleware/request_id.py` | T-PLT-08 | backend-dev | L | No (reviewer recomendado) | ☐ |
+| T-PLT-12 | Logger structlog JSON + `X-Request-ID` | AC-PLT-09 | Backend | `apps/common/logging/`, `middleware/request_id.py` | T-PLT-08 | backend-dev | L | No (reviewer recomendado) | ◐ en revisión (falta reviewer/PR) |
 | T-PLT-13 | Log de acceso (plantilla de ruta, `duration_ms`) | AC-PLT-07 | Backend | `middleware/access_log.py` | T-PLT-12 | backend-dev | M | No (reviewer recomendado) | ☐ |
 | T-PLT-14 | Redacción de secretos en logs | AC-PLT-08 | Backend | `apps/common/domain/redaction.py` | T-PLT-13 | backend-dev | M | No (reviewer recomendado) | ☐ |
 | T-PLT-15 | Errores `problem+json` | AC-PLT-34 | Backend/API | `apps/common/api/{problems,exceptions}.py` | T-PLT-12 | backend-dev | L | Sí | ☐ |
@@ -280,10 +280,11 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   `test_C_06_env_secrets.py` (`repr`/`str`/`model_dump` y `__context__` sin valores; `del _env`) y
   `test_RF_PLT_03_env_parsing.py` (`databases()`, vacío = ausente).
 
-- **Pendiente tras la revisión (O-2):** `ruff.toml` (dueño T-PLT-02) debe sumar `N999` a los `per-file-ignores` de
-  `**/tests/**` y `test_*.py` y `src = ["backend"]` (para que `config`/`apps` sean first-party); después se quitan los
-  3 `# ruff: noqa: N999` de `backend/tests/config/` y se corre `ruff --fix` de imports. Va como corrección de
-  T-PLT-02 o, si ya está mergeada, como entrada de Carril O **antes de T-PLT-09** (que suma 3 módulos de test más).
+- **Pendiente tras la revisión (O-2) — ✅ resuelto** en la rama de T-PLT-12 (commit `chore(platform): treat backend
+  as first-party in ruff and drop N999 noqa`): `ruff.toml` suma `N999` a los `per-file-ignores` de `**/tests/**` y
+  `**/test_*.py` y `src = ["backend"]` (`config`/`apps` son first-party); se quitaron los 4 `# ruff: noqa: N999`
+  (los 3 de `backend/tests/config/` y el de `backend/tests/health/`) y `ruff check --fix` reordenó los imports
+  (también `backend/config/urls.py` y `backend/tests/conftest.py`).
 
 ### T-PLT-09 — `prod` endurecido + lecturas de entorno + feature flags
 - **AC:** AC-PLT-04; AC-PLT-06 (parte AST + patrones). RNF-PLT-02, RN-PLT-04, RF-PLT-19 (Q-052). **Zona roja:** no.
@@ -348,11 +349,34 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   `backend/tests/api/{__init__,urls_test}.py`.
 - **Fuera de esta tarea:** log de acceso (T-PLT-13), redacción (T-PLT-14), Celery (T-PLT-17), gunicorn (T-PLT-25).
 - **Pendiente de la revisión de T-PLT-08:** la redacción de logs/página de debug debe cubrir
-  `CACHES['default']['LOCATION']` con contraseña de Redis (N-9).
+  `CACHES['default']['LOCATION']` con contraseña de Redis (N-9). **Resuelto en esta tarea** para lo que vuelca
+  settings: `DEFAULT_EXCEPTION_REPORTER_FILTER` propio (`apps/common/logging/report_filter.py`) oculta además
+  `LOCATION`, `DSN` y toda clave que termine en `URL` en settings y en `request.META` (página de debug y reporte de
+  error), y el logger `django` pierde `mail_admins` (su mail embebe ese reporte). Tests:
+  `test_C_06_error_report_never_shows_the_redis_password`, `test_C_06_error_log_never_carries_the_settings`.
+  **Queda para T-PLT-14:** la redacción por clave de los *eventos* de log (§3.2.3) no incluye `location` ni enmascara
+  URLs con `user:password`; T-PLT-14 debe cubrirlo (y revisar `django.db.backends` en `DEBUG`, que loguea SQL con
+  parámetros).
+- **Normalización:** el `X-Request-ID` válido se devuelve y se loguea **en minúsculas**, igual que el BFF
+  (T-PLT-33/34): un UUIDv4 en mayúsculas se acepta y sale en minúsculas.
 - **Plan de pruebas:** `test_AC_PLT_09_valid_uuid4_is_kept_in_log_and_response`,
   `test_AC_PLT_09_non_uuid_is_replaced_by_new_uuid4`, `test_AC_PLT_09_trailing_newline_is_replaced`,
   `test_AC_PLT_09_oversized_header_is_replaced`; en `backend/tests/logging/test_RN_PLT_05_json_renderer.py`:
   `test_RN_PLT_05_one_json_event_per_line_on_stdout`, `test_RN_PLT_05_stdlib_logger_goes_through_same_renderer`.
+- **Notas de implementación:** `LOGGING_CONFIG = "apps.common.logging.setup.configure_logging"` (aplica el
+  `dictConfig` y configura structlog en un solo lugar, reutilizable por gunicorn/Celery). Único handler
+  `StdoutHandler` en root, que escribe en el `sys.stdout` *actual* en cada emit (los tests lo capturan con `capsys`).
+  Los `extra=` de loggers stdlib se vuelcan como campos solo si son escalares JSON (Django adjunta el `request`, cuyo
+  `repr` trae el path crudo). Los `warnings` de Python no se redirigen al log (sin `captureWarnings`). Tests
+  agregados a los del plan: header ausente, header en respuesta 500, contexto limpio tras la request, middleware
+  primero, parser puro, `organization_id` solo ligado, ningún handler a archivo/`mail_admins`, `LOG_LEVEL` filtra y
+  se valida.
+- **Desvío de alcance (registrado):** además de los archivos listados se tocaron `config/settings/{dev,test,prod}.py`
+  (dos líneas cada uno: el import y `LOGGING = logging_config(_env.LOG_LEVEL)`; el nivel validado solo existe donde
+  se carga el entorno y `base.py` no lo lee) y se creó `apps/common/logging/report_filter.py` (N-9; separado de
+  `setup.py` para no importar `django.views.debug` en cada proceso que configura logging).
+- **Para T-PLT-13:** `django.server` conserva el handler de texto de `DEFAULT_LOGGING` (solo `runserver`) y
+  `django.request` loguea `"Internal Server Error: <path crudo>"` por el renderer JSON; T-PLT-13 los silencia.
 
 ### T-PLT-13 — Log de acceso
 - **AC:** AC-PLT-07. RN-PLT-06 (plantilla de ruta), RNF-PLT-03. **Zona roja:** no (reviewer recomendado).
@@ -521,6 +545,12 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   `infra/README.md` (prerrequisitos del host Q-060, recrear la BD, hot-reload por polling en Windows).
 - **Fuera de esta tarea:** servicio `frontend` (T-PLT-36); bind mounts de `.env.example`/`spikes/.env.example`
   (T-PLT-39: montar un archivo inexistente crea un directorio).
+- **Digests (seguimiento de la revisión de T-PLT-11):** `db` y `redis` usan **el mismo `tag@sha256` que los servicios
+  del job `tests` de `ci.yml`** (digest del *index* multi-arquitectura, `docker buildx imagetools inspect <tag>`):
+  hoy `postgres:17.11-trixie@sha256:3b0cda93be7c8dba2ed484d19393d93845dc3dafb88973e248ba8e6d99d784e1` (verificado
+  2026-11-01; el anterior `31ba9c94…` ya no es el index del tag) y
+  `redis:7.4.12-bookworm@sha256:b6b6e3dc0c0952737748e55d5d885272840c7e42ba41ab1d5489f693419882f5`. Si se
+  actualiza uno, se actualizan los dos archivos en el mismo commit.
 - **Plan de pruebas:** `test_RF_PLT_02_every_service_has_healthcheck`, `test_RF_PLT_02_depends_on_service_healthy`,
   `test_RF_PLT_02_no_migrate_in_worker_or_beat`, `test_RF_PLT_02_single_beat_replica`,
   `test_RN_PLT_04_compose_uses_explicit_environment_without_env_file`, `test_RF_PLT_02_ports_bound_to_localhost`;

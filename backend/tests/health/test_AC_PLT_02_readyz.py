@@ -1,5 +1,3 @@
-# ruff: noqa: N999 - the module name carries the uppercase AC ID (AGENTS.md); flagged since
-# tests/health/ is a package. The repo-wide fix belongs in ruff.toml (T-PLT-08 review).
 """AC-PLT-02 (RN-PLT-17, RF-PLT-07, Q-039): /healthz and /readyz (T-PLT-11).
 
 ``/readyz`` answers 200 only when PostgreSQL and Redis answer; otherwise 503 with a fixed body and
@@ -22,11 +20,12 @@ from collections.abc import Iterator
 from typing import Any
 
 import pytest
-from apps.common.health import checks
 from django.db import connections
 from django.test import Client
 from pytest_django import DjangoDbBlocker
 from pytest_django.fixtures import Settings as SettingsWrapper
+
+from apps.common.health import checks
 
 SENTINEL = "sentinel"
 FULL_SHA = "0123456789abcdef0123456789abcdef01234567"
@@ -89,7 +88,7 @@ def not_ready_records(caplog: pytest.LogCaptureFixture) -> list[logging.LogRecor
     return [record for record in caplog.records if record.getMessage() == "health.not_ready"]
 
 
-def failed_checks(caplog: pytest.LogCaptureFixture) -> list[str]:
+def failed_check_names(caplog: pytest.LogCaptureFixture) -> list[str]:
     return [record.__dict__["check"] for record in not_ready_records(caplog)]
 
 
@@ -133,7 +132,7 @@ def test_AC_PLT_02_readyz_503_when_redis_down_without_internal_details(
     response = client.get("/readyz")
     assert_not_ready_without_details(response, closed_port)
     # The database is up: only Redis failed.
-    assert failed_checks(health_log) == ["redis"]
+    assert failed_check_names(health_log) == ["redis"]
     assert_log_has_no_secret(health_log, closed_port)
 
 
@@ -148,7 +147,7 @@ def test_AC_PLT_02_readyz_503_when_db_down(
     response = client.get("/readyz")
     assert_not_ready_without_details(response, closed_port)
     # Redis is up: only the database failed.
-    assert failed_checks(health_log) == ["database"]
+    assert failed_check_names(health_log) == ["database"]
     assert_log_has_no_secret(health_log, closed_port)
 
 
@@ -160,7 +159,7 @@ def test_AC_PLT_02_readyz_503_when_cache_is_not_redis(
     # config.settings.test keeps LocMemCache: no Redis was checked, so not ready (fail closed).
     response = client.get("/readyz")
     assert response.status_code == 503
-    assert failed_checks(health_log) == ["redis"]
+    assert failed_check_names(health_log) == ["redis"]
 
 
 def test_C_06_not_ready_log_has_no_exception_message(
@@ -174,7 +173,7 @@ def test_C_06_not_ready_log_has_no_exception_message(
         monkeypatch.setitem(checks.CHECKS, name, fail)
     response = client.get("/readyz")
     assert response.status_code == 503
-    assert failed_checks(health_log) == ["database", "redis"]
+    assert failed_check_names(health_log) == ["database", "redis"]
     for record in not_ready_records(health_log):
         assert record.__dict__["error_type"] == "ConnectionError"
         assert SENTINEL not in str(vars(record)).lower()
@@ -196,14 +195,31 @@ def test_AC_PLT_02_healthz_200_with_short_sha_while_redis_down(
     assert ran == []  # liveness never runs a readiness check
 
 
-@pytest.mark.parametrize("path", ["/healthz", "/readyz"])
+@pytest.mark.parametrize(("path", "status"), [("/healthz", 200), ("/readyz", 503)])
 def test_AC_PLT_02_health_is_no_store_and_unauthenticated(
-    client: Client, redis_down: None, path: str
+    client: Client, redis_down: None, path: str, status: int
 ) -> None:
-    # No credentials, cookie nor CSRF token: an orchestrator probes it as is.
+    # No credentials, cookie nor CSRF token: an orchestrator probes it as is. The exact status
+    # (Redis is down, so /readyz is 503) rules out a 401/403 or a redirect to a login.
     response = client.get(path)
-    assert response.status_code in {200, 503}  # never 401/403 nor a redirect to a login
+    assert response.status_code == status
     assert response["Cache-Control"] == "no-store"
     assert response["Content-Type"] == "application/json"
     assert "WWW-Authenticate" not in response
     assert client.head(path).status_code == response.status_code
+
+
+def test_AC_PLT_02_redis_url_options_cannot_lift_the_readyz_bounds() -> None:
+    # redis-py lets the URL query string win over from_url() kwargs: a REDIS_URL with
+    # ?socket_timeout=30 would make /readyz hang for 30 s per attempt if the bounds were kwargs.
+    url = (
+        "redis://127.0.0.1:6379/0?socket_timeout=30&socket_connect_timeout=30&retry_on_timeout=true"
+    )
+    client = checks.redis_client(url)
+    try:
+        connection = client.connection_pool.make_connection()  # built, never connected
+        assert connection.socket_timeout == checks.REDIS_TIMEOUT_SECONDS
+        assert connection.socket_connect_timeout == checks.REDIS_TIMEOUT_SECONDS
+        assert connection.retry.get_retries() == 0
+    finally:
+        client.close()

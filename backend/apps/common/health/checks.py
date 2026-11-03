@@ -5,9 +5,17 @@ ones that failed; the cause goes to the ``health.not_ready`` WARNING log as the 
 exception *type* only. Exception messages are never logged: a driver error can carry a host, a
 user or a DSN (C-06), and the response body never carries anything (views.py).
 
-Bounded time: PostgreSQL uses the ``connect_timeout=2`` of ``DATABASES`` (env.py) and Redis gets
-a client of its own with 1 s timeouts and no retries (redis-py retries 3 times with backoff by
-default), so a dead dependency makes /readyz slow by ~3 s at most, never hang.
+Bounded time, never a hang: PostgreSQL uses the ``connect_timeout=2`` of ``DATABASES`` (env.py)
+and Redis gets a client of its own with 1 s timeouts and no retries. Both timeouts apply per
+resolved address (libpq tries each address a host name resolves to, e.g. ``::1`` and
+``127.0.0.1`` for ``localhost``; redis-py does the same), so a dead dependency can take /readyz
+past 3 s; the bound is per address, not a total.
+
+The Redis bounds are forced on the pool *after* parsing the URL: redis-py lets the URL query string
+win over ``from_url()`` kwargs, so a ``REDIS_URL`` with ``?socket_timeout=30`` would otherwise
+lift them. Connections built through ``from_url`` already default to ``Retry(NoBackoff(), 0)``
+(the 3 retries with backoff are only for a pool that ``Redis()`` builds itself); the explicit
+no-retry policy is defence in depth, and also wins over ``?retry_on_timeout=true``.
 """
 
 from __future__ import annotations
@@ -17,7 +25,7 @@ from collections.abc import Callable
 
 from django.conf import settings
 from django.db import connections
-from redis import Redis
+from redis import ConnectionPool, Redis
 from redis.backoff import NoBackoff
 from redis.retry import Retry
 
@@ -47,14 +55,23 @@ def redis_urls() -> list[str]:
     return [url.strip() for url in urls]
 
 
+def redis_client(url: str) -> Redis:
+    """A one-off client for ``url`` with the /readyz bounds, whatever the URL query says."""
+    pool = ConnectionPool.from_url(url)
+    pool.connection_kwargs.update(
+        socket_timeout=REDIS_TIMEOUT_SECONDS,
+        socket_connect_timeout=REDIS_TIMEOUT_SECONDS,
+        retry=Retry(NoBackoff(), 0),
+    )
+    client = Redis(connection_pool=pool)
+    # Closing the client also disconnects its private pool (as with Redis.from_url).
+    client.auto_close_connection_pool = True
+    return client
+
+
 def check_redis() -> None:
     for url in redis_urls():
-        client = Redis.from_url(
-            url,
-            socket_timeout=REDIS_TIMEOUT_SECONDS,
-            socket_connect_timeout=REDIS_TIMEOUT_SECONDS,
-            retry=Retry(NoBackoff(), 0),
-        )
+        client = redis_client(url)
         try:
             client.ping()
         finally:
