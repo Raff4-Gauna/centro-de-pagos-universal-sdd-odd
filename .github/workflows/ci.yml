@@ -24,8 +24,8 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 # Common, non-secret env (design.md §3.5). config.settings.test requires these variables (T-PLT-08);
-# they are fixed test values, not secrets. DATABASE_URL/REDIS_URL point at the job services that
-# T-PLT-11 adds; until then nothing connects to them.
+# they are fixed test values, not secrets. DATABASE_URL/REDIS_URL point at the services of the
+# `tests` job (T-PLT-11); in the other jobs nothing connects to them.
 env:
   TZ: UTC
   DJANGO_SETTINGS_MODULE: config.settings.test
@@ -66,10 +66,36 @@ jobs:
         run: python scripts/check_file_size.py
 
   # Step 6. Hooked to file-size until secrets/deps-audit/typecheck/architecture exist.
+  # Services (T-PLT-11, design.md §8): images by tag + digest (RN-PLT-14), throwaway test-only
+  # credentials matching DATABASE_URL/REDIS_URL. The job starts once both healthchecks pass, so
+  # the `integration` tests (AC-PLT-02 /readyz) find them up.
   tests:
     needs: file-size
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17.11-trixie@sha256:31ba9c94a03ada9988f2bb493a22a75eef3a185884533e5cdbcd498ea835b08f
+        env:
+          POSTGRES_USER: hub
+          POSTGRES_PASSWORD: hub
+          POSTGRES_DB: hub
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U hub -d hub"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+      redis:
+        image: redis:7.4.12-bookworm@sha256:b6b6e3dc0c0952737748e55d5d885272840c7e42ba41ab1d5489f693419882f5
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -77,7 +103,7 @@ jobs:
       - uses: ./.github/actions/setup
         with:
           python: "true"
-      - name: pytest backend
+      - name: pytest backend (unit + integration)
         working-directory: backend
         run: pytest
       - name: pytest scripts/tests

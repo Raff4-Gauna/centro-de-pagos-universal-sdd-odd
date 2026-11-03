@@ -55,7 +55,7 @@ Reglas: rebanada vertical · ≤ ~300 líneas de diff · mergeable sola · cita 
 | T-PLT-08 | Proyecto Django + settings validados | AC-PLT-03 | Backend | `backend/config/settings/*`, `manage.py` | T-PLT-03 | backend-dev | L | Sí | ◐ en revisión (falta reviewer/PR) |
 | T-PLT-09 | `prod` endurecido + lecturas de entorno + feature flags | AC-PLT-04, AC-PLT-06 (parcial) | Backend | `config/settings/prod.py`, `apps/common/feature_flags.py` | T-PLT-08 | backend-dev | L | No | ☐ |
 | T-PLT-10 | mypy + job `typecheck` (backend) | AC-PLT-21 (backend) | CI/Backend | `backend/pyproject.toml`, `tests/typing/` | T-PLT-08 | backend-dev | M | Sí | ☐ |
-| T-PLT-11 | `/healthz` + `/readyz` + servicios en CI | AC-PLT-02 | Backend/CI | `apps/common/health/` | T-PLT-08 | backend-dev | M | Sí | ☐ |
+| T-PLT-11 | `/healthz` + `/readyz` + servicios en CI | AC-PLT-02 | Backend/CI | `apps/common/health/` | T-PLT-08 | backend-dev | M | Sí | ◐ en revisión (falta reviewer/PR) |
 | T-PLT-12 | Logger structlog JSON + `X-Request-ID` | AC-PLT-09 | Backend | `apps/common/logging/`, `middleware/request_id.py` | T-PLT-08 | backend-dev | L | No (reviewer recomendado) | ☐ |
 | T-PLT-13 | Log de acceso (plantilla de ruta, `duration_ms`) | AC-PLT-07 | Backend | `middleware/access_log.py` | T-PLT-12 | backend-dev | M | No (reviewer recomendado) | ☐ |
 | T-PLT-14 | Redacción de secretos en logs | AC-PLT-08 | Backend | `apps/common/domain/redaction.py` | T-PLT-13 | backend-dev | M | No (reviewer recomendado) | ☐ |
@@ -327,6 +327,15 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
 - **Plan de pruebas:** `test_AC_PLT_02_readyz_200_when_db_and_redis_up` (integration),
   `test_AC_PLT_02_readyz_503_when_redis_down_without_internal_details`, `test_AC_PLT_02_readyz_503_when_db_down`,
   `test_AC_PLT_02_healthz_200_with_short_sha_while_redis_down`, `test_AC_PLT_02_health_is_no_store_and_unauthenticated`.
+- **Notas de implementación:** `/readyz` toma Redis de `CACHES["default"]` (`RedisCache` → `REDIS_URL` en dev/prod;
+  si la caché no es Redis, falla cerrado) con un cliente propio de 1 s y **sin reintentos** (redis-py reintenta 3
+  veces con backoff por defecto). `health.not_ready` lleva solo `check` y `error_type` (clase de la excepción): el
+  mensaje de un driver puede traer host/usuario/DSN (C-06). Los tres tests de `/readyz` son `integration` (cada uno
+  necesita la *otra* dependencia arriba para que el log pruebe cuál falló); los de `/healthz` y `no-store` corren sin
+  servicios (`pytest -m "not integration"`). Tests agregados a los del plan (pruebas de mutación):
+  `test_AC_PLT_02_readyz_503_when_cache_is_not_redis` (integration, falla cerrado) y
+  `test_C_06_not_ready_log_has_no_exception_message` (sin servicios: en Windows un puerto cerrado da timeouts sin host
+  en el mensaje, así que solo un error sintético prueba que el mensaje nunca llega al log).
 
 ### T-PLT-12 — Logger structlog JSON + `X-Request-ID`
 - **AC:** AC-PLT-09 (base de AC-PLT-07). RN-PLT-05, RN-PLT-07, RF-PLT-05 (Q-034, Q-041).
