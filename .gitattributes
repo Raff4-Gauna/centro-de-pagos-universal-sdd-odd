@@ -1,0 +1,21 @@
+# Line endings (RNF-PLT-05, AC-PLT-27): LF in the index and in every checkout, Windows included.
+# Shell scripts, Dockerfiles and Compose files break inside Linux containers with CRLF.
+* text=auto eol=lf
+
+# Binaries: no line-ending conversion, no textual diff.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.pdf binary
+*.zip binary
+*.gz binary
+*.tgz binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary
+*.eot binary
+*.sqlite3 binary
