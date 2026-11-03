@@ -3,7 +3,9 @@
 The public routes plus views that log through structlog and through a plain stdlib logger, one
 that fails, and one with a path parameter that answers the status asked for in ``?outcome=``, so the
 tests see what a real request leaves on stdout and in the response headers. ``ExplodingMiddleware``
-fails outside any view, for the tests that add it to ``MIDDLEWARE``.
+fails outside any view, for the tests that add it to ``MIDDLEWARE``. Under ``/api/test/``
+(T-PLT-15): a DRF view that raises what ``?outcome=`` asks for, and the plain ``item`` view; the
+error handlers are those of ``config.urls``.
 """
 
 from __future__ import annotations
@@ -15,9 +17,17 @@ from typing import Any
 from django.core.exceptions import PermissionDenied, SuspiciousOperation
 from django.http import Http404, HttpRequest, HttpResponseBase, JsonResponse
 from django.urls import URLPattern, URLResolver, path
+from rest_framework import serializers
+from rest_framework.exceptions import Throttled
+from rest_framework.request import Request
+from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from apps.common.logging import get_logger
-from config.urls import urlpatterns as public_urlpatterns
+from config import urls as public_urls
+
+handler404 = public_urls.handler404
+handler500 = public_urls.handler500
 
 STRUCTLOG_EVENT = "test.structlog_event"
 STDLIB_EVENT = "test.stdlib_event"
@@ -69,6 +79,34 @@ def raise_leaky_chain() -> None:
         raise RuntimeError(message) from cause
 
 
+class Payload(serializers.Serializer[dict[str, Any]]):
+    amount = serializers.DecimalField(max_digits=12, decimal_places=2)
+    quantities = serializers.ListField(child=serializers.IntegerField(min_value=1))
+
+
+class ProblemView(APIView):
+    """GET raises what ``?outcome=`` asks for (Django exceptions carry the sentinel in their
+    message); POST validates ``Payload``."""
+
+    def get(self, request: Request) -> Response:
+        outcome = request.query_params.get("outcome")
+        if outcome == "throttled":
+            raise Throttled(wait=30)
+        if outcome == "denied":
+            raise PermissionDenied(LEAK_SENTINEL)
+        if outcome == "missing":
+            raise Http404(LEAK_SENTINEL)
+        if outcome == "500":
+            raise RuntimeError("test.failure")
+        if outcome == "leaky":
+            raise_leaky_chain()
+        return Response({"status": "ok"})
+
+    def post(self, request: Request) -> Response:
+        Payload(data=request.data).is_valid(raise_exception=True)
+        return Response(status=201)
+
+
 class ExplodingMiddleware:
     """Fails outside the view: in ``__call__`` (``?explode=call``) or ``process_view``
     (``?explode=view``), where Django calls no ``process_exception``."""
@@ -89,8 +127,10 @@ class ExplodingMiddleware:
 
 
 urlpatterns: list[URLPattern | URLResolver] = [
-    *public_urlpatterns,
+    *public_urls.urlpatterns,
     path("test/log", log_events, name="test-log"),
     path("test/error", fail, name="test-error"),
     path("test/items/<str:item_id>", item, name="test-item"),
+    path("api/test/problems", ProblemView.as_view(), name="test-problems"),
+    path("api/test/plain/<str:item_id>", item, name="test-plain"),
 ]

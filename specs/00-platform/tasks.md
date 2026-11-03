@@ -59,7 +59,7 @@ Reglas: rebanada vertical · ≤ ~300 líneas de diff · mergeable sola · cita 
 | T-PLT-12 | Logger structlog JSON + `X-Request-ID` | AC-PLT-09 | Backend | `apps/common/logging/`, `middleware/request_id.py` | T-PLT-08 | backend-dev | L | No (reviewer recomendado) | ◐ en revisión (falta reviewer/PR) |
 | T-PLT-13 | Log de acceso (plantilla de ruta, `duration_ms`) | AC-PLT-07 | Backend | `middleware/access_log.py` | T-PLT-12 | backend-dev | M | No (reviewer recomendado) | ◐ en revisión (falta reviewer/PR) |
 | T-PLT-14 | Redacción de secretos en logs | AC-PLT-08 | Backend | `apps/common/domain/redaction.py` | T-PLT-13 | backend-dev | M | No (reviewer recomendado) | ◐ en revisión (falta reviewer/PR) |
-| T-PLT-15 | Errores `problem+json` | AC-PLT-34 | Backend/API | `apps/common/api/{problems,exceptions}.py` | T-PLT-12 | backend-dev | L | Sí | ☐ |
+| T-PLT-15 | Errores `problem+json` | AC-PLT-34 | Backend/API | `apps/common/api/{problems,exceptions}.py` | T-PLT-12 | backend-dev | L | Sí | ◐ en revisión (falta reviewer/PR) |
 | T-PLT-16 | Throttling DRF con Redis | AC-PLT-30 | Backend/API | `apps/common/api/throttling.py` | T-PLT-11, T-PLT-15 | backend-dev | M | No | ☐ |
 | T-PLT-17 | Celery + tarea de diagnóstico con `request_id` | AC-PLT-11 | Backend | `config/celery.py`, `apps/common/celery_signals.py` | T-PLT-11, T-PLT-12 | backend-dev | L | No (reviewer recomendado) | ☐ |
 | T-PLT-18 | Contrato OpenAPI commiteado + `--check` | AC-PLT-23 (backend) | API/Contrato | `export_openapi.py`, `specs/_contracts/openapi.yaml` | T-PLT-15 | backend-dev | M | Sí | ☐ |
@@ -537,6 +537,42 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   que Django la vea como no manejada, tiene que emitir `got_request_exception` dentro del `except` o loguear con
   `apps.common.middleware.access_log.describe_exception`; si no, el evento `http.request` del 500 queda sin
   `exception_*`.
+- **Hecho (commits `feat(api)` ×2 y `test(api)`):** `problems.py` puro (`build_problem`,
+  `validation_errors`, títulos fijos por `code`; `detail` se descarta en todo 5xx). `exceptions.py`: el
+  `EXCEPTION_HANDLER` nunca devuelve `None`; excepción no DRF → `500 internal_error` también con `DEBUG`, y emite
+  `got_request_exception` dentro del `except` de DRF (N-5: el access log lleva `exception_*`; mutación verificada).
+  `Http404`/`PermissionDenied` de Django pierden su mensaje. `handler404`/`handler500` solo bajo `/api/`.
+  Tests extra: `…_drf_errors_have_stable_codes_and_no_exception_message` (403/404/405/406/400/415) y, en
+  `test_AC_PLT_34_problems_domain.py` (unitarios del módulo puro),
+  `…_validation_errors_flatten_nested_and_non_field_details` y
+  `…_any_5xx_drops_detail_and_unknown_codes_get_the_http_phrase`.
+- **Desvío de alcance:** `backend/config/urls_dev.py` (ROOT_URLCONF de dev/test) reexporta `handler404`/`handler500`
+  (sin eso dev y test no usan los handlers) y se creó `backend/tests/api/test_AC_PLT_34_problems_domain.py` (para
+  partir el diff en commits chicos).
+- **Preguntas para el planner (decisión conservadora aplicada):** (a) `SuspiciousOperation` dentro de una vista
+  DRF sale `500 internal_error` (no hay `code` 400 genérico en §6.2); (b) el 400 de `DisallowedHost` u otro error
+  de middleware bajo `/api/` sigue en HTML (sin `handler400`/`handler403`); (c) `validation_error` sin `detail` y
+  errores sin campo bajo `non_field_errors`; (d) títulos en español elegidos acá salvo "Datos inválidos" (§6.2);
+  código desconocido → frase HTTP en inglés; (e) un cliente que manda solo `Accept: application/problem+json`
+  recibe 406 (el renderer es `application/json`).
+- **Revisión de `728bce8`: APROBADO.** Las preguntas (a)–(e) se aceptan como están (no contradicen el design: §3.2.4
+  pide problem+json "aunque `Accept` no lo pida" y solo nombra `handler404`/`handler500`). No bloqueantes para
+  después (no entran en este PR):
+  1. Dev con `DEBUG=True`: una ruta desconocida bajo `/api/` muestra la página 404 técnica de Django (HTML, con los
+     patrones de URL) y una vista Django pura que falla muestra el 500 con traza, porque Django solo usa
+     `handler404`/`handler500` con `DEBUG=False`. Prod no se ve afectado. Opción: `re_path(r"^api/")` comodín al
+     final que llame a `not_found`.
+  2. mypy: `tests/api/test_AC_PLT_34_problem_json.py:40` tipa el helper con `HttpResponse` y el cliente devuelve
+     `_MonkeyPatchedWSGIResponse` (6 errores). Corregir en T-PLT-10 al activar mypy en CI.
+  3. `detail` (p. ej. el 415 con el `Content-Type` recibido) y `errors[].message` (valor inválido de un
+     `ChoiceField`) reflejan lo que mandó el cliente: el componente `Problem` (T-PLT-18/35) nunca lo renderiza
+     como HTML.
+  4. `handler400`/`handler403` con la misma lógica `_is_api`, para que `PermissionDenied`, `SuspiciousOperation` y
+     `DisallowedHost` bajo `/api/` también salgan en problem+json.
+  5. Menores: título de respaldo en inglés (pasarlo a español o exigir título por cada `code` publicado);
+     `JsonResponse` y DRF serializan con distinto espaciado. Además: (a) abrir una Q para un código `bad_request`
+     400 en §6.2 antes de la spec 01; (c) el ejemplo de §6.2 trae `"detail"` en `validation_error`: alinear
+     ejemplo o implementación con entrada en el Historial.
 
 ### T-PLT-16 — Throttling DRF con Redis
 - **AC:** AC-PLT-30. RN-PLT-19, RF-PLT-17 (Q-038). **Zona roja:** no.

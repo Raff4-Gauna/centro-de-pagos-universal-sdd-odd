@@ -35,6 +35,18 @@ MIDDLEWARE = [
 
 WSGI_APPLICATION = "config.wsgi.application"
 
+# DRF (design.md §3.2.2, §3.2.4): no authentication in 00 and AllowAny until module 01 sets deny
+# by default; no user object (no django.contrib.auth, D-03); JSON only (no browsable API); every
+# error as application/problem+json (T-PLT-15). Throttling (T-PLT-16) and schema (T-PLT-18) later.
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": [],
+    "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.AllowAny"],
+    "UNAUTHENTICATED_USER": None,
+    "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"],
+    "DEFAULT_PARSER_CLASSES": ["rest_framework.parsers.JSONParser"],
+    "EXCEPTION_HANDLER": "apps.common.api.exceptions.problem_exception_handler",
+}
+
 # Q-046: stored in UTC, shown in Buenos Aires time by default; per-branch time zone comes with 02.
 USE_TZ = True
 TIME_ZONE = "America/Argentina/Buenos_Aires"
