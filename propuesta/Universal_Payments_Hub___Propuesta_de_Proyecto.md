@@ -703,6 +703,3 @@ Motor de automatización: reglas, notificaciones y sincronización con sistemas 
 15\. Conclusión
 
 La solidez del proyecto no dependerá de la cantidad de proveedores que se conecten, sino de la calidad de la abstracción construida sobre ellos. Un BaseAdapter bien diseñado, un sistema de capacidades claro y un aislamiento multi-tenant estricto permitirán incorporar nuevos proveedores en días, no en meses, y convertir la plataforma en una herramienta útil tanto para un comercio pequeño como para una cadena con múltiples sucursales.
-
-
-

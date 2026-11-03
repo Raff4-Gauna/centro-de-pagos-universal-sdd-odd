@@ -48,7 +48,7 @@ Reglas: rebanada vertical · ≤ ~300 líneas de diff · mergeable sola · cita 
 | T-PLT-01 | Esqueleto del repo + `check_file_size.py` | AC-PLT-13, AC-PLT-27 (parcial) | Infra | `scripts/check_file_size.py`, `.gitattributes`, … | — | backend-dev | M | Sí | ◐ en revisión (reviewer: aprobado con observaciones; falta PR/merge) |
 | T-PLT-02 | Toolchain Python (uv) + `ruff.toml` | AC-PLT-12 | Infra | `backend/pyproject.toml`, `backend/uv.lock`, `ruff.toml` | T-PLT-01 | backend-dev | M | Sí | ◐ en revisión (falta reviewer/PR) |
 | T-PLT-03 | CI mínimo: `lint` → `file-size` → `tests` | AC-PLT-20 (parcial), AC-PLT-13 | CI | `.github/workflows/ci.yml`, `.github/actions/setup/action.yml` | T-PLT-02 | backend-dev | M | Sí | ◐ en revisión (falta reviewer/PR; verificación manual en GitHub pendiente: push bloqueado) |
-| T-PLT-04 | Pre-commit + gitleaks + job `secrets` | AC-PLT-19, AC-PLT-27, AC-PLT-13 | Infra/CI | `.pre-commit-config.yaml`, `.gitleaks.toml` | T-PLT-03 | backend-dev | M | Sí | ☐ |
+| T-PLT-04 | Pre-commit + gitleaks + job `secrets` | AC-PLT-19, AC-PLT-27, AC-PLT-13 | Infra/CI | `.pre-commit-config.yaml`, `.gitleaks.toml` | T-PLT-03 | backend-dev | M | Sí | ◐ en revisión (falta reviewer/PR) |
 | T-PLT-05 | `check_workflows.py` en `lint` | AC-PLT-33 | CI | `scripts/check_workflows.py` | T-PLT-03 | backend-dev | L | Sí | ☐ |
 | T-PLT-06 | Check `zona-roja`: reglas y rutas | AC-PLT-32 | CI | `scripts/check_zona_roja.py`, `.github/zona-roja-paths.txt` | T-PLT-03 | backend-dev | L | Sí | ☐ |
 | T-PLT-07 | Check `zona-roja`: API de GitHub + workflow | AC-PLT-32 | CI | `scripts/github_api.py`, `.github/workflows/zona-roja.yml` | T-PLT-05, T-PLT-06 | backend-dev | L | Sí | ☐ |
@@ -203,8 +203,10 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   `^context/legacy-source/`, gitleaks no), `.gitleaks.toml` (`useDefault = true`, allowlist `regexTarget = "secret"`
   para `<ver \.env: …>`, sin allowlist por ruta), `.github/workflows/ci.yml` (job `secrets`, `needs: file-size`,
   `fetch-depth: 0`, gitleaks v8.30.1 por digest sobre `base..head` / `before..after`, `--redact`, corre además
-  `test_AC_PLT_19_gitleaks.py`; `tests` pasa a `needs: secrets`), `scripts/pytest.ini` (marker `gitleaks`, deseleccionado
-  en `tests`), `scripts/tests/test_AC_PLT_19_gitleaks.py`, `scripts/tests/test_AC_PLT_27_line_endings.py`.
+  los tests `-m gitleaks`; `typecheck` pasa a `needs: secrets`), `scripts/pytest.ini` (marker `gitleaks`, deseleccionado
+  en `tests`), `scripts/tests/test_AC_PLT_19_gitleaks.py`, `scripts/tests/test_AC_PLT_27_line_endings.py`. Tras la
+  revisión de `3d50418` además `scripts/tests/{gitleaks_support,test_AC_PLT_19_secrets_job,test_AC_PLT_19_gitleaks_evasions}.py`
+  y `scripts/tests/conftest.py` (fixtures `two_commits` y `scan`), al partir el módulo de tests que ya tenía 378 líneas.
 - **Fuera de esta tarea:** hooks de eslint/prettier (T-PLT-29), `deps-audit` (T-PLT-28).
 - **Plan de pruebas:** `test_AC_PLT_19_token_shaped_secret_is_detected` (token falso generado en runtime, repo git
   temporal), `test_AC_PLT_19_env_placeholder_is_not_flagged`,
@@ -213,6 +215,91 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   `test_AC_PLT_27_precommit_has_mixed_line_ending_fix_lf`, `test_RNF_PLT_04_precommit_has_no_tests_nor_migrations`.
 - **Verificación manual (design §9):** `pre-commit install` + `pre-commit run --all-files` en verde; un commit con un
   token falso queda bloqueado; un `.sh` con CRLF queda normalizado a LF.
+- **Hecho (commits `feat(platform)`, `ci(platform)`, `test(platform)`):** hooks 1, 2, 3 y 5 de §3.6 con los repos
+  remotos fijados por SHA (`# frozen: vX`, verificados con `git ls-remote`); `.gitleaks.toml` como dice §3.6, con
+  `[[allowlists]]` (el `[allowlist]` único está deprecado en v8.30). Job `secrets` (`needs: file-size`; `typecheck`
+  pasa a `needs: secrets`, no `tests`: el anterior presente de `typecheck` es `secrets`), imagen
+  `zricethezav/gitleaks:v8.30.1@sha256:c00b6bd0…bbb7f` (índice multi-arch, verificado con `docker pull` y la API del
+  registry). El paso `range` valida que solo lleguen SHAs de 40 hex a `--log-opts` y, en `push`, escanea todo el
+  historial de `after` si `before` son 40 ceros o no está en el clon. Tests extra: el paso `range` se ejecuta con bash
+  (PR, push, primer push, `before` ausente, valores no-SHA) y la forma del job, de `.gitleaks.toml` y del hook. Los
+  tests Docker corren en los dos modos (staged y rango de PR). Mutaciones verificadas: `regexTarget = "line"` hace
+  fallar `placeholder_and_real_token_on_same_line`; allowlist `.*`, también `token_shaped_secret_is_detected`.
+  gitleaks v8.30.1 sobre todo el historial (`--log-opts=--all`, 72 commits, 25 ramas locales): 0 hallazgos, con
+  `.gitleaks.toml` y con las reglas por defecto.
+- **Verificación manual** (clon temporal, contenedor `python:3.12.16-slim-trixie` + pre-commit 4.7.0; en el host
+  Windows falló por `MAX_PATH` de la ruta del scratchpad, no por el repo): un commit con un token falso queda
+  bloqueado por `gitleaks` (`github-pat`, valor `REDACTED`); un `.sh` CRLF lo reescribe `mixed-line-ending` y queda
+  `i/lf w/lf`. `pre-commit run --all-files`: la primera pasada dio todo en verde **salvo `end-of-file-fixer`**
+  sobre 3 archivos fuera de la tarea (sin salto final: `propuesta/evidencia-postman-mp/{1-crear-sucursal,2-crear-caja}.md`;
+  3 líneas vacías al final: `propuesta/Universal_Payments_Hub___Propuesta_de_Proyecto.md`); después del commit
+  `style(docs)` y con la regla de MP, los 15 hooks en verde (exit 0).
+- **Scope drift (resuelto por el planner, opción a):** commit `style(docs): fix end of file in propuesta/` aparte
+  (2 líneas cambiadas, 3 borradas); con eso `pre-commit run --all-files` queda en verde.
+- **Decidido por el planner (spec 1.0.4, `design.md §3.6`):** (1) las reglas por defecto de gitleaks no detectaban
+  `APP_USR-…` en ninguna forma ni `TEST-…` en JSON, headers o query strings (hueco de C-06): regla propia
+  `mercadopago-access-token` en `.gitleaks.toml`, con `useDefault = true`. Tests:
+  `test_AC_PLT_19_mercadopago_token_is_detected_in_every_form` (token falso generado en runtime, 4 formas, los dos
+  prefijos y los dos modos), `test_AC_PLT_19_repo_history_has_no_findings` (`git log -p --all` por stdin) y la regla
+  en el test de forma `RN_PLT_13`. Mutación: sin la regla fallan los 4 casos de MP. Historial completo
+  (`--log-opts=--all`, repo principal en solo lectura, 83 commits): 0 hallazgos con `.gitleaks.toml` y 0 con la
+  regla sola (control: la misma config detecta un token falso). (2) Repos de pre-commit fijados por SHA: registrado
+  en §3.6.
+- **Notas:** (3) hoy ninguna regla por defecto marca el placeholder (tiene espacios y `<`): la allowlist es
+  defensiva y el test de forma la fija a ese patrón exacto. (4) En un PR, `secrets` usa la `.gitleaks.toml` del
+  propio PR (un PR podría ampliar la allowlist); lo cubre el reviewer obligatorio de zona roja (Q-058), no el CI.
+- **Revisión de `3d50418`: CAMBIOS REQUERIDOS, aplicados** (spec 1.0.5). Los tests de Docker ahora ejecutan el paso
+  real `range` + `scan` del job (bash) y el `entry` real del hook, sin copia de las flags.
+  - **B-1** `gitleaks:allow` en línea anulaba el hallazgo → `--ignore-gitleaks-allow` en job y hook.
+    Test: `test_AC_PLT_19_inline_gitleaks_allow_does_not_hide_a_token` (los dos modos).
+  - **B-2** `.gitleaksignore` se cargaba solo → paso `no-gitleaksignore` (`git ls-files ':(glob)**/.gitleaksignore'`)
+    y ruta roja en design §3.7.2 (nota en T-PLT-06). Tests: `test_AC_PLT_19_tracked_gitleaksignore_fails_the_job`
+    (raíz y profundo), `…_passes_without_one`, `…_runs_before_the_scan`.
+  - **B-3** merge "malvado" → `--diff-merges=first-parent`. Test: `test_AC_PLT_19_secret_added_only_by_a_merge_commit_is_detected`
+    (`--no-ff --no-commit` + archivo nuevo); con `--cc` en su lugar el test falla (verificado).
+  - **B-4** diff binario → `--text`. Test: `test_AC_PLT_19_secret_in_a_file_git_treats_as_binary_is_detected`
+    (`-diff` en `.gitattributes` y byte NUL). Solo CI: el hook no recibe `--text` (design §3.6: el gate es CI).
+  - **B-5** allowlist sin anclar → `^<ver \.env: [A-Z][A-Z0-9_]*>$`. Test:
+    `test_AC_PLT_19_private_key_with_a_placeholder_inside_is_detected` (sin el ancla el hallazgo `private-key`
+    desaparece); el placeholder solo sigue sin marcarse, también en los 10 archivos reales que lo usan.
+  - **B-6** allowlist global de rutas heredada con `useDefault` → **Q-062**, opción (b) por defecto.
+  - **B-7** (verificación de `4790f6e`) esa allowlist saltea a cualquier profundidad rutas donde puede haber código
+    → paso de guarda `no-allowlisted-paths` (`git ls-files -z` contra
+    `gitleaks\.toml|(^|/)(node_modules|bower_components)/|(^|/)venv/lib/`, sin distinguir mayúsculas, salvo
+    `.gitleaks.toml`). Tests: `test_AC_PLT_19_file_under_a_default_allowlisted_path_fails_the_job` (6 rutas,
+    mayúsculas incluidas), `…_repo_gitleaks_config_alone_passes_the_guard`, `…_runs_before_the_scan`. Hoy 0
+    falsos positivos en wt-04 y en el repo principal. Además `no-gitleaksignore` usa `':(glob,icase)…'` (caso
+    `.GitLeaksIgnore`).
+  - **N-2** gate real = CI, en design §3.6. **N-3** `--verbose` se mantiene: sin él gitleaks no dice regla,
+    archivo, línea ni commit (justificado en `ci.yml` y §3.6); con `--redact` el valor no sale. **N-4** línea de
+    archivos alineada (`typecheck`).
+- **Para después:** (1) chequeo propio que falle si `frontend/pnpm-lock.yaml` tiene credenciales en URLs
+  (`://user:pass@`, `_authToken`): mitigación de Q-062, cuando exista el lockfile (T-PLT-27). (2) Tokens de Mercado
+  Pago que la regla no cubre (N-1): formato legado `__LX_LY__`, prefijo en minúsculas y refresh tokens `TG-…`; y la
+  public key (`APP_USR-`/`TEST-` + UUID). (3) Credenciales en URLs del lockfile: por stdin, `generic-api-key` detecta
+  `_authToken=…`, pero ninguna regla por defecto detecta `https://user:pass@registry…` (verificado con v8.30.1), así
+  que el chequeo propio de (1) sigue pendiente. (4) Ninguno de estos bloquea T-PLT-04. (5) Re-verificación de
+  `962a62a`: `scan-lockfiles` falla abierto si `git log` da error (`bash -e` sin `pipefail`: stdin vacío y
+  gitleaks sale 0); no es provocable porque `range` valida las SHAs, pero conviene `set -o pipefail` al inicio del
+  `run` más un test. (6) Un secreto agregado y borrado dentro del PR bajo una ruta de la allowlist por defecto
+  (`a/node_modules/x.py`) no lo ve ningún paso (la guarda mira solo el árbol final); no llega a `main` por el
+  squash, pero queda en los commits del PR.
+- **`frontend/pnpm-lock.yaml` (decisión del planner):** la guarda lo exceptúa solo por ruta exacta
+  (`GITLEAKS_EXEMPT_LOCKFILES`, lista única del job), y el paso `scan-lockfiles` pasa su diff del rango por
+  `gitleaks stdin`. Tests: `test_AC_PLT_19_token_in_the_exempt_lockfile_fails_the_lockfile_scan` (el escaneo
+  principal no lo ve; el paso nuevo sí), `test_AC_PLT_19_clean_exempt_lockfile_passes_the_lockfile_scan` (con y
+  sin cambios en el rango), `test_AC_PLT_19_exempt_lockfile_passes_the_guard`,
+  `test_AC_PLT_19_lockfile_at_another_path_still_fails_the_guard` (`x/`, raíz, `frontend/app/`) y la forma de la
+  lista. Con la lista vacía fallan los de la guarda, la forma y el token (verificado). La guarda pasa sobre el
+  árbol de T-PLT-27, y el historial real del lockfile da 0 hallazgos por stdin.
+- **Guarda ampliada (después de B-7, decisión del coordinador):** `no-allowlisted-paths` lleva textuales las 21
+  entradas de directorios o rutas de la allowlist por defecto de v8.30.1 (las 4 de extensiones quedan como riesgo
+  aceptado en Q-062, `.svg` aparte) y falla cerrada si `grep` da error. Tests:
+  `test_AC_PLT_19_guard_covers_every_directory_entry_of_the_default_allowlist` (`gitleaks`: lee la allowlist del
+  binario de la imagen fijada y exige que la guarda y los ejemplos coincidan con ella),
+  `test_AC_PLT_19_every_guard_entry_has_an_example_that_fails_the_guard` (un archivo por entrada; `sub/.git` git
+  lo ignora), y los casos `env/lib/`, `virtualenv/lib/`, `venv/lib64/`, `lib/python3.12/`, `*-1.0.dist-info/`,
+  `vendor/bundle/` y `vendor/github.com/…`. Con la guarda de B-7 fallan los 9 tests nuevos (verificado).
 
 ### T-PLT-05 — `check_workflows.py` en el job `lint`
 - **AC:** AC-PLT-33. RN-PLT-18, RF-PLT-11. **Zona roja:** sí.
@@ -240,6 +327,9 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   `test_AC_PLT_32_verdict_by_account_without_write_is_ignored`, `test_AC_PLT_32_verdict_on_previous_sha_does_not_count`,
   `test_AC_PLT_32_latest_verdict_rejected_fails`, `test_AC_PLT_32_label_without_red_paths_still_needs_verdict`,
   `test_AC_PLT_32_renamed_file_old_path_counts`, `test_Q058_gate_paths_are_red`.
+- **Nota (revisión de T-PLT-04, B-2):** `**/.gitleaksignore` entra en `.github/zona-roja-paths.txt` con las rutas
+  del gate (design §3.7.2): gitleaks lo carga solo y cada huella anula un hallazgo. Test:
+  `test_Q058_gitleaksignore_at_any_depth_is_red` (`.gitleaksignore` y `docs/x/.gitleaksignore` son rojas).
 
 ### T-PLT-07 — Check `zona-roja`: API de GitHub + workflow
 - **AC:** AC-PLT-32. RN-PLT-12, RN-PLT-18. **Zona roja:** sí.

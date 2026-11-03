@@ -1,7 +1,7 @@
 ---
 spec: SPEC-00
 estado: Aprobado         # aprobado por el usuario junto con la spec (2026-10-31)
-actualizado: 2026-11-02   # §3.2.3 ajustado con T-PLT-14 (spec 1.0.3)
+actualizado: 2026-11-02   # §3.2.3 (T-PLT-14, spec 1.0.3); §3.5, §3.6, §3.7.2 (T-PLT-04, spec 1.0.4 y 1.0.5)
 ---
 # Diseño — Módulo de Plataforma (fundaciones)
 
@@ -379,7 +379,7 @@ secreto: `DJANGO_SETTINGS_MODULE=config.settings.test`, `DJANGO_SECRET_KEY=ci-on
 |---|---|---|---|---|---|
 | 1 | `lint` | — | `ruff check` · `ruff format --check` · `eslint --max-warnings 0` · `prettier --check` · `check_workflows.py` | cualquier hallazgo | 12, 20, 33 |
 | 2 | `file-size` | `lint` | `check_file_size.py` sobre lo trackeado | archivo > 400 líneas fuera de exclusiones | 13 |
-| 3 | `secrets` | `file-size` | `fetch-depth: 0`; `gitleaks git` (imagen v8.30.1 por digest) sobre `base..head` (PR) o `before..after` (push), `--redact`; test AC-19 | hallazgo | 19 |
+| 3 | `secrets` | `file-size` | `fetch-depth: 0`; guardas: ningún `.gitleaksignore` trackeado (cualquier caja) ni archivos en rutas que la allowlist por defecto saltea (salvo `.gitleaks.toml`, Q-062); `gitleaks git` (imagen v8.30.1 por digest) sobre `base..head` (PR) o `before..after` (push) con `--log-opts="--diff-merges=first-parent --text <rango>"`, `--redact`, `--ignore-gitleaks-allow`, `--verbose`; tests AC-19 (`-m gitleaks`) | hallazgo; `.gitleaksignore` trackeado; archivo en ruta salteada | 19 |
 | 3 | `deps-audit` | `file-size` | `audit_deps.py`: pip-audit sobre `uv export --frozen --all-groups` + `pnpm audit --json`, severidad vía OSV, excepciones con vencimiento | alta/crítica sin excepción vigente; excepción vencida; severidad desconocida (= alta) | 26 |
 | 4 | `typecheck` | `secrets`, `deps-audit` | `mypy . ../scripts` · `export_openapi --check` · `pnpm openapi:types && git diff --exit-code -- frontend/src/types` · `tsc --noEmit` | error de tipos; contrato/tipos con diff (lo imprime) | 21, 23 |
 | 5 | `architecture` | `typecheck` | `pytest tests/architecture` | violación C-01/02/09 o allowlist inválida | 14, 15, 31 |
@@ -416,7 +416,27 @@ del host y del contenedor están separados (volumen), así que los binarios nati
 3. Local `check-file-size` (`language: python`, stdlib, `types_or: [python, ts, tsx, jsx]`).
 4. Local `eslint` y `prettier` (`language: system`, `python scripts/precommit_frontend.py …`, `files: ^frontend/`;
    quita el prefijo, excluye `src/types/`, llama a `pnpm --dir frontend exec`).
-5. `gitleaks` v8.30.1 (staged, `--redact`).
+5. `gitleaks` v8.30.1 (staged, `--redact`, `--ignore-gitleaks-allow`).
+
+**El gate real de secretos es CI** (job `secrets`), no este hook: `git commit --no-verify` lo saltea, y el diff
+staged que lee no lleva `--text`, así que un archivo con atributo `-diff` o con un byte NUL queda como binario. El
+job cubre esos casos (`--text`, `--diff-merges=first-parent` para los merges) y tiene dos pasos de guarda antes
+del escaneo: falla con un `.gitleaksignore` trackeado a cualquier profundidad y en cualquier caja
+(`':(glob,icase)**/.gitleaksignore'`; gitleaks lo carga solo y cada huella que lista anula un hallazgo), y falla si
+algún archivo trackeado distinto de `.gitleaks.toml` cae en rutas que la allowlist global por defecto nunca escanea:
+las 21 entradas de directorios o rutas de `[allowlist] paths` de v8.30.1, copiadas textuales (PCRE, sin distinguir
+mayúsculas); las 4 de extensiones (imágenes, fuentes, binarios, `.svg` incluido) quedan fuera como riesgo aceptado
+(Q-062). Un test con marker `gitleaks` lee esa allowlist del binario de la imagen fijada y falla si la guarda se
+desincroniza al actualizar gitleaks; la guarda falla cerrada si `grep` da error. Además de `.gitleaks.toml`, la
+guarda deja pasar solo los lockfiles de `GITLEAKS_EXEMPT_LOCKFILES` (env del job, rutas exactas; hoy
+`frontend/pnpm-lock.yaml`), y el paso `scan-lockfiles`, después del escaneo principal, pasa por `gitleaks stdin`
+el diff de cada uno en el mismo rango (`git log -p --diff-merges=first-parent --text <rango> -- <lockfile>`, con
+`--redact` y `--ignore-gitleaks-allow`): stdin no tiene ruta, así que la allowlist por ruta no lo saltea. `--verbose` queda en
+el job a propósito: sin él gitleaks solo imprime la cantidad de hallazgos, sin regla, archivo, línea ni commit; con
+`--redact` el valor sale como `REDACTED`.
+
+Los repos remotos van fijados por **SHA del commit** del tag (`rev: <sha> # frozen: vX.Y.Z`, lo que escribe
+`pre-commit autoupdate --freeze`), no por tag: un tag se puede mover (mismo criterio que RN-PLT-14).
 
 Sin tests, mypy ni migraciones. Si un hook reformatea, se vuelve a stagear (documentado).
 **`ruff.toml`**: `py312`, `line-length 100`, `extend-exclude = ["context/legacy-source", "**/migrations",
@@ -425,8 +445,15 @@ Sin tests, mypy ni migraciones. Si un hook reformatea, se vuelve a stagear (docu
 formatter no reescribe bloques de código de specs ni rompe el lint en PRs solo de docs),
 `select = [E, F, W, I, B, UP, S, T20, DJ, PT, SIM, RUF, N, C4, DTZ, LOG, G]`; `per-file-ignores`: tests → `S101`,
 `N802` (nombres `test_AC_…`), `scripts/**` → `T20` (son CLIs) (ajustado tras revisión de T-PLT-02). **`.gitattributes`**: `* text=auto eol=lf` + binarios. **`.gitleaks.toml`**:
-`useDefault = true`; allowlist `regexes = ['''<ver \.env: [A-Z][A-Z0-9_]*>''']` con `regexTarget = "secret"` (una
-línea con placeholder **y** un token real sigue fallando); sin allowlist por ruta.
+`useDefault = true`; allowlist `regexes = ['''^<ver \.env: [A-Z][A-Z0-9_]*>$''']` con `regexTarget = "secret"` (una
+línea con placeholder **y** un token real sigue fallando); **anclada**: el secreto capturado tiene que ser el
+placeholder entero, si no una clave privada multilínea con una línea `<ver .env: X>` adentro pasaría. Sin
+allowlist propia por ruta; la allowlist global de rutas que trae `useDefault` (lockfiles, `node_modules/`,
+imágenes…) se acepta explícitamente en **Q-062**. Una regla propia,
+`mercadopago-access-token`: `\b((?:APP_USR|TEST)-\d{12,20}-\d{6}-[0-9a-fA-F]{32}-\d{6,12})\b` (`secretGroup = 1`,
+`keywords = ["app_usr-", "test-"]`), porque las reglas por defecto no detectan `APP_USR-…` en ninguna forma ni
+`TEST-…` en JSON, headers o query strings. Forma `PREFIJO-<app id>-<MMDDHH>-<32 hex>-<user id>`; el repo solo
+documenta los prefijos (`context/03`, `context/09`). No toca el placeholder ni un prefijo suelto.
 
 ### 3.7 Gobierno del repo público (RN-PLT-12/13/18, RF-PLT-13)
 
@@ -450,8 +477,9 @@ línea con placeholder **y** un token real sigue fallando); sin allowlist por ru
 - Módulos rojos futuros (listados ya para no olvidarlos): `backend/apps/{identity,tenancy,integrations,charges,webhooks,reconciliation}/**`.
   01 agrega `frontend/src/app/api/**` y `frontend/src/lib/server/**`.
 - **Provisorio, Q-058 (el propio gate):** `.github/**`, `scripts/**`, `.pre-commit-config.yaml`, `.gitleaks.toml`,
-  `ruff.toml`, `backend/pyproject.toml`, `frontend/{tsconfig.json,eslint.config.mjs,vitest.config.mts}` — sin esto
-  un PR puede neutralizar un check modificándolo en el mismo PR.
+  `**/.gitleaksignore`, `ruff.toml`, `backend/pyproject.toml`, `frontend/{tsconfig.json,eslint.config.mjs,vitest.config.mts}`
+  — sin esto un PR puede neutralizar un check modificándolo en el mismo PR. `.gitleaksignore` lo carga gitleaks
+  solo y cada huella que lista anula un hallazgo; además el job `secrets` falla si hay alguno trackeado (T-PLT-04).
 
 #### 3.7.3 Check `zona-roja` (`zona-roja.yml` + `check_zona_roja.py`)
 - `on: pull_request` (`opened, synchronize, reopened, labeled, unlabeled, ready_for_review`), **sin `paths:`** (un

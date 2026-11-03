@@ -65,13 +65,176 @@ jobs:
       - name: check_file_size.py
         run: python scripts/check_file_size.py
 
+  # Step 3. AC-PLT-19 (RN-PLT-13, C-06): gitleaks over the commits of the event with the repo's
+  # .gitleaks.toml, findings redacted. Image by tag + digest (multi-arch index, RN-PLT-14). Range:
+  # base..head on a PR, before..after on a push; the whole history of `after` on the first push of
+  # a ref (before = 40 zeros) or when `before` is not in the clone. fetch-depth 0 so every commit of
+  # the range is there. Then the `gitleaks`-marked tests against the same image. deps-audit
+  # (T-PLT-28) joins this stage.
+  secrets:
+    needs: file-size
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      GITLEAKS_IMAGE: zricethezav/gitleaks:v8.30.1@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f
+      # Lockfiles the path guard lets through (Q-062), space-separated exact paths, one place for
+      # both the guard and the stdin scan. Each new one is added here by hand and reviewed.
+      GITLEAKS_EXEMPT_LOCKFILES: frontend/pnpm-lock.yaml
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      # Event values go through env, never into the script text. Only 40-hex SHAs reach
+      # --log-opts (gitleaks splits it on spaces: an option there would change the scan).
+      - name: Commit range of the event
+        id: range
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BEFORE_SHA: ${{ github.event.before }}
+          AFTER_SHA: ${{ github.event.after }}
+        run: |
+          require_sha() {
+            [[ "$2" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::$1 is not a commit SHA: '$2'"; exit 1; }
+          }
+          case "$EVENT_NAME" in
+            pull_request)
+              require_sha BASE_SHA "$BASE_SHA"
+              require_sha HEAD_SHA "$HEAD_SHA"
+              range="$BASE_SHA..$HEAD_SHA"
+              ;;
+            push)
+              require_sha BEFORE_SHA "$BEFORE_SHA"
+              require_sha AFTER_SHA "$AFTER_SHA"
+              if [[ "$BEFORE_SHA" =~ ^0+$ ]] || ! git cat-file -e "$BEFORE_SHA^{commit}" 2>/dev/null; then
+                range="$AFTER_SHA"
+              else
+                range="$BEFORE_SHA..$AFTER_SHA"
+              fi
+              ;;
+            *)
+              echo "::error::unexpected event '$EVENT_NAME'"
+              exit 1
+              ;;
+          esac
+          echo "gitleaks range: $range"
+          echo "log-opts=$range" >> "$GITHUB_OUTPUT"
+      # gitleaks loads a .gitleaksignore by itself, and each fingerprint in it drops a finding: none
+      # may be tracked, at any depth nor in any case (on Windows/macOS `.GitLeaksIgnore` is the same
+      # file for the hook) (red-zone path, design.md sec. 3.7.2).
+      - name: No .gitleaksignore in the repo
+        id: no-gitleaksignore
+        run: |
+          found="$(git ls-files -- ':(glob,icase)**/.gitleaksignore')"
+          if [ -n "$found" ]; then
+            echo "::error::tracked .gitleaksignore files would silence gitleaks findings:"
+            echo "$found"
+            exit 1
+          fi
+      # The global allowlist of the default rules (useDefault, Q-062) never scans these paths, at any
+      # depth, so code there would hide a secret. Only the repo's own .gitleaks.toml (red zone,
+      # reviewer) and the exact paths of GITLEAKS_EXEMPT_LOCKFILES (scanned by stdin below) may
+      # match. The list is every directory/path entry of `[allowlist] paths` of gitleaks
+      # v8.30.1, verbatim (config/gitleaks.toml at 83d9cd68, embedded in the pinned image); the
+      # file-extension entries (images, fonts, binaries) stay out on purpose (Q-062). A gitleaks test
+      # reads the list from the image and fails if this one drifts. Case-insensitive, PCRE (the
+      # entries use `(?:` and `(?i)`), NUL-separated so any file name is read as is.
+      - name: No tracked files under paths gitleaks skips
+        id: no-allowlisted-paths
+        run: |
+          skipped=(
+            'gitleaks\.toml'
+            'go\.(?:mod|sum|work(?:\.sum)?)$'
+            '(?:^|/)vendor/modules\.txt$'
+            '(?:^|/)vendor/(?:github\.com|golang\.org/x|google\.golang\.org|gopkg\.in|istio\.io|k8s\.io|sigs\.k8s\.io)(?:/.*)?$'
+            '(?:^|/)gradlew(?:\.bat)?$'
+            '(?:^|/)gradle\.lockfile$'
+            '(?:^|/)mvnw(?:\.cmd)?$'
+            '(?:^|/)\.mvn/wrapper/MavenWrapperDownloader\.java$'
+            '(?:^|/)node_modules(?:/.*)?$'
+            '(?:^|/)(?:deno\.lock|npm-shrinkwrap\.json|package-lock\.json|pnpm-lock\.yaml|yarn\.lock)$'
+            '(?:^|/)bower_components(?:/.*)?$'
+            '(?:^|/)(?:angular|bootstrap|jquery(?:-?ui)?|plotly|swagger-?ui)[a-zA-Z0-9.-]*(?:\.min)?\.js(?:\.map)?$'
+            '(?:^|/)javascript\.json$'
+            '(?:^|/)(?:Pipfile|poetry)\.lock$'
+            '(?i)(?:^|/)(?:v?env|virtualenv)/lib(?:64)?(?:/.*)?$'
+            '(?i)(?:^|/)(?:lib(?:64)?/python[23](?:\.\d{1,2})+|python/[23](?:\.\d{1,2})+/lib(?:64)?)(?:/.*)?$'
+            '(?i)(?:^|/)[a-z0-9_.]+-[0-9.]+\.dist-info(?:/.+)?$'
+            '(?:^|/)vendor/(?:bundle|ruby)(?:/.*?)?$'
+            'verification-metadata\.xml'
+            'Database.refactorlog'
+            '(?:^|/)\.git$'
+          )
+          pattern="$(printf '(?:%s)|' "${skipped[@]}")"
+          pattern="${pattern%|}"
+          files="$(mktemp)"
+          git ls-files -z > "$files"
+          # Fail closed: grep exits 1 for "no match", 2 for an error (bad regex, no PCRE).
+          status=0
+          LC_ALL=C.UTF-8 grep -ziP "$pattern" "$files" > "$files.match" || status=$?
+          if [ "$status" -gt 1 ]; then
+            echo "::error::grep failed (exit $status): the path guard did not run"
+            exit 1
+          fi
+          read -r -a exempt <<< "$GITLEAKS_EXEMPT_LOCKFILES"
+          allowed=(.gitleaks.toml "${exempt[@]}")
+          found=""
+          while IFS= read -r -d '' path; do
+            keep=1
+            for ok in "${allowed[@]}"; do
+              if [ "$path" = "$ok" ]; then keep=0; fi
+            done
+            if [ "$keep" = 1 ]; then found+="$path"$'\n'; fi
+          done < "$files.match"
+          if [ -n "$found" ]; then
+            echo "::error::tracked files that gitleaks never scans (default path allowlist, Q-062):"
+            echo "$found"
+            exit 1
+          fi
+      # --ignore-gitleaks-allow: an inline `gitleaks:allow` comment does not silence a finding.
+      # --diff-merges=first-parent: `git log -p` prints no diff for a merge, so a file added while
+      # merging would go unscanned. --text: a `-diff` attribute or a NUL byte would turn the
+      # content into "Binary files differ". --verbose on purpose: without it gitleaks only prints a
+      # count, with no rule, file, line or commit to find the leak; --redact keeps the value out.
+      - name: gitleaks git
+        id: scan
+        env:
+          LOG_OPTS: ${{ steps.range.outputs.log-opts }}
+        run: >-
+          docker run --rm -v "$GITHUB_WORKSPACE:/repo:ro" "$GITLEAKS_IMAGE" git /repo
+          --config /repo/.gitleaks.toml --redact --no-banner --verbose --ignore-gitleaks-allow
+          --log-opts="--diff-merges=first-parent --text $LOG_OPTS"
+      # The path allowlist never scans the exempted lockfiles in `gitleaks git`, and `gitleaks stdin`
+      # has no path, so their diff in the same range goes through stdin. No change in the range:
+      # empty input, passes.
+      - name: gitleaks stdin on the exempted lockfiles
+        id: scan-lockfiles
+        env:
+          LOG_OPTS: ${{ steps.range.outputs.log-opts }}
+        run: |
+          read -r -a exempt <<< "$GITLEAKS_EXEMPT_LOCKFILES"
+          for lockfile in "${exempt[@]}"; do
+            echo "gitleaks stdin: $lockfile in $LOG_OPTS"
+            git log -p --diff-merges=first-parent --text --no-color --no-ext-diff "$LOG_OPTS" -- "$lockfile" \
+              | docker run --rm -i -v "$GITHUB_WORKSPACE:/repo:ro" "$GITLEAKS_IMAGE" stdin \
+                --config /repo/.gitleaks.toml --redact --no-banner --verbose --ignore-gitleaks-allow
+          done
+      - uses: ./.github/actions/setup
+        with:
+          python: "true"
+      # The gitleaks-marked tests run these same steps and the hook against throwaway repos.
+      - name: pytest -m gitleaks (AC-PLT-19)
+        run: pytest -c scripts/pytest.ini scripts/tests -m gitleaks
+
   # Step 4. AC-PLT-21 (backend): mypy with the django-stubs/drf-stubs plugins over backend/ and
   # scripts/, strict in apps/common/ and every domain/ ([tool.mypy] of backend/pyproject.toml). The
   # Django plugin imports config.settings.test, which reads the workflow-level env. tsc --noEmit
   # (T-PLT-27) and the OpenAPI contract/types diff (T-PLT-18, T-PLT-35) are added here later.
   typecheck:
-    # Becomes `needs: [secrets, deps-audit]` when T-PLT-04 and T-PLT-28 add step 3.
-    needs: file-size
+    # Becomes `needs: [secrets, deps-audit]` when T-PLT-28 adds deps-audit to step 3.
+    needs: secrets
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
