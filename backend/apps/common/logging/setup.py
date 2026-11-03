@@ -6,31 +6,50 @@ settings module from ``LOG_LEVEL``), gunicorn (``logconfig_dict``, T-PLT-25) and
 
 One handler, on the root logger: ``StdoutHandler``, one JSON object per line on stdout, no file.
 structlog loggers and stdlib loggers (Django, libraries) share the processors and the renderer:
-``merge_contextvars`` -> ``level`` -> ``component`` -> ``timestamp`` (ISO-8601 UTC) -> [redaction,
-T-PLT-14] -> ``format_exc_info`` -> ``message`` -> ``JSONRenderer``. Tracebacks and line breaks are
-escaped inside the JSON string, so an event never spans two lines.
+``merge_contextvars`` -> ``level`` -> ``component`` -> ``timestamp`` (ISO-8601 UTC) ->
+``format_exc_info`` -> redaction (T-PLT-14, AC-PLT-08) -> ``message`` -> ``JSONRenderer``. The
+redaction runs after the traceback is rendered, so the traceback text is scrubbed too (design.md
+§3.2.3 lists it before ``format_exc_info``). Tracebacks and line breaks are escaped inside the JSON
+string, so an event never spans two lines.
 
 Django applies its ``DEFAULT_LOGGING`` before this one; here the ``django`` logger loses those
 handlers (a text console handler and ``mail_admins``, whose e-mail embeds the error report with the
 settings, C-06) and propagates to the root handler. ``django.request``, ``django.security.csrf`` and
 ``django.server`` are silenced (T-PLT-13): they log the raw path (``"Not Found: /path"``), and the
 access log (``middleware/access_log.py``) reports the same requests with the route template.
+``django.db.backends`` is held at INFO (T-PLT-14): with ``DEBUG`` on it logs every query with its
+parameters at DEBUG; its errors still propagate.
+
+An event that cannot be rendered (bad ``%`` args, a failing formatter) becomes one fixed JSON line,
+``log.render_failed``, instead of logging's text traceback on stderr with the message and its args
+(``StdoutHandler.handleError``, T-PLT-12 review N-2). ``NaN``/``Infinity`` never reach the
+renderer as floats (redaction) and the renderer rejects them anyway (``allow_nan=False``, N-4).
+Python warnings are captured (``logging.captureWarnings``, T-PLT-14 review N-1): they become
+``py.warnings`` events, JSON on stdout and redacted, instead of plain text on stderr.
 """
 
 from __future__ import annotations
 
+import json
 import logging
 import logging.config
 import sys
+from datetime import UTC, datetime
 from typing import Any, TextIO
 
 import structlog
 from structlog.typing import Processor
 
-from apps.common.logging.processors import add_component, add_record_extras
+from apps.common.logging import context
+from apps.common.logging.processors import add_component, add_record_extras, redact_event
 
 LOG_LEVELS = ("DEBUG", "INFO", "WARNING", "ERROR")
 SILENCED_LOGGERS = ("django.request", "django.security.csrf", "django.server")
+# DEBUG records of these carry SQL with its parameters (C-06); INFO and up still go out. A logger
+# level holds for its children too: this also cuts django.db.backends.schema, which logs each DDL
+# statement (migrations) with its parameters at DEBUG.
+SQL_LOGGERS = ("django.db.backends",)
+RENDER_FAILED_EVENT = "log.render_failed"
 
 
 class StdoutHandler(logging.StreamHandler[TextIO]):
@@ -51,6 +70,32 @@ class StdoutHandler(logging.StreamHandler[TextIO]):
     def stream(self, value: TextIO) -> None:
         """Ignored: the target is always the current stdout."""
 
+    def handleError(self, record: logging.LogRecord) -> None:  # noqa: N802 - logging's API
+        """One fixed JSON line for a record that failed to render; never raises.
+
+        Only fields known to be safe: the logger name and level of the record and the type of
+        the error, never ``record.msg``, its args nor the error message (they may carry
+        anything, C-06). Replaces logging's default, a text traceback on stderr.
+        """
+        error = sys.exc_info()[1]
+        event = {
+            "timestamp": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+            "level": "error",
+            "component": __name__,
+            "message": RENDER_FAILED_EVENT,
+            "failed_component": str(record.name),
+            "failed_level": str(record.levelname).lower(),
+            "error_type": type(error).__name__ if error is not None else "unknown",
+        }
+        request_id = context.current_request_id()
+        if request_id is not None:
+            event["request_id"] = request_id
+        try:
+            self.stream.write(json.dumps(event) + self.terminator)
+            self.flush()
+        except Exception:  # noqa: S110 - stdout itself failed: nowhere left to report it
+            pass
+
 
 def _shared_processors() -> list[Processor]:
     """What both kinds of event get first: context, level, component and UTC timestamp."""
@@ -68,10 +113,10 @@ def json_formatter() -> structlog.stdlib.ProcessorFormatter:
         foreign_pre_chain=[*_shared_processors(), add_record_extras],
         processors=[
             structlog.stdlib.ProcessorFormatter.remove_processors_meta,
-            # T-PLT-14: the redaction processor goes here, before anything is rendered.
             structlog.processors.format_exc_info,
+            redact_event,
             structlog.processors.EventRenamer("message"),
-            structlog.processors.JSONRenderer(),
+            structlog.processors.JSONRenderer(allow_nan=False),
         ],
     )
 
@@ -96,6 +141,8 @@ def logging_config(level: str) -> dict[str, Any]:
             "django": {"handlers": [], "level": "NOTSET", "propagate": True},
             # They log the raw path (RN-PLT-06); the access log replaces them.
             **{name: {"handlers": ["silenced"], "propagate": False} for name in SILENCED_LOGGERS},
+            # A level of their own: the root's DEBUG (LOG_LEVEL) must not let SQL through.
+            **{name: {"handlers": [], "level": "INFO", "propagate": True} for name in SQL_LOGGERS},
         },
     }
 
@@ -103,6 +150,8 @@ def logging_config(level: str) -> dict[str, Any]:
 def configure_logging(config: dict[str, Any]) -> None:
     """Apply ``config`` (``logging_config(...)``) and send structlog through the same handler."""
     logging.config.dictConfig(config)
+    # warnings.warn(...) -> the "py.warnings" logger -> the same handler and redaction (N-1).
+    logging.captureWarnings(True)
     structlog.configure(
         processors=[
             structlog.stdlib.filter_by_level,

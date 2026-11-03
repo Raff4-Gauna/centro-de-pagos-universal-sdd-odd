@@ -1,7 +1,7 @@
 ---
 spec: SPEC-00
 estado: Aprobado         # aprobado por el usuario junto con la spec (2026-10-31)
-actualizado: 2026-10-31
+actualizado: 2026-11-02   # §3.2.3 ajustado con T-PLT-14 (spec 1.0.3)
 ---
 # Diseño — Módulo de Plataforma (fundaciones)
 
@@ -181,13 +181,33 @@ excepciones a `build_problem()`; `dev_views.py` solo llama a `diagnostic_ping.de
 #### 3.2.3 Logging y correlación (RN-PLT-05/06/07, RF-PLT-05, RNF-PLT-03)
 - **Una sola configuración** (`logging/setup.py`) para Django (`LOGGING`), gunicorn (`logconfig_dict`) y Celery
   (señal `setup_logging`, `worker_hijack_root_logger=False`). Procesadores: `merge_contextvars` → `add_log_level`
-  (`level`) → nombre del logger como `component` → `TimeStamper(fmt="iso", utc=True, key="timestamp")` → redacción
-  → `format_exc_info` → `EventRenamer("message")` → `JSONRenderer`; los loggers stdlib pasan por
-  `ProcessorFormatter`. Un evento por línea, solo `StreamHandler(stdout)`. `organization_id` solo si está ligado
-  (`context.bind_organization()`, lo usa 02).
-- **Redacción** (`domain/redaction.py`, recursiva): claves `authorization`, `cookie`, `set-cookie`, `x-api-key` y
-  toda clave que contenga `token`, `secret`, `password`, `passwd`, `api_key`, `apikey`, `credential`, `signature`
-  → `"[REDACTED]"`. Nunca se loguean `request.META`, body, query string ni path crudo.
+  (`level`) → nombre del logger como `component` → `TimeStamper(fmt="iso", utc=True, key="timestamp")` →
+  `format_exc_info` → redacción → `EventRenamer("message")` → `JSONRenderer(allow_nan=False)`; los loggers stdlib
+  pasan por `ProcessorFormatter`. La redacción va **después** de `format_exc_info` (T-PLT-14): así la traza
+  renderizada (`exception`) es un string más y también se limpia, y `exc_info` (una tupla con la excepción) nunca
+  pasa por la redacción. Un evento por línea, solo `StreamHandler(stdout)`; un evento que no se puede renderizar
+  sale como una línea JSON fija `log.render_failed` (sin mensaje ni args). `logging.captureWarnings(True)`: los
+  `warnings` de Python salen como eventos `py.warnings` (JSON y redactados), no como texto en stderr.
+  `django.db.backends` (y `.schema`) queda en INFO aunque el root esté en DEBUG: en DEBUG loguea SQL con
+  parámetros. `organization_id` solo si está ligado (`context.bind_organization()`, lo usa 02).
+- **Redacción** (`domain/redaction.py`, pura y recursiva; reglas ajustadas por T-PLT-14):
+  - **Claves** (sin mayúsculas, `-` ni `_`, también en forma WSGI `HTTP_…`): exactas `authorization`,
+    `proxy-authorization`, `cookie`, `set-cookie`, `x-api-key`, `auth` y `location` (destino de un redirect o la
+    `LOCATION` de la caché, que es la URL de Redis con contraseña); y toda clave que contenga `token`, `secret`,
+    `password`, `passwd`, `api_key`/`apikey`, `credential`, `signature`, `private_key`, `session` (`sessionid`) o
+    `jwt` → `"[REDACTED]"`, cualquiera sea el tipo del valor.
+  - **Texto** (todo string, mensaje y traza incluidos): una URL pierde `user:password@`, query string y
+    fragmento; una clave con forma de secreto seguida de `=` o `:` (con espacios y comillas alrededor:
+    `password = x`, `token: x`, `{"access_token": "x"}`, un DSN, una línea de header) pierde el valor, después
+    del esquema si lo hay (`Authorization: Bearer x`); `Bearer`/`Basic <credencial>` pierde la credencial en
+    cualquier lugar. Es una red de seguridad, no la regla: lo que no tenga esas formas no se reconoce.
+  - **Valores no JSON**: `UUID`/`Decimal` como texto, fechas ISO, `NaN`/`Infinity` como strings, el resto
+    `"<Tipo>"` (nunca su `repr`); ciclos `"[CIRCULAR]"`, más de 10 niveles `"[TRUNCATED]"`.
+  - **Tiempo lineal**: cada regex arranca en una posición anclada (lookbehind) y acota sus repeticiones salvo la
+    última; cada string se corta a 8192 caracteres **antes** de las regex (la tira sin blancos que cruza el corte
+    se descarta entera) con sufijo `"[TRUNCATED]"`. El render corre dentro de `Handler.emit`, con el lock del
+    handler tomado: una regex cuadrática frena el logging de todos los hilos.
+  - Nunca se loguean `request.META`, body, query string ni path crudo.
 - **`RequestIdMiddleware`** (primero): acepta `X-Request-ID` solo si `len == 36` y
   `re.fullmatch(r"[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}", v.lower())` (`fullmatch`: un
   `\n` final no pasa); si no, `uuid4()`. Liga contextvars y devuelve el header en **toda** respuesta.

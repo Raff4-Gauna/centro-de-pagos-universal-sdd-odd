@@ -2,7 +2,7 @@
 
 Each one takes and returns the event dict. For a stdlib record, ``ProcessorFormatter`` puts the
 ``LogRecord`` under ``_record`` while the pre-chain runs (``remove_processors_meta`` drops it before
-rendering). The redaction processor of T-PLT-14 joins this module.
+rendering). ``redact_event`` (T-PLT-14) is the last step before rendering, for both kinds of event.
 """
 
 from __future__ import annotations
@@ -10,6 +10,8 @@ from __future__ import annotations
 import logging
 
 from structlog.typing import EventDict, WrappedLogger
+
+from apps.common.domain.redaction import redact_mapping
 
 # Attributes every LogRecord has (plus the ones Formatter.format adds): anything else came in
 # through ``extra=``.
@@ -39,3 +41,13 @@ def add_record_extras(logger: WrappedLogger, method_name: str, event_dict: Event
         if isinstance(value, _SCALARS):
             event_dict[key] = value
     return event_dict
+
+
+def redact_event(logger: WrappedLogger, method_name: str, event_dict: EventDict) -> EventDict:
+    """Secrets out of every field, at any depth (``domain/redaction.py``; AC-PLT-08, C-06).
+
+    Runs after ``format_exc_info``: the traceback is then the ``exception`` string, scrubbed like
+    any other, and ``exc_info`` is gone (before, its value would be an exception tuple).
+    Both paths get here: structlog kwargs and the ``extra=`` scalars of stdlib records.
+    """
+    return redact_mapping(event_dict)

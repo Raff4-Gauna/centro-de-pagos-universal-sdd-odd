@@ -11,9 +11,11 @@ Level: DEBUG for /healthz and /readyz (probes every few seconds; a /readyz 503 a
 An unhandled exception anywhere inside this middleware (view, inner middleware, ``process_view``,
 URLconf, template response) reaches the event through Django's ``got_request_exception``, since
 ``django.request`` is silenced (it logs the raw path). Only its type, the types of its
-``__cause__``/``__context__`` chain (``module.QualName``, builtins bare, at most ``MAX_CHAIN``) and
-its frames (``path:line in function``, the path relative to ``site-packages`` or ``BASE_DIR``, so no
-system user nor image layout shows) are logged, never a message: a message can carry a URL with a
+``__cause__``/``__context__`` chain (``module.QualName``, builtins bare, at most ``MAX_CHAIN``), its
+frames and those of each cause (``exception_chain_frames``, T-PLT-14) are logged: ``path:line in
+function``, the path relative to ``site-packages``, the standard library (``logging/__init__.py``)
+or ``BASE_DIR``, else the file name alone (also without Django settings: a script, Celery before
+setup), so no system user nor image layout shows. Never a message: a message can carry a URL with a
 token, a Redis URL with its password, a raw path or a pydantic ``input_value`` (C-06; same rule as
 ``health.not_ready``).
 
@@ -28,6 +30,7 @@ from __future__ import annotations
 
 import logging
 import sys
+import sysconfig
 import time
 import traceback
 from collections.abc import Callable
@@ -47,6 +50,8 @@ HEALTH_ROUTES = frozenset({"healthz", "readyz"})
 MAX_FRAMES = 30
 MAX_CHAIN = 10
 _PACKAGE_DIRS = ("/site-packages/", "/dist-packages/")
+# The interpreter's standard library (the base one, also from a virtualenv), with a final "/".
+_STDLIB_DIR = sysconfig.get_paths()["stdlib"].replace("\\", "/").rstrip("/") + "/"
 
 logger = get_logger(__name__)
 # The unhandled exception of the current request, from got_request_exception to the access event.
@@ -68,32 +73,53 @@ def _type_name(error: BaseException) -> str:
     )
 
 
+def _base_dir() -> str | None:
+    """``BASE_DIR`` with a final "/", or ``None`` without settings (never raises)."""
+    try:
+        base_dir = getattr(settings, "BASE_DIR", None)
+    except Exception:  # ImproperlyConfigured outside Django: a script, Celery before setup
+        return None
+    return None if base_dir is None else str(base_dir).replace("\\", "/").rstrip("/") + "/"
+
+
+def _relative_to(path: str, directory: str | None) -> str | None:
+    """``path`` below ``directory`` (compared without case: Windows), or ``None``."""
+    if directory is not None and path.lower().startswith(directory.lower()):
+        return path[len(directory) :]
+    return None
+
+
 def _short_path(filename: str) -> str:
-    """``django/core/handlers/base.py`` or ``apps/...``: never an absolute path."""
+    """``django/core/handlers/base.py``, ``logging/__init__.py`` or ``apps/...``: never absolute."""
     path = filename.replace("\\", "/")
     for marker in _PACKAGE_DIRS:
         if marker in path:
             return path.rsplit(marker, 1)[1]
-    base = str(settings.BASE_DIR).replace("\\", "/").rstrip("/") + "/"
-    if path.lower().startswith(base.lower()):
-        return path[len(base) :]
-    return path.rsplit("/", 1)[-1]  # the standard library or anything else: the file name only
+    relative = _relative_to(path, _STDLIB_DIR) or _relative_to(path, _base_dir())
+    return relative or path.rsplit("/", 1)[-1]  # anything else: the file name only
+
+
+def _frames(error: BaseException) -> list[str]:
+    frames = traceback.extract_tb(error.__traceback__)[-MAX_FRAMES:]
+    return [f"{_short_path(f.filename)}:{f.lineno} in {f.name}" for f in frames]
 
 
 def describe_exception(error: BaseException) -> dict[str, Any]:
-    """Type, chain of cause types and frames of ``error``; never its message nor its args."""
+    """Type and frames of ``error`` and of each cause; never a message nor args."""
     chain: list[str] = []
+    chain_frames: list[list[str]] = []
     seen = {id(error)}
     cause = error.__cause__ or (None if error.__suppress_context__ else error.__context__)
     while cause is not None and id(cause) not in seen and len(chain) < MAX_CHAIN:
         seen.add(id(cause))
         chain.append(_type_name(cause))
+        chain_frames.append(_frames(cause))
         cause = cause.__cause__ or (None if cause.__suppress_context__ else cause.__context__)
-    frames = traceback.extract_tb(error.__traceback__)[-MAX_FRAMES:]
     return {
         "exception_type": _type_name(error),
         "exception_chain": chain,
-        "exception_frames": [f"{_short_path(f.filename)}:{f.lineno} in {f.name}" for f in frames],
+        "exception_frames": _frames(error),
+        "exception_chain_frames": chain_frames,
     }
 
 

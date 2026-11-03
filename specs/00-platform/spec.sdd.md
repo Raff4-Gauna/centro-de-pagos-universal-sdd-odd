@@ -3,9 +3,9 @@ id: SPEC-00
 modulo: platform
 estado: Approved
 track: S
-version: 1.0.2
+version: 1.0.3
 depende_de: []
-actualizado: 2026-11-01
+actualizado: 2026-11-02
 ---
 
 # Módulo de Plataforma (fundaciones)
@@ -245,3 +245,4 @@ Se completa al generar `tasks.md`.
 | 1.0.0 | 2026-10-31 | Estado → **Approved** por el dueño. Decididas Q-058 (las rutas del gate de CI son zona roja: reviewer obligatorio), Q-059 (Celery 5.6.3 + redis-py 6.4.0; MUI v9; Tailwind 3.4, DRF 3.16, Node 24 sin cambios) y Q-060 (default). Las versiones exactas de MUI v9 y su ecosistema se fijan y verifican en la primera tarea de frontend | Gate humano *Approved* (2026-10-31) |
 | 1.0.1 | 2026-10-31 | RF-PLT-15: "tema MUI v7" → "tema MUI v9" | Alinear con Q-059 (decidida al aprobar); sin cambio de comportamiento |
 | 1.0.2 | 2026-11-01 | Revisión de Q-059: DRF 3.16.1 → 3.18.2 (stubs de DRF/Django siguen en 3.16.9/5.2.9; `design.md §8`). Sin cambios en RN/RF/AC | Decisión del dueño (2026-11-01) por 3 advisories altas de DRF 3.16.1 detectadas por el auditor de dependencias |
+| 1.0.3 | 2026-11-02 | Ajuste de diseño en `design.md §3.2.3` (redacción de logs, T-PLT-14): la redacción corre después de `format_exc_info`; claves agregadas (`location`, `proxy-authorization`, `auth`, `private_key`, `session`, `jwt`); reglas de texto (URL con credenciales, query, `clave[:=]valor`, Bearer/Basic); corte a 8 KB y regex de tiempo lineal; `captureWarnings`; `django.db.backends` en INFO; línea fija ante un error de render. Sin cambios en RN/RF/AC | Revisión de T-PLT-14 (B-1 ReDoS, B-2 diseño desalineado, N-1/N-2/N-3) y pendientes de las revisiones de T-PLT-12/13 |
