@@ -76,7 +76,7 @@ Reglas: rebanada vertical · ≤ ~300 líneas de diff · mergeable sola · cita 
 | T-PLT-29 | Pre-commit de eslint/prettier | — (RF-PLT-12) | Infra | `scripts/precommit_frontend.py` | T-PLT-04, T-PLT-27 | frontend-dev | M | Sí | ☐ |
 | T-PLT-30 | Base visual: tokens, tema, estados de carga | AC-PLT-28 (parcial), AC-PLT-22 (FE) | UI | `src/lib/{design-tokens,theme,query-client}.ts`, `src/components/*` | T-PLT-21, T-PLT-27 | frontend-dev | L | Sí | ◐ en revisión (falta reviewer/PR) |
 | T-PLT-31 | Shell `(dashboard)` + Inicio | AC-PLT-28 | UI | `src/components/shell/*`, `app/(dashboard)/inicio/*` | T-PLT-30 | frontend-dev | L | No | ◐ en revisión (falta reviewer/PR) |
-| T-PLT-32 | Configuración (secciones deshabilitadas) | AC-PLT-28 | UI | `app/(dashboard)/configuracion/*`, `src/modules/settings/*` | T-PLT-31 | frontend-dev | M | No | ☐ |
+| T-PLT-32 | Configuración (secciones deshabilitadas) | AC-PLT-28 | UI | `app/(dashboard)/configuracion/*`, `src/modules/settings/*` | T-PLT-31 | frontend-dev | M | No | ◐ en revisión (falta reviewer/PR) |
 | T-PLT-33 | BFF pass-through con `X-Request-ID` | AC-PLT-10, AC-PLT-09 (BFF) | BFF | `app/api/[...path]/route.ts`, `src/lib/server/*` | T-PLT-27 | frontend-dev | L | No (reviewer recomendado) | ◐ en revisión (falta reviewer/PR) |
 | T-PLT-34 | BFF: rutas seguras y errores 400/502/504 | AC-PLT-10 (robustez) | BFF | `src/lib/server/backend-proxy.ts`, `next.config.ts` | T-PLT-33 | frontend-dev | M | No (reviewer recomendado) | ◐ en revisión (falta reviewer/PR) |
 | T-PLT-35 | Cliente tipado + tipos desde OpenAPI + diff en CI | AC-PLT-23 (frontend) | Frontend/CI | `src/lib/{api-client,problem}.ts`, `src/types/api.d.ts` | T-PLT-18, T-PLT-27 | frontend-dev | M | Sí | ◐ en revisión (falta reviewer/PR) |
@@ -1418,6 +1418,12 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   `frontend/src/modules/settings/components/SettingsSectionList.test.tsx`.
 - **Plan de pruebas:** `test_AC_PLT_28_settings_lists_nine_sections_disabled_with_module_chip`,
   `test_AC_PLT_28_settings_route_error_shows_retry`.
+- **Revisión (aprobada, sin bloqueantes). Para después:** (1) `tw-opacity-60` deja las descripciones en ~2.6:1 de
+  contraste (título y chip ~4.0-4.4:1), por debajo de 4.5:1: quitar la opacidad o aplicarla solo al título.
+  (2) `aria-disabled` sobre `listitem` no es válido en ARIA 1.2 (no hace daño; el texto visible ya marca el estado).
+  (3) Descripciones: sumar "(si la API lo expone)" en Costos y comisiones y "email de Google" en Mi perfil.
+  (4) Opcional: chip "Módulo 04 · Integraciones". (5) El test principal no verifica "Todavía no disponible." ni las
+  descripciones.
 
 ### T-PLT-33 — BFF pass-through con `X-Request-ID`
 - **AC:** AC-PLT-10, AC-PLT-09 (lado BFF). RN-PLT-07, RN-PLT-16, RF-PLT-06 (Q-050). **Zona roja:** no (reviewer
