@@ -7,6 +7,7 @@ import nextTs from "eslint-config-next/typescript";
 export default defineConfig([
   ...nextVitals,
   ...nextTs,
-  // Build output, coverage reports and the Next-generated declaration file are not source.
-  globalIgnores([".next/**", "out/**", "coverage/**", "next-env.d.ts"]),
+  // Build output, coverage reports and generated declarations are not source: next-env.d.ts
+  // (Next) and src/types/** (`pnpm openapi:types` from the OpenAPI contract, ADR-0005).
+  globalIgnores([".next/**", "out/**", "coverage/**", "next-env.d.ts", "src/types/**"]),
 ]);

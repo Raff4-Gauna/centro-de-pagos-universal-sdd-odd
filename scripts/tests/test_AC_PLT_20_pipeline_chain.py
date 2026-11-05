@@ -134,6 +134,25 @@ def test_AC_PLT_20_tests_job_runs_scripts_tests() -> None:
     assert any("pytest -c scripts/pytest.ini scripts/tests" in run for run in runs)
 
 
+def test_AC_PLT_23_typecheck_job_checks_contract_then_frontend_types() -> None:
+    steps = ci_jobs()["typecheck"]["steps"]
+    runs = [step.get("run", "") for step in steps]
+
+    def index_of(fragment: str) -> int:
+        return next(i for i, run in enumerate(runs) if fragment in run)
+
+    contract = index_of("python manage.py export_openapi --check")
+    types = index_of("pnpm openapi:types")
+    tsc = index_of("pnpm typecheck")
+    # Contract first, then the types generated from it, then tsc against those types.
+    assert contract < types < tsc
+    assert steps[types]["working-directory"] == "frontend"
+    # New untracked files count as a difference too, and the step fails printing the diff.
+    assert "git status --porcelain --untracked-files=all -- src/types" in runs[types]
+    assert "git --no-pager diff -- src/types" in runs[types]
+    assert "exit 1" in runs[types]
+
+
 def test_AC_PLT_16_migrations_job_runs_makemigrations_check_on_postgres() -> None:
     jobs = ci_jobs()
     job = jobs["migrations"]
