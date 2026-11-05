@@ -47,15 +47,20 @@ _SHA_LINE_RE = re.compile(r"^[ \t]*SHA:[ \t]*([0-9a-fA-F]{40})[ \t]*$", re.M)
 
 @dataclass(frozen=True)
 class RedRule:
-    """One line of the paths file: a glob plus optional exceptions (``!glob``) of that line."""
+    """One line of the paths file: a glob plus optional exceptions (``!glob``) of that line.
+
+    Matching ignores case (path and globs are lowercased): marking too much is cheap, and on a
+    case-insensitive checkout (Windows, macOS) ``Scripts/x.py`` is ``scripts/x.py``.
+    """
 
     pattern: str
     exceptions: tuple[str, ...] = ()
 
     def matches(self, path: str) -> bool:
-        if not matches(path, self.pattern):
+        folded = path.lower()
+        if not matches(folded, self.pattern.lower()):
             return False
-        return not any(matches(path, exception) for exception in self.exceptions)
+        return not any(matches(folded, exception.lower()) for exception in self.exceptions)
 
 
 @dataclass(frozen=True)

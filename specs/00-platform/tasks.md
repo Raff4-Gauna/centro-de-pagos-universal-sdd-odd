@@ -377,6 +377,14 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   `frontend/scripts/**`, `backend/config/settings/**`, `AGENTS.md`, `CLAUDE.md`, `context/01-constitution.md`,
   `.claude/**` y `.agents/**`. Test: `test_Q058_paths_that_can_alter_the_gate_are_red`. Las rutas del BFF
   (`frontend/src/app/api/**`, `frontend/src/lib/server/**`) siguen fuera hasta SPEC-01 (design §3.7.2).
+- **Nota (revisión de `b20dd78`, B-1..B-3 + decisiones del planner):** suma `**/pyproject.toml`,
+  `**/{pytest.ini,.pytest.ini,tox.ini,setup.cfg}` (la excepción `!backend/tests/**` no los tapa: es de otra línea),
+  `**/{AGENTS.md,CLAUDE.md}`, `.mcp.json`, `frontend/pnpm-lock.yaml` (simetría con `backend/uv.lock`),
+  `**/.gitattributes` y `.vscode/**`; las rutas se comparan **sin distinguir mayúsculas** (ruta y globs en minúscula).
+- **Para después:** (1) redacción/logging (`apps/common/domain/redaction.py`, `apps/common/logging/processors.py`)
+  sin zona propia en la lista; (2) alinear el formato de veredicto de la skill/agente `reviewer` con design §3.7.3
+  antes de T-PLT-07; (3) en T-PLT-07, normalizar `updated_at` a UTC (aware) antes de comparar e ignorar líneas de
+  veredicto dentro de bloques de código.
 
 ### T-PLT-07 — Check `zona-roja`: API de GitHub + workflow
 - **AC:** AC-PLT-32. RN-PLT-12, RN-PLT-18. **Zona roja:** sí.

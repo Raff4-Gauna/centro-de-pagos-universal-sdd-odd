@@ -320,6 +320,12 @@ def test_Q058_gitleaksignore_at_any_depth_is_red() -> None:
         *("backend/config/settings/base.py", "backend/config/settings/prod.py"),
         *("AGENTS.md", "CLAUDE.md", "context/01-constitution.md"),
         *(".claude/settings.json", ".claude/agents/reviewer.md", ".agents/roles.md"),
+        *("backend/apps/common/pyproject.toml", "frontend/pyproject.toml", "docs/pyproject.toml"),
+        *("backend/tests/pytest.ini", "backend/tests/architecture/.pytest.ini", "tox.ini"),
+        *("backend/setup.cfg", "backend/apps/common/tox.ini", "frontend/setup.cfg"),
+        *("docs/AGENTS.md", "backend/apps/charges/CLAUDE.md", ".mcp.json"),
+        *("frontend/pnpm-lock.yaml", ".gitattributes", "frontend/src/.gitattributes"),
+        *(".vscode/settings.json", ".vscode/tasks.json"),
     ],
 )
 def test_Q058_paths_that_can_alter_the_gate_are_red(path: str) -> None:
@@ -331,10 +337,10 @@ def test_Q058_paths_that_can_alter_the_gate_are_red(path: str) -> None:
     [
         "docs/notes.md",
         "README.md",
-        "docs/AGENTS.md",
+        "docs/AGENTS.md.bak",
         "frontend/src/components/EmptyState.tsx",
         "frontend/src/lib/server/backend-proxy.ts",  # red from SPEC-01 on (design.md sec. 3.7.2)
-        "frontend/pnpm-lock.yaml",
+        "frontend/src/pnpm-lock.yaml",
         "frontend/src/next.config.ts",
         "backend/apps/common/api/throttling.py",
         "backend/apps/common/health/views.py",
@@ -355,10 +361,21 @@ def test_AC_PLT_32_non_red_paths_are_not_red(path: str) -> None:
     assert not is_red(path)
 
 
-def test_AC_PLT_32_red_path_matching_is_case_sensitive() -> None:
-    # git paths on the Linux runners are case-sensitive: `Scripts/x.py` is not `scripts/x.py`.
-    assert not is_red("Scripts/check_zona_roja.py")
-    assert not is_red("Backend/apps/charges/models.py")
+def test_AC_PLT_32_red_path_matching_ignores_case() -> None:
+    # Marking too much is cheap; on a case-insensitive checkout these are the red paths.
+    assert is_red("Scripts/check_zona_roja.py")
+    assert is_red("Backend/apps/charges/models.py")
+    assert is_red("docs/agents.md")
+    assert is_red("Frontend/PNPM-LOCK.yaml")
+    # Exceptions ignore case too: `Backend/Apps/x.py` is still outside the backend/** line.
+    assert not is_red("Backend/Apps/common/views.py")
+    assert not is_red("DOCS/NOTES.md")
+
+
+def test_AC_PLT_32_backend_tests_exception_does_not_hide_pytest_config() -> None:
+    assert is_red("backend/tests/pytest.ini")
+    assert is_red("backend/tests/pyproject.toml")
+    assert is_red("backend/apps/common/setup.cfg")
 
 
 def test_AC_PLT_32_default_rules_file_is_the_repo_list() -> None:

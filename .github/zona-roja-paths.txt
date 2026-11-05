@@ -3,7 +3,7 @@
 # an APROBADO verdict of the reviewer, by an account with write access, citing the PR head SHA.
 #
 # Syntax: one glob per line (scripts/glob_paths.py: `*`, `?`, `**` as a whole segment, `{a,b}`),
-# anchored at the repo root and case-sensitive. Optional exceptions on the same line, each one
+# anchored at the repo root and case-INsensitive. Optional exceptions on the same line, each one
 # prefixed with `!`: the line matches a path that matches the glob and none of its exceptions.
 # Exceptions only apply to their own line (another line can still make the path red). Blank lines
 # and lines starting with `#` are ignored. The check reads this file from the base branch (D-09).
@@ -71,3 +71,18 @@ backend/config/settings/**
 {AGENTS.md,CLAUDE.md,context/01-constitution.md}
 .claude/**
 .agents/**
+
+# --- Review of T-PLT-06 (b20dd78): blockers B-1..B-3 and planner decisions ---
+# ruff and pytest read [tool.ruff] / [tool.pytest] from a pyproject.toml in any subfolder.
+**/pyproject.toml
+# pytest/tox config at any depth (a backend/tests/pytest.ini with -k deselects tests; the
+# `!backend/tests/**` exception above only applies to its own line).
+**/{pytest.ini,.pytest.ini,tox.ini,setup.cfg}
+# Files the agents load as instructions or tools.
+**/{AGENTS.md,CLAUDE.md}
+.mcp.json
+# Lockfile: a changed tarball/integrity alters what gets installed (same as backend/uv.lock).
+frontend/pnpm-lock.yaml
+# Attributes (eol, diff/merge drivers, -diff hides content from gitleaks) and editor tasks.
+**/.gitattributes
+.vscode/**
