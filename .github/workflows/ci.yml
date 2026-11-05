@@ -36,7 +36,8 @@ env:
   NEXT_TELEMETRY_DISABLED: "1"
 
 jobs:
-  # Step 1. check_workflows.py (T-PLT-05) is added here later.
+  # Step 1. ruff, eslint/prettier and AC-PLT-33 (RN-PLT-18): check_workflows.py fails on any rule
+  # of the header above, in every workflow and local action, naming the file and the rule.
   lint:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -58,6 +59,8 @@ jobs:
       - name: prettier --check
         working-directory: frontend
         run: pnpm format:check
+      - name: check_workflows.py
+        run: python scripts/check_workflows.py
 
   # Step 2. AC-PLT-13: tracked code files over 400 lines (C-14).
   file-size:

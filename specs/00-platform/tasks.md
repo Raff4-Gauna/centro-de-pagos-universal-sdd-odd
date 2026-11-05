@@ -73,7 +73,7 @@ Reglas: rebanada vertical · ≤ ~300 líneas de diff · mergeable sola · cita 
 | T-PLT-02 | Toolchain Python (uv) + `ruff.toml` | AC-PLT-12 | Infra | `backend/pyproject.toml`, `backend/uv.lock`, `ruff.toml` | T-PLT-01 | backend-dev | M | Sí | ✅ | #6 · ce6a963 |
 | T-PLT-03 | CI mínimo: `lint` → `file-size` → `tests` | AC-PLT-20 (parcial), AC-PLT-13 | CI | `.github/workflows/ci.yml`, `.github/actions/setup/action.yml` | T-PLT-02 | backend-dev | M | Sí | ✅ | #4 · 1830f49 |
 | T-PLT-04 | Pre-commit + gitleaks + job `secrets` | AC-PLT-19, AC-PLT-27, AC-PLT-13 | Infra/CI | `.pre-commit-config.yaml`, `.gitleaks.toml` | T-PLT-03 | backend-dev | M | Sí | ✅ | #19 · dbb770e |
-| T-PLT-05 | `check_workflows.py` en `lint` | AC-PLT-33 | CI | `scripts/check_workflows.py` | T-PLT-03 | backend-dev | L | Sí | ☐ | — |
+| T-PLT-05 | `check_workflows.py` en `lint` | AC-PLT-33 | CI | `scripts/check_workflows.py` | T-PLT-03 | backend-dev | L | Sí | 🟡 | — |
 | T-PLT-06 | Check `zona-roja`: reglas y rutas | AC-PLT-32 | CI | `scripts/check_zona_roja.py`, `.github/zona-roja-paths.txt` | T-PLT-03 | backend-dev | L | Sí | 🟡 | — |
 | T-PLT-07 | Check `zona-roja`: API de GitHub + workflow | AC-PLT-32 | CI | `scripts/github_api.py`, `.github/workflows/zona-roja.yml` | T-PLT-05, T-PLT-06 | backend-dev | L | Sí | ☐ | — |
 | T-PLT-08 | Proyecto Django + settings validados | AC-PLT-03 | Backend | `backend/config/settings/*`, `manage.py` | T-PLT-03 | backend-dev | L | Sí | ✅ | #7 · 6754818 |
@@ -331,12 +331,47 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   top-level ausente o con scope que no es `read`/`none`, escritura de job fuera de `JOB_PERMISSION_ALLOWLIST` vacía,
   `secrets.*` distinto de `GITHUB_TOKEN`, `uses:` remoto sin SHA de 40 hex, `if:` a nivel de job requerido; clave `on`
   parseada como `True` por PyYAML), `scripts/tests/test_AC_PLT_33_check_workflows.py` (YAML sintético inline en el
-  test), `.github/workflows/ci.yml` (step en `lint`).
+  test), `.github/workflows/ci.yml` (step en `lint`). Tras la revisión de `434d7c5` además
+  `scripts/tests/test_AC_PLT_33_check_workflows_refs.py` (partido por C-14).
 - **Plan de pruebas:** `test_AC_PLT_33_pull_request_target_fails_naming_file`,
   `test_AC_PLT_33_write_token_by_default_fails_naming_file`, `test_AC_PLT_33_missing_top_level_permissions_fails`,
   `test_AC_PLT_33_workflow_run_fails`, `test_AC_PLT_33_unpinned_action_fails`,
   `test_AC_PLT_33_job_level_if_on_required_job_fails`, `test_AC_PLT_33_non_github_token_secret_fails`,
   `test_AC_PLT_33_repo_workflows_pass`.
+- **Hecho:** `scripts/check_workflows.py` revisa `.github/workflows/*.y{a,}ml` y `.github/actions/**/action.y{a,}ml`;
+  cada hallazgo sale en stderr como `<ruta>: [<regla>] <detalle>` (exit 1). Reglas: `forbidden-trigger` (`on` como
+  string, lista, mapa o clave entre comillas), `permissions-missing`, `permissions-top-level` (`read-all` y `{}`
+  pasan), `permissions-job` (`write`/`write-all` fuera de `JOB_PERMISSION_ALLOWLIST`, vacía), `secrets` (contexto
+  `secrets` en `${{ }}` y en `if:` sin llaves, con punto, corchetes o entero, sin distinguir mayúsculas; solo
+  `secrets.GITHUB_TOKEN`; también `secrets: inherit`; `needs.secrets.*` y los literales `'…'` no cuentan),
+  `uses-pin` (steps, `jobs.<id>.uses` reutilizable, `runs.image` de acciones; `docker://` exige `@sha256:<64hex>`),
+  `uses-tag-comment` (el `# <tag>` de la cabecera de `ci.yml`), `job-if` (id o `name:` en los 11 checks
+  requeridos de §6.3); y falla cerrada con `invalid-yaml` (claves duplicadas incluidas: PyYAML se queda con la
+  última), `invalid-workflow` y `no-workflows`. Step `check_workflows.py` al final del job `lint`.
+  Tests: los 8 del plan más uno por regla y variante (46). Mutación sobre copia de `ci.yml`/`action.yml`
+  (`pull_request_target`, `contents: write`, `if:` en `lint`, `setup-uv@v7`): 4 hallazgos, exit 1.
+- **Notas:** (1) `uses-tag-comment` sale de la cabecera de `ci.yml`, no de la lista de §3.5. (2) El test de pinning
+  de `test_AC_PLT_20_pipeline_chain.py` sigue usando `job["steps"]` y no acepta `docker://`; no se tocó (fuera de
+  los archivos de la tarea): ahora lo cubre `check_workflows.py`.
+- **Revisión de `434d7c5`: 1 bloqueante, aplicado.**
+  - **B-1** una acción local fuera de `.github/actions/` nunca se leía (`uses: ./tools/act` con un `uses:
+    evil/act@main` adentro daba exit 0; `./.github/actions/nope` inexistente también pasaba). Ahora cada
+    `uses: ./X` se resuelve desde la raíz: en un step exige `X/action.y{a,}ml` y lo revisa donde esté (también
+    las acciones que esa alcanza, una sola vez cada una); en un job exige un archivo de `.github/workflows/`; con
+    `@`, `\`, `..` o fuera del repo, regla `uses-local` (falla cerrada). Tests en
+    `scripts/tests/test_AC_PLT_33_check_workflows_refs.py` (archivo nuevo, partido por C-14):
+    `test_AC_PLT_33_local_action_outside_github_actions_is_checked`,
+    `…_reached_from_a_composite_action_is_checked`, `test_AC_PLT_33_unresolvable_local_action_fails_closed`
+    (5 casos), `test_AC_PLT_33_local_reusable_workflow_must_be_in_workflows`.
+  - Además, en el mismo commit: extensiones y nombres en cualquier caja (`b.YML`, `ACTION.YML`);
+    `UnicodeDecodeError`/`TypeError` (clave no hasheable) como `invalid-yaml`; `job-if` trata como requerido todo
+    job con `${{` en `name:`; `uses-tag-comment` mira el resto de la línea del propio nodo (no todo el texto: un
+    mismo pin repetido sin comentario ya no pasa); eventos y `secrets: inherit` sin distinguir mayúsculas.
+- **Para después (revisión de `434d7c5`):** (1) `}}` dentro de un literal de una expresión corta la extracción de
+  `${{ … }}`. (2) `container:`/`services:` sin digest (`image: postgres:17` pasa; hoy los de `ci.yml` van por
+  digest). (3) Derivar `REQUIRED_CHECKS` del ruleset (`.github/rulesets/main.json`, T-PLT-40) en vez de la lista
+  fija de §6.3. (4) `check_workflows.py` quedó en 392 líneas: la próxima regla exige partirlo (p. ej. resolución
+  de `uses:` en un módulo aparte).
 
 ### T-PLT-06 — Check `zona-roja`: reglas y lista de rutas
 - **Objetivo:** la decisión del check como función pura, probada sin red.
