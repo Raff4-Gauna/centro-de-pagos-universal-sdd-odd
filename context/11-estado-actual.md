@@ -1,6 +1,6 @@
 ---
 actualizado: 2026-11-05
-ultimo_commit: 3033f63
+ultimo_commit: a1eafb9
 ultimo_pr: "#40"
 modulo_activo: 00-platform
 fase: cierre (Implemented pendiente)
@@ -84,5 +84,7 @@ fase: cierre (Implemented pendiente)
 - **Hecho:** reconciliación de 00 (30 ✅), `verification.md` (26 ✔ / 2 ⚠ / 6 ✘), `project-steward`,
   `/reconcile`, `/handoff`, skills `sdd-verification` y `reviewer-verdict`, `check_spec_state.py` + baseline,
   `ADR-0011` y `context/12-solid-y-diseno.md`.
+- **Commits de la sesión:** `6273ac4` (tablero + verificación), `8ffbda0` (chequeo de drift), `a1eafb9`
+  (agentes, skills y SOLID).
 - **Pendiente / dudas:** Q-048 (dueño: `.env.example`), Q-028 (SPEC-12), Q-059 (versiones), S-001 sin ejecutar.
 - **Siguiente rol sugerido:** `backend-dev` en T-PLT-05 + `reviewer`, o el dueño para Q-048.
