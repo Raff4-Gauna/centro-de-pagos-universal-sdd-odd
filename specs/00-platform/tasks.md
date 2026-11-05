@@ -1077,6 +1077,15 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   `glob_paths` no tiene clases de caracteres), con test de que un archivo largo en `backend/tests/migrations/`
   (y un helper junto a las migraciones) falla y una migración real larga no. `design.md` §3.6 describe el
   `ruff.toml` nuevo.
+- **Revisión (aprobada, sin bloqueantes). Para después:** (1) hoy las apps reales no tienen modelos, así que el
+  job `migrations` no llega a conectarse a la BD y la guarda del warning recién actúa cuando haya modelos (lo cubre
+  la app sintética). (2) La guarda depende de que el `RuntimeWarning` se muestre: con `PYTHONWARNINGS=ignore`
+  dejaría de detectar una BD inalcanzable; en T-PLT-23/24, `pg_isready` previo o `-W error::RuntimeWarning`.
+  (3) La exención `N806` de `ruff.toml` no se pudo demostrar necesaria (ruff no marca `Widget = apps.get_model(...)`):
+  quitarla o corregir la justificación en design §3.6 y en esta ficha. (4) `synthetic_db` usa nombre fijo y
+  `DROP ... WITH (FORCE)`: dos sesiones de pytest contra el mismo Postgres se pisan; si se paraleliza, sufijo único.
+  (5) La ficha de T-PLT-05 (línea ~154) sigue citando `backend/**/migrations/**`: agregar "(acotada en T-PLT-22)".
+  (6) `test_AC_PLT_16_real_apps_have_no_missing_migrations` pide `synthetic_db` sin necesitarlo.
 
 ### T-PLT-23 — Migraciones: nombres `auto_` y `RunPython` mezclado
 - **AC:** AC-PLT-18. RN-PLT-10. **Zona roja:** sí.
