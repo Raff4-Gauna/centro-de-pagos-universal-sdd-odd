@@ -75,7 +75,7 @@ Reglas: rebanada vertical · ≤ ~300 líneas de diff · mergeable sola · cita 
 | T-PLT-28 | Auditoría de dependencias + Dependabot | AC-PLT-26 | CI | `scripts/audit_deps.py`, `.github/dependabot.yml` | T-PLT-27 | backend-dev | L | Sí | ◐ en revisión (falta reviewer/PR) |
 | T-PLT-29 | Pre-commit de eslint/prettier | — (RF-PLT-12) | Infra | `scripts/precommit_frontend.py` | T-PLT-04, T-PLT-27 | frontend-dev | M | Sí | ☐ |
 | T-PLT-30 | Base visual: tokens, tema, estados de carga | AC-PLT-28 (parcial), AC-PLT-22 (FE) | UI | `src/lib/{design-tokens,theme,query-client}.ts`, `src/components/*` | T-PLT-21, T-PLT-27 | frontend-dev | L | Sí | ◐ en revisión (falta reviewer/PR) |
-| T-PLT-31 | Shell `(dashboard)` + Inicio | AC-PLT-28 | UI | `src/components/shell/*`, `app/(dashboard)/inicio/*` | T-PLT-30 | frontend-dev | L | No | ☐ |
+| T-PLT-31 | Shell `(dashboard)` + Inicio | AC-PLT-28 | UI | `src/components/shell/*`, `app/(dashboard)/inicio/*` | T-PLT-30 | frontend-dev | L | No | ◐ en revisión (falta reviewer/PR) |
 | T-PLT-32 | Configuración (secciones deshabilitadas) | AC-PLT-28 | UI | `app/(dashboard)/configuracion/*`, `src/modules/settings/*` | T-PLT-31 | frontend-dev | M | No | ☐ |
 | T-PLT-33 | BFF pass-through con `X-Request-ID` | AC-PLT-10, AC-PLT-09 (BFF) | BFF | `app/api/[...path]/route.ts`, `src/lib/server/*` | T-PLT-27 | frontend-dev | L | No (reviewer recomendado) | ◐ en revisión (falta reviewer/PR) |
 | T-PLT-34 | BFF: rutas seguras y errores 400/502/504 | AC-PLT-10 (robustez) | BFF | `src/lib/server/backend-proxy.ts`, `next.config.ts` | T-PLT-33 | frontend-dev | M | No (reviewer recomendado) | ◐ en revisión (falta reviewer/PR) |
@@ -1378,6 +1378,15 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
 - **Plan de pruebas:** `test_AC_PLT_28_top_bar_has_disabled_org_branch_selector`,
   `test_AC_PLT_28_nav_links_to_inicio_and_configuracion`, `test_AC_PLT_28_active_item_follows_pathname`,
   `test_AC_PLT_28_home_shows_empty_state_never_blank`, `test_AC_PLT_28_route_error_shows_notice_with_retry`.
+- **Revisión (aprobada, sin bloqueantes). Para después:** (1) botón del drawer sin `aria-expanded`/`aria-controls`,
+  y el Drawer temporal sin `role="dialog"`/`aria-label` (vía `slotProps.paper`). (2) Falta test de que Escape cierra
+  el drawer y el foco vuelve a "Abrir navegación". (3) Si el drawer móvil está abierto y la ventana cruza a `md`, el
+  Modal queda montado (scroll bloqueado): cerrarlo con `useMediaQuery`. (4) En 320-360 px la barra superior puede
+  desbordar (dos selects `tw-w-32` + dos IconButton): verificar a ojo, apilar u ocultar uno en `xs`. (5) U+200B
+  literal en `AppShell.test.tsx:39`: escribir `"​"`. (6) Espaciado doble de `PageSkeleton`/`ErrorNotice` dentro
+  de `main`. (7) Los textos "SPEC-01"/"SPEC-02" muestran ids internos al usuario (lo pide design §3.3.2): revisarlo
+  en el diseño de 01/02. (8) No hacer release entre T-PLT-31 y T-PLT-32 (Configuración da 404). (9) `error.tsx` no
+  registra el error (`digest`); opcional mientras no haya telemetría.
 
 ### T-PLT-32 — Configuración (secciones deshabilitadas)
 - **AC:** AC-PLT-28 (destino de la navegación). Spec §14, `07 §5.3`. **Zona roja:** no.
