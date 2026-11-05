@@ -70,7 +70,7 @@ Reglas: rebanada vertical · ≤ ~300 líneas de diff · mergeable sola · cita 
 | T-PLT-23 | Migraciones: nombres `auto_` y `RunPython` mezclado | AC-PLT-18 | Migraciones | `apps/common/migration_lint/`, `lint_migrations.py` | T-PLT-22 | backend-dev | L | Sí |◐ en revisión (falta reviewer/PR) |
 | T-PLT-24 | Migraciones: reversibilidad + ida y vuelta | AC-PLT-17 | Migraciones/CI | `check_migrations_roundtrip.py` | T-PLT-23 | backend-dev | L | Sí | ☐ |
 | T-PLT-25 | Imagen Docker del backend | AC-PLT-25 (backend) | Infra | `backend/Dockerfile`, `config/gunicorn.conf.py` | T-PLT-12 | backend-dev | M | Sí |◐ en revisión (falta reviewer/PR) |
-| T-PLT-26 | Compose de desarrollo (db, redis, backend, worker, beat) | AC-PLT-01 (parcial), AC-PLT-02 (manual) | Infra | `infra/docker-compose.yml` | T-PLT-11, T-PLT-17, T-PLT-25 | backend-dev | L | Sí | ☐ |
+| T-PLT-26 | Compose de desarrollo (db, redis, backend, worker, beat) | AC-PLT-01 (parcial), AC-PLT-02 (manual) | Infra | `infra/docker-compose.yml` | T-PLT-11, T-PLT-17, T-PLT-25 | backend-dev | L | Sí | ◐ en revisión (falta reviewer/PR; verificación manual del dueño con su `.env` pendiente) |
 | T-PLT-27 | Frontend: proyecto Next + toolchain + CI frontend | AC-PLT-21 (frontend) | Frontend/CI | `frontend/package.json`, `tsconfig.json`, … | T-PLT-03 | frontend-dev | L | Sí | ◐ en revisión (falta reviewer/PR) |
 | T-PLT-28 | Auditoría de dependencias + Dependabot | AC-PLT-26 | CI | `scripts/audit_deps.py`, `.github/dependabot.yml` | T-PLT-27 | backend-dev | L | Sí | ◐ en revisión (falta reviewer/PR) |
 | T-PLT-29 | Pre-commit de eslint/prettier | — (RF-PLT-12) | Infra | `scripts/precommit_frontend.py` | T-PLT-04, T-PLT-27 | frontend-dev | M | Sí | ☐ |
@@ -1171,7 +1171,8 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   **Zona roja:** sí (`scripts/tests/`).
 - **Archivos:** `infra/docker-compose.yml` (`name: centro-pagos`; servicios, healthchecks y `depends_on` de §3.4.1;
   `environment:` explícito con `${VAR:?…}`, sin `env_file:`; `migrate` solo en `backend`; `beat` réplica 1 con
-  `tmpfs`; puertos en `127.0.0.1`; volumen `pgdata`), `backend/apps/common/health/beat_alive.py`,
+  el schedule en el filesystem del contenedor (**sin `tmpfs`**, ajuste 1.0.8: `dbm.gnu`+mmap no actualiza el mtime en
+  tmpfs) y `--max-interval 60`; puertos en `127.0.0.1`; volumen `pgdata`), `backend/apps/common/health/beat_alive.py`,
   `backend/tests/health/test_RF_PLT_02_beat_alive.py`, `scripts/tests/test_RF_PLT_02_compose_dev.py`,
   `infra/README.md` (prerrequisitos del host Q-060, recrear la BD, hot-reload por polling en Windows).
 - **Fuera de esta tarea:** servicio `frontend` (T-PLT-36); bind mounts de `.env.example`/`spikes/.env.example`
@@ -1189,6 +1190,13 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
 - **Verificación manual (dueño, Windows 11 + Docker Desktop, con un `.env` propio):** `up -d --build --wait` → 5
   servicios `healthy`, `/healthz` 200; `stop redis` → `/readyz` 503, `/healthz` 200, worker reintenta logueando;
   al volver Redis todo `healthy`; hot-reload del backend al editar un `.py`.
+- **Revisión (aprobada, sin bloqueantes). Para después:** (1) design §3.4.1, fila `beat`: la columna de healthcheck
+  dice `beat_max_loop_interval=60` y el ajuste de T-PLT-26 dice `--max-interval 60` por línea de comando: alinear la
+  celda. (2) `beat_alive.py`: un mtime en el futuro da antigüedad negativa y el check pasa sin límite (riesgo teórico,
+  mismo reloj); rechazar antigüedades negativas. (3) El test de subproceso "nothing secret" solo busca `"schedule"`:
+  exigir una línea con el formato esperado. (4) El log del worker muestra la URL del broker (hoy sin contraseña; kombu
+  la enmascara): confirmarlo cuando Redis tenga auth (C-16). (5) Verificación manual del dueño pendiente (con su
+  `.env`): hot-reload al editar un `.py`.
 
 ### T-PLT-27 — Frontend: proyecto Next + toolchain + CI frontend
 - **AC:** AC-PLT-21 (frontend). RN-PLT-11, RN-PLT-14 (pnpm), Q-059 (MUI 9.5.0). **Zona roja:** sí.
