@@ -1,7 +1,7 @@
 ---
 spec: SPEC-00
 estado: Aprobado         # aprobado por el usuario junto con la spec (2026-10-31)
-actualizado: 2026-11-02   # §3.2.3 (T-PLT-14, spec 1.0.3); §3.5, §3.6, §3.7.2 (T-PLT-04, spec 1.0.4 y 1.0.5); ADR-0005 Aceptado (spec 1.0.6); §3.3.3 (T-PLT-34, Q-061, spec 1.0.7)
+actualizado: 2026-11-05   # §3.2.3 (T-PLT-14, spec 1.0.3); §3.5, §3.6, §3.7.2 (T-PLT-04, spec 1.0.4 y 1.0.5); ADR-0005 Aceptado (spec 1.0.6); §3.3.3 (T-PLT-34, Q-061, spec 1.0.7); §3.6 `ruff.toml` y migraciones (T-PLT-22, sin cambio de spec)
 ---
 # Diseño — Módulo de Plataforma (fundaciones)
 
@@ -458,12 +458,16 @@ Los repos remotos van fijados por **SHA del commit** del tag (`rev: <sha> # froz
 `pre-commit autoupdate --freeze`), no por tag: un tag se puede mover (mismo criterio que RN-PLT-14).
 
 Sin tests, mypy ni migraciones. Si un hook reformatea, se vuelve a stagear (documentado).
-**`ruff.toml`**: `py312`, `line-length 100`, `extend-exclude = ["context/legacy-source", "**/migrations",
-"frontend/"]` (comentado, Q-055; `frontend/` con barra para no excluir cualquier carpeta `frontend` del árbol),
+**`ruff.toml`**: `py312`, `line-length 100`, `extend-exclude = ["context/legacy-source", "frontend/"]` (comentado,
+Q-055; `frontend/` con barra para no excluir cualquier carpeta `frontend` del árbol; las migraciones se lintan y
+formatean como cualquier módulo, T-PLT-22),
 `force-exclude = true` (vale aunque pre-commit pase archivos explícitos), `[format] exclude = ["*.md"]` (el
 formatter no reescribe bloques de código de specs ni rompe el lint en PRs solo de docs),
 `select = [E, F, W, I, B, UP, S, T20, DJ, PT, SIM, RUF, N, C4, DTZ, LOG, G]`; `per-file-ignores`: tests → `S101`,
-`N802` (nombres `test_AC_…`), `scripts/**` → `T20` (son CLIs) (ajustado tras revisión de T-PLT-02). **`.gitattributes`**: `* text=auto eol=lf` + binarios. **`.gitleaks.toml`**:
+`N802` (nombres `test_AC_…`), `scripts/**` → `T20` (son CLIs) (ajustado tras revisión de T-PLT-02),
+`**/migrations/[0-9][0-9][0-9][0-9]_*.py` → `E501`, `RUF012`, `N806` (lo que rompe el código generado por
+`makemigrations` y el `Model = apps.get_model(...)` de un `RunPython`; `T20` y `S` siguen activos en migraciones de
+datos; solo módulos `NNNN_*` para no eximir `backend/tests/migrations/`; T-PLT-22, NB-2 de la revisión de T-PLT-02). **`.gitattributes`**: `* text=auto eol=lf` + binarios. **`.gitleaks.toml`**:
 `useDefault = true`; allowlist `regexes = ['''^<ver \.env: [A-Z][A-Z0-9_]*>$''']` con `regexTarget = "secret"` (una
 línea con placeholder **y** un token real sigue fallando); **anclada**: el secreto capturado tiene que ser el
 placeholder entero, si no una clave privada multilínea con una línea `<ver .env: X>` adentro pasaría. Sin

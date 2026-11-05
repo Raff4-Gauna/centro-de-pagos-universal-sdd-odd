@@ -66,7 +66,7 @@ Reglas: rebanada vertical · ≤ ~300 líneas de diff · mergeable sola · cita 
 | T-PLT-19 | Tests de arquitectura C-09 y C-01 + job | AC-PLT-14, AC-PLT-15 | Arquitectura/CI | `backend/tests/architecture/` | T-PLT-08 | backend-dev | L | Sí | ◐ en revisión (falta reviewer/PR) |
 | T-PLT-20 | Chequeo C-02 (`float` en dinero) | AC-PLT-31 | Arquitectura | `ast_rules.py`, `allowlists.py` | T-PLT-19 | backend-dev | M | Sí | ◐ en revisión (falta reviewer/PR) |
 | T-PLT-21 | Gate de cobertura + job `coverage` | AC-PLT-22 | CI | `scripts/check_coverage.py`, `scripts/coverage_thresholds.toml` | T-PLT-08 | backend-dev | L | Sí | ◐ en revisión (falta reviewer/PR) |
-| T-PLT-22 | Migraciones: faltante + job `migrations` | AC-PLT-16 | Migraciones/CI | `tests/migrations/` | T-PLT-08, T-PLT-11 | backend-dev | M | Sí | ☐ |
+| T-PLT-22 | Migraciones: faltante + job `migrations` | AC-PLT-16 | Migraciones/CI | `tests/migrations/` | T-PLT-08, T-PLT-11 | backend-dev | M | Sí | ◐ en revisión (falta reviewer/PR) |
 | T-PLT-23 | Migraciones: nombres `auto_` y `RunPython` mezclado | AC-PLT-18 | Migraciones | `apps/common/migration_lint/`, `lint_migrations.py` | T-PLT-22 | backend-dev | L | Sí | ☐ |
 | T-PLT-24 | Migraciones: reversibilidad + ida y vuelta | AC-PLT-17 | Migraciones/CI | `check_migrations_roundtrip.py` | T-PLT-23 | backend-dev | L | Sí | ☐ |
 | T-PLT-25 | Imagen Docker del backend | AC-PLT-25 (backend) | Infra | `backend/Dockerfile`, `config/gunicorn.conf.py` | T-PLT-12 | backend-dev | M | Sí | ☐ |
@@ -1062,6 +1062,30 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   adopta, `ruff.toml` entra en los archivos de esta tarea (NB-2 del reviewer de T-PLT-02).
 - **Plan de pruebas:** `test_AC_PLT_16_model_change_without_migration_fails_check`,
   `test_AC_PLT_16_real_apps_have_no_missing_migrations`.
+- **Resultado (implementación):** `ruff.toml` adoptado: sale `**/migrations` de `extend-exclude` y entra
+  `per-file-ignores` `"**/migrations/[0-9][0-9][0-9][0-9]_*.py" = ["E501", "RUF012", "N806"]` (lint y formato
+  activos; `T20` y `S` siguen valiendo en migraciones de datos; `N999` no hizo falta: ruff ya acepta
+  `0001_initial` dentro de `migrations/`; el glob se limita a módulos `NNNN_*` porque `**/migrations/*.py`
+  también eximía los tests de `backend/tests/migrations/`). El step de CI falla también si Django avisa que no pudo comprobar el historial contra la BD
+  (sin la BD, `makemigrations` solo advierte y sigue). Test extra:
+  `test_AC_PLT_16_whole_project_check_catches_synthetic_app` y, en `scripts/tests/`,
+  `test_AC_PLT_16_migrations_job_runs_makemigrations_check_on_postgres`.
+- **Scope ampliado por el planner (2026-11-05):** entran `scripts/check_file_size.py`,
+  `scripts/tests/test_AC_PLT_13_check_file_size.py` y `specs/00-platform/design.md` (§3.6).
+  `backend/**/migrations/**` también sacaba de `C-14` todo `backend/tests/migrations/`: la exclusión queda en
+  `backend/apps/**/migrations/????_*.py` (los módulos `NNNN_*` de las apps reales; `?` por dígito porque
+  `glob_paths` no tiene clases de caracteres), con test de que un archivo largo en `backend/tests/migrations/`
+  (y un helper junto a las migraciones) falla y una migración real larga no. `design.md` §3.6 describe el
+  `ruff.toml` nuevo.
+- **Revisión (aprobada, sin bloqueantes). Para después:** (1) hoy las apps reales no tienen modelos, así que el
+  job `migrations` no llega a conectarse a la BD y la guarda del warning recién actúa cuando haya modelos (lo cubre
+  la app sintética). (2) La guarda depende de que el `RuntimeWarning` se muestre: con `PYTHONWARNINGS=ignore`
+  dejaría de detectar una BD inalcanzable; en T-PLT-23/24, `pg_isready` previo o `-W error::RuntimeWarning`.
+  (3) La exención `N806` de `ruff.toml` no se pudo demostrar necesaria (ruff no marca `Widget = apps.get_model(...)`):
+  quitarla o corregir la justificación en design §3.6 y en esta ficha. (4) `synthetic_db` usa nombre fijo y
+  `DROP ... WITH (FORCE)`: dos sesiones de pytest contra el mismo Postgres se pisan; si se paraleliza, sufijo único.
+  (5) La ficha de T-PLT-05 (línea ~154) sigue citando `backend/**/migrations/**`: agregar "(acotada en T-PLT-22)".
+  (6) `test_AC_PLT_16_real_apps_have_no_missing_migrations` pide `synthetic_db` sin necesitarlo.
 
 ### T-PLT-23 — Migraciones: nombres `auto_` y `RunPython` mezclado
 - **AC:** AC-PLT-18. RN-PLT-10. **Zona roja:** sí.
