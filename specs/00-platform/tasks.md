@@ -1111,6 +1111,13 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
 - **Backlog de T-PLT-22 tomado:** (2) el step `makemigrations` corre con `python -W error::RuntimeWarning` (con
   `PYTHONWARNINGS=ignore` una BD inalcanzable igual falla; verificado localmente) y conserva el `grep`. (4) no:
   sigue sin paralelizarse y exigiría tocar `conftest.py`.
+- **Revisión (aprobada, sin bloqueantes). Para después:** (1) design §3.2.7 (línea ~267) dice "`RunPython` junto a
+  cualquier otra operación": alinearlo con la interpretación adoptada (varios `RunPython` juntos se aceptan; se
+  rechaza `RunPython` junto a cualquier operación que no sea `RunPython`). (2) Un `RunSQL` de datos (`UPDATE`) junto a
+  `AddField` no se detecta: fuera de AC-PLT-18, pero RN-PLT-10 lo abarcaría en espíritu; si se quiere, abrir un `Q-xxx`.
+  (3) T-PLT-24: acotar por etiqueta las apps sintéticas `bad_autoname`/`bad_mixed` para que no se mezclen con los casos
+  de reversibilidad. (4) Cuando haya migraciones reales, exigir un mínimo de migraciones revisadas en el test de apps
+  reales (detecta un filtro roto). (5) Cosmético: `| Sí |◐` sin espacio en las filas de T-PLT-23/25.
 
 ### T-PLT-24 — Migraciones: reversibilidad + ida y vuelta
 - **AC:** AC-PLT-17. RN-PLT-10 (C-17). **Zona roja:** sí.
