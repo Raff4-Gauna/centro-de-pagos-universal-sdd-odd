@@ -8,9 +8,8 @@ Two checks over the code of ``config/`` and ``apps/`` (design.md §3.2.2):
   ``environs``). The one exception is Django's bootstrap in ``config/wsgi.py``/``config/celery.py``:
   ``os.environ.setdefault("DJANGO_SETTINGS_MODULE", ...)``.
 * No variable the settings read and no settings name matches the provider patterns
-  ``^(MP|MERCADOPAGO|CLOVER|PAYWAY|DECIDIR|PRISMA)_`` (any case).
-
-Out of here (T-PLT-39, Q-048): the comparison with the keys of ``spikes/.env.example``.
+  ``^(MP|MERCADOPAGO|CLOVER|PAYWAY|DECIDIR|PRISMA)_`` (any case), nor equals a key of
+  ``spikes/env.example`` (T-PLT-39, Q-048).
 """
 
 from __future__ import annotations
@@ -22,6 +21,7 @@ from pathlib import Path
 import pytest
 
 from config.settings.env import PlatformEnv
+from tests.config.test_AC_PLT_05_env_example_parity import spike_vars
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
 SCANNED_DIRS = ("config", "apps")
@@ -143,6 +143,15 @@ def test_AC_PLT_06_no_setting_matches_provider_patterns() -> None:
     names = settings_names()
     assert {"DJANGO_SECRET_KEY", "SECRET_KEY", "DJANGO_ALLOWED_HOSTS", "FEATURE_FLAGS"} <= names
     assert sorted(name for name in names if PROVIDER_PATTERN.match(name)) == []
+
+
+def test_AC_PLT_06_no_setting_matches_spike_keys() -> None:
+    spikes = set(spike_vars())
+    assert {"MP_ACCESS_TOKEN", "CLOVER_APP_SECRET"} <= spikes
+    assert sorted(settings_names() & spikes) == []
+    # Not even differing only in case (like the provider patterns above).
+    lowered = {name.lower() for name in spikes}
+    assert sorted(name for name in settings_names() if name.lower() in lowered) == []
 
 
 @pytest.mark.parametrize(

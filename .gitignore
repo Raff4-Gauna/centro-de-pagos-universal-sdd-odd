@@ -1,6 +1,9 @@
+# Real environments (root .env and spikes/.env included): never committed (RN-PLT-03, C-06).
+# The committed examples are env.example and spikes/env.example (no leading dot, Q-048), which
+# these patterns do not match. No exception for a dotted .env.example: agents cannot read .env.*
+# files, so a second, dotted example would drift unseen.
 .env
 .env.*
-!.env.example
 __pycache__/
 *.pyc
 .venv/
