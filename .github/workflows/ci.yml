@@ -433,11 +433,13 @@ jobs:
         run: python scripts/check_coverage.py
 
   # Step 8. AC-PLT-16 (RN-PLT-10, RF-PLT-10): a model change without its migration fails
-  # `makemigrations --check --dry-run` (nothing is written). A PostgreSQL service of its own, same
-  # image and credentials as the `tests` job: once an app has models, the command also checks the
-  # applied history against a real, throwaway database instead of skipping it with a warning, and
-  # lint_migrations (T-PLT-23) and check_migrations_roundtrip (T-PLT-24) use it next. 00 has no
-  # migrations of its own: the job runs anyway, active from the first commit (design.md §3.2.7).
+  # `makemigrations --check --dry-run` (nothing is written). AC-PLT-18: an `NNNN_auto_` name or a
+  # RunPython mixed with other operations fails `lint_migrations` (migration files of apps.*, read
+  # from disk, no database). A PostgreSQL service of its own, same image and credentials as the
+  # `tests` job: once an app has models, `makemigrations` also checks the applied history against a
+  # real, throwaway database instead of skipping it with a warning, and check_migrations_roundtrip
+  # (T-PLT-24) uses it next. 00 has no migrations of its own: the job runs anyway, active from the
+  # first commit (design.md §3.2.7).
   # The synthetic cases run in the `tests` job (backend/tests/migrations/).
   migrations:
     needs: coverage
@@ -465,17 +467,23 @@ jobs:
         with:
           python: "true"
       # When an app has models, Django checks the applied history against the database, and if it
-      # cannot reach it only warns and goes on: that warning (a JSON log line on stdout, through
-      # the platform logging) fails the step, so an unreachable service cannot pass as green.
+      # cannot reach it only warns (RuntimeWarning) and goes on. `-W error::RuntimeWarning` turns it
+      # into an error even under PYTHONWARNINGS=ignore, and the warning text in the output (a JSON
+      # log line through the platform logging) also fails the step: an unreachable service cannot
+      # pass as green.
       - name: makemigrations --check --dry-run
         working-directory: backend
         run: |
           output="$RUNNER_TEMP/makemigrations.log"
           status=0
-          python manage.py makemigrations --check --dry-run > "$output" 2>&1 || status=$?
+          python -W error::RuntimeWarning manage.py makemigrations --check --dry-run \
+            > "$output" 2>&1 || status=$?
           cat "$output"
           if grep -q "consistent migration history" "$output"; then
             echo "::error::makemigrations could not check the migration history against the database"
             exit 1
           fi
           exit "$status"
+      - name: lint_migrations
+        working-directory: backend
+        run: python manage.py lint_migrations

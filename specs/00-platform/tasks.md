@@ -67,7 +67,7 @@ Reglas: rebanada vertical · ≤ ~300 líneas de diff · mergeable sola · cita 
 | T-PLT-20 | Chequeo C-02 (`float` en dinero) | AC-PLT-31 | Arquitectura | `ast_rules.py`, `allowlists.py` | T-PLT-19 | backend-dev | M | Sí | ◐ en revisión (falta reviewer/PR) |
 | T-PLT-21 | Gate de cobertura + job `coverage` | AC-PLT-22 | CI | `scripts/check_coverage.py`, `scripts/coverage_thresholds.toml` | T-PLT-08 | backend-dev | L | Sí | ◐ en revisión (falta reviewer/PR) |
 | T-PLT-22 | Migraciones: faltante + job `migrations` | AC-PLT-16 | Migraciones/CI | `tests/migrations/` | T-PLT-08, T-PLT-11 | backend-dev | M | Sí | ◐ en revisión (falta reviewer/PR) |
-| T-PLT-23 | Migraciones: nombres `auto_` y `RunPython` mezclado | AC-PLT-18 | Migraciones | `apps/common/migration_lint/`, `lint_migrations.py` | T-PLT-22 | backend-dev | L | Sí | ☐ |
+| T-PLT-23 | Migraciones: nombres `auto_` y `RunPython` mezclado | AC-PLT-18 | Migraciones | `apps/common/migration_lint/`, `lint_migrations.py` | T-PLT-22 | backend-dev | L | Sí |◐ en revisión (falta reviewer/PR) |
 | T-PLT-24 | Migraciones: reversibilidad + ida y vuelta | AC-PLT-17 | Migraciones/CI | `check_migrations_roundtrip.py` | T-PLT-23 | backend-dev | L | Sí | ☐ |
 | T-PLT-25 | Imagen Docker del backend | AC-PLT-25 (backend) | Infra | `backend/Dockerfile`, `config/gunicorn.conf.py` | T-PLT-12 | backend-dev | M | Sí |◐ en revisión (falta reviewer/PR) |
 | T-PLT-26 | Compose de desarrollo (db, redis, backend, worker, beat) | AC-PLT-01 (parcial), AC-PLT-02 (manual) | Infra | `infra/docker-compose.yml` | T-PLT-11, T-PLT-17, T-PLT-25 | backend-dev | L | Sí | ☐ |
@@ -1095,6 +1095,29 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   `backend/tests/migrations/test_AC_PLT_18_names_and_mixing.py`, `.github/workflows/ci.yml` (step `lint_migrations`).
 - **Plan de pruebas:** `test_AC_PLT_18_auto_named_migration_fails`, `test_AC_PLT_18_0001_initial_is_accepted`,
   `test_AC_PLT_18_runpython_mixed_with_schema_ops_fails`, `test_AC_PLT_18_runpython_alone_passes`.
+- **Resultado (implementación):** `rules.py` puro sobre nombre + operaciones: `^\d{4}_auto_` (dígitos ASCII) y
+  `RunPython` junto a cualquier operación que no sea `RunPython`, aplanando `SeparateDatabaseAndState` (lado BD y
+  lado estado); varios `RunPython` juntos pasan (son una sola migración de datos, RN-PLT-10). `lint_migrations`
+  lee de disco con `MigrationLoader(None)` (sin BD): sin argumentos revisa las apps cuyo módulo está bajo `apps`
+  (como corre CI); con etiquetas revisa esas apps (así se prueban las sintéticas; etiqueta desconocida → error).
+  Cada problema sale como `<app>.<migración>: <problema>`; con alguno, `CommandError` (exit 1). Sintéticas:
+  `bad_autoname` (`0001_initial` + `0002_auto_20261105_1200`) y `bad_mixed` (`0002_add_slug_and_backfill` mezclada
+  + `0003_backfill_slugs` solo `RunPython`), con modelos al día para no ensuciar `makemigrations --check`. Tests
+  extra: reglas en proceso (nombres descriptivos, `RunSQL`, anidado, ambos problemas, filtro `apps.*`), varias
+  apps, etiqueta desconocida, corrida sin etiquetas ignora las sintéticas, apps reales pasan; en `scripts/tests/`,
+  `test_AC_PLT_18_migrations_job_runs_lint_migrations`.
+- **Archivos fuera de la lista (mínimos):** `backend/tests/migrations/settings_synthetic.py` (instalar las dos apps
+  sintéticas nuevas) y `scripts/tests/test_AC_PLT_20_pipeline_chain.py` (step `lint_migrations` y `-W`).
+- **Backlog de T-PLT-22 tomado:** (2) el step `makemigrations` corre con `python -W error::RuntimeWarning` (con
+  `PYTHONWARNINGS=ignore` una BD inalcanzable igual falla; verificado localmente) y conserva el `grep`. (4) no:
+  sigue sin paralelizarse y exigiría tocar `conftest.py`.
+- **Revisión (aprobada, sin bloqueantes). Para después:** (1) design §3.2.7 (línea ~267) dice "`RunPython` junto a
+  cualquier otra operación": alinearlo con la interpretación adoptada (varios `RunPython` juntos se aceptan; se
+  rechaza `RunPython` junto a cualquier operación que no sea `RunPython`). (2) Un `RunSQL` de datos (`UPDATE`) junto a
+  `AddField` no se detecta: fuera de AC-PLT-18, pero RN-PLT-10 lo abarcaría en espíritu; si se quiere, abrir un `Q-xxx`.
+  (3) T-PLT-24: acotar por etiqueta las apps sintéticas `bad_autoname`/`bad_mixed` para que no se mezclen con los casos
+  de reversibilidad. (4) Cuando haya migraciones reales, exigir un mínimo de migraciones revisadas en el test de apps
+  reales (detecta un filtro roto). (5) Cosmético: `| Sí |◐` sin espacio en las filas de T-PLT-23/25.
 
 ### T-PLT-24 — Migraciones: reversibilidad + ida y vuelta
 - **AC:** AC-PLT-17. RN-PLT-10 (C-17). **Zona roja:** sí.
