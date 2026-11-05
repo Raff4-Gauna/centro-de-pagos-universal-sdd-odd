@@ -3,9 +3,9 @@ id: SPEC-00
 modulo: platform
 estado: Approved
 track: S
-version: 1.0.7
+version: 1.0.8
 depende_de: []
-actualizado: 2026-11-02
+actualizado: 2026-11-05
 ---
 
 # Módulo de Plataforma (fundaciones)
@@ -250,3 +250,4 @@ Se completa al generar `tasks.md`.
 | 1.0.5 | 2026-11-02 | Ajuste de diseño en `design.md §3.5`, `§3.6` y `§3.7.2` (escaneo de secretos, T-PLT-04): el job `secrets` usa `--ignore-gitleaks-allow` y `--log-opts="--diff-merges=first-parent --text <rango>"` y falla con un `.gitleaksignore` trackeado (cualquier caja) o con archivos trackeados en las rutas que la allowlist por defecto nunca escanea (sus 21 entradas de directorios o rutas, sincronizadas por test con la imagen; salvo `.gitleaks.toml`, ruta roja, y `frontend/pnpm-lock.yaml`, que se escanea aparte por `gitleaks stdin`; las de extensiones son riesgo aceptado); el hook, `--ignore-gitleaks-allow`; la allowlist de placeholders queda anclada (`^…$`); `**/.gitleaksignore` pasa a ruta de zona roja; el gate real es CI (el hook se saltea con `--no-verify` y con `-diff`). Nueva **Q-062** (decidida por defecto, opción b): se acepta la allowlist global de rutas que trae `useDefault`. **RN-PLT-13 se interpreta como "allowlist propia acotada a placeholders"**: las exclusiones por ruta de las reglas por defecto de gitleaks no cuentan como allowlist del repo. Sin cambios en RN/RF/AC | Revisión de `3d50418` (T-PLT-04): 5 evasiones del job `secrets` reproducidas con gitleaks v8.30.1 (B-1 a B-5) y la allowlist heredada (B-6) |
 | 1.0.6 | 2026-11-02 | ADR-0005 (contrato OpenAPI): estado Propuesto → **Aceptado**; se actualiza la mención del encabezado de `design.md`. Las menciones de "Propuesto" en entradas anteriores del historial (0.3.0, *Handoff* de `design.md`) quedan como registro. Sin cambios en RN/RF/AC | Aceptado por el dueño del proyecto (2026-11-02), transmitido por el coordinador |
 | 1.0.7 | 2026-11-01 | design §3.3.3 ajustado tras revisión de T-PLT-33/34 (validación sobre URL resuelta, barra final, content-length solo dígitos, 411 sin longitud, request id en minúsculas, AbortSignal); Q-061 decidida por defecto | Trazabilidad de cambios sobre artefactos aprobados (AGENTS.md); sin cambios en RN/RF/AC |
+| 1.0.8 | 2026-11-05 | Ajuste de diseño en `design.md §3.4.1` (T-PLT-26): `beat` sin `tmpfs` (el schedule va al filesystem propio del contenedor, fuera del código montado; `dbm.gnu` escribe por mmap y en un tmpfs no actualiza el mtime que lee `beat_alive`), `--max-interval 60` en el comando de `beat` y `pg_isready -h 127.0.0.1` en el healthcheck de `db` (como el job `tests` de CI). Sin cambios en RN/RF/AC | Verificación de T-PLT-26 en el stack real (beat `unhealthy` a los ~5 min con tmpfs); opción A decidida por el planner |

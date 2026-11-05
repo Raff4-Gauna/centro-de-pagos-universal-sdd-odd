@@ -355,14 +355,15 @@ en `modules/` (cuenta para cobertura). Sin protección de rutas ni datos.
 #### 3.4.1 Servicios (`infra/docker-compose.yml`, `name: centro-pagos`)
 | Servicio | Imagen / build | Comando | Healthcheck (int/timeout/retries/start) | `depends_on` (`service_healthy`) | Puerto (`127.0.0.1`) |
 |---|---|---|---|---|---|
-| `db` | `postgres:17.11-trixie@sha256:…` | default | `pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB` (5s/3s/10/10s) | — | 5432 |
+| `db` | `postgres:17.11-trixie@sha256:…` | default | `pg_isready -h 127.0.0.1 -U $$POSTGRES_USER -d $$POSTGRES_DB` (5s/3s/10/10s) | — | 5432 |
 | `redis` | `redis:7.4.12-bookworm@sha256:…` | `redis-server --save "" --appendonly no` | `redis-cli ping \| grep -q PONG` (5s/3s/10/5s) | — | — |
 | `backend` | `../backend`, target `dev` | `migrate --noinput && gunicorn -c config/gunicorn.conf.py config.wsgi` | `python -c` urllib → `/readyz` == 200 (10s/3s/5/30s) | `db`, `redis` | 8000 |
 | `worker` | imagen de `backend` | `celery -A config -q worker -l INFO --concurrency 2` (**sin migrate**) | `celery -A config inspect ping -d celery@$$HOSTNAME --timeout 5` (30s/10s/3/30s) | `db`, `redis`, `backend` | — |
-| `beat` | imagen de `backend`, `replicas: 1` | `celery -A config -q beat -l INFO --schedule /tmp/beat/schedule` (**sin migrate**) | `python -m apps.common.health.beat_alive` (mtime < 300 s, `beat_max_loop_interval=60`) (60s/5s/3/90s) | `redis`, `backend` | — |
+| `beat` | imagen de `backend`, `replicas: 1` | `sh -c "mkdir -p /tmp/beat && exec celery -A config -q beat -l INFO --schedule /tmp/beat/schedule --max-interval 60"` (**sin migrate**) | `python -m apps.common.health.beat_alive` (mtime < 300 s, `beat_max_loop_interval=60`) (60s/5s/3/90s) | `redis`, `backend` | — |
 | `frontend` | `../frontend`, target `dev` | `pnpm install --frozen-lockfile && pnpm dev --hostname 0.0.0.0` | `node -e` fetch `/api/health` == 200 (10s/5s/10/60s) | `backend` | 3000 |
 
-- Volúmenes nombrados: `pgdata`, `frontend_node_modules`, `pnpm_store`; `beat` usa `tmpfs: /tmp/beat`; Redis sin
+- Volúmenes nombrados: `pgdata`, `frontend_node_modules`, `pnpm_store`; `beat` guarda el schedule en el
+  filesystem propio del contenedor (`/tmp/beat`, fuera del código montado; se pierde al recrear) y Redis va sin
   persistencia. Bind mounts de dev bajo `/repo/…` (`../backend:/repo/backend`, `../frontend:/repo/frontend`,
   `../specs/_contracts:/repo/specs/_contracts`, `../.env.example` y `../spikes/.env.example` `:ro` en `backend`)
   para que las rutas relativas sean iguales en contenedor, host y CI. Venv del backend en `/opt/venv`
@@ -370,6 +371,12 @@ en `modules/` (cuenta para cobertura). Sin protección de rutas ni datos.
 - `environment:` por servicio con `${VAR:?falta VAR en .env}` (fail-fast). `frontend`:
   `BACKEND_INTERNAL_URL=http://backend:8000`, `WATCHPACK_POLLING=true`, `NEXT_TELEMETRY_DISABLED=1`.
 - `migrate` corre **solo** en `backend`; `worker` y `beat` esperan a `backend` sano (sin carrera).
+- **(ajustado en T-PLT-26)**: `beat` **sin `tmpfs`**: `shelve` abre el schedule con `dbm.gnu`, que escribe por mmap, y
+  en un tmpfs esas escrituras no actualizan el mtime después de la primera (verificado en el stack real: `unhealthy` a
+  los ~5 min con beat sano), así que `beat_alive` no tendría señal. En el filesystem del contenedor el mtime avanza en
+  cada sync (~180 s). `--max-interval 60` va por línea de comando (no por settings). El healthcheck de `db` usa TCP
+  (`-h 127.0.0.1`), igual que el job `tests` de CI: durante el initdb el entrypoint levanta un servidor temporal solo
+  en el socket Unix, que un probe por socket daría por listo antes de tiempo.
 
 #### 3.4.2 Imágenes
 - **backend**: `ghcr.io/astral-sh/uv:0.13.6` → `builder` (`python:3.12.16-slim-trixie@sha256`,
