@@ -311,25 +311,44 @@ def test_Q058_gitleaksignore_at_any_depth_is_red() -> None:
 @pytest.mark.parametrize(
     "path",
     [
+        *("ruff.toml", ".ruff.toml", "docs/ruff.toml", "backend/apps/x/.ruff.toml"),
+        *("backend/conftest.py", "backend/tests/api/conftest.py", "scripts/tests/conftest.py"),
+        *("scripts/pytest.ini", "frontend/next.config.ts", "frontend/next.config.mjs"),
+        *("frontend/eslint.config.js", "frontend/vitest.config.ts", "frontend/vitest.setup.ts"),
+        *("frontend/tsconfig.json", "frontend/tsconfig.build.json", "frontend/postcss.config.mjs"),
+        *("frontend/tailwind.config.ts", "frontend/scripts/check-client-bundle.ts"),
+        *("backend/config/settings/base.py", "backend/config/settings/prod.py"),
+        *("AGENTS.md", "CLAUDE.md", "context/01-constitution.md"),
+        *(".claude/settings.json", ".claude/agents/reviewer.md", ".agents/roles.md"),
+    ],
+)
+def test_Q058_paths_that_can_alter_the_gate_are_red(path: str) -> None:
+    assert is_red(path)
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
         "docs/notes.md",
         "README.md",
-        "AGENTS.md",
+        "docs/AGENTS.md",
         "frontend/src/components/EmptyState.tsx",
         "frontend/src/lib/server/backend-proxy.ts",  # red from SPEC-01 on (design.md sec. 3.7.2)
         "frontend/pnpm-lock.yaml",
-        "frontend/next.config.ts",
+        "frontend/src/next.config.ts",
         "backend/apps/common/api/throttling.py",
         "backend/apps/common/health/views.py",
-        "backend/config/settings/base.py",
+        "backend/config/celery.py",
         "backend/tests/api/test_AC_PLT_34_problem_json.py",
         "backend/apps/charges_report/views.py",  # prefix of a red module, not the module
         "backend/apps/common/migrations_helper.py",
         "xscripts/tool.py",
         "scripts",
-        "docs/ruff.toml",
+        "docs/ruff.toml.md",
+        "frontend/src/conftest.py",
         "frontend/src/package.json",
         "specs/06-charges/spec.sdd.md",
-        "context/01-constitution.md",
+        "context/02-glossary.md",
     ],
 )
 def test_AC_PLT_32_non_red_paths_are_not_red(path: str) -> None:

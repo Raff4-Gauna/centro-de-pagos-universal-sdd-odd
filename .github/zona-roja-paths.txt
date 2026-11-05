@@ -53,3 +53,21 @@ backend/** !backend/apps/** !backend/config/** !backend/tests/**
 # --- Root configs read by the gate tools (T-PLT-28 final review B-4/B-5) ---
 # uv.toml / pyproject.toml ([tool.uv]), package.json (packageManager), .npmrc, .python-version.
 {uv.toml,pyproject.toml,package.json,.npmrc,.python-version}
+
+# --- Anything else that can alter the gate (Q-058 criterion; planner, T-PLT-06 review) ---
+# ruff reads ruff.toml / .ruff.toml at any depth (hierarchical; .ruff.toml wins over ruff.toml).
+**/ruff.toml
+**/.ruff.toml
+# A conftest.py can skip or rewrite tests (scripts/conftest.py and scripts/pytest.ini: scripts/**).
+backend/**/conftest.py
+# Frontend configs that change lint, tests or build, and its gate scripts.
+frontend/{next,eslint,vitest,postcss,tailwind}.config.*
+frontend/vitest.setup.*
+frontend/tsconfig*.json
+frontend/scripts/**
+# Backend settings (prod hardening, env validation, logging redaction wiring).
+backend/config/settings/**
+# Governance: the rules agents and the reviewer follow.
+{AGENTS.md,CLAUDE.md,context/01-constitution.md}
+.claude/**
+.agents/**

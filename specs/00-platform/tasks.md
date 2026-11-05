@@ -368,6 +368,15 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
 - **Nota (revisión de T-PLT-04, B-2):** `**/.gitleaksignore` entra en `.github/zona-roja-paths.txt` con las rutas
   del gate (design §3.7.2): gitleaks lo carga solo y cada huella anula un hallazgo. Test:
   `test_Q058_gitleaksignore_at_any_depth_is_red` (`.gitleaksignore` y `docs/x/.gitleaksignore` son rojas).
+- **Nota (implementación, 2026-11-05; desvíos aceptados por el planner):** la lista admite excepciones por línea
+  (`glob !excepción …`, solo afectan a su línea); todo el top-level de `backend/` fuera de `apps/`, `config/` y
+  `tests/` es rojo (incluidos `README.md`, `Dockerfile`, `manage.py`), igual que las configs raíz de B-4/B-5. Por el
+  criterio de Q-058 (lo que puede alterar el gate es zona roja) el planner sumó: `**/ruff.toml`, `**/.ruff.toml`,
+  `backend/**/conftest.py` (`scripts/conftest.py` y `scripts/pytest.ini` ya caen en `scripts/**`),
+  `frontend/{next,eslint,vitest,postcss,tailwind}.config.*`, `frontend/vitest.setup.*`, `frontend/tsconfig*.json`,
+  `frontend/scripts/**`, `backend/config/settings/**`, `AGENTS.md`, `CLAUDE.md`, `context/01-constitution.md`,
+  `.claude/**` y `.agents/**`. Test: `test_Q058_paths_that_can_alter_the_gate_are_red`. Las rutas del BFF
+  (`frontend/src/app/api/**`, `frontend/src/lib/server/**`) siguen fuera hasta SPEC-01 (design §3.7.2).
 
 ### T-PLT-07 — Check `zona-roja`: API de GitHub + workflow
 - **AC:** AC-PLT-32. RN-PLT-12, RN-PLT-18. **Zona roja:** sí.
