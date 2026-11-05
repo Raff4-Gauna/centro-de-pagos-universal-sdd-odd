@@ -8,8 +8,9 @@ the build (step 9) included. The checks are run on the real ``ci.yml`` and on sy
 workflows, so a check that silently passes on anything would fail here.
 
 Also covered: AC-PLT-13 in CI (``file-size`` runs ``check_file_size.py``), AC-PLT-16 in CI
-(``migrations`` runs ``makemigrations --check`` on its own PostgreSQL) and the RN-PLT-18 basics of
-``ci.yml`` (read-only token, no ``pull_request_target``/``workflow_run``, actions pinned by SHA).
+(``migrations`` runs ``makemigrations --check`` on its own PostgreSQL), AC-PLT-18 in CI (the same
+job runs ``lint_migrations``) and the RN-PLT-18 basics of ``ci.yml`` (read-only token, no
+``pull_request_target``/``workflow_run``, actions pinned by SHA).
 """
 
 from __future__ import annotations
@@ -157,11 +158,25 @@ def test_AC_PLT_16_migrations_job_runs_makemigrations_check_on_postgres() -> Non
     jobs = ci_jobs()
     job = jobs["migrations"]
     runs = " ".join(step.get("run", "") for step in job["steps"])
-    assert "python manage.py makemigrations --check --dry-run" in runs
-    # Django only warns when it cannot reach the database: the step turns that into a failure.
+    assert "python -W error::RuntimeWarning manage.py makemigrations --check --dry-run" in runs
+    # Django only warns when it cannot reach the database: the step turns that into a failure,
+    # by the warning filter and by the text in the output.
     assert 'grep -q "consistent migration history"' in runs
     # Its own throwaway PostgreSQL, the same pinned image and credentials as the `tests` job.
     assert job["services"]["postgres"] == jobs["tests"]["services"]["postgres"]
+
+
+def test_AC_PLT_18_migrations_job_runs_lint_migrations() -> None:
+    steps = ci_jobs()["migrations"]["steps"]
+    lint = [step for step in steps if step.get("name") == "lint_migrations"]
+    assert len(lint) == 1
+    # Without app labels: every app under apps.* (the synthetic ones run in the `tests` job).
+    assert lint[0]["run"].strip() == "python manage.py lint_migrations"
+    assert lint[0]["working-directory"] == "backend"
+    assert "continue-on-error" not in lint[0]
+    # After the missing-migration check, in the same job.
+    names = [step.get("name") for step in steps]
+    assert names.index("makemigrations --check --dry-run") < names.index("lint_migrations")
 
 
 def test_RN_PLT_18_ci_triggers_and_read_only_token() -> None:

@@ -15,6 +15,8 @@ from config.settings.test import INSTALLED_APPS as _TEST_INSTALLED_APPS
 SYNTHETIC_DATABASE = "hub_synthetic"
 SYNTHETIC_APPS = [
     "tests.migrations.synthetic_apps.missing_migration",
+    "tests.migrations.synthetic_apps.bad_autoname",
+    "tests.migrations.synthetic_apps.bad_mixed",
 ]
 
 INSTALLED_APPS = [*_TEST_INSTALLED_APPS, *SYNTHETIC_APPS]
