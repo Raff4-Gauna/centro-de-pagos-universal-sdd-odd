@@ -774,6 +774,13 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   bloqueada por Q-048). (2) `CACHES` de dev/prod no fija `socket_timeout`/`socket_connect_timeout`: con un Redis
   que no rechaza la conexión (host caído sin RST) el fail-open espera el timeout del sistema; conviene acotarlo
   en `OPTIONS` (tarea de settings, fuera de esta lista).
+- **Revisión (aprobada, sin bloqueantes). Para después:** N1 = el (2) de arriba, pero como tarea con nombre antes de
+  producción, no solo una nota (si no, el fail-open se vuelve "fail-slow"). N2: con Redis caído hay un WARNING por
+  request; limitarlo si inunda el log. N3: falta un test con `TRUSTED_PROXY_COUNT>0` (N=1 toma la última IP de
+  `X-Forwarded-For`, no la primera); sumarlo cuando 01 defina la clave (§3.2.4). N4: con N>0 el backend no puede
+  tener ingreso directo sin pasar por el proxy (si no, el cliente controla `X-Forwarded-For`): documentarlo con el
+  hosting (Q-020). N5 (preexistente, T-PLT-15): `Retry-After` redondea `wait` hacia abajo y puede salir `0`;
+  redondear hacia arriba.
 
 ### T-PLT-17 — Celery + tarea de diagnóstico con `request_id`
 - **AC:** AC-PLT-11. RN-PLT-05, RN-PLT-07, RNF-PLT-03, Q-056. **Zona roja:** no (reviewer recomendado).
