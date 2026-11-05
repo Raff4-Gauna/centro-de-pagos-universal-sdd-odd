@@ -1418,6 +1418,12 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   `frontend/src/modules/settings/components/SettingsSectionList.test.tsx`.
 - **Plan de pruebas:** `test_AC_PLT_28_settings_lists_nine_sections_disabled_with_module_chip`,
   `test_AC_PLT_28_settings_route_error_shows_retry`.
+- **Revisión (aprobada, sin bloqueantes). Para después:** (1) `tw-opacity-60` deja las descripciones en ~2.6:1 de
+  contraste (título y chip ~4.0-4.4:1), por debajo de 4.5:1: quitar la opacidad o aplicarla solo al título.
+  (2) `aria-disabled` sobre `listitem` no es válido en ARIA 1.2 (no hace daño; el texto visible ya marca el estado).
+  (3) Descripciones: sumar "(si la API lo expone)" en Costos y comisiones y "email de Google" en Mi perfil.
+  (4) Opcional: chip "Módulo 04 · Integraciones". (5) El test principal no verifica "Todavía no disponible." ni las
+  descripciones.
 
 ### T-PLT-33 — BFF pass-through con `X-Request-ID`
 - **AC:** AC-PLT-10, AC-PLT-09 (lado BFF). RN-PLT-07, RN-PLT-16, RF-PLT-06 (Q-050). **Zona roja:** no (reviewer
