@@ -1,0 +1,55 @@
+# Red-zone paths for the `zona-roja` check (AC-PLT-32, RN-PLT-12, design.md sec. 3.7.2, Q-058).
+# A PR that touches any of these paths (old or new name of a rename) needs the `zona-roja` label and
+# an APROBADO verdict of the reviewer, by an account with write access, citing the PR head SHA.
+#
+# Syntax: one glob per line (scripts/glob_paths.py: `*`, `?`, `**` as a whole segment, `{a,b}`),
+# anchored at the repo root and case-sensitive. Optional exceptions on the same line, each one
+# prefixed with `!`: the line matches a path that matches the glob and none of its exceptions.
+# Exceptions only apply to their own line (another line can still make the path red). Blank lines
+# and lines starting with `#` are ignored. The check reads this file from the base branch (D-09).
+
+# --- Public contracts (API / events) ---
+specs/_contracts/**
+backend/apps/common/api/{exceptions,problems,schema}.py
+
+# --- Database migrations and their checks (C-17) ---
+backend/**/migrations/**
+backend/apps/common/migration_lint/**
+backend/apps/common/management/commands/{lint_migrations,check_migrations_roundtrip}.py
+backend/tests/migrations/**
+
+# --- Architecture tests (C-01 tenant isolation, C-02 money, C-09 provider boundary) ---
+backend/tests/architecture/**
+
+# --- Future red modules, listed now so they are not forgotten ---
+# identity: auth, roles and permissions; tenancy: organization_id isolation; integrations:
+# credentials/encryption and provider adapters (integrations/providers/<provider>/);
+# charges: money, charge states and refunds; webhooks: webhooks and idempotency;
+# reconciliation: money. (SPEC-01 adds frontend/src/app/api/** and frontend/src/lib/server/**.)
+backend/apps/{identity,tenancy,integrations,charges,webhooks,reconciliation}/**
+
+# --- The gate itself (Q-058, decided by the owner 2026-10-31) ---
+.github/**
+scripts/**
+.pre-commit-config.yaml
+.gitleaks.toml
+**/.gitleaksignore
+ruff.toml
+backend/pyproject.toml
+frontend/{tsconfig.json,eslint.config.mjs,vitest.config.mts}
+
+# --- Package-manager config that can hide advisories from deps-audit (T-PLT-28 review B-1) ---
+# frontend/package.json because of its `pnpm` field (auditConfig, overrides, hooks).
+frontend/{package.json,pnpm-workspace.yaml,.npmrc}
+frontend/.pnpmfile.*
+
+# --- Backend install surface (T-PLT-28 review B-3, B-4/B-5) ---
+# backend/uv.lock (a `source = { directory = ... }` entry installs local code) and any file or
+# directory of backend/ outside apps/, config/ and tests/: loose files (a backend/pip_audit.py
+# shadows a tool; a backend/mypy.ini or pytest.ini overrides backend/pyproject.toml) and new
+# directories (where a local build backend would live).
+backend/** !backend/apps/** !backend/config/** !backend/tests/**
+
+# --- Root configs read by the gate tools (T-PLT-28 final review B-4/B-5) ---
+# uv.toml / pyproject.toml ([tool.uv]), package.json (packageManager), .npmrc, .python-version.
+{uv.toml,pyproject.toml,package.json,.npmrc,.python-version}
