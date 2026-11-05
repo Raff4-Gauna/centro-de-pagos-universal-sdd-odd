@@ -141,7 +141,7 @@ def test_missing_ac_test_fails(git_repo: GitRepo, tmp_path: Path, capsys) -> Non
 
 def test_baseline_allows_known_missing_ac(git_repo: GitRepo, tmp_path: Path) -> None:
     build(git_repo, status="☐", evidence="—", commit_task=False, ac_test=False)
-    data = {"00-demo": {"allow_missing_tests": ["AC-DEMO-01"]}}
+    data: dict[str, object] = {"00-demo": {"allow_missing_tests": ["AC-DEMO-01"]}}
     assert run(git_repo, baseline(tmp_path, data)) == 0
 
 

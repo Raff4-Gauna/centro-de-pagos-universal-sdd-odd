@@ -27,7 +27,7 @@ version_spec: 1.0.8
 | AC-PLT-03 | `backend/tests/config/test_AC_PLT_03_missing_required_var.py` | ✔ |
 | AC-PLT-04 | `backend/tests/config/test_AC_PLT_04_check_deploy.py` | ✔ |
 | AC-PLT-05 | — | ✘ sin test: `.env.example` no existe (T-PLT-39, Q-048) |
-| AC-PLT-06 | `backend/tests/config/test_AC_PLT_06_no_provider_env.py`, `backend/tests/config/test_C_06_celery_broker_url.py` | ✔ (la parte de `spikes/.env.example` depende de T-PLT-39) |
+| AC-PLT-06 | `backend/tests/config/test_AC_PLT_06_no_provider_env.py`, `backend/tests/config/test_C_06_celery_broker_url.py` | ⚠ (la parte de `spikes/.env.example` depende de T-PLT-39) |
 | AC-PLT-07 | `backend/tests/logging/test_AC_PLT_07_access_log_json.py` | ✔ |
 | AC-PLT-08 | `backend/tests/logging/test_AC_PLT_08_redaction.py`, `…_redaction_domain.py`, `…_redaction_performance.py`, `…_sql_and_reports.py` | ✔ |
 | AC-PLT-09 | `backend/tests/logging/test_AC_PLT_09_request_id.py`, `frontend/src/lib/server/request-id.test.ts`, `frontend/src/lib/server/backend-proxy.test.ts` | ✔ |
@@ -41,7 +41,7 @@ version_spec: 1.0.8
 | AC-PLT-17 | — | ✘ sin test: falta la reversibilidad (T-PLT-24) |
 | AC-PLT-18 | `backend/tests/migrations/test_AC_PLT_18_names_and_mixing.py` | ✔ |
 | AC-PLT-19 | `scripts/tests/test_AC_PLT_19_gitleaks.py`, `…_gitleaks_evasions.py`, `…_secrets_job.py` | ✔ |
-| AC-PLT-20 | `scripts/tests/test_AC_PLT_20_pipeline_chain.py` | ✔ (cadena; la completan T-PLT-37 y T-PLT-40) |
+| AC-PLT-20 | `scripts/tests/test_AC_PLT_20_pipeline_chain.py` | ⚠ (cadena; la completan T-PLT-37 y T-PLT-40) |
 | AC-PLT-21 | `backend/tests/typing/test_AC_PLT_21_mypy_strict.py`, `scripts/tests/test_AC_PLT_21_tsconfig_strict.py` | ✔ |
 | AC-PLT-22 | `scripts/tests/test_AC_PLT_22_check_coverage.py` | ✔ |
 | AC-PLT-23 | `backend/tests/contract/test_AC_PLT_23_openapi_up_to_date.py`, `frontend/src/lib/problem.test.ts` | ✔ |
@@ -57,17 +57,17 @@ version_spec: 1.0.8
 | AC-PLT-33 | — | ✘ sin test: falta `check_workflows.py` (T-PLT-05) |
 | AC-PLT-34 | `backend/tests/api/test_AC_PLT_34_problem_json.py`, `…_problems_domain.py` | ✔ |
 
-**Resumen:** 26 ✔ · 2 ⚠ · 6 ✘ · 34 AC.
+**Resumen:** 24 ✔ · 4 ⚠ · 6 ✘ · 34 AC.
 
 ## 2. Ejecución de la suite
 
 | Suite | Comando | Estado |
 |---|---|---|
-| Scripts / tooling | `.venv\Scripts\python.exe -m pytest -c scripts/pytest.ini scripts/tests -q` | ⚠ 254 passed, 1 failed: `test_AC_PLT_26_pip_audit_is_isolated_from_planted_modules` falla por `UnicodeDecodeError` al decodificar la salida de `pip-audit` en una consola Windows en español. Es un defecto de entorno preexistente, no del cambio; no se marca `✔` hasta correrlo en CI/Linux. |
+| Scripts / tooling | `.venv\Scripts\python.exe -m pytest -c scripts/pytest.ini scripts/tests -q` | ✔ 255 passed, 22 deselected (marker `gitleaks`), 2026-11-05 sobre `log/2026-11-05-process-stewardship` |
 | Scripts nuevos (drift) | `.venv\Scripts\python.exe -m pytest -c scripts/pytest.ini scripts/tests/test_check_spec_state.py -q` | ✔ 16 passed |
 | Backend | `docker compose … exec -e DJANGO_SETTINGS_MODULE=config.settings.test backend pytest` | ⏳ pendiente (requiere el stack levantado) |
 | Frontend | `pnpm --dir frontend test` | ⏳ pendiente |
-| Tipos | `pnpm --dir frontend typecheck` · `docker compose … exec backend mypy . ../scripts` | ⏳ pendiente |
+| Tipos | `pnpm --dir frontend typecheck` · `mypy . ../scripts` (backend) | ⚠ backend `mypy`: sin errores en 142 archivos (2026-11-05); frontend pendiente |
 | Lint | `.venv\Scripts\ruff.exe check` + `format --check` sobre los `.py` nuevos | ✔ verde |
 | Pre-commit | `pre-commit run --all-files` | ⏳ pendiente (el hook `no-commit-to-branch` exige rama, no `main`) |
 

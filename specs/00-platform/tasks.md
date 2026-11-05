@@ -1647,8 +1647,8 @@ Pasa a `Verified` solo con el OK explícito del dueño. Ningún agente lo marca 
 
 ## Conciliación con git (generada, no editar a mano)
 
-> La genera `python scripts/check_spec_state.py --write` a partir de `git log` y del estado de esta tabla. En CI
-> corre sin `--write` y falla si hay drift. No se edita a mano: el bloque se reemplaza completo.
+> La genera `python scripts/check_spec_state.py --write` a partir de `git log` y del estado de esta tabla. Todavía no
+> corre en CI (falta engancharlo en el job `lint`); localmente, sin `--write`, falla si hay drift. No se edita a mano: el bloque se reemplaza completo.
 
 <!-- check_spec_state:begin -->
 | Tarea | PR | SHA | Estado |

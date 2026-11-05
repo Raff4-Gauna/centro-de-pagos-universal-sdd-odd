@@ -1,6 +1,6 @@
 # ADR-0011 — SOLID como criterio de diseño, con fronteras explícitas
 
-- **Estado:** Aceptado
+- **Estado:** Propuesto (falta el OK del dueño; fija la forma del contrato de adaptadores, zona roja)
 - **Fecha:** 2026-11-05
 - **Specs afectadas:** SPEC-00 (plataforma y convenciones), SPEC-01, SPEC-02, SPEC-03, SPEC-04, SPEC-05, SPEC-06,
   SPEC-07, SPEC-11.

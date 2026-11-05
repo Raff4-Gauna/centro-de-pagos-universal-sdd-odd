@@ -33,3 +33,17 @@ aparece uno nuevo. La spec `00-platform` **no** se marca `Verified`: falta el OK
 ## Preguntas nuevas (Q-xxx)
 
 - Ninguna. Se reutilizan Q-048 (`.env.example`) y Q-057/Q-058 (merge y zonas rojas).
+
+## Revisión (2026-11-05)
+- Bloqueante corregido: mypy en `scripts/tests/test_check_spec_state.py` (`dict` invariante).
+- Corregido: ADR-0011 vuelve a **Propuesto** (sin OK del dueño); `project-steward` ya no escribe en `.claude/**`,
+  `.agents/**`, `AGENTS.md`, `CLAUDE.md` ni en su propio chequeo/baseline; AC-PLT-06 y AC-PLT-20 pasan a ⚠; la nota
+  "en CI corre" de `tasks.md` era falsa (todavía no está enganchado); comandos de `AGENTS.md` que no existen marcados
+  como pendientes.
+- Va por Carril O pese a tocar `scripts/**` (zona roja por Q-058) porque es tooling de proceso que no toca el gate de
+  CI; igual pasó por `reviewer`.
+- **Para después (falsos "sin drift" del chequeo):** leer `git log` de `origin/main` (no de HEAD) y exigir `(#PR)`
+  para considerar mergeada una tarea; reportar filas cuyo ID no calza; exigir un solo símbolo de estado por celda;
+  buscar el ID del AC con límite de palabra y fuera de comentarios; `SHA_RE` no debe aceptar `#1234567`; 🧪 debe
+  exigir que todos sus AC estén ✔; renombrar `test_corpus`; engancharlo en el job `lint`.
+

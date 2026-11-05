@@ -115,20 +115,20 @@ Desde la raíz del repo (PowerShell o bash). `DC` = `docker compose -f infra/doc
 
 | Para | Comando |
 |---|---|
-| Primera vez | `copy .env.example .env` · `pre-commit install` · `corepack enable` · `pnpm --dir frontend install` |
+| Primera vez | `copy env.example .env` (pendiente, T-PLT-39) · `pre-commit install` · `corepack enable` · `pnpm --dir frontend install` |
 | Levantar todo | `DC up -d --build --wait` |
 | Logs / bajar | `DC logs -f backend worker` · `DC down` |
 | Recrear la BD | `DC down -v` y volver a levantar (BD descartable hasta SPEC-01, Q-053) |
 | Tests backend | `DC exec -e DJANGO_SETTINGS_MODULE=config.settings.test backend pytest` |
-| Tests frontend | `DC exec frontend pnpm test` · `pnpm --dir frontend test` |
+| Tests frontend | `pnpm --dir frontend test` · `DC exec frontend pnpm test` (pendiente: servicio `frontend`, T-PLT-36) |
 | Tests de scripts | `pytest -c scripts/pytest.ini scripts/tests` |
 | Lint rápido | `pre-commit run --all-files` · `ruff check .` · `ruff format --check .` |
 | Tipos | `DC exec backend mypy . ../scripts` · `pnpm --dir frontend typecheck` |
 | Regenerar contrato | `DC exec backend python manage.py export_openapi` → `pnpm --dir frontend openapi:types` |
-| Migraciones | `DC exec backend sh -c "python manage.py makemigrations --check --dry-run && python manage.py lint_migrations && python manage.py check_migrations_roundtrip"` |
+| Migraciones | `DC exec backend sh -c "python manage.py makemigrations --check --dry-run && python manage.py lint_migrations && python manage.py check_migrations_roundtrip"` (`check_migrations_roundtrip`: pendiente, T-PLT-24) |
 | Reiniciar worker/beat | `DC restart worker beat` |
 | Estado del proyecto | `python scripts/check_spec_state.py` (agregar `--write` para regenerar la conciliación) |
-| Verificar protección (dueño) | `python scripts/verify_repo_protection.py` con `GH_TOKEN` de admin |
+| Verificar protección (dueño) | `python scripts/verify_repo_protection.py` con `GH_TOKEN` de admin (pendiente, T-PLT-40) |
 
 Notas:
 - Mientras no exista `.env.example` (T-PLT-39, Q-048), usar la tabla de variables de `infra/README.md`.

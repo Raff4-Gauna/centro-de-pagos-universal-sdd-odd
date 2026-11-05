@@ -27,8 +27,8 @@ fase: cierre (Implemented pendiente)
 
 - **00-platform:** 30 tareas mergeadas (PR #4–#40), 10 pendientes, `T-PLT-39` bloqueada por **Q-048**
   (`.env.example`). El pipeline tiene 9 de los 11 jobs: faltan `build` (T-PLT-37) y `smoke` (T-PLT-38).
-- **Verificación:** `specs/00-platform/verification.md` existe y da **Con hallazgos**: 26 AC ✔, 2 ⚠
-  (`AC-PLT-01`, `AC-PLT-25`), 6 ✘ (`AC-PLT-05, 17, 24, 29, 32, 33`). Ningún AC se marcó ✔ sin test.
+- **Verificación:** `specs/00-platform/verification.md` existe y da **Con hallazgos**: 24 AC ✔, 4 ⚠
+  (`AC-PLT-01`, `06`, `20`, `25`), 6 ✘ (`AC-PLT-05, 17, 24, 29, 32, 33`). Ningún AC se marcó ✔ sin test.
 - **01 y 02:** specs `Approved` pero **sin `tasks.md`**: no se puede implementar todavía.
 - **04:** sin redactar; es el bloqueo de `06-charges`.
 - **S-001 (Mercado Pago sandbox):** **sin ejecutar**. Es el mayor riesgo abierto del roadmap.
@@ -81,7 +81,7 @@ fase: cierre (Implemented pendiente)
 
 ## 6. Pie de la última sesión
 
-- **Hecho:** reconciliación de 00 (30 ✅), `verification.md` (26 ✔ / 2 ⚠ / 6 ✘), `project-steward`,
+- **Hecho:** reconciliación de 00 (30 ✅), `verification.md` (24 ✔ / 4 ⚠ / 6 ✘), `project-steward`,
   `/reconcile`, `/handoff`, skills `sdd-verification` y `reviewer-verdict`, `check_spec_state.py` + baseline,
   `ADR-0011` y `context/12-solid-y-diseno.md`.
 - **Commits de la sesión:** `6273ac4` (tablero + verificación), `8ffbda0` (chequeo de drift), `a1eafb9`

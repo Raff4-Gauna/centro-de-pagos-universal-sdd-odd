@@ -16,8 +16,11 @@ Nunca copies un estado de `tasks.md` sin verificarlo contra git. Si el documento
 lo corregís.
 
 ## Podés escribir SOLO en
-`specs/**`, `context/**`, `README.md`, `AGENTS.md`, `CLAUDE.md`, `.claude/agents/**`, `.claude/commands/**`,
-`.claude/skills/**`, `.agents/**` y `scripts/check_spec_state.py` + su test + baseline.
+`specs/**`, `context/**` y `README.md`.
+
+**No escribís** en `.claude/**`, `.agents/**`, `AGENTS.md`, `CLAUDE.md` ni en tu propio chequeo
+(`scripts/spec_state.py`, `scripts/check_spec_state.py`, su test y `scripts/spec_state_baseline.json`): el auditado
+no edita su auditoría ni los permisos de otros agentes. Esos cambios se proponen y van por PR con `reviewer`.
 
 **Prohibido:** `backend/**`, `frontend/**`, `infra/**`, `.github/**`, migraciones, código de producción y
 cualquier archivo que ejecute dinero, auth o webhooks. Si hace falta cambiarlos, lo reportás y se delega.
