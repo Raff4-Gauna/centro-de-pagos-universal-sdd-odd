@@ -1069,12 +1069,14 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   también eximía los tests de `backend/tests/migrations/`). El step de CI falla también si Django avisa que no pudo comprobar el historial contra la BD
   (sin la BD, `makemigrations` solo advierte y sigue). Test extra:
   `test_AC_PLT_16_whole_project_check_catches_synthetic_app` y, en `scripts/tests/`,
-  `test_AC_PLT_16_migrations_job_runs_makemigrations_check_on_postgres`. `design.md` §3.6 todavía describe la
-  exclusión `**/migrations` de `ruff.toml`: queda para actualizar en el próximo cambio del design.
-- **Pendiente (fuera de esta tarea):** `EXCLUDED_GLOBS` de `scripts/check_file_size.py` tiene
-  `backend/**/migrations/**`, que también saca de `C-14` todo `backend/tests/migrations/` (tests, `conftest`,
-  `settings_synthetic`; hoy todos < 70 líneas). Acotarlo a `backend/apps/**/migrations/**` (o a `NNNN_*.py`)
-  con su test en `test_AC_PLT_13_check_file_size.py` antes de T-PLT-23/24, que agregan código ahí.
+  `test_AC_PLT_16_migrations_job_runs_makemigrations_check_on_postgres`.
+- **Scope ampliado por el planner (2026-11-05):** entran `scripts/check_file_size.py`,
+  `scripts/tests/test_AC_PLT_13_check_file_size.py` y `specs/00-platform/design.md` (§3.6).
+  `backend/**/migrations/**` también sacaba de `C-14` todo `backend/tests/migrations/`: la exclusión queda en
+  `backend/apps/**/migrations/????_*.py` (los módulos `NNNN_*` de las apps reales; `?` por dígito porque
+  `glob_paths` no tiene clases de caracteres), con test de que un archivo largo en `backend/tests/migrations/`
+  (y un helper junto a las migraciones) falla y una migración real larga no. `design.md` §3.6 describe el
+  `ruff.toml` nuevo.
 
 ### T-PLT-23 — Migraciones: nombres `auto_` y `RunPython` mezclado
 - **AC:** AC-PLT-18. RN-PLT-10. **Zona roja:** sí.
