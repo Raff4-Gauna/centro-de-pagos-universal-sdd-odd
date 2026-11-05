@@ -1317,6 +1317,13 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
 - **Plan de pruebas:** `test_AC_PLT_28_error_notice_shows_retry_and_calls_on_retry`,
   `test_AC_PLT_28_empty_state_renders_title_and_text`, `test_RF_PLT_15_page_skeleton_variants`,
   `test_RF_PLT_15_theme_built_from_design_tokens`, `test_RF_PLT_15_query_client_defaults`.
+- **Revisión (aprobada, sin bloqueantes). Para después:** (1) el gate de cobertura FE se puede evadir en parte
+  agregando partes de `src/lib/**` a `coverage.exclude` de `vitest.config.mts`: fijar `include`/`exclude` con un test
+  (o CODEOWNERS). (2) `src/lib/server/backend-proxy.test-helpers.ts` cuenta como código medido: excluir
+  `**/*.test-helpers.ts` en vitest y en el toml. (3) `EmptyState`: `aria-labelledby` al `h2` en vez de repetir
+  `aria-label`. (4) `ErrorNotice` muestra `message` tal cual: T-PLT-31/32 deben pasarle el `title`/`detail` de
+  problem+json ya mapeado, nunca `error.message` crudo (C-08). (5) `ErrorNotice.test.tsx:14` tiene una aserción
+  redundante sobre `RETRY_LABEL`.
 
 ### T-PLT-31 — Shell `(dashboard)` + Inicio
 - **AC:** AC-PLT-28. RF-PLT-15, spec §14. **Zona roja:** no.
