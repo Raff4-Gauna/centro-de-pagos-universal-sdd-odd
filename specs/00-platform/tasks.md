@@ -74,7 +74,7 @@ Reglas: rebanada vertical · ≤ ~300 líneas de diff · mergeable sola · cita 
 | T-PLT-03 | CI mínimo: `lint` → `file-size` → `tests` | AC-PLT-20 (parcial), AC-PLT-13 | CI | `.github/workflows/ci.yml`, `.github/actions/setup/action.yml` | T-PLT-02 | backend-dev | M | Sí | ✅ | #4 · 1830f49 |
 | T-PLT-04 | Pre-commit + gitleaks + job `secrets` | AC-PLT-19, AC-PLT-27, AC-PLT-13 | Infra/CI | `.pre-commit-config.yaml`, `.gitleaks.toml` | T-PLT-03 | backend-dev | M | Sí | ✅ | #19 · dbb770e |
 | T-PLT-05 | `check_workflows.py` en `lint` | AC-PLT-33 | CI | `scripts/check_workflows.py` | T-PLT-03 | backend-dev | L | Sí | ☐ | — |
-| T-PLT-06 | Check `zona-roja`: reglas y rutas | AC-PLT-32 | CI | `scripts/check_zona_roja.py`, `.github/zona-roja-paths.txt` | T-PLT-03 | backend-dev | L | Sí | ☐ | — |
+| T-PLT-06 | Check `zona-roja`: reglas y rutas | AC-PLT-32 | CI | `scripts/check_zona_roja.py`, `.github/zona-roja-paths.txt` | T-PLT-03 | backend-dev | L | Sí | 🟡 | — |
 | T-PLT-07 | Check `zona-roja`: API de GitHub + workflow | AC-PLT-32 | CI | `scripts/github_api.py`, `.github/workflows/zona-roja.yml` | T-PLT-05, T-PLT-06 | backend-dev | L | Sí | ☐ | — |
 | T-PLT-08 | Proyecto Django + settings validados | AC-PLT-03 | Backend | `backend/config/settings/*`, `manage.py` | T-PLT-03 | backend-dev | L | Sí | ✅ | #7 · 6754818 |
 | T-PLT-09 | `prod` endurecido + lecturas de entorno + feature flags | AC-PLT-04, AC-PLT-06 (parcial) | Backend | `config/settings/prod.py`, `apps/common/feature_flags.py` | T-PLT-08 | backend-dev | L | No | ✅ | #16 · 2a489ae |
@@ -368,6 +368,23 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
 - **Nota (revisión de T-PLT-04, B-2):** `**/.gitleaksignore` entra en `.github/zona-roja-paths.txt` con las rutas
   del gate (design §3.7.2): gitleaks lo carga solo y cada huella anula un hallazgo. Test:
   `test_Q058_gitleaksignore_at_any_depth_is_red` (`.gitleaksignore` y `docs/x/.gitleaksignore` son rojas).
+- **Nota (implementación, 2026-11-05; desvíos aceptados por el planner):** la lista admite excepciones por línea
+  (`glob !excepción …`, solo afectan a su línea); todo el top-level de `backend/` fuera de `apps/`, `config/` y
+  `tests/` es rojo (incluidos `README.md`, `Dockerfile`, `manage.py`), igual que las configs raíz de B-4/B-5. Por el
+  criterio de Q-058 (lo que puede alterar el gate es zona roja) el planner sumó: `**/ruff.toml`, `**/.ruff.toml`,
+  `backend/**/conftest.py` (`scripts/conftest.py` y `scripts/pytest.ini` ya caen en `scripts/**`),
+  `frontend/{next,eslint,vitest,postcss,tailwind}.config.*`, `frontend/vitest.setup.*`, `frontend/tsconfig*.json`,
+  `frontend/scripts/**`, `backend/config/settings/**`, `AGENTS.md`, `CLAUDE.md`, `context/01-constitution.md`,
+  `.claude/**` y `.agents/**`. Test: `test_Q058_paths_that_can_alter_the_gate_are_red`. Las rutas del BFF
+  (`frontend/src/app/api/**`, `frontend/src/lib/server/**`) siguen fuera hasta SPEC-01 (design §3.7.2).
+- **Nota (revisión de `b20dd78`, B-1..B-3 + decisiones del planner):** suma `**/pyproject.toml`,
+  `**/{pytest.ini,.pytest.ini,tox.ini,setup.cfg}` (la excepción `!backend/tests/**` no los tapa: es de otra línea),
+  `**/{AGENTS.md,CLAUDE.md}`, `.mcp.json`, `frontend/pnpm-lock.yaml` (simetría con `backend/uv.lock`),
+  `**/.gitattributes` y `.vscode/**`; las rutas se comparan **sin distinguir mayúsculas** (ruta y globs en minúscula).
+- **Para después:** (1) redacción/logging (`apps/common/domain/redaction.py`, `apps/common/logging/processors.py`)
+  sin zona propia en la lista; (2) alinear el formato de veredicto de la skill/agente `reviewer` con design §3.7.3
+  antes de T-PLT-07; (3) en T-PLT-07, normalizar `updated_at` a UTC (aware) antes de comparar e ignorar líneas de
+  veredicto dentro de bloques de código.
 
 ### T-PLT-07 — Check `zona-roja`: API de GitHub + workflow
 - **AC:** AC-PLT-32. RN-PLT-12, RN-PLT-18. **Zona roja:** sí.
