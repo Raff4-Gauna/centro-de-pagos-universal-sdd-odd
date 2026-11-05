@@ -136,7 +136,7 @@ def test_AC_PLT_13_limits_and_exclusions_are_pinned() -> None:
     assert check_file_size.MAX_LINES == 400
     assert frozenset({".py", ".ts", ".tsx", ".jsx"}) == check_file_size.CODE_SUFFIXES
     assert check_file_size.EXCLUDED_GLOBS == (
-        "backend/**/migrations/**",
+        "backend/apps/**/migrations/????_*.py",
         "**/fixtures/**",
         "frontend/src/types/**",
         "**/next-env.d.ts",
@@ -162,7 +162,7 @@ def test_AC_PLT_13_migration_and_generated_types_are_excluded(
     git_repo: GitRepo, capsys: pytest.CaptureFixture[str]
 ) -> None:
     git_repo.write("backend/apps/charges/migrations/0001_initial.py", 900)
-    git_repo.write("backend/apps/charges/migrations/sub/helper.py", 900)
+    git_repo.write("backend/apps/charges/migrations/0002_backfill_amounts.py", 900)
     git_repo.write("backend/apps/integrations/providers/mp/fixtures/order.py", 900)
     git_repo.write("frontend/src/types/api.d.ts", 3000)
     git_repo.write("frontend/next-env.d.ts", 401)
@@ -181,10 +181,24 @@ def test_AC_PLT_13_exclusions_do_not_leak_to_similar_paths(
     # Only Django migrations (backend/) are excluded; a `migrations/` dir elsewhere is code.
     git_repo.write("frontend/src/migrations/upgrade.ts", 401)
     git_repo.write("migrations/0001_root.py", 401)
+    # Only the NNNN_*.py modules of backend/apps/: a hand-written helper next to them, or the
+    # migration-check tests and fixtures (backend/tests/migrations/, T-PLT-22) are code.
+    git_repo.write("backend/apps/charges/migrations/sub/helper.py", 401)
+    git_repo.write("backend/apps/charges/migrations/helpers.py", 401)
+    git_repo.write("backend/tests/migrations/test_AC_PLT_16_long.py", 401)
+    git_repo.write("backend/tests/migrations/conftest.py", 401)
+    git_repo.write("backend/tests/migrations/synthetic_apps/app/migrations/0001_initial.py", 401)
 
     code, _, err = run_check(capsys)
 
     assert code == 1
+    assert "backend/apps/charges/migrations/sub/helper.py: 401 lines" in err
+    assert "backend/apps/charges/migrations/helpers.py: 401 lines" in err
+    assert "backend/tests/migrations/test_AC_PLT_16_long.py: 401 lines" in err
+    assert "backend/tests/migrations/conftest.py: 401 lines" in err
+    assert (
+        "backend/tests/migrations/synthetic_apps/app/migrations/0001_initial.py: 401 lines" in err
+    )
     assert "backend/apps/common/migrations_helper.py: 401 lines" in err
     assert "frontend/src/typesafe/api.ts: 401 lines" in err
     assert "frontend/src/migrations/upgrade.ts: 401 lines" in err
