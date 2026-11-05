@@ -69,7 +69,7 @@ Reglas: rebanada vertical · ≤ ~300 líneas de diff · mergeable sola · cita 
 | T-PLT-22 | Migraciones: faltante + job `migrations` | AC-PLT-16 | Migraciones/CI | `tests/migrations/` | T-PLT-08, T-PLT-11 | backend-dev | M | Sí | ◐ en revisión (falta reviewer/PR) |
 | T-PLT-23 | Migraciones: nombres `auto_` y `RunPython` mezclado | AC-PLT-18 | Migraciones | `apps/common/migration_lint/`, `lint_migrations.py` | T-PLT-22 | backend-dev | L | Sí | ☐ |
 | T-PLT-24 | Migraciones: reversibilidad + ida y vuelta | AC-PLT-17 | Migraciones/CI | `check_migrations_roundtrip.py` | T-PLT-23 | backend-dev | L | Sí | ☐ |
-| T-PLT-25 | Imagen Docker del backend | AC-PLT-25 (backend) | Infra | `backend/Dockerfile`, `config/gunicorn.conf.py` | T-PLT-12 | backend-dev | M | Sí | ☐ |
+| T-PLT-25 | Imagen Docker del backend | AC-PLT-25 (backend) | Infra | `backend/Dockerfile`, `config/gunicorn.conf.py` | T-PLT-12 | backend-dev | M | Sí |◐ en revisión (falta reviewer/PR) |
 | T-PLT-26 | Compose de desarrollo (db, redis, backend, worker, beat) | AC-PLT-01 (parcial), AC-PLT-02 (manual) | Infra | `infra/docker-compose.yml` | T-PLT-11, T-PLT-17, T-PLT-25 | backend-dev | L | Sí | ☐ |
 | T-PLT-27 | Frontend: proyecto Next + toolchain + CI frontend | AC-PLT-21 (frontend) | Frontend/CI | `frontend/package.json`, `tsconfig.json`, … | T-PLT-03 | frontend-dev | L | Sí | ◐ en revisión (falta reviewer/PR) |
 | T-PLT-28 | Auditoría de dependencias + Dependabot | AC-PLT-26 | CI | `scripts/audit_deps.py`, `.github/dependabot.yml` | T-PLT-27 | backend-dev | L | Sí | ◐ en revisión (falta reviewer/PR) |
@@ -1122,6 +1122,26 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
 - **Pendiente de la revisión de T-PLT-14:** el error log de gunicorn (`gunicorn.error`: arranque, workers caídos,
   tracebacks fuera de Django) tiene que usar el mismo `logconfig_dict` (`logging_config()`), para que pase por
   `StdoutHandler`, la redacción y `captureWarnings`; test de centinela con un worker que falla.
+- **Notas de implementación:** bases por tag + digest del index multi-arch (2026-11-05):
+  `ghcr.io/astral-sh/uv:0.13.6@sha256:af22a52f…` y `python:3.12.16-slim-trixie@sha256:e695ab18…` (mismo digest en
+  `builder` y `runtime`: el venv apunta a su intérprete); `runtime` es el último stage (target por defecto), corre
+  como `10001:10001`, código de root y solo lectura. `gunicorn.conf.py` toma `LOG_LEVEL` vía `load_env(PlatformEnv)`
+  (no `django.conf.settings`: el master heredaría los settings cargados y `--reload` no los recargaría);
+  `gunicorn.error` propaga al root, `gunicorn.access` silenciado, `control_socket_disable = True` (gunicorn 26 abre
+  un socket bajo `$HOME`, que el usuario de la imagen no tiene). El test de centinela encontró que gunicorn hace
+  `print("%s" % e, file=sys.stderr)` tras loguear el fallo de arranque (mensaje crudo, sin redacción): `post_fork`
+  cambia el `sys.stderr` del worker por `StderrToLog` (cada línea, evento `process.stderr` JSON redactado). Test en
+  `backend/tests/logging/test_RN_PLT_05_gunicorn_logging.py` (archivo sumado; el de arranque real se saltea en
+  Windows, corre en CI y en la imagen `dev`). `dev` queda como root a propósito (bind mount del host).
+- **Revisión (aprobada, sin bloqueantes). Para después:** (1) `StderrToLog` (`config/gunicorn.conf.py`): la guarda
+  y `_pending` son por instancia, no por hilo; con varios hilos (`--reload`, futuro `gthread`) se pierden líneas o se
+  separa una clave de su valor (`password=` / valor en otra línea, que la redacción por clave no tapa):
+  `threading.local` + `threading.Lock`. (2) `StderrToLog` no tiene `fileno()`: `faulthandler.enable()` sin argumento
+  fallaría; delegar a `sys.__stderr__.fileno()` o documentarlo. (3) El stderr del master queda sin cubrir (errores de
+  config/arranque y recarga por SIGHUP, sin datos de requests): documentarlo como límite conocido. (4) `pip` de la
+  imagen base sigue en `runtime` (no puede instalar: el venv es de root); quitarlo es opcional. (5) El comentario de
+  `.github/dependabot.yml:34-35` quedó viejo (`/backend` ya existe). (6) El "`id -u` ≠ 0" de la imagen construida solo
+  se verificó a mano hasta que exista el job `build` (T-PLT-37).
 
 ### T-PLT-26 — Compose de desarrollo (db, redis, backend, worker, beat)
 - **AC:** AC-PLT-01 (parcial: 5 servicios), AC-PLT-02 (manual). RN-PLT-01, RF-PLT-02, RNF-PLT-05, D-04, D-05.
