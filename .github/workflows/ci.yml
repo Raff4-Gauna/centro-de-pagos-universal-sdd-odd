@@ -438,11 +438,13 @@ jobs:
   # Step 8. AC-PLT-16 (RN-PLT-10, RF-PLT-10): a model change without its migration fails
   # `makemigrations --check --dry-run` (nothing is written). AC-PLT-18: an `NNNN_auto_` name or a
   # RunPython mixed with other operations fails `lint_migrations` (migration files of apps.*, read
-  # from disk, no database). A PostgreSQL service of its own, same image and credentials as the
+  # from disk, no database); AC-PLT-17: so does an irreversible operation (also nested in
+  # SeparateDatabaseAndState), and `check_migrations_roundtrip` applies, reverts to zero and
+  # reapplies every apps.* app. A PostgreSQL service of its own, same image and credentials as the
   # `tests` job: once an app has models, `makemigrations` also checks the applied history against a
-  # real, throwaway database instead of skipping it with a warning, and check_migrations_roundtrip
-  # (T-PLT-24) uses it next. 00 has no migrations of its own: the job runs anyway, active from the
-  # first commit (design.md §3.2.7).
+  # real, throwaway database instead of skipping it with a warning, and the round trip runs on it.
+  # 00 has no migrations of its own: the job runs anyway, active from the first commit
+  # (design.md §3.2.7).
   # The synthetic cases run in the `tests` job (backend/tests/migrations/).
   migrations:
     needs: coverage
@@ -490,3 +492,8 @@ jobs:
       - name: lint_migrations
         working-directory: backend
         run: python manage.py lint_migrations
+      # C-17: apply -> revert every apps.* app to zero -> reapply, on the fresh PostgreSQL service
+      # of this job (throwaway: reverting drops the tables). Fails on an irreversible migration.
+      - name: check_migrations_roundtrip
+        working-directory: backend
+        run: python manage.py check_migrations_roundtrip

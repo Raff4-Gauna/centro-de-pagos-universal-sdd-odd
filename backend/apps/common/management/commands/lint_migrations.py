@@ -1,7 +1,8 @@
 """``manage.py lint_migrations [app_label ...]``: static checks on migration files (RN-PLT-10).
 
 Reads the migrations from disk with ``MigrationLoader`` (no database connection) and applies the
-rules of ``apps.common.migration_lint.rules`` to each one (AC-PLT-18). Without labels, as CI runs
+rules of ``apps.common.migration_lint.rules`` to each one (names and schema/data apart,
+AC-PLT-18; reversibility, AC-PLT-17). Without labels, as CI runs
 it (job ``migrations``, step 8), it checks every installed app whose module is under ``apps``;
 labels restrict the run to those apps, whatever their package (the synthetic apps of the tests).
 Each problem goes to stdout as ``<app_label>.<migration>: <problem>``; any problem exits with 1.
@@ -31,7 +32,7 @@ def target_labels(labels: list[str]) -> set[str]:
 
 
 class Command(BaseCommand):
-    help = "Check migration names and schema/data separation; exit 1 if any migration fails."
+    help = "Check migration names, schema/data separation and reversibility; exit 1 on a problem."
 
     def add_arguments(self, parser: ArgumentParser) -> None:
         parser.add_argument(
