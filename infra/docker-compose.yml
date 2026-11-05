@@ -1,7 +1,7 @@
 # Dev stack (T-PLT-26, design.md §3.4.1, RN-PLT-01, RF-PLT-02, D-04, D-05). From the repo root:
 #   docker compose -f infra/docker-compose.yml --env-file .env up -d --build --wait
 # Paths are relative to this file. How to use it, recreate the database and hot reload on
-# Windows: infra/README.md. The frontend service arrives with T-PLT-36.
+# Windows: infra/README.md.
 #
 # Environment (D-04, RN-PLT-04): no env_file. Compose interpolates from the --env-file, but only
 # the variables listed under `environment:` enter a container; anything else in .env (spike keys
@@ -157,5 +157,52 @@ services:
       retries: 3
       start_period: 90s
 
+  frontend:
+    build:
+      context: ../frontend
+      target: dev
+    image: centro-pagos-frontend:dev
+    environment:
+      # Server side only (RN-PLT-16): the BFF reads it at runtime; the browser talks to the BFF
+      # (same origin) and never to the backend. A fixed value, not from .env: the service name.
+      BACKEND_INTERNAL_URL: http://backend:8000
+      # A bind mount from Windows delivers no inotify events: the dev server polls (infra/README.md).
+      WATCHPACK_POLLING: "true"
+      NEXT_TELEMETRY_DISABLED: "1"
+    # The install checks the named node_modules volume against pnpm-lock.yaml (fast when nothing
+    # changed), with the same flags as the image and CI (T-PLT-28 review, B-2).
+    command:
+      - sh
+      - -c
+      - >-
+        pnpm install --frozen-lockfile --ignore-scripts --ignore-pnpmfile
+        && exec pnpm dev --hostname 0.0.0.0
+    volumes:
+      - ../frontend:/repo/frontend
+      # Named volumes over the bind mount: the Linux node_modules never mixes with the host's,
+      # and the pnpm store (pnpm_config_store_dir=/pnpm-store, frontend/Dockerfile) survives `up`.
+      - frontend_node_modules:/repo/frontend/node_modules
+      - pnpm_store:/pnpm-store
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      # The BFF's own health (never calls the backend); the first request compiles the route.
+      test:
+        - CMD
+        - node
+        - -e
+        - >-
+          fetch("http://localhost:3000/api/health").then((r) => process.exit(r.status === 200 ? 0 : 1),
+          () => process.exit(1))
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+
 volumes:
   pgdata:
+  frontend_node_modules:
+  pnpm_store:

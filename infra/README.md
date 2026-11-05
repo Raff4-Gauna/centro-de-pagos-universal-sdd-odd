@@ -3,12 +3,13 @@
 Docker Compose (PostgreSQL, Redis, backend, worker Celery + beat, frontend), proxy (nginx/Caddy) y scripts de despliegue.
 Se define en la spec `00-platform`. Q-020 (2026-10-31): túnel ngrok/cloudflared en desarrollo; el hosting de producción se elige antes de H2.
 
-## Compose de desarrollo (`docker-compose.yml`, T-PLT-26)
+## Compose de desarrollo (`docker-compose.yml`, T-PLT-26, T-PLT-36)
 
-Cinco servicios (`design.md §3.4.1`): `db` (PostgreSQL 17.11), `redis` (7.4.12, sin persistencia), `backend`
-(Django + gunicorn, target `dev` de `backend/Dockerfile`), `worker` (Celery) y `beat` (una sola réplica). El
-`frontend` se suma con T-PLT-36. Todos tienen healthcheck y cada `depends_on` espera `service_healthy`: `backend`
-arranca con `db` y `redis` sanos, y `worker`/`beat` con `backend` sano. `migrate --noinput` corre **solo** en
+Seis servicios (`design.md §3.4.1`): `db` (PostgreSQL 17.11), `redis` (7.4.12, sin persistencia), `backend`
+(Django + gunicorn, target `dev` de `backend/Dockerfile`), `worker` (Celery), `beat` (una sola réplica) y
+`frontend` (Next.js `next dev`, target `dev` de `frontend/Dockerfile`). Todos tienen healthcheck y cada
+`depends_on` espera `service_healthy`: `backend` arranca con `db` y `redis` sanos, y `worker`/`beat`/`frontend`
+con `backend` sano. `migrate --noinput` corre **solo** en
 `backend`, antes de gunicorn; `worker` y `beat` no migran (sin carrera).
 
 ### Prerrequisitos del host (Q-060, `design.md §3.6`)
@@ -56,11 +57,15 @@ docker compose -f infra/docker-compose.yml --env-file .env logs -f backend worke
 docker compose -f infra/docker-compose.yml --env-file .env down
 ```
 `--env-file .env` hace falta porque, con `-f infra/…`, Compose buscaría el `.env` en `infra/`. `up --wait` vuelve
-cuando los cinco servicios están `healthy` (la primera vez tarda más por el build). Después: `GET
+cuando los seis servicios están `healthy` (la primera vez tarda más por el build). Después: `GET
 http://127.0.0.1:8000/healthz` → 200 (vida, sin dependencias) y `GET http://127.0.0.1:8000/readyz` → 200 (PostgreSQL
 y Redis responden).
 
-Los puertos se publican **solo en `127.0.0.1`**: `5432` (`db`, para un cliente SQL del host) y `8000` (`backend`).
+La interfaz queda en `http://127.0.0.1:3000` (`/inicio`, `/configuracion`) y `GET http://127.0.0.1:3000/api/health`
+→ 200 es la salud del BFF.
+
+Los puertos se publican **solo en `127.0.0.1`**: `5432` (`db`, para un cliente SQL del host), `8000` (`backend`)
+y `3000` (`frontend`).
 Redis, worker y beat no publican nada. Si el `5432` del host está ocupado (un PostgreSQL local), pararlo o usar un
 override propio fuera del repo con `ports: !override ["127.0.0.1:<otro>:5432"]` y un segundo `-f`.
 
@@ -70,7 +75,8 @@ La BD es descartable hasta SPEC-01 (`design.md §10.1`, Q-053): vive en el volum
 docker compose -f infra/docker-compose.yml --env-file .env down -v
 docker compose -f infra/docker-compose.yml --env-file .env up -d --build --wait
 ```
-`down -v` borra **todos** los volúmenes del proyecto `centro-pagos`. Cambiar `POSTGRES_*` en el `.env` no afecta a
+`down -v` borra **todos** los volúmenes del proyecto `centro-pagos` (también `frontend_node_modules` y
+`pnpm_store`: el próximo `up` reinstala desde el lockfile). Cambiar `POSTGRES_*` en el `.env` no afecta a
 una BD ya inicializada (la imagen solo los usa sobre un volumen vacío): hay que recrearla.
 
 ### Hot reload del backend (polling en Windows)
@@ -80,6 +86,42 @@ eso gunicorn corre con `--reload --reload-engine poll`, que revisa los `.py` por
 reinicia los workers de gunicorn en uno o dos segundos (`Worker exiting` / `Booting worker` en el log). Si el
 repo está dentro del filesystem de WSL 2 funciona igual. `worker` y `beat` montan el mismo código pero **no** se
 recargan solos: `docker compose -f infra/docker-compose.yml --env-file .env restart worker beat`.
+
+### Frontend (`frontend/Dockerfile`, T-PLT-36)
+- **Imagen** (`design.md §3.4.2`): `deps` instala desde `pnpm-lock.yaml` con las mismas flags que CI
+  (`--frozen-lockfile --ignore-scripts --ignore-pnpmfile`); `dev` es la que usa el Compose; `builder` corre
+  `next build` con **centinelas** (valores ficticios bajo `.invalid`) en las variables solo-servidor y después
+  `scripts/check-client-bundle.ts`, que hace fallar el build si el bundle del cliente (`.next/static/**` y las
+  páginas prerenderizadas `.html`/`.rsc`) contiene un centinela, el nombre de una variable solo-servidor o una
+  referencia `env.NOMBRE` que no sea `NEXT_PUBLIC_` (AC-PLT-29); `runtime` es solo `.next/standalone` +
+  `.next/static`, sin pnpm ni dependencias de dev, y corre como `node` (`node server.js`). A mano:
+  `docker build --target runtime --build-arg GIT_SHA=<sha> frontend`.
+- **Servicio**: arranca cuando `backend` está `healthy`; al iniciar corre `pnpm install` (contra el volumen
+  `frontend_node_modules`; si nada cambió tarda menos de un segundo) y `next dev`. El healthcheck pide
+  `/api/health` (la salud del BFF, no llama al backend). El store de pnpm vive en el volumen `pnpm_store`
+  (`pnpm_config_store_dir=/pnpm-store`): nunca aparece un `.pnpm-store/` en el checkout.
+- **BFF → backend**: el BFF llama a `http://backend:8000` (`BACKEND_INTERNAL_URL`, fija en el Compose y solo del
+  lado servidor; el navegador habla únicamente con `:3000`). Django recibe `Host: backend` y, con el valor por
+  defecto de `DJANGO_ALLOWED_HOSTS` (`localhost,127.0.0.1`), responde `400 DisallowedHost`: en el `.env` va
+  `DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1,backend`. Los healthchecks no dependen de esto.
+- `next dev` reescribe `frontend/next-env.d.ts` (apunta a `.next/dev/types`): no commitear ese cambio
+  (`git checkout frontend/next-env.d.ts`). Como en `backend`, el target `dev` corre como root.
+
+### Hot reload del frontend (polling en Windows)
+Igual que en el backend, el bind mount desde Windows no entrega eventos de inotify. El Compose pone
+`WATCHPACK_POLLING=true`, pero **Turbopack (el bundler por defecto de `next dev` en Next 16) lo ignora**
+(verificado en T-PLT-36: guardar un archivo no recompila). **Plan B**: `next dev --webpack`, que sí respeta
+`WATCHPACK_POLLING` (recompila en uno o dos segundos). Un override propio fuera del repo, por ejemplo
+`frontend-webpack.yml`:
+```yaml
+services:
+  frontend:
+    command:
+      - sh
+      - -c
+      - pnpm install --frozen-lockfile --ignore-scripts --ignore-pnpmfile && exec pnpm dev --hostname 0.0.0.0 --webpack
+```
+y `docker compose -f infra/docker-compose.yml -f <ruta>/frontend-webpack.yml --env-file .env up -d --wait frontend`.
 
 ### Tests dentro del contenedor
 `docker compose … exec -e DJANGO_SETTINGS_MODULE=config.settings.test backend pytest` usa la `db` y el `redis` del

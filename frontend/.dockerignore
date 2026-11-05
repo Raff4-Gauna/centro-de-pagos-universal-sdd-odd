@@ -1,0 +1,18 @@
+# Build context of frontend/Dockerfile (T-PLT-36, RNF-PLT-01, design.md §3.4.2).
+# No environment file ever enters an image, .env.example included (no exception on purpose).
+**/.env*
+# Version control and local tooling.
+**/.git
+**/.gitignore
+**/.vscode
+**/.idea
+# Installed and generated: the image installs its own node_modules and runs its own build.
+**/node_modules
+**/.pnpm-store
+**/.next
+**/coverage
+**/*.tsbuildinfo
+**/*.log
+# The image does not need its own recipe.
+Dockerfile
+.dockerignore
