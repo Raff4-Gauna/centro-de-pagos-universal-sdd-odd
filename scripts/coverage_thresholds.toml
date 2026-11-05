@@ -27,5 +27,13 @@ exclude = ["scripts/tests/**"]
 lines = 85
 branches = 85
 
-# Frontend (>= 70 % of lines in src/lib, src/hooks, src/modules; app/ and generated types are not
-# gated): added by T-PLT-30 with format = "istanbul" (vitest json-summary).
+# Frontend: `pnpm test --coverage` from frontend/ (vitest.config.mts writes the istanbul
+# json-summary). Its keys are absolute paths of the machine that ran vitest, hence the `**/` prefix.
+# >= 70 % of lines in src/lib, src/hooks and src/modules (RNF-PLT-08); app/, components/ and the
+# generated types are measured but not gated. RNF-PLT-08 names no branch threshold for the frontend.
+[[gate]]
+name = "frontend"
+report = "frontend/coverage/coverage-summary.json"
+format = "istanbul"
+include = ["**/src/lib/**", "**/src/hooks/**", "**/src/modules/**"]
+lines = 70

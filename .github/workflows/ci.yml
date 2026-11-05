@@ -390,13 +390,14 @@ jobs:
           path: |
             backend/coverage/backend.json
             coverage/scripts.json
+            frontend/coverage/coverage-summary.json
           if-no-files-found: error
           retention-days: 7
 
   # Step 7. AC-PLT-22 (RNF-PLT-08, Q-032): backend apps/ + config/ and scripts/ >= 85 % of lines
-  # and branches; a declared report that is missing fails. The frontend entry arrives with
-  # T-PLT-30. Read-only token from the workflow-level `permissions`; the download needs no token
-  # (same run).
+  # and branches, frontend src/{lib,hooks,modules} >= 70 % of lines; a declared report that is
+  # missing fails. Read-only token from the workflow-level `permissions`; the download needs no
+  # token (same run).
   coverage:
     needs: tests
     runs-on: ubuntu-24.04

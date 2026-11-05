@@ -290,12 +290,16 @@ def test_AC_PLT_22_missing_thresholds_file_is_a_usage_error(tmp_path: Path) -> N
 def test_AC_PLT_22_real_thresholds_match_rnf_plt_08() -> None:
     # Lowering a threshold needs a row in the spec's change history (RNF-PLT-08): pin the values.
     gates = {gate.name: gate for gate in check_coverage.load_gates(check_coverage.DEFAULT_CONFIG)}
-    assert set(gates) == {"backend", "scripts"}  # the frontend entry arrives with T-PLT-30
-    backend, scripts = gates["backend"], gates["scripts"]
+    assert set(gates) == {"backend", "scripts", "frontend"}
+    backend, scripts, frontend = gates["backend"], gates["scripts"], gates["frontend"]
     assert backend.include == ("apps/**", "config/**")
     assert (backend.lines, backend.branches) == (85, 85)
     assert (scripts.lines, scripts.branches) == (85, 85)
     assert scripts.exclude == ("scripts/tests/**",)
+    assert frontend.report == "frontend/coverage/coverage-summary.json"
+    assert frontend.format == "istanbul"
+    assert frontend.include == ("**/src/lib/**", "**/src/hooks/**", "**/src/modules/**")
+    assert (frontend.lines, frontend.branches) == (70, None)
     with check_coverage.DEFAULT_CONFIG.open("rb") as handle:
         assert tomllib.load(handle)  # parses as plain TOML too
 

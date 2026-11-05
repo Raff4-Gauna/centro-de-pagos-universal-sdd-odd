@@ -1,0 +1,4 @@
+/* Tailwind layers (07 §1). preflight is off in tailwind.config.ts: MUI's CssBaseline is the reset. */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
