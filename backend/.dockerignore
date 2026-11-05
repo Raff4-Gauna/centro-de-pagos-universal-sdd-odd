@@ -1,0 +1,23 @@
+# Build context of backend/Dockerfile (T-PLT-25, RNF-PLT-01, design.md §3.4.2).
+# No environment file ever enters an image, .env.example included (no exception on purpose:
+# Compose bind-mounts it where a test needs it).
+**/.env*
+# Version control and local tooling.
+**/.git
+**/.gitignore
+**/.vscode
+**/.idea
+# Local virtualenv (the image builds its own in /opt/venv) and generated files.
+**/.venv
+**/__pycache__
+**/*.py[cod]
+**/coverage
+**/.coverage
+**/.mypy_cache
+**/.pytest_cache
+**/.ruff_cache
+**/node_modules
+**/.next
+# The image does not need its own recipe.
+Dockerfile
+.dockerignore
