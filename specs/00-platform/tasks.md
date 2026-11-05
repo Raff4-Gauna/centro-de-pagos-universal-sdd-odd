@@ -66,7 +66,7 @@ Reglas: rebanada vertical · ≤ ~300 líneas de diff · mergeable sola · cita 
 | T-PLT-19 | Tests de arquitectura C-09 y C-01 + job | AC-PLT-14, AC-PLT-15 | Arquitectura/CI | `backend/tests/architecture/` | T-PLT-08 | backend-dev | L | Sí | ◐ en revisión (falta reviewer/PR) |
 | T-PLT-20 | Chequeo C-02 (`float` en dinero) | AC-PLT-31 | Arquitectura | `ast_rules.py`, `allowlists.py` | T-PLT-19 | backend-dev | M | Sí | ◐ en revisión (falta reviewer/PR) |
 | T-PLT-21 | Gate de cobertura + job `coverage` | AC-PLT-22 | CI | `scripts/check_coverage.py`, `scripts/coverage_thresholds.toml` | T-PLT-08 | backend-dev | L | Sí | ◐ en revisión (falta reviewer/PR) |
-| T-PLT-22 | Migraciones: faltante + job `migrations` | AC-PLT-16 | Migraciones/CI | `tests/migrations/` | T-PLT-08, T-PLT-11 | backend-dev | M | Sí | ☐ |
+| T-PLT-22 | Migraciones: faltante + job `migrations` | AC-PLT-16 | Migraciones/CI | `tests/migrations/` | T-PLT-08, T-PLT-11 | backend-dev | M | Sí | ◐ en revisión (falta reviewer/PR) |
 | T-PLT-23 | Migraciones: nombres `auto_` y `RunPython` mezclado | AC-PLT-18 | Migraciones | `apps/common/migration_lint/`, `lint_migrations.py` | T-PLT-22 | backend-dev | L | Sí | ☐ |
 | T-PLT-24 | Migraciones: reversibilidad + ida y vuelta | AC-PLT-17 | Migraciones/CI | `check_migrations_roundtrip.py` | T-PLT-23 | backend-dev | L | Sí | ☐ |
 | T-PLT-25 | Imagen Docker del backend | AC-PLT-25 (backend) | Infra | `backend/Dockerfile`, `config/gunicorn.conf.py` | T-PLT-12 | backend-dev | M | Sí | ☐ |
@@ -1062,6 +1062,19 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   adopta, `ruff.toml` entra en los archivos de esta tarea (NB-2 del reviewer de T-PLT-02).
 - **Plan de pruebas:** `test_AC_PLT_16_model_change_without_migration_fails_check`,
   `test_AC_PLT_16_real_apps_have_no_missing_migrations`.
+- **Resultado (implementación):** `ruff.toml` adoptado: sale `**/migrations` de `extend-exclude` y entra
+  `per-file-ignores` `"**/migrations/[0-9][0-9][0-9][0-9]_*.py" = ["E501", "RUF012", "N806"]` (lint y formato
+  activos; `T20` y `S` siguen valiendo en migraciones de datos; `N999` no hizo falta: ruff ya acepta
+  `0001_initial` dentro de `migrations/`; el glob se limita a módulos `NNNN_*` porque `**/migrations/*.py`
+  también eximía los tests de `backend/tests/migrations/`). El step de CI falla también si Django avisa que no pudo comprobar el historial contra la BD
+  (sin la BD, `makemigrations` solo advierte y sigue). Test extra:
+  `test_AC_PLT_16_whole_project_check_catches_synthetic_app` y, en `scripts/tests/`,
+  `test_AC_PLT_16_migrations_job_runs_makemigrations_check_on_postgres`. `design.md` §3.6 todavía describe la
+  exclusión `**/migrations` de `ruff.toml`: queda para actualizar en el próximo cambio del design.
+- **Pendiente (fuera de esta tarea):** `EXCLUDED_GLOBS` de `scripts/check_file_size.py` tiene
+  `backend/**/migrations/**`, que también saca de `C-14` todo `backend/tests/migrations/` (tests, `conftest`,
+  `settings_synthetic`; hoy todos < 70 líneas). Acotarlo a `backend/apps/**/migrations/**` (o a `NNNN_*.py`)
+  con su test en `test_AC_PLT_13_check_file_size.py` antes de T-PLT-23/24, que agregan código ahí.
 
 ### T-PLT-23 — Migraciones: nombres `auto_` y `RunPython` mezclado
 - **AC:** AC-PLT-18. RN-PLT-10. **Zona roja:** sí.

@@ -7,8 +7,9 @@ counts a skipped required check as passed). With that shape a lint error stops e
 the build (step 9) included. The checks are run on the real ``ci.yml`` and on synthetic broken
 workflows, so a check that silently passes on anything would fail here.
 
-Also covered: AC-PLT-13 in CI (``file-size`` runs ``check_file_size.py``) and the RN-PLT-18 basics
-of ``ci.yml`` (read-only token, no ``pull_request_target``/``workflow_run``, actions pinned by SHA).
+Also covered: AC-PLT-13 in CI (``file-size`` runs ``check_file_size.py``), AC-PLT-16 in CI
+(``migrations`` runs ``makemigrations --check`` on its own PostgreSQL) and the RN-PLT-18 basics of
+``ci.yml`` (read-only token, no ``pull_request_target``/``workflow_run``, actions pinned by SHA).
 """
 
 from __future__ import annotations
@@ -131,6 +132,17 @@ def test_AC_PLT_13_file_size_job_runs_check_file_size() -> None:
 def test_AC_PLT_20_tests_job_runs_scripts_tests() -> None:
     runs = [step.get("run", "") for step in ci_jobs()["tests"]["steps"]]
     assert any("pytest -c scripts/pytest.ini scripts/tests" in run for run in runs)
+
+
+def test_AC_PLT_16_migrations_job_runs_makemigrations_check_on_postgres() -> None:
+    jobs = ci_jobs()
+    job = jobs["migrations"]
+    runs = " ".join(step.get("run", "") for step in job["steps"])
+    assert "python manage.py makemigrations --check --dry-run" in runs
+    # Django only warns when it cannot reach the database: the step turns that into a failure.
+    assert 'grep -q "consistent migration history"' in runs
+    # Its own throwaway PostgreSQL, the same pinned image and credentials as the `tests` job.
+    assert job["services"]["postgres"] == jobs["tests"]["services"]["postgres"]
 
 
 def test_RN_PLT_18_ci_triggers_and_read_only_token() -> None:

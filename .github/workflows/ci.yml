@@ -25,7 +25,8 @@ concurrency:
 
 # Common, non-secret env (design.md §3.5). config.settings.test requires these variables (T-PLT-08);
 # they are fixed test values, not secrets. DATABASE_URL/REDIS_URL point at the services of the
-# `tests` job (T-PLT-11); in the other jobs nothing connects to them.
+# `tests` job (T-PLT-11); DATABASE_URL also at the PostgreSQL of `migrations` (T-PLT-22). In the
+# other jobs nothing connects to them.
 env:
   TZ: UTC
   DJANGO_SETTINGS_MODULE: config.settings.test
@@ -416,3 +417,51 @@ jobs:
           path: .
       - name: check_coverage.py
         run: python scripts/check_coverage.py
+
+  # Step 8. AC-PLT-16 (RN-PLT-10, RF-PLT-10): a model change without its migration fails
+  # `makemigrations --check --dry-run` (nothing is written). A PostgreSQL service of its own, same
+  # image and credentials as the `tests` job: once an app has models, the command also checks the
+  # applied history against a real, throwaway database instead of skipping it with a warning, and
+  # lint_migrations (T-PLT-23) and check_migrations_roundtrip (T-PLT-24) use it next. 00 has no
+  # migrations of its own: the job runs anyway, active from the first commit (design.md §3.2.7).
+  # The synthetic cases run in the `tests` job (backend/tests/migrations/).
+  migrations:
+    needs: coverage
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17.11-trixie@sha256:3b0cda93be7c8dba2ed484d19393d93845dc3dafb88973e248ba8e6d99d784e1
+        env:
+          POSTGRES_USER: hub
+          POSTGRES_PASSWORD: hub
+          POSTGRES_DB: hub
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -h 127.0.0.1 -U hub -d hub"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+        with:
+          python: "true"
+      # When an app has models, Django checks the applied history against the database, and if it
+      # cannot reach it only warns and goes on: that warning (a JSON log line on stdout, through
+      # the platform logging) fails the step, so an unreachable service cannot pass as green.
+      - name: makemigrations --check --dry-run
+        working-directory: backend
+        run: |
+          output="$RUNNER_TEMP/makemigrations.log"
+          status=0
+          python manage.py makemigrations --check --dry-run > "$output" 2>&1 || status=$?
+          cat "$output"
+          if grep -q "consistent migration history" "$output"; then
+            echo "::error::makemigrations could not check the migration history against the database"
+            exit 1
+          fi
+          exit "$status"
