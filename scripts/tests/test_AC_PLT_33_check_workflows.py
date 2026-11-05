@@ -38,7 +38,15 @@ jobs:
 """
 
 
+SETUP_ACTION = "name: setup\nruns:\n  using: composite\n  steps: []\n"
+
+
 def write(root: Path, text: str, name: str = "x.yml", folder: str = ".github/workflows") -> Path:
+    """Write a file; the first call also writes the local action ``GOOD`` uses (uses-local)."""
+    setup = root / ".github/actions/setup/action.yml"
+    if not setup.exists():
+        setup.parent.mkdir(parents=True, exist_ok=True)
+        setup.write_text(SETUP_ACTION, encoding="utf-8")
     path = root / folder / name
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text, encoding="utf-8")

@@ -331,7 +331,8 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   top-level ausente o con scope que no es `read`/`none`, escritura de job fuera de `JOB_PERMISSION_ALLOWLIST` vacía,
   `secrets.*` distinto de `GITHUB_TOKEN`, `uses:` remoto sin SHA de 40 hex, `if:` a nivel de job requerido; clave `on`
   parseada como `True` por PyYAML), `scripts/tests/test_AC_PLT_33_check_workflows.py` (YAML sintético inline en el
-  test), `.github/workflows/ci.yml` (step en `lint`).
+  test), `.github/workflows/ci.yml` (step en `lint`). Tras la revisión de `434d7c5` además
+  `scripts/tests/test_AC_PLT_33_check_workflows_refs.py` (partido por C-14).
 - **Plan de pruebas:** `test_AC_PLT_33_pull_request_target_fails_naming_file`,
   `test_AC_PLT_33_write_token_by_default_fails_naming_file`, `test_AC_PLT_33_missing_top_level_permissions_fails`,
   `test_AC_PLT_33_workflow_run_fails`, `test_AC_PLT_33_unpinned_action_fails`,
@@ -352,6 +353,25 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
 - **Notas:** (1) `uses-tag-comment` sale de la cabecera de `ci.yml`, no de la lista de §3.5. (2) El test de pinning
   de `test_AC_PLT_20_pipeline_chain.py` sigue usando `job["steps"]` y no acepta `docker://`; no se tocó (fuera de
   los archivos de la tarea): ahora lo cubre `check_workflows.py`.
+- **Revisión de `434d7c5`: 1 bloqueante, aplicado.**
+  - **B-1** una acción local fuera de `.github/actions/` nunca se leía (`uses: ./tools/act` con un `uses:
+    evil/act@main` adentro daba exit 0; `./.github/actions/nope` inexistente también pasaba). Ahora cada
+    `uses: ./X` se resuelve desde la raíz: en un step exige `X/action.y{a,}ml` y lo revisa donde esté (también
+    las acciones que esa alcanza, una sola vez cada una); en un job exige un archivo de `.github/workflows/`; con
+    `@`, `\`, `..` o fuera del repo, regla `uses-local` (falla cerrada). Tests en
+    `scripts/tests/test_AC_PLT_33_check_workflows_refs.py` (archivo nuevo, partido por C-14):
+    `test_AC_PLT_33_local_action_outside_github_actions_is_checked`,
+    `…_reached_from_a_composite_action_is_checked`, `test_AC_PLT_33_unresolvable_local_action_fails_closed`
+    (5 casos), `test_AC_PLT_33_local_reusable_workflow_must_be_in_workflows`.
+  - Además, en el mismo commit: extensiones y nombres en cualquier caja (`b.YML`, `ACTION.YML`);
+    `UnicodeDecodeError`/`TypeError` (clave no hasheable) como `invalid-yaml`; `job-if` trata como requerido todo
+    job con `${{` en `name:`; `uses-tag-comment` mira el resto de la línea del propio nodo (no todo el texto: un
+    mismo pin repetido sin comentario ya no pasa); eventos y `secrets: inherit` sin distinguir mayúsculas.
+- **Para después (revisión de `434d7c5`):** (1) `}}` dentro de un literal de una expresión corta la extracción de
+  `${{ … }}`. (2) `container:`/`services:` sin digest (`image: postgres:17` pasa; hoy los de `ci.yml` van por
+  digest). (3) Derivar `REQUIRED_CHECKS` del ruleset (`.github/rulesets/main.json`, T-PLT-40) en vez de la lista
+  fija de §6.3. (4) `check_workflows.py` quedó en 392 líneas: la próxima regla exige partirlo (p. ej. resolución
+  de `uses:` en un módulo aparte).
 
 ### T-PLT-06 — Check `zona-roja`: reglas y lista de rutas
 - **Objetivo:** la decisión del check como función pura, probada sin red.
