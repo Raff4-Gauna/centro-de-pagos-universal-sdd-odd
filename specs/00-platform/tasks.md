@@ -79,7 +79,7 @@ Reglas: rebanada vertical · ≤ ~300 líneas de diff · mergeable sola · cita 
 | T-PLT-32 | Configuración (secciones deshabilitadas) | AC-PLT-28 | UI | `app/(dashboard)/configuracion/*`, `src/modules/settings/*` | T-PLT-31 | frontend-dev | M | No | ☐ |
 | T-PLT-33 | BFF pass-through con `X-Request-ID` | AC-PLT-10, AC-PLT-09 (BFF) | BFF | `app/api/[...path]/route.ts`, `src/lib/server/*` | T-PLT-27 | frontend-dev | L | No (reviewer recomendado) | ◐ en revisión (falta reviewer/PR) |
 | T-PLT-34 | BFF: rutas seguras y errores 400/502/504 | AC-PLT-10 (robustez) | BFF | `src/lib/server/backend-proxy.ts`, `next.config.ts` | T-PLT-33 | frontend-dev | M | No (reviewer recomendado) | ◐ en revisión (falta reviewer/PR) |
-| T-PLT-35 | Cliente tipado + tipos desde OpenAPI + diff en CI | AC-PLT-23 (frontend) | Frontend/CI | `src/lib/{api-client,problem}.ts`, `src/types/api.d.ts` | T-PLT-18, T-PLT-27 | frontend-dev | M | Sí | ☐ |
+| T-PLT-35 | Cliente tipado + tipos desde OpenAPI + diff en CI | AC-PLT-23 (frontend) | Frontend/CI | `src/lib/{api-client,problem}.ts`, `src/types/api.d.ts` | T-PLT-18, T-PLT-27 | frontend-dev | M | Sí | ◐ en revisión (falta reviewer/PR) |
 | T-PLT-36 | Imagen del frontend + chequeo de bundle + servicio en Compose | AC-PLT-29, AC-PLT-25 (FE), AC-PLT-01 | Infra/Frontend | `frontend/Dockerfile`, `frontend/scripts/check-client-bundle.ts` | T-PLT-26, T-PLT-33, T-PLT-34 | frontend-dev | L | Sí | ☐ |
 | T-PLT-37 | Job `build` (imágenes por SHA, no root) | AC-PLT-25, AC-PLT-20 | CI | `infra/docker-compose.ci.yml`, `ci.yml` | T-PLT-24, T-PLT-36 | backend-dev | M | Sí | ☐ |
 | T-PLT-38 | Smoke del stack en el paso 9 | AC-PLT-01, AC-PLT-02, AC-PLT-10, AC-PLT-29 (E2E) | CI | `scripts/smoke_stack.py` | T-PLT-15, T-PLT-37 | backend-dev | L | Sí | ☐ |
@@ -1454,6 +1454,32 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   `.github/workflows/ci.yml` (en `typecheck`: `pnpm openapi:types && git diff --exit-code -- frontend/src/types`).
 - **Plan de pruebas:** `test_AC_PLT_23_problem_json_becomes_api_error`, `test_RF_PLT_15_api_client_uses_same_origin`.
   Manual: cambiar `openapi.yaml` sin regenerar tipos → `typecheck` rojo mostrando el diff.
+- **Hecho (commits `feat(frontend)` ×2 y `ci(platform)`):** `pnpm openapi:types` = `openapi-typescript`
+  7.13.0 sobre `../specs/_contracts/openapi.yaml` → `src/types/api.d.ts` (salida determinista, LF, sin rutas ni
+  fecha). `lib/problem.ts`: tipos `Problem`/`ProblemFieldError` del contrato generado, validación en runtime del
+  cuerpo (`parseProblem`: miembros requeridos, `status` entero 400–599, `errors[]` mal formados se descartan, lo que
+  no es del contrato no pasa), `ApiError` con `status` de la respuesta HTTP, `code`, `title` (= `message`), `detail`
+  solo en 4xx, `fieldErrors` y `requestId` (del cuerpo o, si es `null`, del header). Respuesta no `problem+json` o
+  cuerpo inválido → `client.unexpected_response` sin su contenido; fallo de red → `client.network_error`, status 0,
+  sin `cause`. `lib/api-client.ts`: `openapi-fetch` `createClient<paths>({ baseUrl: "" })` + middleware que rechaza
+  todo lo que no resuelva a `/api/` del mismo origen (un `baseUrl` por request o `/healthz` no salen), lanza
+  `ApiError` en todo no-2xx y deja pasar `AbortError` (cancelación de TanStack Query). CI: paso `openapi:types +
+  git diff` en `typecheck`, después de `export_openapi --check` y antes de `tsc`; falla con `git status --porcelain
+  --untracked-files=all -- src/types` no vacío e imprime `git diff` (cubre archivos nuevos que `git diff` no ve).
+  Tests extra: 5xx sin `detail`, fallback de `request_id`, cuerpo HTML de un 502 no expuesto, red sin causa,
+  `AbortError` intacto, rechazo de otro origen; `test_AC_PLT_23_typecheck_job_checks_contract_then_frontend_types`
+  (orden contrato → tipos → `tsc`). Manual (local, mismos comandos que el paso): contrato cambiado sin regenerar
+  tipos → diff impreso y salida 1; tipos editados a mano → 1; archivo nuevo en `src/types` → 1; limpio → 0.
+- **Desvío de alcance:** `frontend/eslint.config.mjs` (`globalIgnores` + `src/types/**`) y el patrón
+  `"!src/types/**"` en `format:check` de `package.json`: ADR-0005 excluye el directorio generado de eslint y prettier
+  (la salida de `openapi-typescript` usa 4 espacios y prettier la rechaza). `scripts/tests/test_AC_PLT_20_pipeline_chain.py`
+  (+1 test del paso). Los códigos `client.unexpected_response`/`client.network_error` son del navegador, no del
+  contrato (prefijo `client.` para no chocar con los del backend).
+- **Para revisar:** (1) el paso corre el script `openapi:types` del `package.json` del PR: un PR que lo vacíe
+  saltea el diff (el job ya corre código del PR: `pnpm typecheck`, `export_openapi`); alternativa: invocar
+  `pnpm exec openapi-typescript` con argumentos fijos en `ci.yml`. (2) El cliente es solo de navegador: con
+  `baseUrl: ""` un `Request` relativo falla en Node, por eso los tests inyectan un `Request` que resuelve contra
+  `window.location`.
 
 ### T-PLT-36 — Imagen del frontend + chequeo de bundle + servicio en Compose
 - **AC:** AC-PLT-29, AC-PLT-25 (frontend), AC-PLT-01 (6 servicios). RNF-PLT-01, RNF-PLT-05. **Zona roja:** sí.
