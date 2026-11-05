@@ -1480,6 +1480,14 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   `pnpm exec openapi-typescript` con argumentos fijos en `ci.yml`. (2) El cliente es solo de navegador: con
   `baseUrl: ""` un `Request` relativo falla en Node, por eso los tests inyectan un `Request` que resuelve contra
   `window.location`.
+- **Revisión (aprobada, sin bloqueantes). Decisión:** el paso de CI sigue usando `pnpm openapi:types` (lo fija
+  ADR-0005): poner los argumentos en `ci.yml` no cierra el hueco, porque el PR también puede editar el workflow; la
+  defensa es la revisión. **Para después:** (1) un `middleware`/`fetch` pasado por request puede saltear el guard de
+  mismo origen (equivale a usar `fetch` directo): documentarlo o envolver `GET`/`POST` sin esas opciones. (2) Fijar
+  `redirect: "error"` en `createClient` (el BFF no redirige). (3) `import "client-only"` en `api-client.ts`. (4) ADR-0005
+  dice `git diff --exit-code`; la implementación usa `git status --porcelain --untracked-files=all` (más estricto):
+  anotarlo en el ADR. (5) `.github/CODEOWNERS` para `.github/workflows/**` y `frontend/package.json` (tarea futura,
+  con T-PLT-40).
 
 ### T-PLT-36 — Imagen del frontend + chequeo de bundle + servicio en Compose
 - **AC:** AC-PLT-29, AC-PLT-25 (frontend), AC-PLT-01 (6 servicios). RNF-PLT-01, RNF-PLT-05. **Zona roja:** sí.
