@@ -3,7 +3,7 @@ id: SPEC-00
 modulo: platform
 estado: Approved
 track: S
-version: 1.0.9
+version: 1.0.10
 depende_de: []
 actualizado: 2026-11-06
 ---
@@ -25,7 +25,7 @@ C-01/C-09/C-14/C-15/C-16/C-17 o filtre un secreto pueda llegar a `main`**, porqu
 ### 3.1 Incluido
 - Estructura del repo (`backend/`, `frontend/`, `infra/`, `scripts/`, `.github/workflows/`) según los README de cada carpeta.
 - Docker Compose de desarrollo: PostgreSQL, Redis, backend Django/DRF, worker Celery, beat, frontend Next.js.
-- Settings por entorno (`base`/`dev`/`test`/`prod`) con validación al arrancar; `.env.example` commiteado.
+- Settings por entorno (`base`/`dev`/`test`/`prod`) con validación al arrancar; `env.example` commiteado.
 - Logging estructurado JSON a stdout con `request_id`/`task_id` propagado frontend → BFF → backend → Celery.
 - Healthchecks `/healthz` (liveness) y `/readyz` (readiness).
 - Pipeline de GitHub Actions, **pasos 1 a 9** de `08 §3` (lint → tamaño → secretos → type-check → arquitectura →
@@ -78,8 +78,8 @@ permiso de escritura, que dice aprobado/rechazado y cita el SHA revisado.
 ## 6. Reglas de negocio (reglas de plataforma)
 - **RN-PLT-01** El entorno de desarrollo completo corre en contenedores y se levanta con un único comando documentado; en el host solo se requieren Docker y las herramientas de pre-commit.
 - **RN-PLT-02** La configuración llega solo por variables de entorno, validada con `pydantic-settings` (Q-040). Si falta una variable obligatoria o tiene formato inválido, el proceso **no arranca** y el error nombra la variable **sin imprimir ningún valor**. En `prod` son obligatorias `SECRET_KEY`, `ALLOWED_HOSTS`, URL de BD y URL de Redis, y `DEBUG` debe ser `False`.
-- **RN-PLT-03** `.env` nunca se commitea. `.env.example` está commiteado, con valores ficticios, y lista **todas** las variables de plataforma que leen los settings.
-- **RN-PLT-04** Las credenciales de proveedores **no** son configuración de plataforma: los settings del Hub no leen variables de credenciales de proveedores (Q-006, C-06, ADR-0003). Las variables de spikes viven **separadas** de las de plataforma (sección "solo spikes" de `.env.example` o `spikes/.env.example`, a elegir en design) y los settings nunca las leen (Q-048).
+- **RN-PLT-03** `.env` nunca se commitea. `env.example` (raíz, sin punto inicial: Q-048) está commiteado, con valores ficticios, y lista **todas** las variables de plataforma que leen los settings.
+- **RN-PLT-04** Las credenciales de proveedores **no** son configuración de plataforma: los settings del Hub no leen variables de credenciales de proveedores (Q-006, C-06, ADR-0003). Las variables de spikes viven **separadas** de las de plataforma (`spikes/env.example`, elegido en design) y los settings nunca las leen (Q-048).
 - **RN-PLT-05** Los logs operativos se emiten solo a stdout, en JSON, un evento por línea, con `timestamp` (ISO-8601 en UTC), `level`, `request_id` o `task_id`, `component`, `message` y `organization_id` cuando aplica (C-16, 08 §6), con `structlog` sobre `logging` estándar para Django, DRF, Celery y librerías (Q-034). Prohibido `print` y escribir logs a archivo.
 - **RN-PLT-06** Ningún log incluye `Authorization`, `Cookie`, `Set-Cookie`, tokens, credenciales, query strings ni cuerpos crudos de request/response (C-06). El log de acceso registra método, **plantilla de ruta** (nunca el path crudo), status y `duration_ms` (Q-041).
 - **RN-PLT-07** Toda request tiene un `request_id` **UUIDv4** que viaja en el header `X-Request-ID`: el BFF lo genera si falta, se propaga frontend → BFF → backend → tareas Celery (como header de la tarea) y se devuelve en la respuesta. Un valor entrante que no es un UUID válido se descarta y se genera uno nuevo (Q-041).
@@ -101,7 +101,7 @@ permiso de escritura, que dice aprobado/rechazado y cita el SHA revisado.
 - **RF-PLT-01** Crear la estructura de carpetas de `backend/README.md`, `frontend/README.md` y `infra/README.md` (sin apps de negocio), `scripts/` en la raíz, `.gitattributes` y `infra/scripts/README.md`. (RN-PLT-01, RN-PLT-08)
 - **RF-PLT-02** `docker compose` con servicios `db`, `redis`, `backend`, `worker`, `beat`, `frontend`; healthcheck por servicio, arranque ordenado por salud, volúmenes nombrados, una sola réplica de `beat`, `migrate` fuera del entrypoint de `worker`/`beat`, y un comando documentado para recrear la BD. (RN-PLT-01)
 - **RF-PLT-03** Settings `base`/`dev`/`test`/`prod` con `pydantic-settings`, `USE_TZ=True`, `TIME_ZONE="America/Argentina/Buenos_Aires"`, `LANGUAGE_CODE="es-ar"` (Q-040, Q-046). (RN-PLT-02)
-- **RF-PLT-04** `.env.example` (variables de spikes separadas) + test de paridad entre las variables que leen los settings y la parte de plataforma del archivo. (RN-PLT-03, RN-PLT-04)
+- **RF-PLT-04** `env.example` (variables de spikes separadas, en `spikes/env.example`) + test de paridad entre las variables que leen los settings y la parte de plataforma del archivo. (RN-PLT-03, RN-PLT-04)
 - **RF-PLT-05** Logger `structlog` único configurado para Django, DRF, Celery y librerías; middleware de request y hooks de tarea Celery que agregan los campos de RN-PLT-05 y la redacción de RN-PLT-06. (RN-PLT-05..07)
 - **RF-PLT-06** BFF en `frontend/src/app/api/` que reenvía al backend y genera/propaga `X-Request-ID`. (RN-PLT-07, RN-PLT-16)
 - **RF-PLT-07** `GET /healthz` y `GET /readyz` en backend y un health del frontend/BFF; smoke del paso 9 con `docker compose up --wait` + `/readyz` = 200. (RN-PLT-17)
@@ -167,11 +167,11 @@ No aplica.
 - Fechas: BD en UTC, logs en ISO-8601 UTC, runners en UTC; un test que dependa de la hora usa reloj fijo.
 
 ## 13. Criterios de aceptación
-- **AC-PLT-01** (RN-PLT-01) **Dado** un clon limpio con `.env` copiado de `.env.example` **cuando** se ejecuta el comando documentado de arranque **entonces** los seis servicios quedan `healthy` y `GET /healthz` responde 200.
+- **AC-PLT-01** (RN-PLT-01) **Dado** un clon limpio con `.env` copiado de `env.example` **cuando** se ejecuta el comando documentado de arranque **entonces** los seis servicios quedan `healthy` y `GET /healthz` responde 200.
 - **AC-PLT-02** (RN-PLT-17) **Dado** el stack levantado **cuando** se consulta `/readyz` **entonces** responde 200; **y** con Redis detenido responde 503 sin hosts, versiones ni trazas en el cuerpo, mientras `/healthz` sigue en 200 con estado y SHA corto.
 - **AC-PLT-03** (RN-PLT-02) **Dado** settings `prod` sin una variable obligatoria **cuando** arranca el proceso **entonces** falla con un error que nombra la variable y no contiene el valor de ninguna otra variable.
 - **AC-PLT-04** (RNF-PLT-02) **Dado** settings `prod` válidos **cuando** corre `check --deploy` **entonces** no hay advertencias; **y** con `DEBUG=True` el arranque falla.
-- **AC-PLT-05** (RN-PLT-03) **Dado** que los settings leen una variable que no figura en la parte de plataforma de `.env.example` **cuando** corre el test de paridad **entonces** falla nombrando la variable.
+- **AC-PLT-05** (RN-PLT-03) **Dado** que los settings leen una variable que no figura en la parte de plataforma de `env.example` **cuando** corre el test de paridad **entonces** falla nombrando la variable.
 - **AC-PLT-06** (RN-PLT-04) **Dado** el código de `config/` y `apps/` **cuando** corre el test de configuración **entonces** ninguna lectura de entorno corresponde a credenciales de proveedores ni a variables de la sección de spikes (lista de patrones en design).
 - **AC-PLT-07** (RN-PLT-05) **Dado** una request al backend **cuando** se captura stdout **entonces** hay una línea JSON válida con todos los campos obligatorios (`timestamp` ISO-8601 UTC) y `duration_ms`, y el `request_id` es igual al header `X-Request-ID` de la respuesta.
 - **AC-PLT-08** (RN-PLT-06) **Dado** una request con `Authorization: Bearer <valor>`, `Cookie` y query string a una ruta con parámetro de path **cuando** se captura stdout **entonces** ninguno de esos valores aparece en ningún log, y el log de acceso muestra la plantilla de ruta y no el path crudo.
@@ -227,7 +227,7 @@ architect escriba **ADR-0005** con la decisión de Q-035.
 recomendado), Q-057 (decidida por el usuario: el agente mergea solo con certeza total).
 
 Abiertas que no bloquean *Designed*:
-- **Q-048** (parte del usuario): permitir a los agentes leer `.env.example` o renombrarlo — bloquea solo la tarea de RF-PLT-04.
+- **Q-048** (parte del usuario): permitir a los agentes leer `.env.example` o renombrarlo — bloquea solo la tarea de RF-PLT-04. **Cerrada (2026-11-05):** el dueño decidió renombrarlo a `env.example` (1.0.9).
 - **Q-054** (decide el usuario): qué del contenido ya commiteado puede quedar público — **bloquea el cambio de visibilidad** (tarea de RF-PLT-13).
 - **Q-058**: rutas del propio gate de CI como zona roja (recomendado: sí; aplicado provisoriamente en design).
 - **Q-059** (decide el usuario): actualizar versiones de Q-029 ya superadas — conviene responderla antes de *Approved*.
@@ -252,3 +252,4 @@ Se completa al generar `tasks.md`.
 | 1.0.7 | 2026-11-01 | design §3.3.3 ajustado tras revisión de T-PLT-33/34 (validación sobre URL resuelta, barra final, content-length solo dígitos, 411 sin longitud, request id en minúsculas, AbortSignal); Q-061 decidida por defecto | Trazabilidad de cambios sobre artefactos aprobados (AGENTS.md); sin cambios en RN/RF/AC |
 | 1.0.8 | 2026-11-05 | Ajuste de diseño en `design.md §3.4.1` (T-PLT-26): `beat` sin `tmpfs` (el schedule va al filesystem propio del contenedor, fuera del código montado; `dbm.gnu` escribe por mmap y en un tmpfs no actualiza el mtime que lee `beat_alive`), `--max-interval 60` en el comando de `beat` y `pg_isready -h 127.0.0.1` en el healthcheck de `db` (como el job `tests` de CI). Sin cambios en RN/RF/AC | Verificación de T-PLT-26 en el stack real (beat `unhealthy` a los ~5 min con tmpfs); opción A decidida por el planner |
 | 1.0.9 | 2026-11-06 | Q-057 ampliada por el dueño: Claude se encarga del CI y de GitHub y el agente etiqueta. Lectura propuesta por Claude, pendiente de que el dueño la corrija o confirme: hasta T-PLT-40 "pipeline completo" son todos los checks de todos los workflows que corren en ese commit (`design.md §3.7.4`). Sin cambios en RN/RF/AC | `AGENTS.md` y `tasks.md` decían que mergeaba el dueño hasta T-PLT-40, en contra del pedido del dueño del 2026-11-02 |
+| 1.0.10 | 2026-11-06 | Q-048 decidida por el dueño: el archivo de ejemplo de entorno se renombra a `env.example` (raíz) y el de spikes a `spikes/env.example`, sin punto inicial, para que los agentes lo lean sin cambiar `.claude/settings.json`. Se reemplaza el nombre en §3, RN-PLT-03, RN-PLT-04 (que además nombra la opción ya elegida en design: archivo aparte), RF-PLT-04, AC-PLT-01, AC-PLT-05 y §16; `design.md §3.2.2` y `tasks.md` (T-PLT-39) alineados. Sin cambio de comportamiento ni de RN/RF/AC | Decisión del dueño sobre Q-048 (2026-11-05), aplicada en T-PLT-39 |

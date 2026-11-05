@@ -22,8 +22,16 @@ arranca con `db` y `redis` sanos, y `worker`/`beat` con `backend` sano. `migrate
 ### Variables
 El Compose **no** usa `env_file:`: interpola desde el archivo que se pasa con `--env-file` y declara cada variable
 en `environment:`, así que lo que no está listado (claves de spikes incluidas) no entra a ningún contenedor (D-04).
-Las obligatorias usan `${VAR:?…}` y `up` se niega a arrancar nombrando la que falta. Mientras no exista
-`.env.example` (T-PLT-39), el `.env` de la raíz necesita al menos:
+Las obligatorias usan `${VAR:?…}` y `up` se niega a arrancar nombrando la que falta.
+
+La primera vez, desde la raíz: `copy env.example .env` (PowerShell/cmd; `cp env.example .env` en bash). El ejemplo
+`env.example` (sin punto inicial, Q-048) está commiteado, tiene **solo** variables de plataforma con valores
+ficticios de desarrollo y alcanza para levantar el stack sin editar nada; el `.env` no se commitea nunca. Las claves
+de los spikes de proveedores van aparte, en `spikes/.env` (ejemplo: `spikes/env.example`, solo placeholders
+`<ver .env: NOMBRE>`): ningún setting del Hub las lee y ningún contenedor las recibe (RN-PLT-04). El test
+`backend/tests/config/test_AC_PLT_05_env_example_parity.py` falla nombrando la variable si `env.example` y lo que
+leen los settings, el Compose y el BFF dejan de coincidir; ambos ejemplos se montan `:ro` en `backend` para que ese
+test también corra en el contenedor. Lo mínimo que tiene que tener el `.env`:
 
 | Variable | Para qué | Ejemplo de desarrollo |
 |---|---|---|
@@ -75,8 +83,9 @@ recargan solos: `docker compose -f infra/docker-compose.yml --env-file .env rest
 `docker compose … exec -e DJANGO_SETTINGS_MODULE=config.settings.test backend pytest` usa la `db` y el `redis` del
 stack. Dos límites conocidos: (1) los tests de Celery con worker embebido (`tests/logging/test_AC_PLT_11_…`)
 comparten la cola del broker con el servicio `worker`, que les roba las tareas: pararlo antes (`stop worker beat`);
-(2) los tests que leen archivos de la raíz del repo (`.github/`, `scripts/`) fallan porque solo `backend/` y
-`specs/_contracts/` están montados: esos corren en el host o en CI.
+(2) los tests que leen archivos de la raíz del repo (`.github/`, `scripts/`) fallan porque solo `backend/`,
+`specs/_contracts/` y los dos `env.example` están montados: esos corren en el host o en CI (los dos cruces de
+`test_AC_PLT_05_…` contra `infra/` y `frontend/` se saltean en el contenedor).
 
 ### Qué esperar cuando algo cae
 - `docker compose … stop redis` → `/readyz` 503 (`{"status": "unavailable"}`, la causa solo en el log

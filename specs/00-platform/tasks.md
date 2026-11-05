@@ -108,19 +108,19 @@ Reglas: rebanada vertical · ≤ ~300 líneas de diff · mergeable sola · cita 
 | T-PLT-36 | Imagen del frontend + chequeo de bundle + servicio en Compose | AC-PLT-29, AC-PLT-25 (FE), AC-PLT-01 | Infra/Frontend | `frontend/Dockerfile`, `frontend/scripts/check-client-bundle.ts` | T-PLT-26, T-PLT-33, T-PLT-34 | frontend-dev | L | Sí | ☐ | — |
 | T-PLT-37 | Job `build` (imágenes por SHA, no root) | AC-PLT-25, AC-PLT-20 | CI | `infra/docker-compose.ci.yml`, `ci.yml` | T-PLT-24, T-PLT-36 | backend-dev | M | Sí | ☐ | — |
 | T-PLT-38 | Smoke del stack en el paso 9 | AC-PLT-01, AC-PLT-02, AC-PLT-10, AC-PLT-29 (E2E) | CI | `scripts/smoke_stack.py` | T-PLT-15, T-PLT-37 | backend-dev | L | Sí | ☐ | — |
-| T-PLT-39 | `.env.example` + `spikes/.env.example` + paridad — **BLOQUEADA por Q-048** | AC-PLT-05, AC-PLT-06, AC-PLT-01 | Config | `.env.example`, `spikes/.env.example` | T-PLT-09, T-PLT-12, T-PLT-16, T-PLT-26, T-PLT-33 | usuario / backend-dev | M | Sí | ⛔ | Q-048 |
+| T-PLT-39 | `env.example` + `spikes/env.example` + paridad | AC-PLT-05, AC-PLT-06, AC-PLT-01 | Config | `env.example`, `spikes/env.example` | T-PLT-09, T-PLT-12, T-PLT-16, T-PLT-26, T-PLT-33 | backend-dev | M | Sí | 🟡 | rama `task/T-PLT-39-env-example` |
 | T-PLT-40 | Ruleset de `main` + verificación de protección | AC-PLT-24, AC-PLT-20 (cierre) | Gobierno | `.github/rulesets/main.json`, `scripts/verify_repo_protection.py` | T-PLT-07, T-PLT-10, T-PLT-19, T-PLT-21, T-PLT-24, T-PLT-28, T-PLT-38 | backend-dev (+ dueño) | L | Sí | ☐ | — |
 | T-PLT-41 | "Comandos de desarrollo" en `AGENTS.md` + `infra/README.md` | — (RF-PLT-16) | Docs | `AGENTS.md`, `infra/README.md` | T-PLT-38, T-PLT-40 | backend-dev | S | No | ☐ | — |
 
 ## Cobertura AC → tareas
 | AC | Tareas |
 |---|---|
-| AC-PLT-01 | T-PLT-26 (5 servicios, manual), T-PLT-36 (6 servicios en Windows, manual), T-PLT-38 (smoke CI), T-PLT-39 (clon limpio con `.env` copiado de `.env.example`) |
+| AC-PLT-01 | T-PLT-26 (5 servicios, manual), T-PLT-36 (6 servicios en Windows, manual), T-PLT-38 (smoke CI), T-PLT-39 (clon limpio con `.env` copiado de `env.example`) |
 | AC-PLT-02 | T-PLT-11 (integración), T-PLT-26 (manual con Redis detenido), T-PLT-38 (E2E) |
 | AC-PLT-03 | T-PLT-08 |
 | AC-PLT-04 | T-PLT-09 |
-| AC-PLT-05 | T-PLT-39 ⛔ |
-| AC-PLT-06 | T-PLT-09 (lecturas solo en `env.py` + patrones de proveedores), T-PLT-39 ⛔ (claves de `spikes/.env.example`) |
+| AC-PLT-05 | T-PLT-39 |
+| AC-PLT-06 | T-PLT-09 (lecturas solo en `env.py` + patrones de proveedores), T-PLT-39 (claves de `spikes/env.example`) |
 | AC-PLT-07 | T-PLT-13 (sobre la base de logger de T-PLT-12) |
 | AC-PLT-08 | T-PLT-14 |
 | AC-PLT-09 | T-PLT-12 (backend), T-PLT-33 (BFF) |
@@ -848,7 +848,7 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   la lista pero son los únicos que pueden pasar el entorno validado a settings (base no lee el entorno): +2 líneas
   cada uno (`API_THROTTLE_ANON_RATE`, `REST_FRAMEWORK["NUM_PROXIES"]`), idénticas a `test.py`.
   **Para después:** (1) `.env.example` debe sumar `API_THROTTLE_ANON_RATE` y `TRUSTED_PROXY_COUNT` (T-PLT-39,
-  bloqueada por Q-048). (2) `CACHES` de dev/prod no fija `socket_timeout`/`socket_connect_timeout`: con un Redis
+  bloqueada por Q-048) — hecho en T-PLT-39 (el archivo es `env.example`). (2) `CACHES` de dev/prod no fija `socket_timeout`/`socket_connect_timeout`: con un Redis
   que no rechaza la conexión (host caído sin RST) el fail-open espera el timeout del sistema; conviene acotarlo
   en `OPTIONS` (tarea de settings, fuera de esta lista).
 - **Revisión (aprobada, sin bloqueantes). Para después:** N1 = el (2) de arriba, pero como tarea con nombre antes de
@@ -1638,26 +1638,30 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   `test_AC_PLT_02_smoke_rejects_internal_details_in_body`, `test_AC_PLT_10_smoke_matches_bff_request_id_in_backend_logs`,
   `test_AC_PLT_01_smoke_always_tears_down`; E2E real en el job `build`.
 
-### T-PLT-39 — `.env.example` + `spikes/.env.example` + paridad — ⛔ BLOQUEADA por Q-048
-- **Bloqueo:** `.claude/settings.json` niega `Read(./.env.*)` y el archivo actual mezcla claves de spikes. Ningún agente
-  puede leerlo ni reescribirlo con seguridad. Se destraba si **el usuario** (a) hace él mismo los cambios de archivos de
-  esta tarea, (b) agrega una excepción de lectura para `.env.example` en `.claude/settings.json`, o (c) lo renombra.
-  Los agentes no tocan esa configuración. También es acción del usuario mover las claves de spikes del `.env` local a
-  `spikes/.env` (design §3.2.2).
+### T-PLT-39 — `env.example` + `spikes/env.example` + paridad — 🟡 en revisión
+- **Destrabada (2026-11-05):** el dueño decidió Q-048 renombrando los archivos sin punto inicial (`env.example`,
+  `spikes/env.example`): no caen en el `Read(./.env.*)` denegado y `.claude/settings.json` no se toca. Spec 1.0.9.
+  Sigue siendo acción del usuario mover las claves de spikes de su `.env` local a `spikes/.env` (design §3.2.2).
 - **AC:** AC-PLT-05, AC-PLT-06 (claves de spikes), AC-PLT-01 (clon limpio con `.env` copiado). RN-PLT-03, RN-PLT-04,
   RF-PLT-04. **Zona roja:** sí (separación de credenciales, C-06).
-- **Archivos:** `.env.example` (solo plataforma, por grupos, valores ficticios de baja entropía),
-  `spikes/.env.example` (claves de spikes con `<ver .env: NOMBRE>`),
+- **Archivos:** `env.example` (solo plataforma, por grupos, valores ficticios de baja entropía),
+  `spikes/env.example` (claves de spikes con `<ver .env: NOMBRE>`),
   `backend/tests/config/test_AC_PLT_05_env_example_parity.py` (`COMPOSE_ONLY_VARS`, `FRONTEND_SERVER_VARS`),
-  `backend/tests/config/test_AC_PLT_06_no_provider_env.py` (+ claves de `spikes/.env.example`),
-  `infra/docker-compose.yml` (bind mounts `:ro` de ambos archivos en `backend`).
+  `backend/tests/config/test_AC_PLT_06_no_provider_env.py` (+ claves de `spikes/env.example`),
+  `infra/docker-compose.yml` (bind mounts `:ro` de ambos archivos en `backend`), `.gitignore` (sin la excepción
+  `!.env.example`: un ejemplo con punto no lo pueden leer los agentes y quedaría desactualizado sin que nadie lo
+  vea), `infra/README.md` (`copy env.example .env`), `scripts/spec_state_baseline.json` (AC-PLT-05 sale: ya tiene
+  test con su ID).
 - **Plan de pruebas:** `test_AC_PLT_05_setting_missing_from_env_example_fails_naming_it`,
   `test_AC_PLT_05_env_example_var_not_read_fails_naming_it`, `test_AC_PLT_05_real_env_example_in_parity`,
   `test_AC_PLT_06_no_setting_matches_spike_keys`, `test_RN_PLT_04_spike_keys_absent_from_root_env_example`.
+  Además: `test_RN_PLT_04_spike_values_are_placeholders_only`, `test_AC_PLT_05_malformed_env_example_fails_naming_the_line`,
+  `test_AC_PLT_01_every_compose_variable_is_in_env_example` y `test_AC_PLT_05_frontend_server_vars_match_what_the_bff_reads`
+  (estos dos últimos se saltean dentro del contenedor: no están montados `infra/` ni `frontend/`).
   Gitleaks pasa sobre ambos archivos.
-- **Verificación manual (dueño):** clon limpio → `copy .env.example .env` → comando documentado → 6 servicios
-  `healthy` y `/healthz` 200 (AC-PLT-01 literal).
-- **DoD extra:** desde que esta tarea entra, toda tarea que agregue una variable a `env.py` también edita `.env.example`.
+- **Verificación manual (dueño):** clon limpio → `copy env.example .env` → comando documentado → 6 servicios
+  `healthy` y `/healthz` 200 (AC-PLT-01 literal; el sexto servicio, `frontend`, llega con T-PLT-36).
+- **DoD extra:** desde que esta tarea entra, toda tarea que agregue una variable a `env.py` también edita `env.example`.
 
 ### T-PLT-40 — Ruleset de `main` + verificación de protección
 - **AC:** AC-PLT-24; AC-PLT-20 (cierre: los 11 checks y PR de sacrificio). RN-PLT-12, RN-PLT-13, RN-PLT-18,
@@ -1744,7 +1748,7 @@ Pasa a `Verified` solo con el OK explícito del dueño. Ningún agente lo marca 
 | T-PLT-36 | — | — | ☐ |
 | T-PLT-37 | — | — | ☐ |
 | T-PLT-38 | — | — | ☐ |
-| T-PLT-39 | — | — | ⛔ |
+| T-PLT-39 | — | — | 🟡 |
 | T-PLT-40 | — | — | ☐ |
 | T-PLT-41 | — | — | ☐ |
 <!-- check_spec_state:end -->
