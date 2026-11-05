@@ -8,7 +8,7 @@ from __future__ import annotations
 from apps.common.feature_flags import REGISTRY as FEATURE_REGISTRY
 from apps.common.logging.setup import logging_config
 from config.settings.base import *  # noqa: F403
-from config.settings.base import CACHE_KEY_PREFIX
+from config.settings.base import CACHE_KEY_PREFIX, REST_FRAMEWORK
 from config.settings.env import PlatformEnv, load_env, load_feature_flags
 
 ROOT_URLCONF = "config.urls_dev"
@@ -31,6 +31,10 @@ CACHES = {
 # by the URL$ rule of CredentialSafeReporterFilter (C-06).
 CELERY_BROKER_URL = str(_env.REDIS_URL.get_secret_value())
 APP_VERSION = _env.APP_VERSION
+# T-PLT-16 (RN-PLT-19): HubAnonRateThrottle reads the rate on every request; the proxies it
+# trusts in X-Forwarded-For are DRF's NUM_PROXIES.
+API_THROTTLE_ANON_RATE = _env.API_THROTTLE_ANON_RATE
+REST_FRAMEWORK = {**REST_FRAMEWORK, "NUM_PROXIES": _env.TRUSTED_PROXY_COUNT}
 LOGGING = logging_config(_env.LOG_LEVEL)
 # RF-PLT-19: read through apps.common.feature_flags.is_enabled, never directly.
 FEATURE_FLAGS = load_feature_flags(FEATURE_REGISTRY)

@@ -38,8 +38,10 @@ WSGI_APPLICATION = "config.wsgi.application"
 
 # DRF (design.md §3.2.2, §3.2.4): no authentication in 00 and AllowAny until module 01 sets deny
 # by default; no user object (no django.contrib.auth, D-03); JSON only (no browsable API); every
-# error as application/problem+json (T-PLT-15); drf-spectacular's schema (T-PLT-18). Throttling
-# (T-PLT-16) later.
+# error as application/problem+json (T-PLT-15); drf-spectacular's schema (T-PLT-18); one global
+# throttle for anonymous clients (T-PLT-16, RN-PLT-19) whose rate the throttle reads at runtime from
+# API_THROTTLE_ANON_RATE, so DEFAULT_THROTTLE_RATES stays out. NUM_PROXIES=0 keys it on REMOTE_ADDR
+# (DRF's None would trust any X-Forwarded-For); dev/test/prod set both from the environment.
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [],
     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.AllowAny"],
@@ -48,6 +50,8 @@ REST_FRAMEWORK = {
     "DEFAULT_PARSER_CLASSES": ["rest_framework.parsers.JSONParser"],
     "EXCEPTION_HANDLER": "apps.common.api.exceptions.problem_exception_handler",
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    "DEFAULT_THROTTLE_CLASSES": ["apps.common.api.throttling.HubAnonRateThrottle"],
+    "NUM_PROXIES": 0,
 }
 
 # OpenAPI contract (ADR-0005, T-PLT-18): what shapes it lives in apps/common/api/schema.py.
@@ -64,7 +68,9 @@ TIME_ZONE = "America/Argentina/Buenos_Aires"
 LANGUAGE_CODE = "es-ar"
 USE_I18N = True
 
-# Cache keys of every environment share this prefix (Redis is also Celery's broker).
+# Cache keys of every environment share this prefix (Redis is also Celery's broker). The cache is
+# RedisCache on REDIS_URL in dev/prod (the throttle history lives there, T-PLT-16); LocMemCache in
+# test, which integration tests replace with the job's Redis.
 CACHE_KEY_PREFIX = "hub"
 
 # Logging (design.md §3.2.3, RN-PLT-05): JSON lines on stdout through structlog. Django hands
