@@ -19,6 +19,8 @@ Stack: Django + DRF + PostgreSQL + Celery/Redis (backend) · Next.js + Tailwind 
    (y recordar que ninguno de los dos pasa de "Futuro" sin el spike S-002).
 7. Si la tarea toca código (no solo specs): `context/08-control-de-versiones-ci-cd.md` — tamaño de archivo,
    cadencia de commits, pipeline de CI, tests, logs y rollback. No es opcional ni "para después".
+8. Antes de elegir la próxima tarea: `context/11-estado-actual.md` — tablero vivo (dónde estamos y qué sigue).
+9. Si vas a diseñar o revisar código: `context/12-solid-y-diseno.md` y `ADR-0011` — SOLID por fronteras.
 
 ## Regla de oro
 No se escribe código de producción sin:
@@ -43,6 +45,8 @@ Si no → Carril O. Detalle en `.agents/workflows/sdd-odd.md`.
 - Un archivo de código (`.py`/`.ts`/`.tsx`/`.jsx`) de más de **~400 líneas** (`C-14`). Se divide por capa/
   responsabilidad en vez de extenderlo; ver `context/08-control-de-versiones-ci-cd.md §1`.
 - Dejar un commit o un merge a `main` con tests o lint en rojo (`C-15`).
+- Inventar una abstracción (interfaz, fábrica, capa) sin una segunda implementación o un caso real que la justifique.
+  SOLID es un criterio de fronteras, no una licencia para agregar código (`ADR-0011`).
 
 ## Convenciones
 - Docs y specs en **español**; identificadores de código, commits y nombres de archivos en **inglés** (salvo las specs `.sdd.md`).
@@ -50,6 +54,52 @@ Si no → Carril O. Detalle en `.agents/workflows/sdd-odd.md`.
 - Cada test que verifica un criterio lleva el ID en su nombre: `test_AC_CHG_03_duplicate_webhook_is_noop`.
 - Commits: Conventional Commits (`feat(charges): …`, `fix(mp): …`). Ramas: `spec/NN-slug`, `task/T-CHG-03-slug`, `log/YYYY-MM-DD-slug`.
 - Capas por app Django: `api/` (fino) → `services/` (casos de uso y transacciones) → `selectors/` (lecturas filtradas por tenant) → `models.py`. Lógica pura en `domain/`.
+- **Diseño (SOLID):** un caso de uso por servicio; proveedor nuevo = carpeta nueva + registro; todo adaptador
+  cumple `BaseAdapter`; protocolos por capacidad; el núcleo depende de puertos, los SDKs viven solo en
+  `providers/<x>/`. Detalle y checklist en `context/12-solid-y-diseno.md`.
+
+## Estado del proyecto y tablero (obligatorio)
+
+La fuente de verdad del estado es **git + tests ejecutados**, no la memoria de una sesión.
+
+| Símbolo | Significado | Evidencia exigida |
+|---|---|---|
+| ☐ | Pendiente | — |
+| 🔄 | En curso | rama `task/…` |
+| 🟡 | En revisión | PR abierto |
+| ✅ | Mergeada | PR + SHA de merge |
+| 🧪 | Verificada | fila `✔` en `verification.md` |
+| ⛔ | Bloqueada | `Q-xxx` que la bloquea |
+
+- El tablero vivo es `context/11-estado-actual.md`. El detalle por tarea está en `specs/NN-modulo/tasks.md`.
+- `specs/NN-modulo/verification.md` es la matriz AC→test del módulo.
+- **Drift:** si un commit con `T-XX-NN` no actualizó su fila, o una tarea `✅` no tiene PR/SHA, es un defecto de
+  proceso. Lo detecta `python scripts/check_spec_state.py`.
+- El rol `project-steward` audita y corrige documentos; **no escribe código**. Se invoca con `/reconcile NN-modulo`.
+- Al cerrar una sesión se corre `/handoff`: actualiza el tablero, corre el chequeo y deja el bloque
+  Hecho / Pendiente / Siguiente.
+
+## Reviewer: aprobación y merge
+
+La aprobación **no** es un "approve" nativo de GitHub: el repo trabaja con **0 aprobaciones nativas** por diseño.
+
+Una revisión se considera aprobada cuando:
+1. El subagente `reviewer` (solo lectura, sin Write/Edit) revisó el diff completo del PR.
+2. Dejó un **comentario en el PR** con el veredicto y el **SHA del último commit revisado**.
+3. El dueño aplicó el label **`zona-roja`** (obligatorio cuando la tarea es de zona roja).
+4. El check requerido del pipeline está en verde sobre **ese mismo SHA**.
+
+Reglas:
+- Un **push nuevo invalida el veredicto**: hay que volver a revisar y citar el SHA nuevo.
+- `reviewer` no edita archivos ni mergea. Quien escribe no revisa.
+- Formato del veredicto (también en `.claude/skills/reviewer-verdict/SKILL.md`):
+  `VEREDICTO: aprobado | cambios requeridos — SHA <sha> — <fecha>`, seguido de la tabla de hallazgos
+  bloqueantes/no bloqueantes con `archivo:línea` y regla (`C-xx`/`RN-xx`).
+- **Merge (Q-057):** solo con pipeline completo en verde, veredicto sin bloqueantes y DoD completo, por squash
+  (`--match-head-commit <sha>`). Mientras no existan los 11 checks y el ruleset (hasta T-PLT-40), **mergea el dueño**.
+  Ante cualquier duda, mergea el dueño.
+- El veredicto se guarda como comentario, no como revisión nativa. Eso es intencional y no se "corrige" con un
+  approve de la UI.
 
 ## Control de versiones (resumen; detalle en `context/08-control-de-versiones-ci-cd.md`)
 - Commit atómico por AC/tarea en verde (tests + lint pasando), Conventional Commits, nunca código roto en `main`.
@@ -57,9 +107,40 @@ Si no → Carril O. Detalle en `.agents/workflows/sdd-odd.md`.
 - Release = `git tag`; rollback = redeployar el tag anterior. Migraciones siempre reversibles (`C-17`).
 - El agente commitea solo, sin esperar que se lo pidan, en el momento en que su propio checklist de "terminado"
   (tests+lint en verde) se cumple — ver la tabla de cadencia en `context/08-control-de-versiones-ci-cd.md §2.2`.
+- El commit que mergea una tarea actualiza `tasks.md` (estado + evidencia) y, si corresponde, `verification.md`.
 
 ## Comandos de desarrollo
-> Se completan al cerrar la spec `00-platform` (todavía no hay código). El pipeline de CI que van a correr esos
-> comandos ya está definido en `context/08-control-de-versiones-ci-cd.md §3` (lint → tamaño de archivo → secretos
-> → type-check → arquitectura → tests → cobertura → migraciones → build → deploy a staging automático / producción
-> manual).
+
+Desde la raíz del repo (PowerShell o bash). `DC` = `docker compose -f infra/docker-compose.yml --env-file .env`.
+
+| Para | Comando |
+|---|---|
+| Primera vez | `copy env.example .env` (pendiente, T-PLT-39) · `pre-commit install` · `corepack enable` · `pnpm --dir frontend install` |
+| Levantar todo | `DC up -d --build --wait` |
+| Logs / bajar | `DC logs -f backend worker` · `DC down` |
+| Recrear la BD | `DC down -v` y volver a levantar (BD descartable hasta SPEC-01, Q-053) |
+| Tests backend | `DC exec -e DJANGO_SETTINGS_MODULE=config.settings.test backend pytest` |
+| Tests frontend | `pnpm --dir frontend test` · `DC exec frontend pnpm test` (pendiente: servicio `frontend`, T-PLT-36) |
+| Tests de scripts | `pytest -c scripts/pytest.ini scripts/tests` |
+| Lint rápido | `pre-commit run --all-files` · `ruff check .` · `ruff format --check .` |
+| Tipos | `DC exec backend mypy . ../scripts` · `pnpm --dir frontend typecheck` |
+| Regenerar contrato | `DC exec backend python manage.py export_openapi` → `pnpm --dir frontend openapi:types` |
+| Migraciones | `DC exec backend sh -c "python manage.py makemigrations --check --dry-run && python manage.py lint_migrations && python manage.py check_migrations_roundtrip"` (`check_migrations_roundtrip`: pendiente, T-PLT-24) |
+| Reiniciar worker/beat | `DC restart worker beat` |
+| Estado del proyecto | `python scripts/check_spec_state.py` (agregar `--write` para regenerar la conciliación) |
+| Verificar protección (dueño) | `python scripts/verify_repo_protection.py` con `GH_TOKEN` de admin (pendiente, T-PLT-40) |
+
+Notas:
+- Mientras no exista `.env.example` (T-PLT-39, Q-048), usar la tabla de variables de `infra/README.md`.
+- Los comandos de `build` y `smoke` del pipeline todavía no existen (T-PLT-37/38): no se inventan.
+- En Windows, si `5432` está ocupado, usar un override fuera del repo (`infra/README.md`).
+
+## Cierre de sesión (obligatorio si la sesión termina acá)
+
+1. Actualizar `context/11-estado-actual.md` (fecha, último commit, módulo, próxima acción).
+2. Actualizar `tasks.md` y `verification.md` si cambió algo.
+3. Correr `python scripts/check_spec_state.py` y mostrar el resultado.
+4. Dejar el bloque: **Hecho / Pendiente (Q-xxx) / Siguiente rol sugerido**.
+5. Commit `docs(platform): session handoff <fecha>` si hubo cambios de documentos.
+
+El comando `/handoff` hace estos pasos. No se toca código de producción en el cierre.

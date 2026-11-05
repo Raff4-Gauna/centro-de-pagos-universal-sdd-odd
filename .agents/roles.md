@@ -15,6 +15,7 @@ Un **rol** es un modo de trabajo con entradas, salidas y límites claros. En Cla
 | **integration-dev** | Adaptadores de proveedores, fixtures, tests de contrato | tarea + `context/03-mercadopago-api-notes.md` | adapter + fixtures + contract tests | poner lógica de proveedor fuera de `providers/<x>/` |
 | **qa-verifier** | Probar contra los AC, armar matriz de trazabilidad | spec + código | `verification.md`, tests faltantes | cambiar código de producción |
 | **reviewer** | Revisión independiente (seguridad, tenencia, dinero, calidad) | diff + spec | hallazgos bloqueantes / no bloqueantes | **editar archivos** (solo lectura, con veto en zonas rojas) |
+| **project-steward** | Mantener el tablero, `tasks.md` y `verification.md` conciliados con git; detectar drift | `git log`, tareas, verificación | estado actualizado, hallazgos, próxima acción | escribir código de producción; marcar `Verified` o `Aprobada` |
 
 ## Protocolo de traspaso (handoff)
 Cada rol deja al final un bloque corto en el artefacto que produjo:

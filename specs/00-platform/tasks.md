@@ -1,6 +1,6 @@
 ---
 spec: SPEC-00
-actualizado: 2026-11-01
+actualizado: 2026-11-05
 ---
 # Tareas — Módulo de Plataforma (fundaciones)
 
@@ -28,11 +28,31 @@ Reglas: rebanada vertical · ≤ ~300 líneas de diff · mergeable sola · cita 
   nombra cada detalle suponen que el job anterior de la cadena ya existe; si esa tarea todavía no entró, el job se
   engancha al **anterior presente** y la tarea que llega después corrige el enganche.
 
+### Estados de una tarea
+| Símbolo | Significado | Quién lo pone | Evidencia exigida |
+|---|---|---|---|
+| ☐ | Pendiente | task-planner | — |
+| 🔄 | En curso | implementador | rama `task/T-PLT-NN-slug` |
+| 🟡 | En revisión | implementador | PR abierto |
+| ✅ | Mergeada | implementador / orquestador | PR **y** SHA de merge |
+| 🧪 | Verificada | qa-verifier | fila `✔` en `verification.md` |
+| ⛔ | Bloqueada | cualquiera | `Q-xxx` que la bloquea |
+
+**Reglas de estado**
+1. La fila se actualiza **en el mismo PR** que cambia el estado; el commit de merge no puede dejar la fila atrás.
+2. No se salta de `☐` a `✅`: el camino es `☐ → 🔄 → 🟡 → ✅ → 🧪`.
+3. `✅` sin PR y SHA de merge es inválido. La columna **Evidencia** guarda `#PR · SHA`.
+4. `🧪` sin una fila `✔` en `verification.md` es inválido.
+5. El módulo se cierra cuando **todas** las filas están `✅` o `🧪` y `verification.md` está `Aprobada`.
+6. `scripts/check_spec_state.py` detecta el drift: un commit con `T-PLT-NN` cuya fila no está `✅`/`🧪`, una tarea
+   `✅` sin evidencia o una tarea `🧪` sin verificación hacen fallar el chequeo.
+
 ## Ramas, PR y merge
 - **Prerrequisito:** la rama `spec/00-platform` (spec *Approved*, `design.md`, ADR-0005 y este `tasks.md`) se mergea a
   `main` **antes** de abrir `task/T-PLT-01-…`: las tareas salen de `main` y tienen que ver la spec aprobada.
 - Cada tarea en `task/T-PLT-NN-slug` desde `main` actualizado; un PR por tarea; merge **squash** (`gh pr merge --squash
-  --match-head-commit <sha>`). El PR actualiza el **Estado** de su fila en este archivo.
+  --match-head-commit <sha>`). El PR actualiza el **Estado** y la **Evidencia** (PR + SHA) de su fila en este archivo.
+  Si la tarea pasa a `🧪`, actualiza además su fila en `verification.md`.
 - **Quién mergea (Q-057):** el agente solo con certeza total (pipeline completo en verde en el último commit,
   veredicto del reviewer sin bloqueantes —obligatorio en zona roja—, DoD completo, squash). **Mientras no existan los
   11 checks y el ruleset (hasta T-PLT-40 inclusive) "pipeline completo" no se puede cumplir: mergea el dueño.** También
@@ -43,49 +63,53 @@ Reglas: rebanada vertical · ≤ ~300 líneas de diff · mergeable sola · cita 
 - Antes de que exista `zona-roja.yml` (T-PLT-07) el veredicto del reviewer en zona roja se exige igual, por proceso.
 
 ## Resumen
-| ID | Título | AC | Capa | Archivos esperados (ver detalle) | Depende de | Agente | Tamaño | Zona roja | Estado |
-|---|---|---|---|---|---|---|---|---|---|
-| T-PLT-01 | Esqueleto del repo + `check_file_size.py` | AC-PLT-13, AC-PLT-27 (parcial) | Infra | `scripts/check_file_size.py`, `.gitattributes`, … | — | backend-dev | M | Sí | ◐ en revisión (reviewer: aprobado con observaciones; falta PR/merge) |
-| T-PLT-02 | Toolchain Python (uv) + `ruff.toml` | AC-PLT-12 | Infra | `backend/pyproject.toml`, `backend/uv.lock`, `ruff.toml` | T-PLT-01 | backend-dev | M | Sí | ◐ en revisión (falta reviewer/PR) |
-| T-PLT-03 | CI mínimo: `lint` → `file-size` → `tests` | AC-PLT-20 (parcial), AC-PLT-13 | CI | `.github/workflows/ci.yml`, `.github/actions/setup/action.yml` | T-PLT-02 | backend-dev | M | Sí | ◐ en revisión (falta reviewer/PR; verificación manual en GitHub pendiente: push bloqueado) |
-| T-PLT-04 | Pre-commit + gitleaks + job `secrets` | AC-PLT-19, AC-PLT-27, AC-PLT-13 | Infra/CI | `.pre-commit-config.yaml`, `.gitleaks.toml` | T-PLT-03 | backend-dev | M | Sí | ◐ en revisión (falta reviewer/PR) |
-| T-PLT-05 | `check_workflows.py` en `lint` | AC-PLT-33 | CI | `scripts/check_workflows.py` | T-PLT-03 | backend-dev | L | Sí | ☐ |
-| T-PLT-06 | Check `zona-roja`: reglas y rutas | AC-PLT-32 | CI | `scripts/check_zona_roja.py`, `.github/zona-roja-paths.txt` | T-PLT-03 | backend-dev | L | Sí | ☐ |
-| T-PLT-07 | Check `zona-roja`: API de GitHub + workflow | AC-PLT-32 | CI | `scripts/github_api.py`, `.github/workflows/zona-roja.yml` | T-PLT-05, T-PLT-06 | backend-dev | L | Sí | ☐ |
-| T-PLT-08 | Proyecto Django + settings validados | AC-PLT-03 | Backend | `backend/config/settings/*`, `manage.py` | T-PLT-03 | backend-dev | L | Sí | ◐ en revisión (falta reviewer/PR) |
-| T-PLT-09 | `prod` endurecido + lecturas de entorno + feature flags | AC-PLT-04, AC-PLT-06 (parcial) | Backend | `config/settings/prod.py`, `apps/common/feature_flags.py` | T-PLT-08 | backend-dev | L | No | ◐ en revisión (falta reviewer/PR) |
-| T-PLT-10 | mypy + job `typecheck` (backend) | AC-PLT-21 (backend) | CI/Backend | `backend/pyproject.toml`, `tests/typing/` | T-PLT-08 | backend-dev | M | Sí | ◐ en revisión (falta reviewer/PR) |
-| T-PLT-11 | `/healthz` + `/readyz` + servicios en CI | AC-PLT-02 | Backend/CI | `apps/common/health/` | T-PLT-08 | backend-dev | M | Sí | ◐ en revisión (falta reviewer/PR) |
-| T-PLT-12 | Logger structlog JSON + `X-Request-ID` | AC-PLT-09 | Backend | `apps/common/logging/`, `middleware/request_id.py` | T-PLT-08 | backend-dev | L | No (reviewer recomendado) | ◐ en revisión (falta reviewer/PR) |
-| T-PLT-13 | Log de acceso (plantilla de ruta, `duration_ms`) | AC-PLT-07 | Backend | `middleware/access_log.py` | T-PLT-12 | backend-dev | M | No (reviewer recomendado) | ◐ en revisión (falta reviewer/PR) |
-| T-PLT-14 | Redacción de secretos en logs | AC-PLT-08 | Backend | `apps/common/domain/redaction.py` | T-PLT-13 | backend-dev | M | No (reviewer recomendado) | ◐ en revisión (falta reviewer/PR) |
-| T-PLT-15 | Errores `problem+json` | AC-PLT-34 | Backend/API | `apps/common/api/{problems,exceptions}.py` | T-PLT-12 | backend-dev | L | Sí | ◐ en revisión (falta reviewer/PR) |
-| T-PLT-16 | Throttling DRF con Redis | AC-PLT-30 | Backend/API | `apps/common/api/throttling.py` | T-PLT-11, T-PLT-15 | backend-dev | M | No | ◐ en revisión (falta reviewer/PR) |
-| T-PLT-17 | Celery + tarea de diagnóstico con `request_id` | AC-PLT-11 | Backend | `config/celery.py`, `apps/common/celery_signals.py` | T-PLT-11, T-PLT-12 | backend-dev | L | No (reviewer recomendado) | ◐ en revisión (falta reviewer/PR) |
-| T-PLT-18 | Contrato OpenAPI commiteado + `--check` | AC-PLT-23 (backend) | API/Contrato | `export_openapi.py`, `specs/_contracts/openapi.yaml` | T-PLT-15 | backend-dev | M | Sí | ◐ en revisión (falta reviewer/PR) |
-| T-PLT-19 | Tests de arquitectura C-09 y C-01 + job | AC-PLT-14, AC-PLT-15 | Arquitectura/CI | `backend/tests/architecture/` | T-PLT-08 | backend-dev | L | Sí | ◐ en revisión (falta reviewer/PR) |
-| T-PLT-20 | Chequeo C-02 (`float` en dinero) | AC-PLT-31 | Arquitectura | `ast_rules.py`, `allowlists.py` | T-PLT-19 | backend-dev | M | Sí | ◐ en revisión (falta reviewer/PR) |
-| T-PLT-21 | Gate de cobertura + job `coverage` | AC-PLT-22 | CI | `scripts/check_coverage.py`, `scripts/coverage_thresholds.toml` | T-PLT-08 | backend-dev | L | Sí | ◐ en revisión (falta reviewer/PR) |
-| T-PLT-22 | Migraciones: faltante + job `migrations` | AC-PLT-16 | Migraciones/CI | `tests/migrations/` | T-PLT-08, T-PLT-11 | backend-dev | M | Sí | ◐ en revisión (falta reviewer/PR) |
-| T-PLT-23 | Migraciones: nombres `auto_` y `RunPython` mezclado | AC-PLT-18 | Migraciones | `apps/common/migration_lint/`, `lint_migrations.py` | T-PLT-22 | backend-dev | L | Sí |◐ en revisión (falta reviewer/PR) |
-| T-PLT-24 | Migraciones: reversibilidad + ida y vuelta | AC-PLT-17 | Migraciones/CI | `check_migrations_roundtrip.py` | T-PLT-23 | backend-dev | L | Sí | ☐ |
-| T-PLT-25 | Imagen Docker del backend | AC-PLT-25 (backend) | Infra | `backend/Dockerfile`, `config/gunicorn.conf.py` | T-PLT-12 | backend-dev | M | Sí |◐ en revisión (falta reviewer/PR) |
-| T-PLT-26 | Compose de desarrollo (db, redis, backend, worker, beat) | AC-PLT-01 (parcial), AC-PLT-02 (manual) | Infra | `infra/docker-compose.yml` | T-PLT-11, T-PLT-17, T-PLT-25 | backend-dev | L | Sí | ◐ en revisión (falta reviewer/PR; verificación manual del dueño con su `.env` pendiente) |
-| T-PLT-27 | Frontend: proyecto Next + toolchain + CI frontend | AC-PLT-21 (frontend) | Frontend/CI | `frontend/package.json`, `tsconfig.json`, … | T-PLT-03 | frontend-dev | L | Sí | ◐ en revisión (falta reviewer/PR) |
-| T-PLT-28 | Auditoría de dependencias + Dependabot | AC-PLT-26 | CI | `scripts/audit_deps.py`, `.github/dependabot.yml` | T-PLT-27 | backend-dev | L | Sí | ◐ en revisión (falta reviewer/PR) |
-| T-PLT-29 | Pre-commit de eslint/prettier | — (RF-PLT-12) | Infra | `scripts/precommit_frontend.py` | T-PLT-04, T-PLT-27 | frontend-dev | M | Sí | ☐ |
-| T-PLT-30 | Base visual: tokens, tema, estados de carga | AC-PLT-28 (parcial), AC-PLT-22 (FE) | UI | `src/lib/{design-tokens,theme,query-client}.ts`, `src/components/*` | T-PLT-21, T-PLT-27 | frontend-dev | L | Sí | ◐ en revisión (falta reviewer/PR) |
-| T-PLT-31 | Shell `(dashboard)` + Inicio | AC-PLT-28 | UI | `src/components/shell/*`, `app/(dashboard)/inicio/*` | T-PLT-30 | frontend-dev | L | No | ◐ en revisión (falta reviewer/PR) |
-| T-PLT-32 | Configuración (secciones deshabilitadas) | AC-PLT-28 | UI | `app/(dashboard)/configuracion/*`, `src/modules/settings/*` | T-PLT-31 | frontend-dev | M | No | ◐ en revisión (falta reviewer/PR) |
-| T-PLT-33 | BFF pass-through con `X-Request-ID` | AC-PLT-10, AC-PLT-09 (BFF) | BFF | `app/api/[...path]/route.ts`, `src/lib/server/*` | T-PLT-27 | frontend-dev | L | No (reviewer recomendado) | ◐ en revisión (falta reviewer/PR) |
-| T-PLT-34 | BFF: rutas seguras y errores 400/502/504 | AC-PLT-10 (robustez) | BFF | `src/lib/server/backend-proxy.ts`, `next.config.ts` | T-PLT-33 | frontend-dev | M | No (reviewer recomendado) | ◐ en revisión (falta reviewer/PR) |
-| T-PLT-35 | Cliente tipado + tipos desde OpenAPI + diff en CI | AC-PLT-23 (frontend) | Frontend/CI | `src/lib/{api-client,problem}.ts`, `src/types/api.d.ts` | T-PLT-18, T-PLT-27 | frontend-dev | M | Sí | ◐ en revisión (falta reviewer/PR) |
-| T-PLT-36 | Imagen del frontend + chequeo de bundle + servicio en Compose | AC-PLT-29, AC-PLT-25 (FE), AC-PLT-01 | Infra/Frontend | `frontend/Dockerfile`, `frontend/scripts/check-client-bundle.ts` | T-PLT-26, T-PLT-33, T-PLT-34 | frontend-dev | L | Sí | ☐ |
-| T-PLT-37 | Job `build` (imágenes por SHA, no root) | AC-PLT-25, AC-PLT-20 | CI | `infra/docker-compose.ci.yml`, `ci.yml` | T-PLT-24, T-PLT-36 | backend-dev | M | Sí | ☐ |
-| T-PLT-38 | Smoke del stack en el paso 9 | AC-PLT-01, AC-PLT-02, AC-PLT-10, AC-PLT-29 (E2E) | CI | `scripts/smoke_stack.py` | T-PLT-15, T-PLT-37 | backend-dev | L | Sí | ☐ |
-| T-PLT-39 | `.env.example` + `spikes/.env.example` + paridad — **BLOQUEADA por Q-048** | AC-PLT-05, AC-PLT-06, AC-PLT-01 | Config | `.env.example`, `spikes/.env.example` | T-PLT-09, T-PLT-12, T-PLT-16, T-PLT-26, T-PLT-33 | usuario / backend-dev | M | Sí | ⛔ |
-| T-PLT-40 | Ruleset de `main` + verificación de protección | AC-PLT-24, AC-PLT-20 (cierre) | Gobierno | `.github/rulesets/main.json`, `scripts/verify_repo_protection.py` | T-PLT-07, T-PLT-10, T-PLT-19, T-PLT-21, T-PLT-24, T-PLT-28, T-PLT-38 | backend-dev (+ dueño) | L | Sí | ☐ |
-| T-PLT-41 | "Comandos de desarrollo" en `AGENTS.md` + `infra/README.md` | — (RF-PLT-16) | Docs | `AGENTS.md`, `infra/README.md` | T-PLT-38, T-PLT-40 | backend-dev | S | No | ☐ |
+
+> Conciliado con `git log` el 2026-11-05: 30 tareas mergeadas (`✅`), 10 pendientes (`☐`) y 1 bloqueada (`⛔`).
+> La columna **Evidencia** es obligatoria para `✅` y la verifica `scripts/check_spec_state.py`.
+
+| ID | Título | AC | Capa | Archivos esperados (ver detalle) | Depende de | Agente | Tamaño | Zona roja | Estado | Evidencia |
+|---|---|---|---|---|---|---|---|---|---|---|
+| T-PLT-01 | Esqueleto del repo + `check_file_size.py` | AC-PLT-13, AC-PLT-27 (parcial) | Infra | `scripts/check_file_size.py`, `.gitattributes`, … | — | backend-dev | M | Sí | ✅ | #5 · aa0d8d8 |
+| T-PLT-02 | Toolchain Python (uv) + `ruff.toml` | AC-PLT-12 | Infra | `backend/pyproject.toml`, `backend/uv.lock`, `ruff.toml` | T-PLT-01 | backend-dev | M | Sí | ✅ | #6 · ce6a963 |
+| T-PLT-03 | CI mínimo: `lint` → `file-size` → `tests` | AC-PLT-20 (parcial), AC-PLT-13 | CI | `.github/workflows/ci.yml`, `.github/actions/setup/action.yml` | T-PLT-02 | backend-dev | M | Sí | ✅ | #4 · 1830f49 |
+| T-PLT-04 | Pre-commit + gitleaks + job `secrets` | AC-PLT-19, AC-PLT-27, AC-PLT-13 | Infra/CI | `.pre-commit-config.yaml`, `.gitleaks.toml` | T-PLT-03 | backend-dev | M | Sí | ✅ | #19 · dbb770e |
+| T-PLT-05 | `check_workflows.py` en `lint` | AC-PLT-33 | CI | `scripts/check_workflows.py` | T-PLT-03 | backend-dev | L | Sí | ☐ | — |
+| T-PLT-06 | Check `zona-roja`: reglas y rutas | AC-PLT-32 | CI | `scripts/check_zona_roja.py`, `.github/zona-roja-paths.txt` | T-PLT-03 | backend-dev | L | Sí | ☐ | — |
+| T-PLT-07 | Check `zona-roja`: API de GitHub + workflow | AC-PLT-32 | CI | `scripts/github_api.py`, `.github/workflows/zona-roja.yml` | T-PLT-05, T-PLT-06 | backend-dev | L | Sí | ☐ | — |
+| T-PLT-08 | Proyecto Django + settings validados | AC-PLT-03 | Backend | `backend/config/settings/*`, `manage.py` | T-PLT-03 | backend-dev | L | Sí | ✅ | #7 · 6754818 |
+| T-PLT-09 | `prod` endurecido + lecturas de entorno + feature flags | AC-PLT-04, AC-PLT-06 (parcial) | Backend | `config/settings/prod.py`, `apps/common/feature_flags.py` | T-PLT-08 | backend-dev | L | No | ✅ | #16 · 2a489ae |
+| T-PLT-10 | mypy + job `typecheck` (backend) | AC-PLT-21 (backend) | CI/Backend | `backend/pyproject.toml`, `tests/typing/` | T-PLT-08 | backend-dev | M | Sí | ✅ | #14 · 321c3ab |
+| T-PLT-11 | `/healthz` + `/readyz` + servicios en CI | AC-PLT-02 | Backend/CI | `apps/common/health/` | T-PLT-08 | backend-dev | M | Sí | ✅ | #8 · 7d4dfd1 |
+| T-PLT-12 | Logger structlog JSON + `X-Request-ID` | AC-PLT-09 | Backend | `apps/common/logging/`, `middleware/request_id.py` | T-PLT-08 | backend-dev | L | No (reviewer recomendado) | ✅ | #9 · b5a4d27 |
+| T-PLT-13 | Log de acceso (plantilla de ruta, `duration_ms`) | AC-PLT-07 | Backend | `middleware/access_log.py` | T-PLT-12 | backend-dev | M | No (reviewer recomendado) | ✅ | #10 · 574f2a6 |
+| T-PLT-14 | Redacción de secretos en logs | AC-PLT-08 | Backend | `apps/common/domain/redaction.py` | T-PLT-13 | backend-dev | M | No (reviewer recomendado) | ✅ | #11 · 743fcd9 |
+| T-PLT-15 | Errores `problem+json` | AC-PLT-34 | Backend/API | `apps/common/api/{problems,exceptions}.py` | T-PLT-12 | backend-dev | L | Sí | ✅ | #13 · 13cdb1f |
+| T-PLT-16 | Throttling DRF con Redis | AC-PLT-30 | Backend/API | `apps/common/api/throttling.py` | T-PLT-11, T-PLT-15 | backend-dev | M | No | ✅ | #32 · 0d2fadb |
+| T-PLT-17 | Celery + tarea de diagnóstico con `request_id` | AC-PLT-11 | Backend | `config/celery.py`, `apps/common/celery_signals.py` | T-PLT-11, T-PLT-12 | backend-dev | L | No (reviewer recomendado) | ✅ | #18 · 1fb6df6 |
+| T-PLT-18 | Contrato OpenAPI commiteado + `--check` | AC-PLT-23 (backend) | API/Contrato | `export_openapi.py`, `specs/_contracts/openapi.yaml` | T-PLT-15 | backend-dev | M | Sí | ✅ | #20 · ddb7798 |
+| T-PLT-19 | Tests de arquitectura C-09 y C-01 + job | AC-PLT-14, AC-PLT-15 | Arquitectura/CI | `backend/tests/architecture/` | T-PLT-08 | backend-dev | L | Sí | ✅ | #15 · ee97921 |
+| T-PLT-20 | Chequeo C-02 (`float` en dinero) | AC-PLT-31 | Arquitectura | `ast_rules.py`, `allowlists.py` | T-PLT-19 | backend-dev | M | Sí | ✅ | #17 · 2ad9505 |
+| T-PLT-21 | Gate de cobertura + job `coverage` | AC-PLT-22 | CI | `scripts/check_coverage.py`, `scripts/coverage_thresholds.toml` | T-PLT-08 | backend-dev | L | Sí | ✅ | #12 · b22d762 |
+| T-PLT-22 | Migraciones: faltante + job `migrations` | AC-PLT-16 | Migraciones/CI | `tests/migrations/` | T-PLT-08, T-PLT-11 | backend-dev | M | Sí | ✅ | #34 · 5ecd863 |
+| T-PLT-23 | Migraciones: nombres `auto_` y `RunPython` mezclado | AC-PLT-18 | Migraciones | `apps/common/migration_lint/`, `lint_migrations.py` | T-PLT-22 | backend-dev | L | Sí | ✅ | #38 · f281766 |
+| T-PLT-24 | Migraciones: reversibilidad + ida y vuelta | AC-PLT-17 | Migraciones/CI | `check_migrations_roundtrip.py` | T-PLT-23 | backend-dev | L | Sí | ☐ | — |
+| T-PLT-25 | Imagen Docker del backend | AC-PLT-25 (backend) | Infra | `backend/Dockerfile`, `config/gunicorn.conf.py` | T-PLT-12 | backend-dev | M | Sí | ✅ | #35 · 33fd905 |
+| T-PLT-26 | Compose de desarrollo (db, redis, backend, worker, beat) | AC-PLT-01 (parcial), AC-PLT-02 (manual) | Infra | `infra/docker-compose.yml` | T-PLT-11, T-PLT-17, T-PLT-25 | backend-dev | L | Sí | ✅ | #40 · 3033f63 |
+| T-PLT-27 | Frontend: proyecto Next + toolchain + CI frontend | AC-PLT-21 (frontend) | Frontend/CI | `frontend/package.json`, `tsconfig.json`, … | T-PLT-03 | frontend-dev | L | Sí | ✅ | #21 · 09549c8 |
+| T-PLT-28 | Auditoría de dependencias + Dependabot | AC-PLT-26 | CI | `scripts/audit_deps.py`, `.github/dependabot.yml` | T-PLT-27 | backend-dev | L | Sí | ✅ | #24 · cc1d662 |
+| T-PLT-29 | Pre-commit de eslint/prettier | — (RF-PLT-12) | Infra | `scripts/precommit_frontend.py` | T-PLT-04, T-PLT-27 | frontend-dev | M | Sí | ☐ | — |
+| T-PLT-30 | Base visual: tokens, tema, estados de carga | AC-PLT-28 (parcial), AC-PLT-22 (FE) | UI | `src/lib/{design-tokens,theme,query-client}.ts`, `src/components/*` | T-PLT-21, T-PLT-27 | frontend-dev | L | Sí | ✅ | #33 · 8f1059e |
+| T-PLT-31 | Shell `(dashboard)` + Inicio | AC-PLT-28 | UI | `src/components/shell/*`, `app/(dashboard)/inicio/*` | T-PLT-30 | frontend-dev | L | No | ✅ | #36 · 264e523 |
+| T-PLT-32 | Configuración (secciones deshabilitadas) | AC-PLT-28 | UI | `app/(dashboard)/configuracion/*`, `src/modules/settings/*` | T-PLT-31 | frontend-dev | M | No | ✅ | #39 · 0d46f55 |
+| T-PLT-33 | BFF pass-through con `X-Request-ID` | AC-PLT-10, AC-PLT-09 (BFF) | BFF | `app/api/[...path]/route.ts`, `src/lib/server/*` | T-PLT-27 | frontend-dev | L | No (reviewer recomendado) | ✅ | #22 · 1b493d4 |
+| T-PLT-34 | BFF: rutas seguras y errores 400/502/504 | AC-PLT-10 (robustez) | BFF | `src/lib/server/backend-proxy.ts`, `next.config.ts` | T-PLT-33 | frontend-dev | M | No (reviewer recomendado) | ✅ | #23 · c842e3c |
+| T-PLT-35 | Cliente tipado + tipos desde OpenAPI + diff en CI | AC-PLT-23 (frontend) | Frontend/CI | `src/lib/{api-client,problem}.ts`, `src/types/api.d.ts` | T-PLT-18, T-PLT-27 | frontend-dev | M | Sí | ✅ | #37 · 75ea14f |
+| T-PLT-36 | Imagen del frontend + chequeo de bundle + servicio en Compose | AC-PLT-29, AC-PLT-25 (FE), AC-PLT-01 | Infra/Frontend | `frontend/Dockerfile`, `frontend/scripts/check-client-bundle.ts` | T-PLT-26, T-PLT-33, T-PLT-34 | frontend-dev | L | Sí | ☐ | — |
+| T-PLT-37 | Job `build` (imágenes por SHA, no root) | AC-PLT-25, AC-PLT-20 | CI | `infra/docker-compose.ci.yml`, `ci.yml` | T-PLT-24, T-PLT-36 | backend-dev | M | Sí | ☐ | — |
+| T-PLT-38 | Smoke del stack en el paso 9 | AC-PLT-01, AC-PLT-02, AC-PLT-10, AC-PLT-29 (E2E) | CI | `scripts/smoke_stack.py` | T-PLT-15, T-PLT-37 | backend-dev | L | Sí | ☐ | — |
+| T-PLT-39 | `.env.example` + `spikes/.env.example` + paridad — **BLOQUEADA por Q-048** | AC-PLT-05, AC-PLT-06, AC-PLT-01 | Config | `.env.example`, `spikes/.env.example` | T-PLT-09, T-PLT-12, T-PLT-16, T-PLT-26, T-PLT-33 | usuario / backend-dev | M | Sí | ⛔ | Q-048 |
+| T-PLT-40 | Ruleset de `main` + verificación de protección | AC-PLT-24, AC-PLT-20 (cierre) | Gobierno | `.github/rulesets/main.json`, `scripts/verify_repo_protection.py` | T-PLT-07, T-PLT-10, T-PLT-19, T-PLT-21, T-PLT-24, T-PLT-28, T-PLT-38 | backend-dev (+ dueño) | L | Sí | ☐ | — |
+| T-PLT-41 | "Comandos de desarrollo" en `AGENTS.md` + `infra/README.md` | — (RF-PLT-16) | Docs | `AGENTS.md`, `infra/README.md` | T-PLT-38, T-PLT-40 | backend-dev | S | No | ☐ | — |
 
 ## Cobertura AC → tareas
 | AC | Tareas |
@@ -1605,3 +1629,69 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   de Q-057 / §3.7.4), `infra/README.md` (enlace a esos comandos, recrear BD antes de 01 por Q-053).
 - **Plan de pruebas:** revisión manual: cada comando de la tabla se ejecuta una vez desde la raíz (PowerShell) y
   funciona; `pre-commit run --all-files` en verde.
+
+---
+
+## Cierre del módulo (SPEC-00)
+
+Un módulo pasa de `Approved` a `Implemented` cuando:
+
+- [ ] Todas sus tareas están `✅` o `🧪`.
+- [ ] `verification.md` existe y su matriz AC→test está completa.
+- [ ] Todos los AC tienen al menos un test ejecutado en verde en el commit de cierre.
+- [ ] El reviewer firmó el diff completo (comentario con SHA + label `zona-roja` en el PR de cierre).
+- [ ] El pipeline completo (11 jobs) corrió en verde sobre `main`.
+- [ ] `ROADMAP.md` y `context/11-estado-actual.md` están actualizados.
+
+Pasa a `Verified` solo con el OK explícito del dueño. Ningún agente lo marca solo.
+
+## Conciliación con git (generada, no editar a mano)
+
+> La genera `python scripts/check_spec_state.py --write` a partir de `git log` y del estado de esta tabla. Todavía no
+> corre en CI (falta engancharlo en el job `lint`); localmente, sin `--write`, falla si hay drift. No se edita a mano: el bloque se reemplaza completo.
+
+<!-- check_spec_state:begin -->
+| Tarea | PR | SHA | Estado |
+|---|---|---|---|
+| T-PLT-01 | #5 | aa0d8d8 | ✅ |
+| T-PLT-02 | #6 | ce6a963 | ✅ |
+| T-PLT-03 | #4 | 1830f49 | ✅ |
+| T-PLT-04 | #19 | dbb770e | ✅ |
+| T-PLT-05 | — | — | ☐ |
+| T-PLT-06 | — | — | ☐ |
+| T-PLT-07 | — | — | ☐ |
+| T-PLT-08 | #7 | 6754818 | ✅ |
+| T-PLT-09 | #16 | 2a489ae | ✅ |
+| T-PLT-10 | #14 | 321c3ab | ✅ |
+| T-PLT-11 | #8 | 7d4dfd1 | ✅ |
+| T-PLT-12 | #9 | b5a4d27 | ✅ |
+| T-PLT-13 | #10 | 574f2a6 | ✅ |
+| T-PLT-14 | #11 | 743fcd9 | ✅ |
+| T-PLT-15 | #13 | 13cdb1f | ✅ |
+| T-PLT-16 | #32 | 0d2fadb | ✅ |
+| T-PLT-17 | #18 | 1fb6df6 | ✅ |
+| T-PLT-18 | #20 | ddb7798 | ✅ |
+| T-PLT-19 | #15 | ee97921 | ✅ |
+| T-PLT-20 | #17 | 2ad9505 | ✅ |
+| T-PLT-21 | #12 | b22d762 | ✅ |
+| T-PLT-22 | #34 | 5ecd863 | ✅ |
+| T-PLT-23 | #38 | f281766 | ✅ |
+| T-PLT-24 | — | — | ☐ |
+| T-PLT-25 | #35 | 33fd905 | ✅ |
+| T-PLT-26 | #40 | 3033f63 | ✅ |
+| T-PLT-27 | #21 | 09549c8 | ✅ |
+| T-PLT-28 | #24 | cc1d662 | ✅ |
+| T-PLT-29 | — | — | ☐ |
+| T-PLT-30 | #33 | 8f1059e | ✅ |
+| T-PLT-31 | #36 | 264e523 | ✅ |
+| T-PLT-32 | #39 | 0d46f55 | ✅ |
+| T-PLT-33 | #22 | 1b493d4 | ✅ |
+| T-PLT-34 | #23 | c842e3c | ✅ |
+| T-PLT-35 | #37 | 75ea14f | ✅ |
+| T-PLT-36 | — | — | ☐ |
+| T-PLT-37 | — | — | ☐ |
+| T-PLT-38 | — | — | ☐ |
+| T-PLT-39 | — | — | ⛔ |
+| T-PLT-40 | — | — | ☐ |
+| T-PLT-41 | — | — | ☐ |
+<!-- check_spec_state:end -->
