@@ -73,7 +73,7 @@ Reglas: rebanada vertical · ≤ ~300 líneas de diff · mergeable sola · cita 
 | T-PLT-02 | Toolchain Python (uv) + `ruff.toml` | AC-PLT-12 | Infra | `backend/pyproject.toml`, `backend/uv.lock`, `ruff.toml` | T-PLT-01 | backend-dev | M | Sí | ✅ | #6 · ce6a963 |
 | T-PLT-03 | CI mínimo: `lint` → `file-size` → `tests` | AC-PLT-20 (parcial), AC-PLT-13 | CI | `.github/workflows/ci.yml`, `.github/actions/setup/action.yml` | T-PLT-02 | backend-dev | M | Sí | ✅ | #4 · 1830f49 |
 | T-PLT-04 | Pre-commit + gitleaks + job `secrets` | AC-PLT-19, AC-PLT-27, AC-PLT-13 | Infra/CI | `.pre-commit-config.yaml`, `.gitleaks.toml` | T-PLT-03 | backend-dev | M | Sí | ✅ | #19 · dbb770e |
-| T-PLT-05 | `check_workflows.py` en `lint` | AC-PLT-33 | CI | `scripts/check_workflows.py` | T-PLT-03 | backend-dev | L | Sí | ☐ | — |
+| T-PLT-05 | `check_workflows.py` en `lint` | AC-PLT-33 | CI | `scripts/check_workflows.py` | T-PLT-03 | backend-dev | L | Sí | 🟡 | — |
 | T-PLT-06 | Check `zona-roja`: reglas y rutas | AC-PLT-32 | CI | `scripts/check_zona_roja.py`, `.github/zona-roja-paths.txt` | T-PLT-03 | backend-dev | L | Sí | 🟡 | — |
 | T-PLT-07 | Check `zona-roja`: API de GitHub + workflow | AC-PLT-32 | CI | `scripts/github_api.py`, `.github/workflows/zona-roja.yml` | T-PLT-05, T-PLT-06 | backend-dev | L | Sí | ☐ | — |
 | T-PLT-08 | Proyecto Django + settings validados | AC-PLT-03 | Backend | `backend/config/settings/*`, `manage.py` | T-PLT-03 | backend-dev | L | Sí | ✅ | #7 · 6754818 |
@@ -337,6 +337,21 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   `test_AC_PLT_33_workflow_run_fails`, `test_AC_PLT_33_unpinned_action_fails`,
   `test_AC_PLT_33_job_level_if_on_required_job_fails`, `test_AC_PLT_33_non_github_token_secret_fails`,
   `test_AC_PLT_33_repo_workflows_pass`.
+- **Hecho:** `scripts/check_workflows.py` revisa `.github/workflows/*.y{a,}ml` y `.github/actions/**/action.y{a,}ml`;
+  cada hallazgo sale en stderr como `<ruta>: [<regla>] <detalle>` (exit 1). Reglas: `forbidden-trigger` (`on` como
+  string, lista, mapa o clave entre comillas), `permissions-missing`, `permissions-top-level` (`read-all` y `{}`
+  pasan), `permissions-job` (`write`/`write-all` fuera de `JOB_PERMISSION_ALLOWLIST`, vacía), `secrets` (contexto
+  `secrets` en `${{ }}` y en `if:` sin llaves, con punto, corchetes o entero, sin distinguir mayúsculas; solo
+  `secrets.GITHUB_TOKEN`; también `secrets: inherit`; `needs.secrets.*` y los literales `'…'` no cuentan),
+  `uses-pin` (steps, `jobs.<id>.uses` reutilizable, `runs.image` de acciones; `docker://` exige `@sha256:<64hex>`),
+  `uses-tag-comment` (el `# <tag>` de la cabecera de `ci.yml`), `job-if` (id o `name:` en los 11 checks
+  requeridos de §6.3); y falla cerrada con `invalid-yaml` (claves duplicadas incluidas: PyYAML se queda con la
+  última), `invalid-workflow` y `no-workflows`. Step `check_workflows.py` al final del job `lint`.
+  Tests: los 8 del plan más uno por regla y variante (46). Mutación sobre copia de `ci.yml`/`action.yml`
+  (`pull_request_target`, `contents: write`, `if:` en `lint`, `setup-uv@v7`): 4 hallazgos, exit 1.
+- **Notas:** (1) `uses-tag-comment` sale de la cabecera de `ci.yml`, no de la lista de §3.5. (2) El test de pinning
+  de `test_AC_PLT_20_pipeline_chain.py` sigue usando `job["steps"]` y no acepta `docker://`; no se tocó (fuera de
+  los archivos de la tarea): ahora lo cubre `check_workflows.py`.
 
 ### T-PLT-06 — Check `zona-roja`: reglas y lista de rutas
 - **Objetivo:** la decisión del check como función pura, probada sin red.
