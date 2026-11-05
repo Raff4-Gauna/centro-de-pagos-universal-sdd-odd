@@ -279,8 +279,9 @@ jobs:
   # Django plugin imports config.settings.test, which reads the workflow-level env. AC-PLT-23
   # (ADR-0005): export_openapi --check regenerates the contract from the public URLconf and fails
   # printing the diff if specs/_contracts/openapi.yaml is stale; nothing connects to a service.
-  # AC-PLT-21 (frontend, T-PLT-27): tsc --noEmit in strict mode. The frontend types diff (T-PLT-35)
-  # is added here later.
+  # AC-PLT-23 (frontend, T-PLT-35): frontend/src/types is regenerated from that same committed
+  # contract (openapi-typescript, no backend involved) and any difference fails, printing it.
+  # AC-PLT-21 (frontend, T-PLT-27): tsc --noEmit in strict mode, against the verified types.
   typecheck:
     needs: [secrets, deps-audit]
     runs-on: ubuntu-24.04
@@ -299,6 +300,19 @@ jobs:
       - name: export_openapi --check
         working-directory: backend
         run: python manage.py export_openapi --check
+      # `git diff` prints changed or deleted files; `git status --porcelain` adds the new ones the
+      # generator may write, which `git diff` alone does not see.
+      - name: openapi:types + git diff
+        working-directory: frontend
+        run: |
+          pnpm openapi:types
+          stale="$(git status --porcelain --untracked-files=all -- src/types)"
+          if [ -n "$stale" ]; then
+            git --no-pager diff -- src/types
+            echo "$stale"
+            echo "::error::frontend/src/types is stale: run 'pnpm --dir frontend openapi:types' and commit it"
+            exit 1
+          fi
       - name: tsc --noEmit
         working-directory: frontend
         run: pnpm typecheck
