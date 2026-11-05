@@ -4,7 +4,8 @@ import react from "@vitejs/plugin-react";
 import { defineConfig } from "vitest/config";
 
 // Components run in jsdom; server-side files (route handlers, lib/server) opt into the node
-// environment with a `// @vitest-environment node` docblock. Coverage thresholds: T-PLT-30.
+// environment with a `// @vitest-environment node` docblock. The json-summary
+// report is gated by the `frontend` entry of scripts/coverage_thresholds.toml (AC-PLT-22).
 export default defineConfig({
   plugins: [react()],
   resolve: {

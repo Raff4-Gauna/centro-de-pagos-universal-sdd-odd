@@ -74,7 +74,7 @@ Reglas: rebanada vertical · ≤ ~300 líneas de diff · mergeable sola · cita 
 | T-PLT-27 | Frontend: proyecto Next + toolchain + CI frontend | AC-PLT-21 (frontend) | Frontend/CI | `frontend/package.json`, `tsconfig.json`, … | T-PLT-03 | frontend-dev | L | Sí | ◐ en revisión (falta reviewer/PR) |
 | T-PLT-28 | Auditoría de dependencias + Dependabot | AC-PLT-26 | CI | `scripts/audit_deps.py`, `.github/dependabot.yml` | T-PLT-27 | backend-dev | L | Sí | ◐ en revisión (falta reviewer/PR) |
 | T-PLT-29 | Pre-commit de eslint/prettier | — (RF-PLT-12) | Infra | `scripts/precommit_frontend.py` | T-PLT-04, T-PLT-27 | frontend-dev | M | Sí | ☐ |
-| T-PLT-30 | Base visual: tokens, tema, estados de carga | AC-PLT-28 (parcial), AC-PLT-22 (FE) | UI | `src/lib/{design-tokens,theme,query-client}.ts`, `src/components/*` | T-PLT-21, T-PLT-27 | frontend-dev | L | Sí | ☐ |
+| T-PLT-30 | Base visual: tokens, tema, estados de carga | AC-PLT-28 (parcial), AC-PLT-22 (FE) | UI | `src/lib/{design-tokens,theme,query-client}.ts`, `src/components/*` | T-PLT-21, T-PLT-27 | frontend-dev | L | Sí | ◐ en revisión (falta reviewer/PR) |
 | T-PLT-31 | Shell `(dashboard)` + Inicio | AC-PLT-28 | UI | `src/components/shell/*`, `app/(dashboard)/inicio/*` | T-PLT-30 | frontend-dev | L | No | ☐ |
 | T-PLT-32 | Configuración (secciones deshabilitadas) | AC-PLT-28 | UI | `app/(dashboard)/configuracion/*`, `src/modules/settings/*` | T-PLT-31 | frontend-dev | M | No | ☐ |
 | T-PLT-33 | BFF pass-through con `X-Request-ID` | AC-PLT-10, AC-PLT-09 (BFF) | BFF | `app/api/[...path]/route.ts`, `src/lib/server/*` | T-PLT-27 | frontend-dev | L | No (reviewer recomendado) | ◐ en revisión (falta reviewer/PR) |
