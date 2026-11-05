@@ -7,8 +7,9 @@
     "dev": "next dev",
     "build": "next build",
     "lint": "eslint . --max-warnings 0",
-    "format:check": "prettier --check --ignore-path ../.gitignore \"**/*.{ts,tsx,mts,mjs,json,css}\"",
+    "format:check": "prettier --check --ignore-path ../.gitignore \"**/*.{ts,tsx,mts,mjs,json,css}\" \"!src/types/**\"",
     "typecheck": "tsc --noEmit",
+    "openapi:types": "openapi-typescript ../specs/_contracts/openapi.yaml --output src/types/api.d.ts",
     "test": "vitest run"
   },
   "dependencies": {
