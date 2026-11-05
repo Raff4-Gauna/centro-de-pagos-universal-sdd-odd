@@ -184,8 +184,12 @@ def test_AC_PLT_17_migrations_job_runs_roundtrip_last() -> None:
     steps = ci_jobs()["migrations"]["steps"]
     roundtrip = [step for step in steps if step.get("name") == "check_migrations_roundtrip"]
     assert len(roundtrip) == 1
-    # Without app labels: every app under apps.*, on the job's own throwaway PostgreSQL.
-    assert roundtrip[0]["run"].strip() == "python manage.py check_migrations_roundtrip"
+    # Without app labels: every app under apps.*, on the job's own throwaway PostgreSQL, which is
+    # what --allow-data-loss confirms (reverting drops the tables).
+    assert (
+        roundtrip[0]["run"].strip()
+        == "python manage.py check_migrations_roundtrip --allow-data-loss"
+    )
     assert roundtrip[0]["working-directory"] == "backend"
     assert "continue-on-error" not in roundtrip[0]
     # After the static checks: an irreversible migration is reported before touching the DB.

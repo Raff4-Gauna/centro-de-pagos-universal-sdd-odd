@@ -493,7 +493,8 @@ jobs:
         working-directory: backend
         run: python manage.py lint_migrations
       # C-17: apply -> revert every apps.* app to zero -> reapply, on the fresh PostgreSQL service
-      # of this job (throwaway: reverting drops the tables). Fails on an irreversible migration.
+      # of this job (throwaway: reverting drops the tables, hence --allow-data-loss). Fails on an
+      # irreversible migration.
       - name: check_migrations_roundtrip
         working-directory: backend
-        run: python manage.py check_migrations_roundtrip
+        run: python manage.py check_migrations_roundtrip --allow-data-loss

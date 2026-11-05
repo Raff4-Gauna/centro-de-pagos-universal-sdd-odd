@@ -1,8 +1,10 @@
-"""``manage.py check_migrations_roundtrip [app_label ...]``: apply -> revert -> reapply (C-17).
+"""``manage.py check_migrations_roundtrip --allow-data-loss [app_label ...]``: apply -> revert ->
+reapply (C-17).
 
 On the database of the settings, which must be throwaway (CI: the fresh PostgreSQL service of
-job ``migrations``, step 8; design.md §3.2.7, AC-PLT-17): reverting to ``zero`` drops the tables
-of the checked apps and their data.
+job ``migrations``, step 8; design.md §3.2.7 and §10, AC-PLT-17), never the development one:
+reverting to ``zero`` drops the tables of the checked apps and their data. Hence the explicit
+``--allow-data-loss``: without it the command exits with 2 before opening any connection.
 
 1. Apply: ``migrate`` (without labels) or ``migrate <app>`` for each given app.
 2. Revert: ``migrate <app> zero`` for each checked app, the app whose migrations come last in the
@@ -30,6 +32,11 @@ from django.db.migrations.recorder import MigrationRecorder
 
 from apps.common.management.commands.lint_migrations import target_labels
 
+ALLOW_DATA_LOSS_REQUIRED = (
+    "check_migrations_roundtrip reverts migrations to zero and drops their tables and data: run it "
+    "only on a throwaway database and pass --allow-data-loss"
+)
+
 # What Django raises when a migration cannot be reverted (see the module docstring).
 NOT_REVERSIBLE = (IrreversibleError, NotImplementedError)
 
@@ -50,10 +57,23 @@ class Command(BaseCommand):
         parser.add_argument(
             "app_labels", nargs="*", help="Apps to check (default: every app under apps.*)."
         )
+        parser.add_argument(
+            "--allow-data-loss",
+            action="store_true",
+            help="Required: confirm the database is throwaway (reverting drops tables and data).",
+        )
 
     def handle(
-        self, *args: object, app_labels: list[str], verbosity: int, **options: object
+        self,
+        *args: object,
+        app_labels: list[str],
+        verbosity: int,
+        allow_data_loss: bool,
+        **options: object,
     ) -> None:
+        # Before anything that connects: the executor already reads the applied migrations.
+        if not allow_data_loss:
+            raise CommandError(ALLOW_DATA_LOSS_REQUIRED, returncode=2)
         executor = MigrationExecutor(connections[DEFAULT_DB_ALIAS])
         graph = executor.loader.graph
         candidates = target_labels(app_labels)

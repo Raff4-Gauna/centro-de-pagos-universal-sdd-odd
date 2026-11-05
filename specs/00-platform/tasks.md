@@ -1229,10 +1229,13 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
 - **Backlog de T-PLT-23 tomado:** (3) los tests de AC-PLT-17 corren siempre con etiqueta (`good_reversible`,
   `bad_irreversible`) y el test de ida y vuelta verifica que ninguna otra sintética aparezca. (1) design §3.2.7 dice
   ahora "`RunPython` junto a cualquier operación que no sea `RunPython`; varios `RunPython` juntos se aceptan".
-- **Punto abierto para el planner:** la fila "Migraciones" de design §10 corre `check_migrations_roundtrip` con
-  `DC exec backend`, o sea sobre la BD de desarrollo: hoy no hay migraciones propias, pero cuando las haya revertir a
-  `zero` borra sus tablas y datos. Decidir si esa fila apunta a una BD descartable o si el comando exige una marca
-  explícita (no se inventó ninguna guarda).
+- **Decisión del planner (punto abierto de la implementación):** la fila "Migraciones" de design §10 corría
+  `check_migrations_roundtrip` con `DC exec backend`, sobre la BD de desarrollo. Ahora el comando exige
+  `--allow-data-loss`; sin el flag sale con exit 2 y un mensaje claro antes de abrir conexión (no aplica ni revierte
+  nada). El job `migrations` lo pasa (BD descartable del servicio). design §10.2 indica correr la ida y vuelta solo
+  contra una BD descartable (`-e DATABASE_URL=…/hub_roundtrip` o el job de CI), nunca la de desarrollo. Tests:
+  `test_AC_PLT_17_roundtrip_without_allow_data_loss_exits_2_before_connecting` (en proceso, sin acceso a BD) y
+  `test_AC_PLT_17_roundtrip_without_flag_applies_and_reverts_nothing` (`django_migrations` igual antes y después).
 
 ### T-PLT-25 — Imagen Docker del backend
 - **AC:** AC-PLT-25 (backend, estático). RNF-PLT-01, RN-PLT-14, D-05. **Zona roja:** sí (`scripts/tests/`).

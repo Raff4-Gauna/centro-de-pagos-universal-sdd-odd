@@ -40,6 +40,8 @@ def forwards(apps: object, schema_editor: object) -> None:
     """Placeholder data step: the rules never run the code."""
 
 
+# Destructive (reverts to zero): every run on hub_synthetic confirms it is throwaway.
+ROUNDTRIP = ("check_migrations_roundtrip", "--allow-data-loss")
 RUN_PYTHON_NO_REVERSE = migrations.RunPython(forwards)
 RUN_SQL_NO_REVERSE = migrations.RunSQL("UPDATE gizmo SET name = lower(name)")
 RUN_PYTHON_ERROR = irreversible_problem(RUN_PYTHON_NO_REVERSE)
@@ -146,6 +148,14 @@ def test_AC_PLT_17_revert_failure_becomes_command_error(
     assert expected in str(raised.value)
 
 
+def test_AC_PLT_17_roundtrip_without_allow_data_loss_exits_2_before_connecting() -> None:
+    """In-process, where pytest-django blocks database access: the refusal opens no connection."""
+    with pytest.raises(CommandError) as raised:
+        roundtrip_module.Command().handle(app_labels=[], verbosity=1, allow_data_loss=False)
+    assert raised.value.returncode == 2
+    assert "--allow-data-loss" in str(raised.value)
+
+
 # --- Commands (subprocess: settings_synthetic on hub_synthetic) -----------------------------------
 
 
@@ -162,13 +172,20 @@ def query(statement: str, *params: str) -> list[tuple[Any, ...]]:
         return connection.execute(statement, params).fetchall()
 
 
+def recorded_migrations() -> list[tuple[Any, ...]] | None:
+    """Every row of ``django_migrations`` on ``hub_synthetic`` (None while the table is absent)."""
+    if query("SELECT to_regclass('django_migrations')") == [(None,)]:
+        return None
+    return query("SELECT app, name, applied FROM django_migrations ORDER BY id")
+
+
 @pytest.mark.integration
 def test_AC_PLT_17_runpython_without_reverse_fails(run_manage: RunDjango) -> None:
     lint = run_manage("lint_migrations", "bad_irreversible")
     assert lint.returncode == 1, output(lint)
     assert f"bad_irreversible.0004_seed_items: {RUN_PYTHON_ERROR}" in lint.stdout
 
-    roundtrip = run_manage("check_migrations_roundtrip", "bad_irreversible")
+    roundtrip = run_manage(*ROUNDTRIP, "bad_irreversible")
     assert roundtrip.returncode == 1, output(roundtrip)
     # Django refuses before touching the database: the last migration is a top-level RunPython.
     assert "revert bad_irreversible: IrreversibleError" in roundtrip.stderr
@@ -205,7 +222,7 @@ def test_AC_PLT_17_reversible_migration_passes_lint(run_manage: RunDjango) -> No
 
 @pytest.mark.integration
 def test_AC_PLT_17_reversible_migration_roundtrips_on_disposable_db(run_manage: RunDjango) -> None:
-    result = run_manage("check_migrations_roundtrip", "good_reversible")
+    result = run_manage(*ROUNDTRIP, "good_reversible")
 
     assert result.returncode == 0, output(result)
     assert "Round trip passed for 1 app(s): good_reversible" in result.stdout
@@ -237,7 +254,7 @@ def test_AC_PLT_17_reversible_migration_roundtrips_on_disposable_db(run_manage: 
 @pytest.mark.integration
 def test_AC_PLT_17_default_run_reverts_only_apps_modules(run_manage: RunDjango) -> None:
     """Without labels (as CI runs it) the whole project is migrated but only ``apps.*`` reverted."""
-    result = run_manage("check_migrations_roundtrip")
+    result = run_manage(*ROUNDTRIP)
 
     assert result.returncode == 0, output(result)
     assert "Round trip passed for 0 app(s): none with migrations" in result.stdout
@@ -245,8 +262,23 @@ def test_AC_PLT_17_default_run_reverts_only_apps_modules(run_manage: RunDjango) 
 
 
 @pytest.mark.integration
+def test_AC_PLT_17_roundtrip_without_flag_applies_and_reverts_nothing(
+    run_manage: RunDjango,
+) -> None:
+    before = recorded_migrations()
+    result = run_manage("check_migrations_roundtrip", "good_reversible")
+
+    assert result.returncode == 2, output(result)
+    assert roundtrip_module.ALLOW_DATA_LOSS_REQUIRED in result.stderr
+    assert "Applying" not in output(result)
+    assert "Unapplying" not in output(result)
+    assert "Traceback" not in output(result)
+    assert recorded_migrations() == before
+
+
+@pytest.mark.integration
 def test_AC_PLT_17_unknown_app_label_fails(run_manage: RunDjango) -> None:
-    result = run_manage("check_migrations_roundtrip", "no_such_app")
+    result = run_manage(*ROUNDTRIP, "no_such_app")
 
     assert result.returncode == 1, output(result)
     assert "No installed app with label 'no_such_app'" in result.stderr
@@ -258,7 +290,7 @@ def test_AC_PLT_17_real_apps_roundtrip(run_django: RunDjango, synthetic_db: str)
     values = {**subprocess_values(), "DATABASE_URL": synthetic_url()}
     result = run_django(
         "manage.py",
-        "check_migrations_roundtrip",
+        *ROUNDTRIP,
         settings_module="config.settings.test",
         values=values,
     )
