@@ -1,0 +1,156 @@
+# Dev stack (T-PLT-26, design.md §3.4.1, RN-PLT-01, RF-PLT-02, D-04, D-05). From the repo root:
+#   docker compose -f infra/docker-compose.yml --env-file .env up -d --build --wait
+# Paths are relative to this file. How to use it, recreate the database and hot reload on
+# Windows: infra/README.md. The frontend service arrives with T-PLT-36.
+#
+# Environment (D-04, RN-PLT-04): no env_file. Compose interpolates from the --env-file, but only
+# the variables listed under `environment:` enter a container; anything else in .env (spike keys
+# included) stays out. Required ones use the `:?` form and stop `up` naming the variable;
+# optional ones use `:-` with an empty default, which the settings treat as unset.
+#
+# db and redis: the same tag@sha256 (digest of the multi-arch index) as the services of the CI
+# `tests` job in .github/workflows/ci.yml; when one changes, both files change in the same commit.
+
+name: centro-pagos
+
+x-backend-environment: &backend-environment
+  DJANGO_SETTINGS_MODULE: config.settings.dev
+  # dev.py defaults DEBUG to false; the dev stack turns it on here, on purpose.
+  DJANGO_DEBUG: "true"
+  DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?falta DJANGO_SECRET_KEY en .env}
+  # Container host names: db and redis (see infra/README.md).
+  DATABASE_URL: ${DATABASE_URL:?falta DATABASE_URL en .env}
+  REDIS_URL: ${REDIS_URL:?falta REDIS_URL en .env}
+  # Must keep localhost: the backend healthcheck calls http://localhost:8000/readyz.
+  DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-}
+  LOG_LEVEL: ${LOG_LEVEL:-}
+  APP_VERSION: ${APP_VERSION:-}
+  API_THROTTLE_ANON_RATE: ${API_THROTTLE_ANON_RATE:-}
+  TRUSTED_PROXY_COUNT: ${TRUSTED_PROXY_COUNT:-}
+  # The source is bind-mounted from the host: no root-owned __pycache__ in the host tree.
+  PYTHONDONTWRITEBYTECODE: "1"
+
+services:
+  db:
+    image: postgres:17.11-trixie@sha256:3b0cda93be7c8dba2ed484d19393d93845dc3dafb88973e248ba8e6d99d784e1
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?falta POSTGRES_USER en .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?falta POSTGRES_PASSWORD en .env}
+      POSTGRES_DB: ${POSTGRES_DB:?falta POSTGRES_DB en .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      # Over TCP (-h), like the CI job: during initdb the entrypoint runs a temporary server on
+      # the Unix socket only, which a socket probe would report as ready too early.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+  redis:
+    image: redis:7.4.12-bookworm@sha256:b6b6e3dc0c0952737748e55d5d885272840c7e42ba41ab1d5489f693419882f5
+    # Broker and cache only: nothing to persist (no RDB snapshots, no AOF).
+    command: redis-server --save "" --appendonly no
+    healthcheck:
+      # Only a real PONG counts (a LOADING or auth error also exits 0 from redis-cli).
+      test: ["CMD-SHELL", "redis-cli ping | grep -q PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+  backend:
+    build:
+      context: ../backend
+      target: dev
+    image: centro-pagos-backend:dev
+    environment: *backend-environment
+    # Migrations run here and only here; worker and beat start after this service is healthy.
+    # --reload-engine poll: a bind mount from Windows delivers no inotify events.
+    command:
+      - sh
+      - -c
+      - >-
+        python manage.py migrate --noinput && exec gunicorn -c config/gunicorn.conf.py
+        --reload --reload-engine poll config.wsgi
+    volumes:
+      - ../backend:/repo/backend
+      - ../specs/_contracts:/repo/specs/_contracts
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      # urlopen raises on a 503: healthy only while /readyz (PostgreSQL + Redis) answers 200.
+      test:
+        - CMD
+        - python
+        - -c
+        - >-
+          import sys, urllib.request;
+          sys.exit(urllib.request.urlopen("http://localhost:8000/readyz", timeout=2).status != 200)
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 30s
+
+  worker:
+    image: centro-pagos-backend:dev
+    environment: *backend-environment
+    # No migrate (backend runs it). No hot reload: `docker compose restart worker beat`.
+    command: ["celery", "-A", "config", "-q", "worker", "-l", "INFO", "--concurrency", "2"]
+    volumes:
+      - ../backend:/repo/backend
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    healthcheck:
+      # The default node name is celery@<container hostname>.
+      test: ["CMD-SHELL", "celery -A config inspect ping -d celery@$$HOSTNAME --timeout 5"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  beat:
+    image: centro-pagos-backend:dev
+    environment: *backend-environment
+    # One scheduler only: a second beat would enqueue every periodic task twice. The schedule
+    # lives in the container's own filesystem: never in the bind-mounted tree, gone when the
+    # container is recreated. Not a tmpfs: dbm.gnu writes through mmap, and on a tmpfs those writes
+    # never update the mtime that the healthcheck reads (T-PLT-26).
+    deploy:
+      replicas: 1
+    command:
+      - sh
+      - -c
+      - >-
+        mkdir -p /tmp/beat && exec celery -A config -q beat -l INFO
+        --schedule /tmp/beat/schedule --max-interval 60
+    volumes:
+      - ../backend:/repo/backend
+    depends_on:
+      redis:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    healthcheck:
+      # Healthy while beat keeps writing its schedule (mtime < 300 s; apps/common/health/beat_alive.py).
+      test: ["CMD", "python", "-m", "apps.common.health.beat_alive", "--schedule", "/tmp/beat/schedule"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 90s
+
+volumes:
+  pgdata:
