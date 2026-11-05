@@ -1190,6 +1190,13 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
 - **Verificación manual (dueño, Windows 11 + Docker Desktop, con un `.env` propio):** `up -d --build --wait` → 5
   servicios `healthy`, `/healthz` 200; `stop redis` → `/readyz` 503, `/healthz` 200, worker reintenta logueando;
   al volver Redis todo `healthy`; hot-reload del backend al editar un `.py`.
+- **Revisión (aprobada, sin bloqueantes). Para después:** (1) design §3.4.1, fila `beat`: la columna de healthcheck
+  dice `beat_max_loop_interval=60` y el ajuste de T-PLT-26 dice `--max-interval 60` por línea de comando: alinear la
+  celda. (2) `beat_alive.py`: un mtime en el futuro da antigüedad negativa y el check pasa sin límite (riesgo teórico,
+  mismo reloj); rechazar antigüedades negativas. (3) El test de subproceso "nothing secret" solo busca `"schedule"`:
+  exigir una línea con el formato esperado. (4) El log del worker muestra la URL del broker (hoy sin contraseña; kombu
+  la enmascara): confirmarlo cuando Redis tenga auth (C-16). (5) Verificación manual del dueño pendiente (con su
+  `.env`): hot-reload al editar un `.py`.
 
 ### T-PLT-27 — Frontend: proyecto Next + toolchain + CI frontend
 - **AC:** AC-PLT-21 (frontend). RN-PLT-11, RN-PLT-14 (pnpm), Q-059 (MUI 9.5.0). **Zona roja:** sí.
