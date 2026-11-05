@@ -60,7 +60,7 @@ Reglas: rebanada vertical · ≤ ~300 líneas de diff · mergeable sola · cita 
 | T-PLT-13 | Log de acceso (plantilla de ruta, `duration_ms`) | AC-PLT-07 | Backend | `middleware/access_log.py` | T-PLT-12 | backend-dev | M | No (reviewer recomendado) | ◐ en revisión (falta reviewer/PR) |
 | T-PLT-14 | Redacción de secretos en logs | AC-PLT-08 | Backend | `apps/common/domain/redaction.py` | T-PLT-13 | backend-dev | M | No (reviewer recomendado) | ◐ en revisión (falta reviewer/PR) |
 | T-PLT-15 | Errores `problem+json` | AC-PLT-34 | Backend/API | `apps/common/api/{problems,exceptions}.py` | T-PLT-12 | backend-dev | L | Sí | ◐ en revisión (falta reviewer/PR) |
-| T-PLT-16 | Throttling DRF con Redis | AC-PLT-30 | Backend/API | `apps/common/api/throttling.py` | T-PLT-11, T-PLT-15 | backend-dev | M | No | ☐ |
+| T-PLT-16 | Throttling DRF con Redis | AC-PLT-30 | Backend/API | `apps/common/api/throttling.py` | T-PLT-11, T-PLT-15 | backend-dev | M | No | ◐ en revisión (falta reviewer/PR) |
 | T-PLT-17 | Celery + tarea de diagnóstico con `request_id` | AC-PLT-11 | Backend | `config/celery.py`, `apps/common/celery_signals.py` | T-PLT-11, T-PLT-12 | backend-dev | L | No (reviewer recomendado) | ◐ en revisión (falta reviewer/PR) |
 | T-PLT-18 | Contrato OpenAPI commiteado + `--check` | AC-PLT-23 (backend) | API/Contrato | `export_openapi.py`, `specs/_contracts/openapi.yaml` | T-PLT-15 | backend-dev | M | Sí | ◐ en revisión (falta reviewer/PR) |
 | T-PLT-19 | Tests de arquitectura C-09 y C-01 + job | AC-PLT-14, AC-PLT-15 | Arquitectura/CI | `backend/tests/architecture/` | T-PLT-08 | backend-dev | L | Sí | ◐ en revisión (falta reviewer/PR) |
@@ -757,6 +757,30 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   `test_AC_PLT_30_429_body_is_problem_json_throttled`, `test_AC_PLT_30_rate_read_from_settings_at_runtime`,
   `test_AC_PLT_30_counts_in_redis` (integration), `test_D06_throttle_fails_open_when_redis_down`,
   `test_RN_PLT_17_health_not_throttled`.
+- **Hecho (commit `feat(api)`):** `throttling.py`: `HubAnonRateThrottle(AnonRateThrottle)`, `get_rate()` lee
+  `settings.API_THROTTLE_ANON_RATE` en cada request; `allow_request` atrapa `RedisError`/`OSError` → deja pasar y
+  loguea `WARNING throttle.cache_unavailable` con `scope` y `error_type` (nunca el mensaje, C-06). `Request`/`APIView`
+  solo bajo `TYPE_CHECKING`: `rest_framework.views` importa `DEFAULT_THROTTLE_CLASSES` (este módulo) al cargarse.
+  `base.py`: `DEFAULT_THROTTLE_CLASSES` y `NUM_PROXIES=0` (el `None` de DRF confiaría en cualquier
+  `X-Forwarded-For`); sin `DEFAULT_THROTTLE_RATES` (la tasa se lee en runtime). `env.py`: `API_THROTTLE_ANON_RATE`
+  (default `300/min`, `<n≥1>/<s|sec|m|min|h|hour|d|day>`, error `throttle_rate_format`) y `TRUSTED_PROXY_COUNT`
+  (int ≥ 0, default 0). `CACHES` ya existía (T-PLT-08: `RedisCache` en dev/prod con `CACHE_KEY_PREFIX="hub"`,
+  `LocMemCache` en test): se reusa sin cambios. Tests extra: throttle por defecto de DRF, `X-Forwarded-For`
+  falsificado no reinicia la cuenta, default `300/min`, variables inválidas no arrancan. El contrato OpenAPI no
+  cambia (`paths: {}`; `--check` en verde). **Scope drift (menor, reportado):** `dev.py` y `prod.py` no estaban en
+  la lista pero son los únicos que pueden pasar el entorno validado a settings (base no lee el entorno): +2 líneas
+  cada uno (`API_THROTTLE_ANON_RATE`, `REST_FRAMEWORK["NUM_PROXIES"]`), idénticas a `test.py`.
+  **Para después:** (1) `.env.example` debe sumar `API_THROTTLE_ANON_RATE` y `TRUSTED_PROXY_COUNT` (T-PLT-39,
+  bloqueada por Q-048). (2) `CACHES` de dev/prod no fija `socket_timeout`/`socket_connect_timeout`: con un Redis
+  que no rechaza la conexión (host caído sin RST) el fail-open espera el timeout del sistema; conviene acotarlo
+  en `OPTIONS` (tarea de settings, fuera de esta lista).
+- **Revisión (aprobada, sin bloqueantes). Para después:** N1 = el (2) de arriba, pero como tarea con nombre antes de
+  producción, no solo una nota (si no, el fail-open se vuelve "fail-slow"). N2: con Redis caído hay un WARNING por
+  request; limitarlo si inunda el log. N3: falta un test con `TRUSTED_PROXY_COUNT>0` (N=1 toma la última IP de
+  `X-Forwarded-For`, no la primera); sumarlo cuando 01 defina la clave (§3.2.4). N4: con N>0 el backend no puede
+  tener ingreso directo sin pasar por el proxy (si no, el cliente controla `X-Forwarded-For`): documentarlo con el
+  hosting (Q-020). N5 (preexistente, T-PLT-15): `Retry-After` redondea `wait` hacia abajo y puede salir `0`;
+  redondear hacia arriba.
 
 ### T-PLT-17 — Celery + tarea de diagnóstico con `request_id`
 - **AC:** AC-PLT-11. RN-PLT-05, RN-PLT-07, RNF-PLT-03, Q-056. **Zona roja:** no (reviewer recomendado).

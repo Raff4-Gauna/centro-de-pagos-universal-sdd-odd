@@ -13,6 +13,7 @@ credentials are ``SecretStr``/``Secret[...]``, masked in ``repr``, ``str`` and `
 from __future__ import annotations
 
 import os
+import re
 from collections.abc import Collection
 from typing import Annotated, Any, Literal
 from urllib.parse import unquote
@@ -79,11 +80,23 @@ def _django_postgres_dsn(value: PostgresDsn) -> PostgresDsn:
     return value
 
 
+# DRF's "<requests>/<period>" (design.md §3.2.4); DRF only reads the period's first letter.
+_THROTTLE_RATE = re.compile(r"[1-9][0-9]*/(s|sec|m|min|h|hour|d|day)")
+
+
+def _throttle_rate(value: str) -> str:
+    """``300/min``-like: a typo such as ``300/mni`` or ``0/min`` must not start."""
+    if not _THROTTLE_RATE.fullmatch(value):
+        raise PydanticCustomError("throttle_rate_format", "expected <requests>/<s|min|h|day>")
+    return value
+
+
 EnvBool = Annotated[bool, BeforeValidator(_strict_bool)]
 # NoDecode: pydantic-settings would otherwise parse a list variable as JSON.
 CsvList = Annotated[list[str], NoDecode, BeforeValidator(_csv)]
 NonEmptyStr = Annotated[str, Field(min_length=1)]
 DjangoPostgresDsn = Annotated[PostgresDsn, AfterValidator(_django_postgres_dsn)]
+ThrottleRate = Annotated[str, AfterValidator(_throttle_rate)]
 
 
 class PlatformEnv(BaseSettings):
@@ -109,6 +122,12 @@ class PlatformEnv(BaseSettings):
     APP_VERSION: NonEmptyStr = "unknown"
     # Root level of the JSON logs (design.md §3.2.3); exactly one of these, upper case.
     LOG_LEVEL: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
+    # Global throttle for anonymous clients (RN-PLT-19, Q-038): generous on purpose.
+    API_THROTTLE_ANON_RATE: ThrottleRate = "300/min"
+    # Proxies in front of the backend that append to X-Forwarded-For (DRF's NUM_PROXIES). 0: the
+    # throttle keys on REMOTE_ADDR and ignores the header, which any client can forge. Set with the
+    # hosting (Q-020).
+    TRUSTED_PROXY_COUNT: Annotated[int, Field(ge=0)] = 0
 
     @classmethod
     def settings_customise_sources(
