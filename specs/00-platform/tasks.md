@@ -1133,6 +1133,15 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   cambia el `sys.stderr` del worker por `StderrToLog` (cada línea, evento `process.stderr` JSON redactado). Test en
   `backend/tests/logging/test_RN_PLT_05_gunicorn_logging.py` (archivo sumado; el de arranque real se saltea en
   Windows, corre en CI y en la imagen `dev`). `dev` queda como root a propósito (bind mount del host).
+- **Revisión (aprobada, sin bloqueantes). Para después:** (1) `StderrToLog` (`config/gunicorn.conf.py`): la guarda
+  y `_pending` son por instancia, no por hilo; con varios hilos (`--reload`, futuro `gthread`) se pierden líneas o se
+  separa una clave de su valor (`password=` / valor en otra línea, que la redacción por clave no tapa):
+  `threading.local` + `threading.Lock`. (2) `StderrToLog` no tiene `fileno()`: `faulthandler.enable()` sin argumento
+  fallaría; delegar a `sys.__stderr__.fileno()` o documentarlo. (3) El stderr del master queda sin cubrir (errores de
+  config/arranque y recarga por SIGHUP, sin datos de requests): documentarlo como límite conocido. (4) `pip` de la
+  imagen base sigue en `runtime` (no puede instalar: el venv es de root); quitarlo es opcional. (5) El comentario de
+  `.github/dependabot.yml:34-35` quedó viejo (`/backend` ya existe). (6) El "`id -u` ≠ 0" de la imagen construida solo
+  se verificó a mano hasta que exista el job `build` (T-PLT-37).
 
 ### T-PLT-26 — Compose de desarrollo (db, redis, backend, worker, beat)
 - **AC:** AC-PLT-01 (parcial: 5 servicios), AC-PLT-02 (manual). RN-PLT-01, RF-PLT-02, RNF-PLT-05, D-04, D-05.
