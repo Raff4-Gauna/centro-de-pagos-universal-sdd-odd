@@ -65,7 +65,7 @@ Reglas: rebanada vertical · ≤ ~300 líneas de diff · mergeable sola · cita 
 
 ## Resumen
 
-> Conciliado con `git log` el 2026-11-06: las 42 tareas mergeadas (`✅`). Mergeada no es aplicada: el ruleset de T-PLT-40 está versionado y sin aplicar.
+> Conciliado con `git log` el 2026-11-06: las 42 tareas mergeadas (`✅`). El ruleset de T-PLT-40 se aplicó el 2026-11-06 (id `26732747`).
 > La columna **Evidencia** es obligatoria para `✅` y la verifica `scripts/check_spec_state.py`.
 
 | ID | Título | AC | Capa | Archivos esperados (ver detalle) | Depende de | Agente | Tamaño | Zona roja | Estado | Evidencia |
@@ -1838,7 +1838,7 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   una vez); `python scripts/verify_repo_protection.py` con `GH_TOKEN` de admin propio → 0; PR de sacrificio con un error
   de lint → `lint` rojo, `build` no corre y el PR figura no mergeable.
 - **Nota (merge, 2026-11-06):** #55 lo mergeó Claude como excepción puntual a Q-057, autorizada por el dueño
-  (comentario en #55). Ese merge solo agrega archivos: el ruleset **no está aplicado** (`GET /rulesets` → `[]`), y
+  (comentario en #55). Ese merge solo agrega archivos: en ese momento el ruleset no estaba aplicado; se aplicó después, el mismo día, y
   aplicarlo sigue siendo solo del dueño.
 
 ### T-PLT-42 — BFF: `X-Forwarded-Proto: https` hacia el backend
@@ -1874,8 +1874,8 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   Ampliación decidida por la sesión principal, no por el dueño. También suma el comando del ruleset en
   `infra/README.md`, sin probar, y el paso 5 de "Cierre de sesión" de `AGENTS.md`. (2) La ficha
   depende de T-PLT-40, que entró antes de este merge (#55, `49a9f91`): `verify_repo_protection.py` ya existe y su fila
-  de `AGENTS.md` no dice "pendiente", pero el comando sigue sin probarse contra GitHub porque el ruleset no está
-  aplicado. (3)
+  de `AGENTS.md` no dice "pendiente", pero el comando no se probó contra GitHub en esta tarea: el ruleset
+  se aplicó después. (3)
   **Comandos corregidos al probarlos:** `pnpm --dir frontend …` da `ERR_PNPM_BAD_PM_VERSION` bajo corepack; `exec backend
   mypy . ../scripts` y `exec frontend pnpm openapi:types` fallan porque `scripts/` y el contrato no están montados. (4)
   **Límites que quedan en `pytest` del contenedor:** dos tests leen `.github/` y fallan siempre ahí; pasan en CI. (5)

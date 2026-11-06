@@ -4,7 +4,8 @@
 - **Intención:** cerrar lo que quedó fuera de las fichas de 00 y alinear `main.json` con el ruleset aplicado.
 - **Alcance esperado:** `.github/rulesets/main.json`, `.github/workflows/{ci,zona-roja}.yml`,
   `scripts/precommit_frontend.py` y su test, `.claude/commands/handoff.md`, `.claude/agents/reviewer.md`,
-  `.claude/skills/{reviewer-verdict,sdd-verification}/SKILL.md`, `specs/00-platform/{spec.sdd,design}.md`, este worklog.
+  `.claude/skills/{reviewer-verdict,sdd-verification}/SKILL.md`, `specs/00-platform/{spec.sdd,design,tasks,verification,clarifications}.md`,
+  `context/11-estado-actual.md`, `README.md`, este worklog.
 - **Cómo se verifica:** `reviewer` sin bloqueantes; `verify_repo_protection.py` en 0 tras el merge.
 
 ## Qué se hizo

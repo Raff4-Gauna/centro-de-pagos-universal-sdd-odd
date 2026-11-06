@@ -504,7 +504,7 @@ del host y del contenedor están separados (volumen), así que los binarios nati
    quita el prefijo, excluye `src/types/`, llama a `pnpm exec` con `frontend/` como directorio de trabajo: con
    corepack, `pnpm --dir frontend` desde la raíz arranca la versión por defecto de corepack y pnpm la rechaza con
    `ERR_PNPM_BAD_PM_VERSION`, porque la raíz no tiene `package.json`). En Windows pnpm es un shim `.cmd`: cada
-   argumento va entre comillas y un argumento con `"` o `%` da exit 2. Riesgo conocido: cmd.exe rechaza más de 8191
+   argumento va entre comillas y un argumento con `"`, `%` o un salto de línea da exit 2. Riesgo conocido: cmd.exe rechaza más de 8191
    caracteres y el hook falla (nunca da verde) cuando las rutas de `--all-files` superen ese largo.
 5. `gitleaks` v8.30.1 (staged, `--redact`, `--ignore-gitleaks-allow`).
 

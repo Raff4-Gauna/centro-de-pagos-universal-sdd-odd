@@ -3,7 +3,7 @@ spec: SPEC-00
 fecha: 2026-11-06
 resultado: Con hallazgos     # Aprobada | Con hallazgos | Rechazada
 verificado_por: project-steward (cobertura) + qa-verifier (ejecución pendiente)
-version_spec: 1.0.20
+version_spec: 1.0.21
 ---
 
 # Verificación — Módulo de Plataforma (SPEC-00)
@@ -102,7 +102,7 @@ version_spec: 1.0.20
 8. `DC exec backend python manage.py export_openapi --check` → sin diff.
 9. `pre-commit run --all-files` → verde (hasta hoy solo hay evidencia con `SKIP=gitleaks`, ver §2).
 10. Aplicar ruleset y ajustes con los pasos de `infra/README.md`.
-11. `python scripts/verify_repo_protection.py` con `GH_TOKEN` de admin → exit 0. Hoy no puede dar 0: no hay ruleset.
+11. `python scripts/verify_repo_protection.py` con `GH_TOKEN` de admin → exit 0. Hecho el 2026-11-06, ver AC-PLT-24.
 12. PR de prueba con un error de lint → `lint` rojo, `build` no corre y el PR figura no mergeable.
 
 ## 5. Revisión de código (reviewer)
@@ -122,8 +122,8 @@ La revisión por tarea no quedó registrada igual en todos los PR. #4 a #40 no t
 3. `README.md` y `AGENTS.md` decían que no había código.
 4. Faltaba el archivo de ejemplo de entorno (Q-048, cerrada: `env.example` entró con T-PLT-39, #45). `.vscode/` sigue
    sin política.
-5. El pipeline está completo, con el smoke como último paso de `build`: 10 jobs de `ci.yml` + `zona-roja`. Nada los
-   exige todavía: el ruleset está versionado y sin aplicar.
+5. El pipeline está completo, con el smoke como último paso de `build`: 10 jobs de `ci.yml` + `zona-roja`. El ruleset los
+   exige desde el 2026-11-06.
 6. No había ningún mecanismo que detectara el drift: se agrega `scripts/check_spec_state.py`.
 7. Cinco tareas mergeadas (#42, #43, #45, #46, #47) quedaron `🟡` en `tasks.md`: sus PR no llevaron la fila a `✅`
    (regla 1 de estados). Conciliado el 2026-11-06.
