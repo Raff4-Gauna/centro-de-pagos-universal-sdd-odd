@@ -5,7 +5,8 @@
 # When a hook rewrites a file the commit stops: review the change, `git add` it and commit again.
 # Remote repos are pinned by commit SHA (the tag in the comment); update with
 # `pre-commit autoupdate --freeze`. Every hook skips context/legacy-source/ (read-only evidence,
-# Q-055) except gitleaks, which scans it too. eslint/prettier for frontend/ arrive with T-PLT-29.
+# Q-055) except gitleaks, which scans it too. eslint/prettier use the host's Node 24 + pnpm, after
+# `pnpm install` in frontend/ (Q-060): without pnpm those two hooks fail instead of skipping.
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: 3e8a8703264a2f4a69428a0aa4dcb512790b2c8c # frozen: v6.0.0
@@ -17,7 +18,15 @@ repos:
         exclude: *legacy
       - id: trailing-whitespace
         exclude: ^context/legacy-source/|\.md$
+      # Two instances, so the relaxed one reaches only the two files that need it: the lockfile
+      # has two documents (pnpm 12) and the CI override uses Compose's `!reset` tag.
       - id: check-yaml
+        exclude: ^context/legacy-source/|^frontend/pnpm-lock\.yaml$|^infra/docker-compose\.ci\.yml$
+      # --unsafe only parses: it accepts both, but also duplicate keys. Never on the whole repo.
+      - id: check-yaml
+        name: check yaml (syntax only)
+        args: [--unsafe]
+        files: ^(frontend/pnpm-lock\.yaml|infra/docker-compose\.ci\.yml)$
         exclude: *legacy
       - id: check-toml
         exclude: *legacy
@@ -53,6 +62,20 @@ repos:
         entry: python scripts/check_file_size.py
         language: python
         types_or: [python, ts, tsx, jsx]
+        exclude: *legacy
+      # RF-PLT-12: the checks of the CI job lint, on the staged frontend files; the script drops
+      # what each tool does not cover and src/types/ (generated).
+      - id: eslint
+        name: eslint (frontend)
+        entry: python scripts/precommit_frontend.py eslint
+        language: system
+        files: ^frontend/
+        exclude: *legacy
+      - id: prettier
+        name: prettier (frontend)
+        entry: python scripts/precommit_frontend.py prettier
+        language: system
+        files: ^frontend/
         exclude: *legacy
 
   - repo: https://github.com/gitleaks/gitleaks
