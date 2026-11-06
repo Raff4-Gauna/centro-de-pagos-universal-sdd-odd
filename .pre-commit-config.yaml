@@ -19,6 +19,7 @@ repos:
       - id: trailing-whitespace
         exclude: ^context/legacy-source/|\.md$
       - id: check-yaml
+        args: [--allow-multiple-documents]
         exclude: *legacy
       - id: check-toml
         exclude: *legacy

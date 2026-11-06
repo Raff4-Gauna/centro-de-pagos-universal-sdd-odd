@@ -46,4 +46,3 @@ aparece uno nuevo. La spec `00-platform` **no** se marca `Verified`: falta el OK
   para considerar mergeada una tarea; reportar filas cuyo ID no calza; exigir un solo símbolo de estado por celda;
   buscar el ID del AC con límite de palabra y fuera de comentarios; `SHA_RE` no debe aceptar `#1234567`; 🧪 debe
   exigir que todos sus AC estén ✔; renombrar `test_corpus`; engancharlo en el job `lint`.
-
