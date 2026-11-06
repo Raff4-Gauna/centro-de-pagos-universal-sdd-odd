@@ -91,9 +91,10 @@ recargan solos: `docker compose -f infra/docker-compose.yml --env-file .env rest
 - **Imagen** (`design.md §3.4.2`): `deps` instala desde `pnpm-lock.yaml` con las mismas flags que CI
   (`--frozen-lockfile --ignore-scripts --ignore-pnpmfile`); `dev` es la que usa el Compose; `builder` corre
   `next build` con **centinelas** (valores ficticios bajo `.invalid`) en las variables solo-servidor y después
-  `scripts/check-client-bundle.ts`, que hace fallar el build si el bundle del cliente (`.next/static/**` y las
-  páginas prerenderizadas `.html`/`.rsc`) contiene un centinela, el nombre de una variable solo-servidor o una
-  referencia `env.NOMBRE` que no sea `NEXT_PUBLIC_` (AC-PLT-29); `runtime` es solo `.next/standalone` +
+  `scripts/check-client-bundle.ts`, que hace fallar el build si lo que llega al navegador (`.next/static/**` y lo
+  prerenderizado: `.html`, `.rsc`, `.body`, `.meta`) contiene un centinela o su hostname, el nombre de una variable
+  solo-servidor o una referencia `env.NOMBRE` que no sea `NEXT_PUBLIC_` (AC-PLT-29; es una búsqueda de texto: los
+  límites están en el encabezado del script); `runtime` es solo `.next/standalone` +
   `.next/static`, sin pnpm ni dependencias de dev, y corre como `node` (`node server.js`). A mano:
   `docker build --target runtime --build-arg GIT_SHA=<sha> frontend`.
 - **Servicio**: arranca cuando `backend` está `healthy`; al iniciar corre `pnpm install` (contra el volumen

@@ -45,8 +45,12 @@ COPY . .
 # that the check finds it if the build ever inlines it into client code. The BFF reads the real
 # value at runtime (src/lib/server/env.ts); this stage is never shipped.
 ENV BACKEND_INTERNAL_URL=http://bundle-sentinel-backend-internal-url.invalid:8000
+# The clean line is required, not just exit 0: an entrypoint guard that stopped matching would
+# exit 0 without checking anything.
 RUN pnpm build \
-    && node scripts/check-client-bundle.ts .next
+    && output="$(node scripts/check-client-bundle.ts .next)" \
+    && echo "$output" \
+    && echo "$output" | grep -q "^client bundle clean: "
 
 FROM node:24.22.2-trixie-slim@sha256:0820eaa85e07d0490446dd01d14707e17e6108a36988cf374899cd057eb3812d AS runtime
 # HOSTNAME: the standalone server listens on it (Docker would set it to the container id).
