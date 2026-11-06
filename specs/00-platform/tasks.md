@@ -1236,6 +1236,16 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   contra una BD descartable (`-e DATABASE_URL=…/hub_roundtrip` o el job de CI), nunca la de desarrollo. Tests:
   `test_AC_PLT_17_roundtrip_without_allow_data_loss_exits_2_before_connecting` (en proceso, sin acceso a BD) y
   `test_AC_PLT_17_roundtrip_without_flag_applies_and_reverts_nothing` (`django_migrations` igual antes y después).
+- **Revisión de 05d4468 (1 bloqueante, corregido):** una app con `migrations/` solo con `__init__.py` (lo que deja
+  `startapp`) entraba en `loader.migrated_apps` y `revert_order` caía con `ValueError: max() iterable argument is empty`:
+  la primera app nueva habría puesto `main` en rojo con un traceback. `checked` sale ahora de los nodos del grafo
+  (`graph.leaf_nodes()`); esa app se saltea. Con etiquetas y nada para revisar: exit 1 (`No migrations to check in: …`)
+  antes de aplicar nada; sin etiquetas, 0 apps sigue siendo válido. Sintética `empty_migrations` (sin modelos) y tests
+  `test_AC_PLT_17_app_with_empty_migrations_package_is_skipped`,
+  `test_AC_PLT_17_explicit_labels_with_nothing_to_check_fail` (ambos reprodujeron el `ValueError` antes del arreglo).
+  El docstring de `rules.py` deja dicho que un `reversible = True` declarado por una subclase que no puede volver atrás
+  pasa la regla y lo detecta la ida y vuelta. Mutación medida con la regla desactivada: 7 de 22 tests de
+  `test_AC_PLT_17_reversibility.py` fallan.
 
 ### T-PLT-25 — Imagen Docker del backend
 - **AC:** AC-PLT-25 (backend, estático). RNF-PLT-01, RN-PLT-14, D-05. **Zona roja:** sí (`scripts/tests/`).

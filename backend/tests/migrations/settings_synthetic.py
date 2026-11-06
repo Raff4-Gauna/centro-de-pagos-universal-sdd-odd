@@ -19,6 +19,7 @@ SYNTHETIC_APPS = [
     "tests.migrations.synthetic_apps.bad_mixed",
     "tests.migrations.synthetic_apps.good_reversible",
     "tests.migrations.synthetic_apps.bad_irreversible",
+    "tests.migrations.synthetic_apps.empty_migrations",
 ]
 
 INSTALLED_APPS = [*_TEST_INSTALLED_APPS, *SYNTHETIC_APPS]

@@ -277,6 +277,27 @@ def test_AC_PLT_17_roundtrip_without_flag_applies_and_reverts_nothing(
 
 
 @pytest.mark.integration
+def test_AC_PLT_17_app_with_empty_migrations_package_is_skipped(run_manage: RunDjango) -> None:
+    """``startapp`` leaves ``migrations/`` with only ``__init__.py``: nothing to revert there."""
+    result = run_manage(*ROUNDTRIP, "good_reversible", "empty_migrations")
+
+    assert result.returncode == 0, output(result)
+    assert "Round trip passed for 1 app(s): good_reversible" in result.stdout
+    assert "Traceback" not in output(result)
+
+
+@pytest.mark.integration
+def test_AC_PLT_17_explicit_labels_with_nothing_to_check_fail(run_manage: RunDjango) -> None:
+    """Asked for by name, zero apps is a mistake and not a pass (without labels it is valid)."""
+    result = run_manage(*ROUNDTRIP, "empty_migrations")
+
+    assert result.returncode == 1, output(result)
+    assert "No migrations to check in: empty_migrations" in result.stderr
+    assert "Round trip passed" not in output(result)
+    assert "Traceback" not in output(result)
+
+
+@pytest.mark.integration
 def test_AC_PLT_17_unknown_app_label_fails(run_manage: RunDjango) -> None:
     result = run_manage(*ROUNDTRIP, "no_such_app")
 

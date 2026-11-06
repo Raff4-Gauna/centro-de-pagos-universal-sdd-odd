@@ -13,7 +13,10 @@ reverting to ``zero`` drops the tables of the checked apps and their data. Hence
 
 Without labels the checked apps are the ones under ``apps`` that have migrations (as CI runs it);
 labels restrict both the apply and the revert to those apps, so the synthetic apps of the tests
-never mix. A migration that cannot be reverted fails with exit 1 naming the step and the app:
+never mix. An app without any migration is skipped, but labels that leave nothing to check exit
+with 1 (without labels, zero apps is valid: 00 has no migrations of its own).
+
+A migration that cannot be reverted fails with exit 1 naming the step and the app:
 ``IrreversibleError`` (``reversible is False`` at the top level) or the ``NotImplementedError`` of a
 ``RunPython``/``RunSQL`` without reverse nested in ``SeparateDatabaseAndState``. The static check of
 the same rule is ``lint_migrations``.
@@ -76,8 +79,12 @@ class Command(BaseCommand):
             raise CommandError(ALLOW_DATA_LOSS_REQUIRED, returncode=2)
         executor = MigrationExecutor(connections[DEFAULT_DB_ALIAS])
         graph = executor.loader.graph
-        candidates = target_labels(app_labels)
-        checked = sorted(label for label in candidates if label in executor.loader.migrated_apps)
+        # Nodes of the graph, not ``loader.migrated_apps``: that one also has the apps whose
+        # ``migrations/`` holds only ``__init__.py`` (what ``startapp`` leaves).
+        with_migrations = {app_label for app_label, _ in graph.leaf_nodes()}
+        checked = sorted(target_labels(app_labels) & with_migrations)
+        if app_labels and not checked:
+            raise CommandError(f"No migrations to check in: {', '.join(sorted(app_labels))}")
         # None: the whole project (``migrate`` without labels), as CI runs it.
         scope = checked if app_labels else None
 

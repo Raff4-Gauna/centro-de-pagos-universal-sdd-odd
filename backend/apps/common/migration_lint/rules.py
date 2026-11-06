@@ -10,7 +10,8 @@
   ``RunPython`` without ``reverse_code`` or a ``RunSQL`` without ``reverse_sql`` (and any custom
   operation declaring it), also nested in ``SeparateDatabaseAndState``: Django itself only checks
   the top level and fails there mid-revert. ``RunPython.noop`` / ``RunSQL.noop`` are reverses
-  and pass.
+  and pass. The rule trusts the attribute: a subclass that declares ``reversible = True`` but
+  cannot go back passes here and is caught by ``check_migrations_roundtrip``, which reverts it.
 
 Pure on the migration's name and operations: it never imports, runs nor connects anything.
 """

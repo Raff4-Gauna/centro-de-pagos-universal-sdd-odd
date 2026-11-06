@@ -270,12 +270,14 @@ no-store`, sin auth ni throttle.
 - `check_migrations_roundtrip`: `migrate` → `migrate <app> zero` por app propia con migraciones en orden inverso de
   dependencias (la app cuya última migración va más tarde en el plan, primero) → `migrate`; tras cada `zero` no queda
   ninguna migración de la app aplicada y al final todas sus hojas lo están. Con etiquetas, aplica y revierte solo
-  esas apps (`migrate <app>`), así los casos sintéticos no se mezclan. `IrreversibleError` o el
+  esas apps (`migrate <app>`), así los casos sintéticos no se mezclan. Una app sin migraciones (`migrations/` solo con
+  `__init__.py`, lo que deja `startapp`) se saltea; etiquetas que no dejan nada para revisar → exit 1 (sin etiquetas,
+  0 apps es válido). `IrreversibleError` o el
   `NotImplementedError` de un reverso faltante anidado → error (exit 1) con paso y app. BD descartable = contenedor de
   servicio nuevo del job: revertir a `zero` borra las tablas y sus datos, por eso exige `--allow-data-loss`; sin el
   flag sale con exit 2 y un mensaje claro antes de abrir conexión (no aplica ni revierte nada).
-- Sintéticos (`tests/migrations/synthetic_apps/`): `good_reversible`, `bad_irreversible`, `bad_mixed`,
-  `bad_autoname`, `missing_migration`; los comandos corren **en subproceso** con
+- Sintéticos (`tests/migrations/synthetic_apps/`): `good_reversible`, `bad_irreversible`, `empty_migrations`,
+  `bad_mixed`, `bad_autoname`, `missing_migration`; los comandos corren **en subproceso** con
   `tests.migrations.settings_synthetic` (BD `hub_synthetic` creada y borrada por el test), porque el registro de
   apps no cambia en caliente. Cobertura de subprocesos: `[tool.coverage.run] patch = ["subprocess"]`.
 - En 00 las apps reales no tienen migraciones: el job corre igual para estar activo desde el primer commit.
