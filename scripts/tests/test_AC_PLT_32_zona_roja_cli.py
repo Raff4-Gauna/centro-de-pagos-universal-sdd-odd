@@ -171,7 +171,7 @@ def test_AC_PLT_32_api_error_fails_as_not_verified(tmp_path: Path, url: str) -> 
 @pytest.mark.parametrize(
     ("answers", "env"),
     [
-        ({f"{BASE}/pulls/7": ok({"head": {"sha": OLD}, "labels": [], "changed_files": 0})}, {}),
+        ({f"{BASE}/pulls/7": ok({"head": {"sha": OLD}, "labels": [], "changed_files": 1})}, {}),
         ({f"{BASE}/pulls/7": ok({"head": {"sha": HEAD}, "labels": [], "changed_files": 9})}, {}),
         ({f"{BASE}/pulls/7": ok({"head": {}, "labels": [], "changed_files": 0})}, {}),
         ({f"{BASE}/pulls/7/files?per_page=100": ok([{"status": "added"}])}, {}),
