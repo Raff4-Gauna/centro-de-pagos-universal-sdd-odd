@@ -3,7 +3,7 @@ id: SPEC-00
 modulo: platform
 estado: Approved
 track: S
-version: 1.0.18
+version: 1.0.19
 depende_de: []
 actualizado: 2026-11-06
 ---
