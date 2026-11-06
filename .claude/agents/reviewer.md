@@ -52,6 +52,8 @@ fuera de bloques de código y sin citar (`>`): el comentario se publica **sin** 
 Reglas:
 - El SHA **debe** ser el del último commit del PR. Si el autor hace un push nuevo, el veredicto queda invalidado y
   hay que volver a revisar.
+- Tras publicar un veredicto, `APROBADO` o `RECHAZADO`, hay que re-ejecutar el check `zona-roja` (`gh run rerun` o
+  quitar y poner el label): un comentario no lo dispara (D-08), y hasta entonces un `RECHAZADO` no lo pone en rojo.
 - El label `zona-roja` lo aplica Claude al abrir el PR; no reemplaza al veredicto.
 - No mergeás, no editás, no aprobás specs.
 - Si no hay hallazgos bloqueantes y el pipeline está verde en ese SHA (salvo `zona-roja`, que espera este veredicto), el veredicto es `aprobado`.
