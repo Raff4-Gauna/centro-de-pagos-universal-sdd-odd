@@ -1,6 +1,6 @@
 ---
 spec: SPEC-00
-actualizado: 2026-11-05
+actualizado: 2026-11-06
 ---
 # Tareas — Módulo de Plataforma (fundaciones)
 
@@ -65,7 +65,7 @@ Reglas: rebanada vertical · ≤ ~300 líneas de diff · mergeable sola · cita 
 
 ## Resumen
 
-> Conciliado con `git log` el 2026-11-05: 30 tareas mergeadas (`✅`), 10 pendientes (`☐`) y 1 bloqueada (`⛔`).
+> Conciliado con `git log` el 2026-11-06: 35 tareas mergeadas (`✅`) y 6 pendientes (`☐`).
 > La columna **Evidencia** es obligatoria para `✅` y la verifica `scripts/check_spec_state.py`.
 
 | ID | Título | AC | Capa | Archivos esperados (ver detalle) | Depende de | Agente | Tamaño | Zona roja | Estado | Evidencia |
@@ -74,8 +74,8 @@ Reglas: rebanada vertical · ≤ ~300 líneas de diff · mergeable sola · cita 
 | T-PLT-02 | Toolchain Python (uv) + `ruff.toml` | AC-PLT-12 | Infra | `backend/pyproject.toml`, `backend/uv.lock`, `ruff.toml` | T-PLT-01 | backend-dev | M | Sí | ✅ | #6 · ce6a963 |
 | T-PLT-03 | CI mínimo: `lint` → `file-size` → `tests` | AC-PLT-20 (parcial), AC-PLT-13 | CI | `.github/workflows/ci.yml`, `.github/actions/setup/action.yml` | T-PLT-02 | backend-dev | M | Sí | ✅ | #4 · 1830f49 |
 | T-PLT-04 | Pre-commit + gitleaks + job `secrets` | AC-PLT-19, AC-PLT-27, AC-PLT-13 | Infra/CI | `.pre-commit-config.yaml`, `.gitleaks.toml` | T-PLT-03 | backend-dev | M | Sí | ✅ | #19 · dbb770e |
-| T-PLT-05 | `check_workflows.py` en `lint` | AC-PLT-33 | CI | `scripts/check_workflows.py` | T-PLT-03 | backend-dev | L | Sí | 🟡 | — |
-| T-PLT-06 | Check `zona-roja`: reglas y rutas | AC-PLT-32 | CI | `scripts/check_zona_roja.py`, `.github/zona-roja-paths.txt` | T-PLT-03 | backend-dev | L | Sí | 🟡 | — |
+| T-PLT-05 | `check_workflows.py` en `lint` | AC-PLT-33 | CI | `scripts/check_workflows.py` | T-PLT-03 | backend-dev | L | Sí | ✅ | #43 · 91aa385 |
+| T-PLT-06 | Check `zona-roja`: reglas y rutas | AC-PLT-32 | CI | `scripts/check_zona_roja.py`, `.github/zona-roja-paths.txt` | T-PLT-03 | backend-dev | L | Sí | ✅ | #42 · 349fd0e |
 | T-PLT-07 | Check `zona-roja`: API de GitHub + workflow | AC-PLT-32 | CI | `scripts/github_api.py`, `.github/workflows/zona-roja.yml` | T-PLT-05, T-PLT-06 | backend-dev | L | Sí | ☐ | — |
 | T-PLT-08 | Proyecto Django + settings validados | AC-PLT-03 | Backend | `backend/config/settings/*`, `manage.py` | T-PLT-03 | backend-dev | L | Sí | ✅ | #7 · 6754818 |
 | T-PLT-09 | `prod` endurecido + lecturas de entorno + feature flags | AC-PLT-04, AC-PLT-06 (parcial) | Backend | `config/settings/prod.py`, `apps/common/feature_flags.py` | T-PLT-08 | backend-dev | L | No | ✅ | #16 · 2a489ae |
@@ -93,7 +93,7 @@ Reglas: rebanada vertical · ≤ ~300 líneas de diff · mergeable sola · cita 
 | T-PLT-21 | Gate de cobertura + job `coverage` | AC-PLT-22 | CI | `scripts/check_coverage.py`, `scripts/coverage_thresholds.toml` | T-PLT-08 | backend-dev | L | Sí | ✅ | #12 · b22d762 |
 | T-PLT-22 | Migraciones: faltante + job `migrations` | AC-PLT-16 | Migraciones/CI | `tests/migrations/` | T-PLT-08, T-PLT-11 | backend-dev | M | Sí | ✅ | #34 · 5ecd863 |
 | T-PLT-23 | Migraciones: nombres `auto_` y `RunPython` mezclado | AC-PLT-18 | Migraciones | `apps/common/migration_lint/`, `lint_migrations.py` | T-PLT-22 | backend-dev | L | Sí | ✅ | #38 · f281766 |
-| T-PLT-24 | Migraciones: reversibilidad + ida y vuelta | AC-PLT-17 | Migraciones/CI | `check_migrations_roundtrip.py` | T-PLT-23 | backend-dev | L | Sí | 🟡 | — |
+| T-PLT-24 | Migraciones: reversibilidad + ida y vuelta | AC-PLT-17 | Migraciones/CI | `check_migrations_roundtrip.py` | T-PLT-23 | backend-dev | L | Sí | ✅ | #46 · f505864 |
 | T-PLT-25 | Imagen Docker del backend | AC-PLT-25 (backend) | Infra | `backend/Dockerfile`, `config/gunicorn.conf.py` | T-PLT-12 | backend-dev | M | Sí | ✅ | #35 · 33fd905 |
 | T-PLT-26 | Compose de desarrollo (db, redis, backend, worker, beat) | AC-PLT-01 (parcial), AC-PLT-02 (manual) | Infra | `infra/docker-compose.yml` | T-PLT-11, T-PLT-17, T-PLT-25 | backend-dev | L | Sí | ✅ | #40 · 3033f63 |
 | T-PLT-27 | Frontend: proyecto Next + toolchain + CI frontend | AC-PLT-21 (frontend) | Frontend/CI | `frontend/package.json`, `tsconfig.json`, … | T-PLT-03 | frontend-dev | L | Sí | ✅ | #21 · 09549c8 |
@@ -105,10 +105,10 @@ Reglas: rebanada vertical · ≤ ~300 líneas de diff · mergeable sola · cita 
 | T-PLT-33 | BFF pass-through con `X-Request-ID` | AC-PLT-10, AC-PLT-09 (BFF) | BFF | `app/api/[...path]/route.ts`, `src/lib/server/*` | T-PLT-27 | frontend-dev | L | No (reviewer recomendado) | ✅ | #22 · 1b493d4 |
 | T-PLT-34 | BFF: rutas seguras y errores 400/502/504 | AC-PLT-10 (robustez) | BFF | `src/lib/server/backend-proxy.ts`, `next.config.ts` | T-PLT-33 | frontend-dev | M | No (reviewer recomendado) | ✅ | #23 · c842e3c |
 | T-PLT-35 | Cliente tipado + tipos desde OpenAPI + diff en CI | AC-PLT-23 (frontend) | Frontend/CI | `src/lib/{api-client,problem}.ts`, `src/types/api.d.ts` | T-PLT-18, T-PLT-27 | frontend-dev | M | Sí | ✅ | #37 · 75ea14f |
-| T-PLT-36 | Imagen del frontend + chequeo de bundle + servicio en Compose | AC-PLT-29, AC-PLT-25 (FE), AC-PLT-01 | Infra/Frontend | `frontend/Dockerfile`, `frontend/scripts/check-client-bundle.ts` | T-PLT-26, T-PLT-33, T-PLT-34 | frontend-dev | L | Sí | 🟡 | — |
+| T-PLT-36 | Imagen del frontend + chequeo de bundle + servicio en Compose | AC-PLT-29, AC-PLT-25 (FE), AC-PLT-01 | Infra/Frontend | `frontend/Dockerfile`, `frontend/scripts/check-client-bundle.ts` | T-PLT-26, T-PLT-33, T-PLT-34 | frontend-dev | L | Sí | ✅ | #47 · 1cc858e |
 | T-PLT-37 | Job `build` (imágenes por SHA, no root) | AC-PLT-25, AC-PLT-20 | CI | `infra/docker-compose.ci.yml`, `ci.yml` | T-PLT-24, T-PLT-36 | backend-dev | M | Sí | ☐ | — |
 | T-PLT-38 | Smoke del stack en el paso 9 | AC-PLT-01, AC-PLT-02, AC-PLT-10, AC-PLT-29 (E2E) | CI | `scripts/smoke_stack.py` | T-PLT-15, T-PLT-37 | backend-dev | L | Sí | ☐ | — |
-| T-PLT-39 | `env.example` + `spikes/env.example` + paridad | AC-PLT-05, AC-PLT-06, AC-PLT-01 | Config | `env.example`, `spikes/env.example` | T-PLT-09, T-PLT-12, T-PLT-16, T-PLT-26, T-PLT-33 | backend-dev | M | Sí | 🟡 | rama `task/T-PLT-39-env-example` |
+| T-PLT-39 | `env.example` + `spikes/env.example` + paridad | AC-PLT-05, AC-PLT-06, AC-PLT-01 | Config | `env.example`, `spikes/env.example` | T-PLT-09, T-PLT-12, T-PLT-16, T-PLT-26, T-PLT-33 | backend-dev | M | Sí | ✅ | #45 · 6acc087 |
 | T-PLT-40 | Ruleset de `main` + verificación de protección | AC-PLT-24, AC-PLT-20 (cierre) | Gobierno | `.github/rulesets/main.json`, `scripts/verify_repo_protection.py` | T-PLT-07, T-PLT-10, T-PLT-19, T-PLT-21, T-PLT-24, T-PLT-28, T-PLT-38 | backend-dev (+ dueño) | L | Sí | ☐ | — |
 | T-PLT-41 | "Comandos de desarrollo" en `AGENTS.md` + `infra/README.md` | — (RF-PLT-16) | Docs | `AGENTS.md`, `infra/README.md` | T-PLT-38, T-PLT-40 | backend-dev | S | No | ☐ | — |
 
@@ -152,7 +152,7 @@ Reglas: rebanada vertical · ≤ ~300 líneas de diff · mergeable sola · cita 
 
 **Sin AC propio** (cubiertos por tarea y test nombrado por RF/RN): RF-PLT-01 → T-PLT-01; RF-PLT-16 → T-PLT-41;
 RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36 (manual); Q-056 → T-PLT-17/T-PLT-18.
-**Huecos: ninguno.** AC-PLT-05 y la parte de spikes de AC-PLT-06 quedan cubiertos solo por T-PLT-39, bloqueada por Q-048.
+**Huecos: ninguno.** AC-PLT-05 y la parte de spikes de AC-PLT-06 quedan cubiertos solo por T-PLT-39 (mergeada, #45).
 
 ## Orden y paralelismo
 | Ola | Tareas | Notas |
@@ -1222,7 +1222,9 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   sintéticas), etiqueta desconocida, apps reales con `config.settings.test` apuntado a `hub_synthetic`; en
   `scripts/tests/`, `test_AC_PLT_17_migrations_job_runs_roundtrip_last`. Paso de CI `check_migrations_roundtrip`
   después de `lint_migrations` en el job `migrations` (cadena intacta).
-- **Archivos fuera de la lista (mínimos):** `backend/tests/migrations/settings_synthetic.py` (instalar las dos apps),
+- **Archivos fuera de la lista (mínimos):** `backend/tests/migrations/settings_synthetic.py` (instalar las tres apps
+  sintéticas nuevas: `good_reversible`, `bad_irreversible` y `empty_migrations`), `AGENTS.md` (fila "Migraciones" de
+  "Comandos de desarrollo": la ida y vuelta, solo contra una BD descartable),
   `backend/apps/common/management/commands/lint_migrations.py` (solo docstring y `help`, que ya no describían todo lo
   que revisa), `scripts/tests/test_AC_PLT_20_pipeline_chain.py` (step nuevo) y `specs/00-platform/design.md` §3.2.7
   (etiquetas y verificaciones de la ida y vuelta).
@@ -1668,7 +1670,8 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   `WATCHPACK_POLLING` (verificado en Docker Desktop): plan B `--webpack` en `infra/README.md`; `watchOptions:
   { pollIntervalMs }` en `next.config.ts` también funciona con Turbopack pero queda fuera de esta tarea.
   (4) Con el `DJANGO_ALLOWED_HOSTS` por defecto el backend rechaza el `Host: backend` del BFF (400
-  `DisallowedHost`): documentado en `infra/README.md`; el default queda como decisión pendiente (T-PLT-38/39).
+  `DisallowedHost`): documentado en `infra/README.md`. Resuelto en T-PLT-39: el default de `env.py` no cambia y
+  `env.example` trae `backend` (`test_AC_PLT_01_allowed_hosts_keep_localhost_and_backend`).
   (5) Sin `public/` todavía: el `runtime` no lo copia.
 - **Revisión (SHA `a1eeffa`, 1 bloqueante, resuelto):** el centinela pasaba el chequeo en un route handler
   `force-static` (`.body`, sin escanear), con `new URL(x).host` y con `encodeURIComponent`. Ahora se escanean `.body`
@@ -1697,7 +1700,7 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   `test_AC_PLT_02_smoke_rejects_internal_details_in_body`, `test_AC_PLT_10_smoke_matches_bff_request_id_in_backend_logs`,
   `test_AC_PLT_01_smoke_always_tears_down`; E2E real en el job `build`.
 
-### T-PLT-39 — `env.example` + `spikes/env.example` + paridad — 🟡 en revisión
+### T-PLT-39 — `env.example` + `spikes/env.example` + paridad — ✅ mergeada (#45)
 - **Destrabada (2026-11-05):** el dueño decidió Q-048 renombrando los archivos sin punto inicial (`env.example`,
   `spikes/env.example`): no caen en el `Read(./.env.*)` denegado y `.claude/settings.json` no se toca. Spec 1.0.10.
   Sigue siendo acción del usuario mover las claves de spikes de su `.env` local a `spikes/.env` (design §3.2.2).
@@ -1783,8 +1786,8 @@ Pasa a `Verified` solo con el OK explícito del dueño. Ningún agente lo marca 
 | T-PLT-02 | #6 | ce6a963 | ✅ |
 | T-PLT-03 | #4 | 1830f49 | ✅ |
 | T-PLT-04 | #19 | dbb770e | ✅ |
-| T-PLT-05 | — | — | ☐ |
-| T-PLT-06 | — | — | ☐ |
+| T-PLT-05 | #43 | 91aa385 | ✅ |
+| T-PLT-06 | #42 | 349fd0e | ✅ |
 | T-PLT-07 | — | — | ☐ |
 | T-PLT-08 | #7 | 6754818 | ✅ |
 | T-PLT-09 | #16 | 2a489ae | ✅ |
@@ -1802,7 +1805,7 @@ Pasa a `Verified` solo con el OK explícito del dueño. Ningún agente lo marca 
 | T-PLT-21 | #12 | b22d762 | ✅ |
 | T-PLT-22 | #34 | 5ecd863 | ✅ |
 | T-PLT-23 | #38 | f281766 | ✅ |
-| T-PLT-24 | — | — | ☐ |
+| T-PLT-24 | #46 | f505864 | ✅ |
 | T-PLT-25 | #35 | 33fd905 | ✅ |
 | T-PLT-26 | #40 | 3033f63 | ✅ |
 | T-PLT-27 | #21 | 09549c8 | ✅ |
@@ -1814,10 +1817,10 @@ Pasa a `Verified` solo con el OK explícito del dueño. Ningún agente lo marca 
 | T-PLT-33 | #22 | 1b493d4 | ✅ |
 | T-PLT-34 | #23 | c842e3c | ✅ |
 | T-PLT-35 | #37 | 75ea14f | ✅ |
-| T-PLT-36 | — | — | ☐ |
+| T-PLT-36 | #47 | 1cc858e | ✅ |
 | T-PLT-37 | — | — | ☐ |
 | T-PLT-38 | — | — | ☐ |
-| T-PLT-39 | — | — | 🟡 |
+| T-PLT-39 | #45 | 6acc087 | ✅ |
 | T-PLT-40 | — | — | ☐ |
 | T-PLT-41 | — | — | ☐ |
 <!-- check_spec_state:end -->
