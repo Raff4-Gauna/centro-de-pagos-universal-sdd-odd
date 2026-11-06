@@ -11,7 +11,7 @@ version_spec: 1.0.11
 ## 0. Alcance y método
 
 - Spec verificada: `specs/00-platform/spec.sdd.md` v1.0.11 (`Approved`), la de `main` en `1cc858e`. Las versiones
-  siguientes no cambian AC: 1.0.12 es de T-PLT-07 (PR #48, sin mergear) y 1.0.13 solo suma una nota de diseño y
+  siguientes no cambian AC: 1.0.12 solo suma una nota de diseño y
   corrige citas.
 - Tareas: `specs/00-platform/tasks.md` (estado conciliado con git el 2026-11-06).
 - Método: matriz AC→test sobre el árbol real, revisión de la cadena de CI y checklist manual.

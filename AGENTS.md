@@ -120,7 +120,7 @@ Desde la raíz del repo (PowerShell o bash). `DC` = `docker compose -f infra/doc
 
 | Para | Comando |
 |---|---|
-| Primera vez | `copy env.example .env` (pendiente, T-PLT-39) · `pre-commit install` · `corepack enable` · `pnpm --dir frontend install` |
+| Primera vez | `copy env.example .env` · `pre-commit install` · `corepack enable` · `pnpm --dir frontend install` |
 | Levantar todo | `DC up -d --build --wait` |
 | Logs / bajar | `DC logs -f backend worker` · `DC down` |
 | Recrear la BD | `DC down -v` y volver a levantar (BD descartable hasta SPEC-01, Q-053) |
@@ -136,7 +136,6 @@ Desde la raíz del repo (PowerShell o bash). `DC` = `docker compose -f infra/doc
 | Verificar protección (dueño) | `python scripts/verify_repo_protection.py` con `GH_TOKEN` de admin (pendiente, T-PLT-40) |
 
 Notas:
-- Mientras no exista `.env.example` (T-PLT-39, Q-048), usar la tabla de variables de `infra/README.md`.
 - Los comandos de `build` y `smoke` del pipeline todavía no existen (T-PLT-37/38): no se inventan.
 - En Windows, si `5432` está ocupado, usar un override fuera del repo (`infra/README.md`).
 
