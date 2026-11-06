@@ -443,11 +443,12 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   (cercados e indentados: el parser admite hasta 3 espacios) y formato alineado en `.claude/agents/reviewer.md` y
   `.claude/skills/reviewer-verdict/SKILL.md`. Fallan como "no verificado", además de los errores de API: head del
   PR distinto al del evento y lista de archivos truncada (`changed_files` ≠ listados; el endpoint corta en 3000).
-- **Para después:** (1) `AGENTS.md` § Reviewer sigue con el formato viejo `VEREDICTO: …`. (2) Sin `edited` en los
-  tipos, cambiar la base del PR no re-ejecuta el check. (3) `zona-roja.yml` lo toma GitHub de la rama del PR: D-09
-  protege script y lista, no al workflow. (4) Una cuenta borrada (`ghost`) con veredicto sobre el head da 404 y deja
-  el check en "no verificado" hasta borrar el comentario. (5) Un fence dentro de un ítem de lista (`- ````) no se
-  reconoce como bloque de código.
+- **Nota (revisión de `f2d5aa2`):** `edited` entró en los tipos (spec 1.0.12); `AGENTS.md` ya usa el formato de
+  §3.7.3; un RECHAZADO de una cuenta con escritura sin un SHA completo y único, si no es anterior al último veredicto,
+  falla como "no verificado". Cómo proteger el workflow: Q-063. Si el re-run del veredicto cuenta como manual: Q-064.
+  Ambas abiertas: bloquean el merge de esta tarea.
+- **Para después:** (1) la cuenta borrada `ghost` responde 200 `read`: un veredicto suyo no cuenta y no bloquea.
+  (2) Un fence dentro de un ítem de lista (`- ````) no se reconoce como bloque de código.
 
 ### T-PLT-08 — Proyecto Django + settings validados
 - **AC:** AC-PLT-03. RN-PLT-02, RF-PLT-03 (Q-040, Q-046). **Zona roja:** sí (`backend/pyproject.toml`, `ci.yml`).

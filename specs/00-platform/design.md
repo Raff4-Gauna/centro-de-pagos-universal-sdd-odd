@@ -1,7 +1,7 @@
 ---
 spec: SPEC-00
 estado: Aprobado         # aprobado por el usuario junto con la spec (2026-10-31)
-actualizado: 2026-11-06   # §3.2.3 (T-PLT-14, spec 1.0.3); §3.5, §3.6, §3.7.2 (T-PLT-04, spec 1.0.4 y 1.0.5); ADR-0005 Aceptado (spec 1.0.6); §3.3.3 (T-PLT-34, Q-061, spec 1.0.7); §3.6 `ruff.toml` y migraciones (T-PLT-22, sin cambio de spec); §3.2.7 y §10.2 reversibilidad e ida y vuelta, `--allow-data-loss` (T-PLT-24, sin cambio de spec); §3.7.3 `edited` (T-PLT-07, spec 1.0.12)
+actualizado: 2026-11-06   # §3.2.3 (T-PLT-14, spec 1.0.3); §3.5, §3.6, §3.7.2 (T-PLT-04, spec 1.0.4 y 1.0.5); ADR-0005 Aceptado (spec 1.0.6); §3.3.3 (T-PLT-34, Q-061, spec 1.0.7); §3.6 `ruff.toml` y migraciones (T-PLT-22, sin cambio de spec); §3.2.7 y §10.2 reversibilidad e ida y vuelta, `--allow-data-loss` (T-PLT-24, sin cambio de spec); §3.7.3 `edited`, D-09 y §11.2 (T-PLT-07, spec 1.0.12)
 ---
 # Diseño — Módulo de Plataforma (fundaciones)
 
@@ -717,7 +717,7 @@ corridos una vez → ruleset (después de publicar, Q-054).
 | D-06 | Throttle fail-open si Redis falla | disponibilidad; `/readyz` ya lo señala; 01/07/11 pueden elegir fail-closed |
 | D-07 | Tailwind 3.4.19 (`v3-lts`) | `07 §1` usa API de v3 (`tw-`, `preflight: false`, `tailwind.config.ts`); v4 exige editar `07` (Q-059) |
 | D-08 | `zona-roja` sin `issue_comment`, re-run manual tras el veredicto | `issue_comment` corre en la base y no actualiza el check del SHA del PR; evita un workflow disparable por cualquiera |
-| D-09 | `zona-roja` corre script y lista de la rama base | el PR no puede modificar el check que lo evalúa |
+| D-09 | `zona-roja` lee script y lista de la rama base | el PR no puede modificar ese script ni esa lista; el workflow `zona-roja.yml` lo toma GitHub de la rama del PR y **no queda protegido** (Q-063) |
 | D-10 | `pip-audit` envuelto por `audit_deps.py` | `pip-audit` no da severidad ni vencimientos; OSV + severidad desconocida = alta |
 | D-11 | `verify_repo_protection.py` lo corre el dueño | `GITHUB_TOKEN` no ve bypass ni seguridad; un token admin en CI sería un secreto en un repo público |
 | D-12 | `ruff.toml` único en la raíz con `force-exclude` | cubre `backend/` y `scripts/` y excluye el legacy aunque pre-commit pase archivos explícitos |
@@ -735,7 +735,7 @@ corridos una vez → ruleset (después de publicar, Q-054).
 | Hot-reload en Windows; Turbopack (dev por defecto en Next 16) puede ignorar `WATCHPACK_POLLING` | probar en la tarea de Compose; plan B `next dev --webpack`; documentar en `infra/README.md` |
 | Healthcheck de `beat` por mtime es indirecto | umbral 300 s con loop de 60 s; si da falsos positivos, se baja a "proceso vivo" y se documenta |
 | Throttle por IP detrás del BFF | sin efecto en 00; 01 define la clave |
-| Un PR puede neutralizar checks (`pull_request` corre su código) | D-09 + rutas del gate como zona roja (**Q-058**, provisorio) |
+| Un PR puede neutralizar checks (`pull_request` corre su código) | D-09 (script y lista de `zona-roja` se leen de la base) + rutas del gate como zona roja (**Q-058**, provisorio). El workflow `zona-roja.yml` no queda protegido: un PR puede cambiarlo (**Q-063**, abierta) |
 | Merge por el agente con 0 aprobaciones | criterios cerrados de §3.7.4 + `--match-head-commit`; ante duda, mergea el usuario |
 | `W021` silenciado | único permitido, comentado, hasta tener dominio (Q-020) |
 | Node local 24.14 < 24.15 (`jsdom` 30) | tests en contenedor/CI; recomendado actualizar el Node local a 24.22.x |
