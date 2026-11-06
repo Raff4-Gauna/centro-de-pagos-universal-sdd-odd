@@ -11,21 +11,30 @@ Also covered: AC-PLT-13 in CI (``file-size`` runs ``check_file_size.py``), AC-PL
 (``migrations`` runs ``makemigrations --check`` on its own PostgreSQL), AC-PLT-18 in CI (the same
 job runs ``lint_migrations``), AC-PLT-17 in CI (and then ``check_migrations_roundtrip``) and the
 RN-PLT-18 basics of ``ci.yml`` (read-only token, no ``pull_request_target``/``workflow_run``,
-actions pinned by SHA).
+actions pinned by SHA). T-PLT-40 adds the other half of AC-PLT-20: the ruleset requires every job
+of the chain plus ``zona-roja``, so a job skipped through ``needs:`` (GitHub reports it as passed)
+never hides a failure: the job that failed is required too.
 """
 
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 from typing import Any
 
+import check_workflows
 import pytest
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CI_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "ci.yml"
+ZONA_ROJA_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "zona-roja.yml"
+WORKFLOWS_DIR = REPO_ROOT / ".github" / "workflows"
 SETUP_ACTION = REPO_ROOT / ".github" / "actions" / "setup" / "action.yml"
+RULESET = REPO_ROOT / ".github" / "rulesets" / "main.json"
+# `app.id` of the check runs of real runs (GET /repos/{o}/{r}/commits/{sha}/check-runs, PR #54).
+GITHUB_ACTIONS_APP_ID = 15368
 
 # design.md §3.5, steps 1-9. Jobs in the same stage run in parallel (step 3).
 CANONICAL_STAGES: tuple[tuple[str, ...], ...] = (
@@ -84,6 +93,23 @@ def ci_jobs() -> dict[str, Any]:
     return load_yaml(CI_WORKFLOW)["jobs"]
 
 
+def check_names(jobs: dict[str, Any]) -> list[str]:
+    """The name each job reports as a check: its `name:`, or its id without one."""
+    return [job.get("name", job_id) for job_id, job in jobs.items()]
+
+
+def ruleset_checks() -> list[dict[str, Any]]:
+    rules = json.loads(RULESET.read_text(encoding="utf-8"))["rules"]
+    rule = next(rule for rule in rules if rule["type"] == "required_status_checks")
+    return rule["parameters"]["required_status_checks"]
+
+
+def repeated_check_names(workflows: dict[str, dict[str, Any]], required: set[str]) -> list[str]:
+    """Required names defined more than once: any of those jobs reports the same check."""
+    names = [name for jobs in workflows.values() for name in check_names(jobs)]
+    return sorted({name for name in names if name in required and names.count(name) > 1})
+
+
 def all_uses(jobs: dict[str, Any]) -> list[str]:
     return [step["uses"] for job in jobs.values() for step in job["steps"] if "uses" in step]
 
@@ -136,6 +162,40 @@ def test_AC_PLT_20_build_is_last_and_needs_migrations() -> None:
     # A failed build fails the required check, step by step too.
     assert "continue-on-error" not in jobs["build"]
     assert all("continue-on-error" not in step for step in jobs["build"]["steps"])
+
+
+def test_AC_PLT_20_ruleset_checks_equal_pipeline_jobs_plus_zona_roja() -> None:
+    jobs = ci_jobs()
+    # A matrix job reports `name (value)`: the context of the ruleset would never appear.
+    assert [name for name, job in jobs.items() if "matrix" in job.get("strategy", {})] == []
+    pipeline = check_names(jobs)
+    assert pipeline == CANONICAL_ORDER
+    zona_roja = check_names(load_yaml(ZONA_ROJA_WORKFLOW)["jobs"])
+    assert zona_roja == ["zona-roja"]
+
+    contexts = [check["context"] for check in ruleset_checks()]
+    assert sorted(contexts) == sorted([*pipeline, *zona_roja])
+    assert len(contexts) == len(set(contexts)) == 11
+    # Each one tied to GitHub Actions: a commit status or another app cannot satisfy it.
+    assert {check.get("integration_id") for check in ruleset_checks()} == {GITHUB_ACTIONS_APP_ID}
+
+
+def test_AC_PLT_20_check_workflows_guards_the_same_checks_as_the_ruleset() -> None:
+    assert {check["context"] for check in ruleset_checks()} == check_workflows.REQUIRED_CHECKS
+
+
+def test_AC_PLT_20_required_check_names_are_unique_across_workflows() -> None:
+    # `integration_id` tells GitHub Actions from others, not one workflow from another (Q-063).
+    paths = sorted(WORKFLOWS_DIR.iterdir())
+    assert CI_WORKFLOW in paths
+    workflows = {path.name: load_yaml(path)["jobs"] for path in paths}
+    required = {check["context"] for check in ruleset_checks()}
+    assert repeated_check_names(workflows, required) == []
+    # By id and by `name:`, and only for required names.
+    copy_by_id: dict[str, Any] = {"zona-roja": {}}
+    copy_by_name = {"other": {"name": "zona-roja"}}
+    assert repeated_check_names({"a": copy_by_id, "b": copy_by_name}, required) == ["zona-roja"]
+    assert repeated_check_names({"a": {"x": {}}, "b": {"x": {}}}, required) == []
 
 
 def test_AC_PLT_13_file_size_job_runs_check_file_size() -> None:
