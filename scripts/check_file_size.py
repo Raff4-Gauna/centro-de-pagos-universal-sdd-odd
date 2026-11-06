@@ -152,3 +152,4 @@ if __name__ == "__main__":
     sys.exit(main())
 
 # Probe: red-zone path without the label; never merged.
+# Second probe line; never merged.
