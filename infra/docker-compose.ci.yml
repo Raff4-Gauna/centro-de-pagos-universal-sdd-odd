@@ -1,0 +1,60 @@
+# CI override of the stack (T-PLT-37, design.md §3.4.2, AC-PLT-25). On top of the dev file, it runs
+# the runtime images the `build` job loaded on the runner, with production settings:
+#   GIT_SHA=<sha> docker compose -f infra/docker-compose.yml -f infra/docker-compose.ci.yml \
+#     --env-file env.example up -d --wait
+#
+# --env-file env.example is not where the values come from: Compose interpolates the `:?` variables
+# of the dev file before merging, so they need some value, and every one that matters is replaced
+# below. `build` is reset, so a missing image fails instead of being rebuilt; `volumes` is reset, so
+# no source tree is mounted over the image.
+#
+# Every value here is fictitious and low-entropy (not a secret), and fixed inline: this stack lives
+# for the length of a job and never holds real data.
+
+x-backend-environment: &backend-environment
+  DJANGO_SETTINGS_MODULE: config.settings.prod
+  DJANGO_DEBUG: "false"
+  DJANGO_SECRET_KEY: ci-only-not-a-secret-ci-only-not-a-secret-ci-only-not-a-secret
+  # localhost: the healthcheck. backend: the BFF of the frontend service.
+  DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1,backend
+  DATABASE_URL: postgres://hub:hub@db:5432/hub
+  REDIS_URL: redis://redis:6379/0
+  # The dev file passes APP_VERSION from .env, which would replace the one baked into the image.
+  APP_VERSION: ${GIT_SHA:?falta GIT_SHA}
+
+services:
+  db:
+    environment:
+      POSTGRES_USER: hub
+      POSTGRES_PASSWORD: hub
+      POSTGRES_DB: hub
+    # Only the backend reaches it, over the Compose network.
+    ports: !reset []
+
+  backend:
+    image: hub-backend:${GIT_SHA:?falta GIT_SHA}
+    build: !reset null
+    environment: *backend-environment
+    command:
+      - sh
+      - -c
+      - python manage.py migrate --noinput && exec gunicorn -c config/gunicorn.conf.py config.wsgi
+    volumes: !reset []
+
+  worker:
+    image: hub-backend:${GIT_SHA:?falta GIT_SHA}
+    environment: *backend-environment
+    volumes: !reset []
+
+  beat:
+    image: hub-backend:${GIT_SHA:?falta GIT_SHA}
+    environment: *backend-environment
+    volumes: !reset []
+
+  frontend:
+    image: hub-frontend:${GIT_SHA:?falta GIT_SHA}
+    build: !reset null
+    environment:
+      WATCHPACK_POLLING: !reset null
+    command: ["node", "server.js"]
+    volumes: !reset []
