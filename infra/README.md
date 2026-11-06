@@ -12,12 +12,18 @@ Seis servicios (`design.md §3.4.1`): `db` (PostgreSQL 17.11), `redis` (7.4.12, 
 con `backend` sano. `migrate --noinput` corre **solo** en
 `backend`, antes de gunicorn; `worker` y `beat` no migran (sin carrera).
 
+Los comandos del día a día (levantar, tests, lint, tipos, contrato, migraciones, smoke) están en la sección
+"Comandos de desarrollo" de `AGENTS.md`; acá va el detalle del stack.
+
 ### Prerrequisitos del host (Q-060, `design.md §3.6`)
 - **Docker Desktop** (engine Linux / WSL 2) con **Compose v2** (`docker compose version`).
 - **Git**.
 - **Python 3.12 + `pre-commit`** (`pre-commit install` una vez).
-- **Node 24 + pnpm** (`corepack enable`) y `pnpm --dir frontend install` una vez: solo para eslint/prettier del
-  pre-commit. Conviene Node ≥ 24.15 (`jsdom` 30); los tests del frontend corren en contenedor/CI.
+- **Node 24 + pnpm** (`corepack enable`) y `cd frontend; pnpm install; cd ..` una vez: solo para eslint/prettier del
+  pre-commit. Conviene Node ≥ 24.15 (`jsdom` 30); los tests del frontend corren en contenedor/CI. pnpm se corre
+  **desde `frontend/`**: corepack elige la versión por el `package.json` del directorio actual y la raíz no tiene
+  uno, así que `pnpm --dir frontend …` desde la raíz arranca la versión por defecto de corepack y pnpm la rechaza
+  con `ERR_PNPM_BAD_PM_VERSION`.
 - `uv` en el host es opcional: el backend corre en el contenedor (venv en `/opt/venv`).
 
 ### Variables
@@ -77,7 +83,8 @@ docker compose -f infra/docker-compose.yml --env-file .env up -d --build --wait
 ```
 `down -v` borra **todos** los volúmenes del proyecto `centro-pagos` (también `frontend_node_modules` y
 `pnpm_store`: el próximo `up` reinstala desde el lockfile). Cambiar `POSTGRES_*` en el `.env` no afecta a
-una BD ya inicializada (la imagen solo los usa sobre un volumen vacío): hay que recrearla.
+una BD ya inicializada (la imagen solo los usa sobre un volumen vacío): hay que recrearla. Al llegar SPEC-01 (usuario
+custom + `auth`/`contenttypes`) hay que recrearla una vez más (Q-053).
 
 ### Hot reload del backend (polling en Windows)
 `../backend` se monta en `/repo/backend` (el venv está en `/opt/venv`, así que el bind mount no lo tapa). En Docker
@@ -135,6 +142,10 @@ comparten la cola del broker con el servicio `worker`, que les roba las tareas: 
 (2) los tests que leen archivos de la raíz del repo (`.github/`, `scripts/`) fallan porque solo `backend/`,
 `specs/_contracts/` y los dos `env.example` están montados: esos corren en el host o en CI (los dos cruces de
 `test_AC_PLT_05_…` contra `infra/` y `frontend/` se saltean en el contenedor).
+
+Por lo mismo, `exec backend mypy . ../scripts` y `exec frontend pnpm openapi:types` fallan: `scripts/` no está montado
+en `backend` ni `specs/_contracts/` en `frontend`. Las formas que funcionan están en "Comandos de desarrollo" de
+`AGENTS.md`.
 
 ### Qué esperar cuando algo cae
 - `docker compose … stop redis` → `/readyz` 503 (`{"status": "unavailable"}`, la causa solo en el log
@@ -195,3 +206,21 @@ Renombrar un job requerido exige cambiar `main.json` y aplicarlo en el mismo cam
   `gh run rerun <id>` por cada una.
 - Sin bypass, tampoco el dueño puede mergear con un check rojo: para saltear la protección hay que desactivar el
   ruleset.
+
+## Desactivar y reactivar el ruleset de `main`
+
+**Lo ejecuta solo el dueño** (Q-057). **Comandos sin probar:** nunca se corrieron contra GitHub.
+
+Hace falta si un check requerido nunca reporta o si entra un bug en lo que `zona-roja` lee de la base (D-09):
+`check_zona_roja.py`, `github_api.py`, `zona_roja_verdict.py`, `glob_paths.py` o `zona-roja-paths.txt`. En ese caso
+`zona-roja` queda en rojo en todos los PR, incluido el que lo arregla.
+
+Desde la raíz, en PowerShell, con `R` = `Raff4-Gauna/centro-de-pagos-universal-sdd-odd` (reemplazarlo en el comando).
+El primero da el `<id>`, el segundo desactiva y el tercero reactiva; en bash, el JSON va con `echo '{...}' | gh api ...`:
+```
+gh api repos/R/rulesets --jq '.[] | {id,name,enforcement}'
+'{"enforcement":"disabled"}' | gh api --method PUT repos/R/rulesets/<id> --input -
+'{"enforcement":"active"}' | gh api --method PUT repos/R/rulesets/<id> --input -
+```
+Mientras está desactivado, `main` queda sin protección: se mergea solo el PR que destraba y se reactiva enseguida.
+Después, `gh api repos/R/rulesets/<id> --jq .enforcement` tiene que dar `active`.

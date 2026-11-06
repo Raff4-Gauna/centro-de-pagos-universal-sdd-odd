@@ -1,7 +1,7 @@
 ---
 spec: SPEC-00
 estado: Aprobado         # aprobado por el usuario junto con la spec (2026-10-31)
-actualizado: 2026-11-06   # §3.2.3 (T-PLT-14, spec 1.0.3); §3.5, §3.6, §3.7.2 (T-PLT-04, spec 1.0.4 y 1.0.5); ADR-0005 Aceptado (spec 1.0.6); §3.3.3 (T-PLT-34, Q-061, spec 1.0.7); §3.6 `ruff.toml` y migraciones (T-PLT-22, sin cambio de spec); §3.2.7 y §10.2 reversibilidad e ida y vuelta, `--allow-data-loss` (T-PLT-24, sin cambio de spec); §3.7.3 `edited`, D-09 y §11.2 (T-PLT-07, spec 1.0.13); §3.2.2 y §7 `X-Forwarded-Proto` (T-PLT-42, Q-065, spec 1.0.15); §3.1, §3.3.3 y §3.5 smoke y AC-29 E2E (T-PLT-38, spec 1.0.16 provisional); §3.3.3 y §7 cita de §3.2.2 y HSTS (Q-065, spec 1.0.17); §3.6 pre-commit del frontend (T-PLT-29, spec 1.0.18); §3.7.1, §3.7.3, §3.7.4 y §11.2 ruleset y verificación (T-PLT-40, spec 1.0.19)
+actualizado: 2026-11-06   # §3.2.3 (T-PLT-14, spec 1.0.3); §3.5, §3.6, §3.7.2 (T-PLT-04, spec 1.0.4 y 1.0.5); ADR-0005 Aceptado (spec 1.0.6); §3.3.3 (T-PLT-34, Q-061, spec 1.0.7); §3.6 `ruff.toml` y migraciones (T-PLT-22, sin cambio de spec); §3.2.7 y §10.2 reversibilidad e ida y vuelta, `--allow-data-loss` (T-PLT-24, sin cambio de spec); §3.7.3 `edited`, D-09 y §11.2 (T-PLT-07, spec 1.0.13); §3.2.2 y §7 `X-Forwarded-Proto` (T-PLT-42, Q-065, spec 1.0.15); §3.1, §3.3.3 y §3.5 smoke y AC-29 E2E (T-PLT-38, spec 1.0.16 provisional); §3.3.3 y §7 cita de §3.2.2 y HSTS (Q-065, spec 1.0.17); §3.6 pre-commit del frontend (T-PLT-29, spec 1.0.18); §3.7.1, §3.7.3, §3.7.4 y §11.2 ruleset y verificación (T-PLT-40, spec 1.0.19); §10.2 pnpm desde `frontend/` (T-PLT-41, spec 1.0.20); §3.6 y §10.2 comandos alineados con `AGENTS.md` (T-PLT-41, spec 1.0.20)
 ---
 # Diseño — Módulo de Plataforma (fundaciones)
 
@@ -488,7 +488,7 @@ secreto: `DJANGO_SETTINGS_MODULE=config.settings.test`, `DJANGO_SECRET_KEY=ci-on
 ### 3.6 Pre-commit (RF-PLT-12, RNF-PLT-04)
 **Prerrequisitos del host** (interpretación de "herramientas de pre-commit" de RN-PLT-01, **Q-060**): Docker
 Desktop (engine Linux) con Compose v2, Git, Python 3.12 + `pre-commit`, Node 24 + pnpm (`corepack enable`) con
-`pnpm --dir frontend install` una vez, solo para eslint/prettier. `uv` en el host es opcional. Los `node_modules`
+`cd frontend; pnpm install; cd ..` una vez, solo para eslint/prettier. `uv` en el host es opcional. Los `node_modules`
 del host y del contenedor están separados (volumen), así que los binarios nativos no se pisan.
 
 `.pre-commit-config.yaml` (fixers y linters excluyen `^context/legacy-source/`; gitleaks no — Q-055):
@@ -619,7 +619,7 @@ documenta los prefijos (`context/03`, `context/09`). No toca el placeholder ni u
   completo; (4) squash. Para mergear exactamente lo verificado usa `gh pr merge --squash --match-head-commit
   <sha>`. **Ante cualquier duda** (check flaky, re-run manual, scope drift, Q abierta, cambio de ruleset/ajustes,
   advertencias nuevas) el PR queda para que mergee el usuario. Re-ejecutar `zona-roja` tras un veredicto, o quitar y
-  poner el label, no es re-run manual (Q-064). Todo PR que toque `zona-roja.yml` lo mergea el usuario (Q-063). La regla va a `AGENTS.md` en la tarea de RF-PLT-16.
+  poner el label, no es re-run manual (Q-064). Todo PR que agregue o cambie un archivo de `.github/workflows/` lo mergea el usuario (Q-063). La regla va a `AGENTS.md` en la tarea de RF-PLT-16.
   Técnicamente el ruleset no distingue (0 aprobaciones, mismo token): es regla de proceso respaldada por los checks.
 
 ## 4. Flujos principales
@@ -752,19 +752,23 @@ documentado (Q-053). Flags: mecanismo listo, sin flags. Paso 10 fuera de alcance
 imágenes con el SHA (y `vX.Y.Z` en tags) para que el rollback sea redeployar el tag anterior. Gobierno: checks
 corridos una vez → ruleset (después de publicar, Q-054).
 
-### 10.2 "Comandos de desarrollo" para `AGENTS.md` (desde la raíz; PowerShell o bash; `DC` = `docker compose -f infra/docker-compose.yml`)
+### 10.2 "Comandos de desarrollo" para `AGENTS.md` (desde la raíz; PowerShell o bash; `DC` = `docker compose -f infra/docker-compose.yml --env-file .env`)
 | Para | Comando |
 |---|---|
-| Primera vez | `copy env.example .env` · `pre-commit install` · `corepack enable` · `pnpm --dir frontend install` |
-| Levantar todo | `docker compose -f infra/docker-compose.yml --env-file .env up -d --build --wait` |
+| Primera vez | `copy env.example .env` · `pre-commit install` · `corepack enable` · `cd frontend; pnpm install; cd ..` |
+| Levantar todo | `DC up -d --build --wait` |
 | Logs / bajar | `DC logs -f backend worker` · `DC down` |
 | Recrear la BD | `DC down -v` y volver a levantar (borra todos los volúmenes; BD descartable hasta 01) |
-| Tests | `DC exec backend pytest` · `DC exec frontend pnpm test` |
-| Lint rápido / tipos | `pre-commit run --all-files` · `DC exec backend mypy . ../scripts` · `pnpm --dir frontend typecheck` |
-| Regenerar contrato | `DC exec backend python manage.py export_openapi` → `pnpm --dir frontend openapi:types` |
-| Migraciones | `DC exec backend sh -c "python manage.py makemigrations --check --dry-run && python manage.py lint_migrations"` · ida y vuelta **solo contra una BD descartable, nunca la de desarrollo** (revierte a `zero` y borra tablas y datos): `DC exec -e DATABASE_URL=postgres://<usuario>:<clave>@db:5432/hub_roundtrip backend python manage.py check_migrations_roundtrip --allow-data-loss` (BD `hub_roundtrip` creada antes y borrada después) o el job `migrations` de CI |
+| Tests | `DC stop worker beat` → `DC exec -e DJANGO_SETTINGS_MODULE=config.settings.test backend pytest` → `DC start worker beat` · `DC exec frontend pnpm test` |
+| Lint rápido / tipos | `pre-commit run --all-files` · `DC run --rm --no-deps -v ./scripts:/repo/scripts:ro backend mypy . ../scripts` · `DC exec frontend pnpm typecheck` · `cd frontend; pnpm typecheck; cd ..` |
+| Regenerar contrato | `DC exec backend python manage.py export_openapi` → `cd frontend; pnpm openapi:types; cd ..` o `DC run --rm --no-deps -v ./specs/_contracts:/repo/specs/_contracts:ro frontend pnpm openapi:types` |
+| Migraciones | `DC exec backend sh -c "python manage.py makemigrations --check --dry-run && python manage.py lint_migrations"` · ida y vuelta **solo contra una BD descartable, nunca la de desarrollo** (revierte a `zero` y borra tablas y datos): `DC exec db createdb -U <usuario> hub_roundtrip` → `DC exec -e DATABASE_URL=postgres://<usuario>:<clave>@db:5432/hub_roundtrip backend python manage.py check_migrations_roundtrip --allow-data-loss` → `DC exec db dropdb -U <usuario> hub_roundtrip`, o el job `migrations` de CI |
 | Reiniciar worker/beat | `DC restart worker beat` |
+| Smoke del stack | Con `hub-backend:<sha>` y `hub-frontend:<sha>` construidas (`docker build --target runtime --build-arg GIT_SHA=<sha> -t hub-backend:<sha> backend`, ídem `frontend`): `GIT_SHA` en el entorno y `python scripts/smoke_stack.py` |
 | Verificar protección (dueño) | `python scripts/verify_repo_protection.py` con `GH_TOKEN` de admin |
+
+pnpm se corre desde `frontend/`, no con `pnpm --dir frontend`: corepack elige la versión por el `package.json` del
+directorio actual, la raíz no tiene uno y pnpm rechaza la versión por defecto con `ERR_PNPM_BAD_PM_VERSION`.
 
 ## 11. Riesgos técnicos y decisiones
 ### 11.1 Decisiones

@@ -104,7 +104,8 @@ Reglas:
   re-run manual, scope drift, `Q-xxx` abierta, advertencias nuevas, entre otras) el PR queda para el dueño. Re-ejecutar
   `zona-roja` tras publicar un veredicto, o quitar y poner el label, no cuenta como re-run manual (Q-064).
 - **Solo el dueño** cambia ruleset, visibilidad y ajustes del repo; esos PR los mergea él. También mergea todo PR que
-  toque `.github/workflows/zona-roja.yml`: un PR puede cambiar ese workflow y es un riesgo aceptado (Q-063).
+  agregue o cambie un archivo de `.github/workflows/`: un PR puede neutralizar `zona-roja` con eso y es un riesgo
+  aceptado (Q-063).
 - El veredicto se guarda como comentario, no como revisión nativa. Eso es intencional y no se "corrige" con un
   approve de la UI.
 
@@ -122,23 +123,44 @@ Desde la raíz del repo (PowerShell o bash). `DC` = `docker compose -f infra/doc
 
 | Para | Comando |
 |---|---|
-| Primera vez | `copy env.example .env` · `pre-commit install` · `corepack enable` · `pnpm --dir frontend install` |
+| Primera vez | `copy env.example .env` · `pre-commit install` · `corepack enable` · `cd frontend; pnpm install; cd ..` |
 | Levantar todo | `DC up -d --build --wait` |
 | Logs / bajar | `DC logs -f backend worker` · `DC down` |
 | Recrear la BD | `DC down -v` y volver a levantar (BD descartable hasta SPEC-01, Q-053) |
-| Tests backend | `DC exec -e DJANGO_SETTINGS_MODULE=config.settings.test backend pytest` |
-| Tests frontend | `pnpm --dir frontend test` · `DC exec frontend pnpm test` |
+| Tests backend | `DC stop worker beat` → `DC exec -e DJANGO_SETTINGS_MODULE=config.settings.test backend pytest` → `DC start worker beat` (ver notas) |
+| Tests frontend | `DC exec frontend pnpm test` · `cd frontend; pnpm test; cd ..` |
 | Tests de scripts | `pytest -c scripts/pytest.ini scripts/tests` |
 | Lint rápido | `pre-commit run --all-files` · `ruff check .` · `ruff format --check .` |
-| Tipos | `DC exec backend mypy . ../scripts` · `pnpm --dir frontend typecheck` |
-| Regenerar contrato | `DC exec backend python manage.py export_openapi` → `pnpm --dir frontend openapi:types` |
-| Migraciones | `DC exec backend sh -c "python manage.py makemigrations --check --dry-run && python manage.py lint_migrations"` · ida y vuelta **solo contra una BD descartable, nunca la de desarrollo** (revierte a `zero` y borra tablas y datos): `DC exec -e DATABASE_URL=postgres://<usuario>:<clave>@db:5432/hub_roundtrip backend python manage.py check_migrations_roundtrip --allow-data-loss` (BD `hub_roundtrip` creada antes y borrada después) o el job `migrations` de CI |
+| Tipos | `DC run --rm --no-deps -v ./scripts:/repo/scripts:ro backend mypy . ../scripts` · `DC exec frontend pnpm typecheck` · `cd frontend; pnpm typecheck; cd ..` |
+| Regenerar contrato | `DC exec backend python manage.py export_openapi` → `cd frontend; pnpm openapi:types; cd ..` o `DC run --rm --no-deps -v ./specs/_contracts:/repo/specs/_contracts:ro frontend pnpm openapi:types` |
+| Migraciones | `DC exec backend sh -c "python manage.py makemigrations --check --dry-run && python manage.py lint_migrations"` · ida y vuelta **solo contra una BD descartable, nunca la de desarrollo** (revierte a `zero` y borra tablas y datos): `DC exec db createdb -U <usuario> hub_roundtrip` → `DC exec -e DATABASE_URL=postgres://<usuario>:<clave>@db:5432/hub_roundtrip backend python manage.py check_migrations_roundtrip --allow-data-loss` → `DC exec db dropdb -U <usuario> hub_roundtrip`, o el job `migrations` de CI |
 | Reiniciar worker/beat | `DC restart worker beat` |
 | Estado del proyecto | `python scripts/check_spec_state.py` (agregar `--write` para regenerar la conciliación) |
-| Verificar protección (dueño) | `python scripts/verify_repo_protection.py` con `GH_TOKEN` de admin (pendiente, T-PLT-40) |
+| Verificar protección (dueño) | `python scripts/verify_repo_protection.py` con `GH_TOKEN` de admin |
 
 Notas:
-- El smoke del pipeline todavía no existe (T-PLT-38): no se inventa. El `build` corre en el job de CI (`infra/docker-compose.ci.yml`).
+- pnpm se corre **desde `frontend/`**, no con `pnpm --dir frontend`: corepack elige la versión por el `package.json`
+  del directorio actual y la raíz no tiene uno, así que pnpm rechaza la versión por defecto con `ERR_PNPM_BAD_PM_VERSION`.
+- `copy` es de PowerShell/cmd; en bash, `cp env.example .env`. Sin terminal interactiva (agentes), `DC exec -T`.
+- Tests backend en el contenedor: con `worker` arriba, los tests de Celery con worker embebido fallan porque el servicio
+  les roba las tareas (por eso el `stop`). Dos fallan siempre, porque leen `.github/`, que no está montado, y pasan en
+  CI: `test_RN_PLT_09_architecture_job_runs_architecture_tests` y `test_AC_PLT_21_typecheck_job_runs_mypy_on_backend_and_scripts`.
+- `scripts/` no está montado en `backend` ni el contrato en `frontend`: `DC exec backend mypy . ../scripts` y
+  `DC exec frontend pnpm openapi:types` fallan; por eso `DC run` con el montaje. `DC exec backend mypy .` solo mira el backend.
+- `pytest` y `ruff` del host no son prerrequisitos (`infra/README.md`): van instalados aparte, `ruff` en `0.17.3`.
+  `pre-commit` trae su propio `ruff`.
+- Smoke del stack (`scripts/smoke_stack.py`, T-PLT-38): corre en el job `build` de CI (`infra/docker-compose.ci.yml`) y
+  a mano sobre las imágenes `runtime` del commit. PowerShell, desde la raíz:
+  ```
+  $env:GIT_SHA = git rev-parse HEAD
+  docker build --target runtime --build-arg GIT_SHA=$env:GIT_SHA -t hub-backend:$env:GIT_SHA backend
+  docker build --target runtime --build-arg GIT_SHA=$env:GIT_SHA -t hub-frontend:$env:GIT_SHA frontend
+  python scripts/smoke_stack.py
+  ```
+  En bash: `export GIT_SHA=$(git rev-parse HEAD)` y `$GIT_SHA`. Usa su propio proyecto Compose (`hub-smoke`) y lo baja con
+  `down -v`, así que no toca los volúmenes de desarrollo; no necesita `.env`. Exige libres `8000` y `3000`; si no lo
+  están: `--compose-file <override fuera del repo> --backend-url http://127.0.0.1:<puerto> --frontend-url http://127.0.0.1:<puerto>`,
+  con `ports: !override` como en `infra/README.md`.
 - En Windows, si `5432` está ocupado, usar un override fuera del repo (`infra/README.md`).
 
 ## Cierre de sesión (obligatorio si la sesión termina acá)
@@ -147,6 +169,7 @@ Notas:
 2. Actualizar `tasks.md` y `verification.md` si cambió algo.
 3. Correr `python scripts/check_spec_state.py` y mostrar el resultado.
 4. Dejar el bloque: **Hecho / Pendiente (Q-xxx) / Siguiente rol sugerido**.
-5. Commit `docs(platform): session handoff <fecha>` si hubo cambios de documentos.
+5. Si hubo cambios de documentos, commit `docs(platform): session handoff <fecha>` en una rama `log/YYYY-MM-DD-handoff`
+   y **por PR**: con el ruleset activo, un push directo a `main` se rechaza.
 
 El comando `/handoff` hace estos pasos. No se toca código de producción en el cierre.
