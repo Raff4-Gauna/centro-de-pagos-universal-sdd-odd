@@ -54,5 +54,5 @@ Salida final, además del comentario:
 ```
 Hecho: revisión del diff en <sha>.
 Bloqueantes: <n> · No bloqueantes: <n>
-Siguiente rol sugerido: merge (dueño) o implementador.
+Siguiente rol sugerido: merge (Claude, Q-057) o implementador.
 ```

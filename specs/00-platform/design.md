@@ -533,7 +533,7 @@ documenta los prefijos (`context/03`, `context/09`). No toca el placeholder ni u
   Secret de Clover → `gitleaks git --log-opts="--all"` con 0 hallazgos → aplicar la opción de Q-054 → cambiar
   visibilidad → aplicar ruleset y ajustes → `verify_repo_protection.py` en verde.
 - **Merge a `main` (Q-057, decidida por el usuario 2026-10-31):** Claude abre los PR y **puede mergear solo si está
-  100 % seguro de que no rompe producción**: (1) los 11 checks requeridos en verde **en el último commit** del PR;
+  100 % seguro de que no rompe producción**: (1) los 11 checks requeridos en verde **en el último commit** del PR (hasta T-PLT-40, todos los jobs que existen en `ci.yml` en ese commit: ampliación del usuario del 2026-11-06);
   (2) veredicto del `reviewer` sin bloqueantes (obligatorio en zona roja, citando ese SHA); (3) DoD de la tarea
   completo; (4) squash. Para mergear exactamente lo verificado usa `gh pr merge --squash --match-head-commit
   <sha>`. **Ante cualquier duda** (check flaky, re-run manual, scope drift, Q abierta, cambio de ruleset/ajustes,

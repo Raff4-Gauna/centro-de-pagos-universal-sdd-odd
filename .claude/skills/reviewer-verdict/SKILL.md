@@ -25,7 +25,7 @@ allowed-tools: Read, Grep, Glob, Bash
 3. Cada hallazgo lleva `archivo:línea` y la regla violada (`C-xx`/`RN-xx`). Sin archivo:línea no es un hallazgo,
    es una opinión.
 4. Emitir el comentario con el formato de abajo.
-5. Recordar que el label `zona-roja` lo aplica el dueño; el veredicto no lo reemplaza.
+5. Recordar que el label `zona-roja` lo aplica Claude al abrir el PR; el veredicto no lo reemplaza.
 6. Si el autor pushea después del veredicto, **no** se reutiliza: se revisa de nuevo y se cita el SHA nuevo.
 
 ## Formato
@@ -55,7 +55,7 @@ VEREDICTO: aprobado | cambios requeridos — SHA <sha> — <YYYY-MM-DD>
 - `reviewer` no edita archivos ni mergea.
 - Con bloqueantes, el veredicto es `cambios requeridos` y el PR no se mergea.
 - Sin bloqueantes y con pipeline verde en ese SHA, el veredicto es `aprobado`.
-- El merge lo hace Claude con pipeline verde y veredicto sin bloqueantes; ante cualquier duda, lo decide el dueño (Q-057).
+- El merge lo hace Claude solo con certeza total: pipeline completo en verde, veredicto sin bloqueantes, DoD y squash; ante cualquier duda, mergea el dueño (Q-057).
 
 ## Errores típicos
 - Citar el SHA equivocado o el de la base.
