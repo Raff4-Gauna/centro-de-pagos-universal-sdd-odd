@@ -1,7 +1,7 @@
 ---
 spec: SPEC-00
 estado: Aprobado         # aprobado por el usuario junto con la spec (2026-10-31)
-actualizado: 2026-11-06   # §3.2.3 (T-PLT-14, spec 1.0.3); §3.5, §3.6, §3.7.2 (T-PLT-04, spec 1.0.4 y 1.0.5); ADR-0005 Aceptado (spec 1.0.6); §3.3.3 (T-PLT-34, Q-061, spec 1.0.7); §3.6 `ruff.toml` y migraciones (T-PLT-22, sin cambio de spec); §3.2.7 y §10.2 reversibilidad e ida y vuelta, `--allow-data-loss` (T-PLT-24, sin cambio de spec); §3.7.3 `edited`, D-09 y §11.2 (T-PLT-07, spec 1.0.13); §3.2.2 y §7 `X-Forwarded-Proto` (T-PLT-42, Q-065, spec 1.0.15)
+actualizado: 2026-11-06   # §3.2.3 (T-PLT-14, spec 1.0.3); §3.5, §3.6, §3.7.2 (T-PLT-04, spec 1.0.4 y 1.0.5); ADR-0005 Aceptado (spec 1.0.6); §3.3.3 (T-PLT-34, Q-061, spec 1.0.7); §3.6 `ruff.toml` y migraciones (T-PLT-22, sin cambio de spec); §3.2.7 y §10.2 reversibilidad e ida y vuelta, `--allow-data-loss` (T-PLT-24, sin cambio de spec); §3.7.3 `edited`, D-09 y §11.2 (T-PLT-07, spec 1.0.13); §3.2.2 y §7 `X-Forwarded-Proto` (T-PLT-42, Q-065, spec 1.0.15); §3.1, §3.3.3 y §3.5 smoke y AC-29 E2E (T-PLT-38, spec 1.0.16 provisional)
 ---
 # Diseño — Módulo de Plataforma (fundaciones)
 
@@ -92,7 +92,7 @@ spikes/env.example                  # SOLO variables de spikes; nadie del Hub la
 scripts/                            # Python 3.12; stdlib salvo check_workflows (PyYAML del env del backend)
    check_file_size.py · check_workflows.py · check_zona_roja.py · check_coverage.py · coverage_thresholds.toml
    audit_deps.py · audit_exceptions.toml · verify_repo_protection.py · github_api.py (REST mínimo, paginado)
-   glob_paths.py (globs con **) · precommit_frontend.py · smoke_stack.py · pytest.ini (-p no:django) · tests/
+   glob_paths.py (globs con **) · precommit_frontend.py · smoke_stack.py + smoke_http.py + smoke_leaks.py · pytest.ini (-p no:django) · tests/
 .github/  workflows/{ci.yml, zona-roja.yml} · actions/setup/action.yml · dependabot.yml
    zona-roja-paths.txt · rulesets/main.json · repo-settings.expected.json
 infra/    README.md · docker-compose.yml (dev) · docker-compose.ci.yml (override paso 9) · scripts/README.md (bitácora)
@@ -373,7 +373,7 @@ en `modules/` (cuenta para cobertura). Sin protección de rutas ni datos.
   `encodeURIComponent`); las referencias se buscan como `env.NOMBRE`/`env["NOMBRE"]` en mayúsculas, porque Turbopack
   compila un `process.env.X` de cliente a `<módulo>.default.env.X`. El `RUN` del `builder` exige la línea
   `client bundle clean: …`, no solo exit 0. Límites conocidos: base64, escapes y strings partidos no se detectan,
-  y las páginas dinámicas se cubren en el smoke (T-PLT-38). `.next/server/pages/**` no se escanea: aun sin Pages
+  y las páginas dinámicas se cubren en el smoke (T-PLT-38, §3.5). `.next/server/pages/**` no se escanea: aun sin Pages
   Router el build deja ahí `404.html` y `500.html`, que hoy son copias de `server/app/_not-found.html` y
   `_global-error.html`, sí escaneados (comparado en el build de `296fe9f`, Next 16.4.3: mismo contenido, sin centinela). Para escribir código propio ahí hay que crear `src/pages/`, que hoy no existe; si se crea, este límite
   deja de valer.
@@ -455,9 +455,26 @@ secreto: `DJANGO_SETTINGS_MODULE=config.settings.test`, `DJANGO_SECRET_KEY=ci-on
   Buildx corre `moby/buildkit` fijado por tag + digest (`driver-opts`): Dependabot no lo ve, se actualiza a mano.
 - **`smoke_stack.py`**: `up -d --wait --wait-timeout 180` con el override de CI; `/readyz` 200; `/healthz` 200 con
   `version` = SHA corto; `/api/health` del BFF 200; `GET :3000/api/__smoke__` sin `X-Request-ID` → 404
-  `problem+json` y el `X-Request-ID` devuelto aparece en `docker compose logs backend` (AC-10 E2E); `stop redis` →
-  `/readyz` 503 sin hosts/versiones/trazas y `/healthz` 200 (AC-02 E2E); `down -v` siempre. Cada fallo nombra el
-  servicio o check.
+  `problem+json` y el `X-Request-ID` devuelto aparece en `docker compose logs backend` (AC-10 E2E); páginas y assets
+  sin datos solo-servidor (AC-29 E2E, abajo); `stop redis` → `/readyz` 503 sin hosts/versiones/trazas y `/healthz`
+  200 (AC-02 E2E); `down -v` siempre. Cada fallo nombra el servicio o check.
+  **(ajustado en T-PLT-38)**: proyecto Compose propio (`hub-smoke`), para que correrlo en una máquina de desarrollo
+  nunca borre los volúmenes del stack de desarrollo; los seis servicios se exigen `running` + `healthy` en
+  `compose ps`, además del exit de `--wait`; `/readyz` y `/healthz` se comparan contra el cuerpo exacto (sin
+  imprimirlo) y sin seguir redirects, así un 301 es un fallo; `version` se compara contra el `GIT_SHA` del job (en un
+  PR, el merge commit); ante un fallo imprime `ps` y las últimas líneas de log antes del `down -v`, porque es el
+  único rastro que deja el job. `--compose-file`, `--backend-url` y `--frontend-url` existen para correrlo con otros
+  puertos del host. Solo biblioteca estándar: el job no instala Python.
+- **AC-29 E2E (T-PLT-38)**: las páginas salen de `.next/app-path-routes-manifest.json` de la imagen, no de una lista
+  fija: una página dinámica nueva entra sola, y una con parámetros (`[id]`), que el smoke no sabe renderizar, lo
+  hace fallar hasta que se le dé una URL de ejemplo. En lo que recibe el navegador (cuerpo y cabeceras de cada página;
+  cuerpo de cada asset `/_next/static` que nombran) no pueden aparecer el valor real de `BACKEND_INTERNAL_URL` (también
+  percent-encoded), el centinela del `builder`, el nombre de la variable ni una referencia `env.X` no pública. El
+  hostname solo (`backend`, una palabra común) cuenta en las páginas, que son texto propio; en un chunk de una
+  librería cuenta solo como parte de una URL. No depende del log del build (con caché, `builder` no imprime nada).
+  **Límite vigente:** hoy ninguna página se renderiza por request (las tres responden `x-nextjs-prerender: 1`), así
+  que el chequeo corre sobre prerenderizadas; el smoke imprime cuántas fueron dinámicas. Sigue sin verse un chunk
+  que ninguna página nombre (queda para `builder`) ni un valor transformado (base64, escapes, strings partidos).
 - **`check_workflows.py`** (AC-33; ojo: PyYAML parsea la clave `on` como `True`): falla con `pull_request_target`
   o `workflow_run`; sin `permissions` top-level o con algún scope que no sea `read`/`none`; permiso de escritura
   de job fuera de `JOB_PERMISSION_ALLOWLIST` (vacía en 00); `secrets.*` distinto de `GITHUB_TOKEN`; `uses:` remoto
