@@ -1,7 +1,7 @@
 ---
 actualizado: 2026-11-06
-ultimo_commit: 2d53815
-ultimo_pr: "#51"
+ultimo_commit: f24d509
+ultimo_pr: "#53"
 modulo_activo: 00-platform
 fase: cierre (Implemented pendiente)
 ---
@@ -16,7 +16,7 @@ fase: cierre (Implemented pendiente)
 
 | Módulo | Spec | Tareas | Código | Nota |
 |---|---|---|---|---|
-| 00-platform | Approved 1.0.16 (provisional) | 38 ✅ · 4 ☐ (42) | 38 de 42 tareas | Verificación **Con hallazgos** |
+| 00-platform | Approved 1.0.17 (provisional) | 39 ✅ · 1 🟡 · 2 ☐ (42) | 39 de 42 tareas | Verificación **Con hallazgos** |
 | 01-identity-access | Approved | sin `tasks.md` | 0 % | Depende de 00 |
 | 02-tenancy-rbac | Approved | sin `tasks.md` | 0 % | Se cierra junto con 01 (Q-108) |
 | 03-integrations-engine | Draft | — | 0 % | Falta cerrar el contrato del motor |
@@ -25,12 +25,11 @@ fase: cierre (Implemented pendiente)
 | 06-charges | Draft | — | 0 % | Núcleo del dinero |
 | 07–14 | Por redactar / Futuro | — | 0 % | Ver `specs/ROADMAP.md` |
 
-- **00-platform:** 38 tareas mergeadas (PR #4–#51) y 4 pendientes: `T-PLT-29, 38, 40, 41`. `T-PLT-29` tiene el PR #52
-  abierto y `T-PLT-38` está en curso en otra sesión; sus filas se concilian cuando cierren. El pipeline tiene los 11
-  checks: 10 jobs de `ci.yml`, en verde sobre `2d53815` (run `42231351569`), más `zona-roja`, que solo corre en PR.
-  Falta el smoke, un paso de `build` (T-PLT-38), y el ruleset que los exija (T-PLT-40).
-- **Verificación:** `specs/00-platform/verification.md` da **Con hallazgos**: 29 AC ✔, 4 ⚠ (`AC-PLT-01`, `20`, `29`,
-  `32`), 1 ✘ (`AC-PLT-24`). Ningún AC se marcó ✔ sin test.
+- **00-platform:** 39 tareas mergeadas (PR #4–#53). Quedan `T-PLT-29` (PR #52, veredicto RECHAZADO sobre `cee1931`),
+  `T-PLT-40` y `T-PLT-41`. El pipeline está completo menos el ruleset (T-PLT-40): 10 jobs de `ci.yml`, con el smoke
+  como último paso de `build`, en verde sobre `f24d509` (run `42259450141`), más `zona-roja`, que solo corre en PR.
+- **Verificación:** `specs/00-platform/verification.md` da **Con hallazgos**: 30 AC ✔, 3 ⚠ (`AC-PLT-01`, `20`, `32`),
+  1 ✘ (`AC-PLT-24`). Ningún AC se marcó ✔ sin test.
 - **Requisito vigente para hosting (Q-065):** el puerto del backend no se expone a internet y el HTTPS queda a cargo
   del frente. **Webhooks:** ruta de entrada sin definir; abrir un `Q-xxx` al redactar ese módulo.
 - **Merge de #48:** lo hizo Claude como excepción puntual autorizada por el dueño. La regla de Q-063 sigue vigente:
@@ -46,7 +45,7 @@ fase: cierre (Implemented pendiente)
 
 ## 2. Qué está terminado y NO se debe rehacer
 
-- Tareas mergeadas de 00: `T-PLT-01..28`, `30..37`, `39`, `42` (detalle y evidencia en
+- Tareas mergeadas de 00: `T-PLT-01..28`, `30..39`, `42` (detalle y evidencia en
   `specs/00-platform/tasks.md`).
 - No reabrir una tarea `✅` sin evidencia nueva (test que falla, bug reproducible o cambio de spec aprobado).
 - No re-especificar 00, 01 ni 02: están `Approved`. Un cambio de comportamiento va por “Historial de cambios”.
@@ -57,16 +56,17 @@ fase: cierre (Implemented pendiente)
 1. **Probar en vivo lo que falta de AC-PLT-32**, según la ficha de T-PLT-07: rutas rojas sin label → rojo; push nuevo
    sobre un veredicto válido → rojo.
 2. **Cerrar el camino crítico de 00** en este orden:
-   - `T-PLT-29` (PR #52) → pre-commit de eslint/prettier (RF-PLT-12).
-   - `T-PLT-38` → AC-PLT-01 y el resto de AC-PLT-29 (smoke). El plan todavía no tiene paso de AC-PLT-29
-     (`verification.md §6`, hallazgo 12).
-   - `T-PLT-40` → AC-PLT-24 y el cierre de AC-PLT-20 (ruleset; lo mergea el dueño).
+   - `T-PLT-29` (PR #52, con cambios requeridos) → pre-commit de eslint/prettier (RF-PLT-12).
+   - `T-PLT-40` → AC-PLT-24 y el cierre de AC-PLT-20 (ruleset; lo mergea el dueño). Falta mostrar un run con lint
+     rojo y `build` sin ejecutar.
    - `T-PLT-41` → comandos de desarrollo (ya documentados en `AGENTS.md`; falta el cierre formal).
    - Acciones del dueño: mover las claves de spikes de su `.env` a `spikes/.env` y correr la verificación manual de
      AC-PLT-01 (`verification.md §4`).
    - Triaje de Dependabot (#25–#31): los saltos mayores tocan versiones fijadas por Q-029 y Q-059.
 3. **Repetir la verificación** de 00 y marcar las filas `🧪`. Solo el dueño puede pasar la spec a `Verified`.
 4. **Crear `tasks.md` de 01 y 02** (task-planner) y empezar identidad/tenencia.
+   Antes de SPEC-01, en `scripts/smoke_stack.py`: resolver que un 3xx cuente como página revisada (línea 257) y
+   agregar el mecanismo de URL de ejemplo para rutas `[id]`.
 5. **Redactar la spec 04** (bloquea a 06).
 6. **Ejecutar S-001** antes de diseñar el adaptador de Mercado Pago.
 7. Incorporar el checklist de buenas prácticas de software escalable que el dueño va a pasar; mapearlo contra
@@ -93,9 +93,9 @@ fase: cierre (Implemented pendiente)
 
 ## 6. Pie de la última sesión
 
-- **Hecho:** reconciliación de 00 con git sobre `2d53815` (38 ✅ · 4 ☐), `verification.md` al día (29 ✔ / 4 ⚠ / 1 ✘)
-  y `design.md §3.3.3` y `§7` con la cita de §3.2.2 y el HSTS de Q-065 (spec 1.0.16 provisional).
-- **Merges de la sesión:** #48, #50 y #51. Worklog: `context/worklog/2026-11-06-reconcile-00b.md`.
+- **Hecho:** reconciliación de 00 con git sobre `f24d509` (39 ✅ · 1 🟡 · 2 ☐), `verification.md` al día (30 ✔ / 3 ⚠ /
+  1 ✘) y `design.md §3.3.3` y `§7` con la cita de §3.2.2 y el HSTS de Q-065 (spec 1.0.17 provisional).
+- **Merges de la sesión:** #48, #50, #51 y #53. Worklog: `context/worklog/2026-11-06-reconcile-00b.md`.
 - **Pendiente / dudas:** Q-028 (SPEC-12), S-001 sin ejecutar, triaje de
   Dependabot.
-- **Siguiente rol sugerido:** `reviewer` sobre #52; después `backend-dev` en T-PLT-38.
+- **Siguiente rol sugerido:** `frontend-dev` en #52 (veredicto RECHAZADO); después `backend-dev` en T-PLT-40.
