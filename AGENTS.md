@@ -125,7 +125,7 @@ Desde la raíz del repo (PowerShell o bash). `DC` = `docker compose -f infra/doc
 | Logs / bajar | `DC logs -f backend worker` · `DC down` |
 | Recrear la BD | `DC down -v` y volver a levantar (BD descartable hasta SPEC-01, Q-053) |
 | Tests backend | `DC exec -e DJANGO_SETTINGS_MODULE=config.settings.test backend pytest` |
-| Tests frontend | `pnpm --dir frontend test` · `DC exec frontend pnpm test` (pendiente: servicio `frontend`, T-PLT-36) |
+| Tests frontend | `pnpm --dir frontend test` · `DC exec frontend pnpm test` |
 | Tests de scripts | `pytest -c scripts/pytest.ini scripts/tests` |
 | Lint rápido | `pre-commit run --all-files` · `ruff check .` · `ruff format --check .` |
 | Tipos | `DC exec backend mypy . ../scripts` · `pnpm --dir frontend typecheck` |

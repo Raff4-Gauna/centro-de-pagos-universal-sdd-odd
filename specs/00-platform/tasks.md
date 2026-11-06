@@ -1635,7 +1635,7 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   y `.meta` y se busca también el hostname del centinela (los tres casos fallan en un build real). No bloqueantes
   atendidos: el `RUN` del `builder` exige la línea `client bundle clean` (un entrypoint que no corre daría exit 0
   sin chequear nada), los límites van en el encabezado del script, `infra/README.md` entra en "Archivos". Enmienda
-  de `design.md` §3.3.3/§3.4.1/§3.4.2 en la versión 1.0.9 de la spec (se renumera al mergear si otra tarea la toma).
+  de `design.md` §3.3.3/§3.4.1/§3.4.2 en la versión 1.0.11 de la spec.
 - **Para después:** `next dev` reescribe `frontend/next-env.d.ts`, que está versionado (apunta a
   `.next/dev/types`): cada corrida del stack ensucia el checkout; hoy `infra/README.md` indica revertirlo a mano.
 
