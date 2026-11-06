@@ -65,7 +65,7 @@ Reglas: rebanada vertical · ≤ ~300 líneas de diff · mergeable sola · cita 
 
 ## Resumen
 
-> Conciliado con `git log` el 2026-11-06: 39 tareas mergeadas (`✅`), T-PLT-29 en revisión (`🟡`) y 2 pendientes (`☐`).
+> Conciliado con `git log` el 2026-11-06: 39 tareas mergeadas (`✅`), T-PLT-29 y T-PLT-41 en revisión (`🟡`) y 1 pendiente (`☐`).
 > La columna **Evidencia** es obligatoria para `✅` y la verifica `scripts/check_spec_state.py`.
 
 | ID | Título | AC | Capa | Archivos esperados (ver detalle) | Depende de | Agente | Tamaño | Zona roja | Estado | Evidencia |
@@ -110,7 +110,7 @@ Reglas: rebanada vertical · ≤ ~300 líneas de diff · mergeable sola · cita 
 | T-PLT-38 | Smoke del stack en el paso 9 | AC-PLT-01, AC-PLT-02, AC-PLT-10, AC-PLT-29 (E2E) | CI | `scripts/smoke_stack.py` | T-PLT-15, T-PLT-37, T-PLT-42 | backend-dev | L | Sí | ✅ | #53 · f24d509 |
 | T-PLT-39 | `env.example` + `spikes/env.example` + paridad | AC-PLT-05, AC-PLT-06, AC-PLT-01 | Config | `env.example`, `spikes/env.example` | T-PLT-09, T-PLT-12, T-PLT-16, T-PLT-26, T-PLT-33 | backend-dev | M | Sí | ✅ | #45 · 6acc087 |
 | T-PLT-40 | Ruleset de `main` + verificación de protección | AC-PLT-24, AC-PLT-20 (cierre) | Gobierno | `.github/rulesets/main.json`, `scripts/verify_repo_protection.py` | T-PLT-07, T-PLT-10, T-PLT-19, T-PLT-21, T-PLT-24, T-PLT-28, T-PLT-38 | backend-dev (+ dueño) | L | Sí | 🟡 | — |
-| T-PLT-41 | "Comandos de desarrollo" en `AGENTS.md` + `infra/README.md` | — (RF-PLT-16) | Docs | `AGENTS.md`, `infra/README.md` | T-PLT-38, T-PLT-40 | backend-dev | S | No | ☐ | — |
+| T-PLT-41 | "Comandos de desarrollo" en `AGENTS.md` + `infra/README.md` | — (RF-PLT-16) | Docs | `AGENTS.md`, `infra/README.md` | T-PLT-38, T-PLT-40 | backend-dev | S | No | 🟡 | — |
 | T-PLT-42 | BFF: `X-Forwarded-Proto: https` hacia el backend | — (RF-PLT-06, Q-065) | BFF | `src/lib/server/backend-proxy.ts` | T-PLT-09, T-PLT-33 | frontend-dev | S | No (reviewer recomendado) | ✅ | #51 · 2d53815 |
 
 ## Cobertura AC → tareas
@@ -1866,6 +1866,17 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   de Q-057 / §3.7.4), `infra/README.md` (enlace a esos comandos, recrear BD antes de 01 por Q-053).
 - **Plan de pruebas:** revisión manual: cada comando de la tabla se ejecuta una vez desde la raíz (PowerShell) y
   funciona; `pre-commit run --all-files` en verde.
+- **Notas de implementación (2026-11-06):** (1) **Desvío de archivos:** además de los dos de la ficha, `design.md §10.2`
+  y `spec.sdd.md` (Historial, 1.0.19 provisional): pnpm desde `frontend/`, autorizado por el coordinador. (2) La ficha
+  depende de T-PLT-40, sin mergear: `verify_repo_protection.py` no existe y su fila sigue "pendiente", sin probar. (3)
+  **Comandos corregidos al probarlos:** `pnpm --dir frontend …` da `ERR_PNPM_BAD_PM_VERSION` bajo corepack; `exec backend
+  mypy . ../scripts` y `exec frontend pnpm openapi:types` fallan porque `scripts/` y el contrato no están montados. (4)
+  **Límites que quedan en `pytest` del contenedor:** dos tests leen `.github/` y fallan siempre ahí; pasan en CI. (5)
+  Probado con proyecto y puertos propios, porque `5432` del host está ocupado, y `exec -T`; `corepack enable` con
+  `--install-directory`. (6) **`pre-commit run --all-files` no da verde en `main`:** falla `check-yaml` en
+  `frontend/pnpm-lock.yaml` e `infra/docker-compose.ci.yml`, y `end-of-file-fixer` reescribe un worklog. Es previo a esta
+  tarea y lo corrige #52, abierto; el resto de los hooks pasa, salvo gitleaks, sin correr: el hook baja Go y no terminó
+  en 15 minutos, así que se usó la imagen fijada sobre el diff de cada commit.
 
 ---
 
