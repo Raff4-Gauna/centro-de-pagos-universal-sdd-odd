@@ -1866,17 +1866,17 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   de Q-057 / §3.7.4), `infra/README.md` (enlace a esos comandos, recrear BD antes de 01 por Q-053).
 - **Plan de pruebas:** revisión manual: cada comando de la tabla se ejecuta una vez desde la raíz (PowerShell) y
   funciona; `pre-commit run --all-files` en verde.
-- **Notas de implementación (2026-11-06):** (1) **Desvío de archivos:** además de los dos de la ficha, `design.md §10.2`
-  y `spec.sdd.md` (Historial, 1.0.19 provisional): pnpm desde `frontend/`, autorizado por el coordinador. (2) La ficha
+- **Notas de implementación (2026-11-06):** (1) **Desvío de archivos:** además de los dos de la ficha, `design.md §3.6` y
+  `§10.2` y `spec.sdd.md` (Historial, 1.0.20 provisional): pnpm desde `frontend/`, y `§10.2` igual a `AGENTS.md`.
+  Ampliación decidida por la sesión principal, no por el dueño. También suma el comando del ruleset en
+  `infra/README.md`, sin probar, y el paso 5 de "Cierre de sesión" de `AGENTS.md`. (2) La ficha
   depende de T-PLT-40, sin mergear: `verify_repo_protection.py` no existe y su fila sigue "pendiente", sin probar. (3)
   **Comandos corregidos al probarlos:** `pnpm --dir frontend …` da `ERR_PNPM_BAD_PM_VERSION` bajo corepack; `exec backend
   mypy . ../scripts` y `exec frontend pnpm openapi:types` fallan porque `scripts/` y el contrato no están montados. (4)
   **Límites que quedan en `pytest` del contenedor:** dos tests leen `.github/` y fallan siempre ahí; pasan en CI. (5)
   Probado con proyecto y puertos propios, porque `5432` del host está ocupado, y `exec -T`; `corepack enable` con
-  `--install-directory`. (6) **`pre-commit run --all-files` no da verde en `main`:** falla `check-yaml` en
-  `frontend/pnpm-lock.yaml` e `infra/docker-compose.ci.yml`, y `end-of-file-fixer` reescribe un worklog. Es previo a esta
-  tarea y lo corrige #52, abierto; el resto de los hooks pasa, salvo gitleaks, sin correr: el hook baja Go y no terminó
-  en 15 minutos, así que se usó la imagen fijada sobre el diff de cada commit.
+  `--install-directory`. (6) **`pre-commit run --all-files`:** verde sobre `main` con #52, con `SKIP=gitleaks`. El hook de
+  gitleaks no corrió: baja Go y no terminó en 15 minutos, así que se usó la imagen fijada sobre el diff de cada commit.
 
 ---
 
