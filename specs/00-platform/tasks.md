@@ -1648,20 +1648,30 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   `spikes/env.example` (claves de spikes con `<ver .env: NOMBRE>`),
   `backend/tests/config/test_AC_PLT_05_env_example_parity.py` (`COMPOSE_ONLY_VARS`, `FRONTEND_SERVER_VARS`),
   `backend/tests/config/test_AC_PLT_06_no_provider_env.py` (+ claves de `spikes/env.example`),
+  `backend/tests/config/_env_example.py` (parser y rutas compartidos),
   `infra/docker-compose.yml` (bind mounts `:ro` de ambos archivos en `backend`), `.gitignore` (sin la excepción
   `!.env.example`: un ejemplo con punto no lo pueden leer los agentes y quedaría desactualizado sin que nadie lo
-  vea), `infra/README.md` (`copy env.example .env`), `scripts/spec_state_baseline.json` (AC-PLT-05 sale: ya tiene
-  test con su ID).
+  vea), `infra/README.md` (`copy env.example .env`), `scripts/spec_state_baseline.json` (AC-PLT-05 y AC-PLT-01 salen:
+  ya tienen test con su ID).
 - **Plan de pruebas:** `test_AC_PLT_05_setting_missing_from_env_example_fails_naming_it`,
   `test_AC_PLT_05_env_example_var_not_read_fails_naming_it`, `test_AC_PLT_05_real_env_example_in_parity`,
   `test_AC_PLT_06_no_setting_matches_spike_keys`, `test_RN_PLT_04_spike_keys_absent_from_root_env_example`.
   Además: `test_RN_PLT_04_spike_values_are_placeholders_only`, `test_AC_PLT_05_malformed_env_example_fails_naming_the_line`,
-  `test_AC_PLT_01_every_compose_variable_is_in_env_example` y `test_AC_PLT_05_frontend_server_vars_match_what_the_bff_reads`
-  (estos dos últimos se saltean dentro del contenedor: no están montados `infra/` ni `frontend/`).
+  `test_AC_PLT_05_bff_env_scanner_finds_every_form` (incluye `const { X } = process.env`),
+  `test_AC_PLT_01_every_compose_variable_is_in_env_example`, `test_AC_PLT_05_frontend_server_vars_match_what_the_bff_reads`,
+  y `test_AC_PLT_01_allowed_hosts_keep_localhost_and_backend` (`DJANGO_ALLOWED_HOSTS` con `localhost` para el
+  healthcheck y `backend` para el BFF del Compose, que si no recibe 400 `DisallowedHost`). Los dos cruces contra
+  `infra/` y `frontend/` se saltean **solo** dentro del contenedor (sin `/repo/.github`); con `CI` definida o en un
+  checkout completo, si falta el archivo fallan.
   Gitleaks pasa sobre ambos archivos.
 - **Verificación manual (dueño):** clon limpio → `copy env.example .env` → comando documentado → 6 servicios
   `healthy` y `/healthz` 200 (AC-PLT-01 literal; el sexto servicio, `frontend`, llega con T-PLT-36).
 - **DoD extra:** desde que esta tarea entra, toda tarea que agregue una variable a `env.py` también edita `env.example`.
+- **Para después:** quedan menciones del nombre viejo `.env.example` fuera de esta tarea: `AGENTS.md` (sección
+  "Comandos de desarrollo", T-PLT-41), `context/09-cuenta-sandbox-mp-datos-reales.md` (encabezado),
+  `specs/01-identity-access/design.md` (placeholders de SPEC-01), `backend/.dockerignore` y el comentario de
+  `scripts/tests/test_AC_PLT_25_dockerfiles.py`, y las fichas históricas de T-PLT-09 y T-PLT-26 en este archivo
+  (quedan como registro).
 
 ### T-PLT-40 — Ruleset de `main` + verificación de protección
 - **AC:** AC-PLT-24; AC-PLT-20 (cierre: los 11 checks y PR de sacrificio). RN-PLT-12, RN-PLT-13, RN-PLT-18,

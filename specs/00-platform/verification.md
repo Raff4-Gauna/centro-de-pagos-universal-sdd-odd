@@ -22,12 +22,12 @@ version_spec: 1.0.8
 
 | AC | Test(s) | Cobertura |
 |---|---|---|
-| AC-PLT-01 | `scripts/tests/test_RF_PLT_02_compose_dev.py` (estático) | ⚠ parcial: falta `up --wait` real y el servicio `frontend` (T-PLT-36, T-PLT-38) |
+| AC-PLT-01 | `scripts/tests/test_RF_PLT_02_compose_dev.py` (estático), `backend/tests/config/test_AC_PLT_05_env_example_parity.py` (`test_AC_PLT_01_every_compose_variable_is_in_env_example`, `test_AC_PLT_01_allowed_hosts_keep_localhost_and_backend`, estáticos) | ⚠ parcial: falta `up --wait` real y el servicio `frontend` (T-PLT-36, T-PLT-38) |
 | AC-PLT-02 | `backend/tests/health/test_AC_PLT_02_readyz.py` | ✔ |
 | AC-PLT-03 | `backend/tests/config/test_AC_PLT_03_missing_required_var.py` | ✔ |
 | AC-PLT-04 | `backend/tests/config/test_AC_PLT_04_check_deploy.py` | ✔ |
-| AC-PLT-05 | — | ✘ sin test: `.env.example` no existe (T-PLT-39, Q-048) |
-| AC-PLT-06 | `backend/tests/config/test_AC_PLT_06_no_provider_env.py`, `backend/tests/config/test_C_06_celery_broker_url.py` | ⚠ (la parte de `spikes/.env.example` depende de T-PLT-39) |
+| AC-PLT-05 | `backend/tests/config/test_AC_PLT_05_env_example_parity.py` | ✔ (paridad en los dos sentidos; rama de T-PLT-39, 0f1f185, sin mergear) |
+| AC-PLT-06 | `backend/tests/config/test_AC_PLT_06_no_provider_env.py`, `backend/tests/config/test_C_06_celery_broker_url.py` | ✔ (`test_AC_PLT_06_no_setting_matches_spike_keys` cubre las claves de `spikes/env.example`; rama de T-PLT-39, 0f1f185, sin mergear) |
 | AC-PLT-07 | `backend/tests/logging/test_AC_PLT_07_access_log_json.py` | ✔ |
 | AC-PLT-08 | `backend/tests/logging/test_AC_PLT_08_redaction.py`, `…_redaction_domain.py`, `…_redaction_performance.py`, `…_sql_and_reports.py` | ✔ |
 | AC-PLT-09 | `backend/tests/logging/test_AC_PLT_09_request_id.py`, `frontend/src/lib/server/request-id.test.ts`, `frontend/src/lib/server/backend-proxy.test.ts` | ✔ |
@@ -57,7 +57,7 @@ version_spec: 1.0.8
 | AC-PLT-33 | — | ✘ sin test: falta `check_workflows.py` (T-PLT-05) |
 | AC-PLT-34 | `backend/tests/api/test_AC_PLT_34_problem_json.py`, `…_problems_domain.py` | ✔ |
 
-**Resumen:** 24 ✔ · 4 ⚠ · 6 ✘ · 34 AC.
+**Resumen:** 26 ✔ · 3 ⚠ · 5 ✘ · 34 AC.
 
 ## 2. Ejecución de la suite
 
@@ -66,6 +66,10 @@ version_spec: 1.0.8
 | Scripts / tooling | `.venv\Scripts\python.exe -m pytest -c scripts/pytest.ini scripts/tests -q` | ✔ 255 passed, 22 deselected (marker `gitleaks`), 2026-11-05 sobre `log/2026-11-05-process-stewardship` |
 | Scripts nuevos (drift) | `.venv\Scripts\python.exe -m pytest -c scripts/pytest.ini scripts/tests/test_check_spec_state.py -q` | ✔ 16 passed |
 | Backend | `docker compose … exec -e DJANGO_SETTINGS_MODULE=config.settings.test backend pytest` | ⏳ pendiente (requiere el stack levantado) |
+| Backend, unit (host, T-PLT-39) | `pytest -m "not integration"` desde `backend/` | ✔ 512 passed, 1 skipped (gunicorn en win32), 24 deselected (`integration`, sin correr), 2026-11-06 sobre 0f1f185 |
+| Scripts (T-PLT-39) | `pytest -c scripts/pytest.ini scripts/tests -m "not gitleaks"` · `-m gitleaks` | ✔ 255 passed · ✔ 22 passed, 2026-11-06 sobre 0f1f185 |
+| Tipos y lint backend (T-PLT-39) | `mypy . ../scripts` · `ruff check .` · `ruff format --check .` | ✔ sin errores en 144 archivos · ✔ verde, 2026-11-06 sobre 0f1f185 |
+| Secretos (T-PLT-39) | gitleaks v8.30.1 sobre `env.example` y `spikes/env.example` y sobre los diffs, con `.gitleaks.toml` y solo con reglas por defecto | ✔ 0 hallazgos, 2026-11-06 |
 | Frontend | `pnpm --dir frontend test` | ⏳ pendiente |
 | Tipos | `pnpm --dir frontend typecheck` · `mypy . ../scripts` (backend) | ⚠ backend `mypy`: sin errores en 142 archivos (2026-11-05); frontend pendiente |
 | Lint | `.venv\Scripts\ruff.exe check` + `format --check` sobre los `.py` nuevos | ✔ verde |
@@ -86,8 +90,8 @@ version_spec: 1.0.8
 
 ## 4. Validación funcional manual (la hace el dueño)
 
-1. **Requisito previo:** crear `.env.example` (T-PLT-39) o usar la tabla de `infra/README.md`. Hoy el paso 1 del
-   AC-PLT-01 no se puede reproducir tal cual.
+1. **Requisito previo:** `copy env.example .env` (T-PLT-39; `cp` en bash). Solo reproducible cuando esa tarea esté
+   mergeada; hasta entonces, usar la rama `task/T-PLT-39-env-example`. No se ejecutó todavía.
 2. `docker compose -f infra/docker-compose.yml --env-file .env up -d --build --wait` → 5 servicios `healthy`
    (falta `frontend`, T-PLT-36).
 3. `curl -i http://127.0.0.1:8000/healthz` → 200 con `version` (SHA corto).
@@ -113,7 +117,8 @@ revisión del **diff acumulado** del módulo.
 1. 30 tareas mergeadas seguían marcadas “en revisión” en `tasks.md` (drift de estado).
 2. No existía `verification.md`: el paso 6 de SDD nunca se ejecutó para 00.
 3. `README.md` y `AGENTS.md` decían que no había código.
-4. `.env.example` ausente (Q-048) y `.vscode/` sin política.
+4. Faltaba el archivo de ejemplo de entorno (Q-048, cerrada: T-PLT-39 agrega `env.example`, sin mergear) y `.vscode/`
+   sigue sin política.
 5. Faltan los jobs `build` y `smoke` del pipeline (9 de 11).
 6. No había ningún mecanismo que detectara el drift: se agrega `scripts/check_spec_state.py`.
 
@@ -129,7 +134,7 @@ Bloqueantes para cerrar 00-platform:
 | T-PLT-24 | AC-PLT-17 |
 | T-PLT-36 | AC-PLT-29 |
 | T-PLT-37, 38 | AC-PLT-25 (completo) y AC-PLT-01 |
-| T-PLT-39 (Q-048) | AC-PLT-05 |
+| T-PLT-39 (merge) | AC-PLT-05 y AC-PLT-06 |
 | T-PLT-40 | AC-PLT-24 |
 | T-PLT-41 | Cierre documental (RF-PLT-16) |
 
