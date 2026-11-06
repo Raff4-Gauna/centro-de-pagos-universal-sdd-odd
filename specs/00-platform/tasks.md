@@ -65,7 +65,7 @@ Reglas: rebanada vertical · ≤ ~300 líneas de diff · mergeable sola · cita 
 
 ## Resumen
 
-> Conciliado con `git log` el 2026-11-06: 38 tareas mergeadas (`✅`) y 4 pendientes (`☐`).
+> Conciliado con `git log` el 2026-11-06: 39 tareas mergeadas (`✅`), T-PLT-29 en revisión (`🟡`) y 2 pendientes (`☐`).
 > La columna **Evidencia** es obligatoria para `✅` y la verifica `scripts/check_spec_state.py`.
 
 | ID | Título | AC | Capa | Archivos esperados (ver detalle) | Depende de | Agente | Tamaño | Zona roja | Estado | Evidencia |
@@ -98,7 +98,7 @@ Reglas: rebanada vertical · ≤ ~300 líneas de diff · mergeable sola · cita 
 | T-PLT-26 | Compose de desarrollo (db, redis, backend, worker, beat) | AC-PLT-01 (parcial), AC-PLT-02 (manual) | Infra | `infra/docker-compose.yml` | T-PLT-11, T-PLT-17, T-PLT-25 | backend-dev | L | Sí | ✅ | #40 · 3033f63 |
 | T-PLT-27 | Frontend: proyecto Next + toolchain + CI frontend | AC-PLT-21 (frontend) | Frontend/CI | `frontend/package.json`, `tsconfig.json`, … | T-PLT-03 | frontend-dev | L | Sí | ✅ | #21 · 09549c8 |
 | T-PLT-28 | Auditoría de dependencias + Dependabot | AC-PLT-26 | CI | `scripts/audit_deps.py`, `.github/dependabot.yml` | T-PLT-27 | backend-dev | L | Sí | ✅ | #24 · cc1d662 |
-| T-PLT-29 | Pre-commit de eslint/prettier | — (RF-PLT-12) | Infra | `scripts/precommit_frontend.py` | T-PLT-04, T-PLT-27 | frontend-dev | M | Sí | ☐ | — |
+| T-PLT-29 | Pre-commit de eslint/prettier | — (RF-PLT-12) | Infra | `scripts/precommit_frontend.py` | T-PLT-04, T-PLT-27 | frontend-dev | M | Sí | 🟡 | PR #52 abierto |
 | T-PLT-30 | Base visual: tokens, tema, estados de carga | AC-PLT-28 (parcial), AC-PLT-22 (FE) | UI | `src/lib/{design-tokens,theme,query-client}.ts`, `src/components/*` | T-PLT-21, T-PLT-27 | frontend-dev | L | Sí | ✅ | #33 · 8f1059e |
 | T-PLT-31 | Shell `(dashboard)` + Inicio | AC-PLT-28 | UI | `src/components/shell/*`, `app/(dashboard)/inicio/*` | T-PLT-30 | frontend-dev | L | No | ✅ | #36 · 264e523 |
 | T-PLT-32 | Configuración (secciones deshabilitadas) | AC-PLT-28 | UI | `app/(dashboard)/configuracion/*`, `src/modules/settings/*` | T-PLT-31 | frontend-dev | M | No | ✅ | #39 · 0d46f55 |
@@ -107,7 +107,7 @@ Reglas: rebanada vertical · ≤ ~300 líneas de diff · mergeable sola · cita 
 | T-PLT-35 | Cliente tipado + tipos desde OpenAPI + diff en CI | AC-PLT-23 (frontend) | Frontend/CI | `src/lib/{api-client,problem}.ts`, `src/types/api.d.ts` | T-PLT-18, T-PLT-27 | frontend-dev | M | Sí | ✅ | #37 · 75ea14f |
 | T-PLT-36 | Imagen del frontend + chequeo de bundle + servicio en Compose | AC-PLT-29, AC-PLT-25 (FE), AC-PLT-01 | Infra/Frontend | `frontend/Dockerfile`, `frontend/scripts/check-client-bundle.ts` | T-PLT-26, T-PLT-33, T-PLT-34 | frontend-dev | L | Sí | ✅ | #47 · 1cc858e |
 | T-PLT-37 | Job `build` (imágenes por SHA, no root) | AC-PLT-25, AC-PLT-20 | CI | `infra/docker-compose.ci.yml`, `ci.yml` | T-PLT-24, T-PLT-36 | backend-dev | M | Sí | ✅ | #50 · 4c6fed8 |
-| T-PLT-38 | Smoke del stack en el paso 9 | AC-PLT-01, AC-PLT-02, AC-PLT-10, AC-PLT-29 (E2E) | CI | `scripts/smoke_stack.py` | T-PLT-15, T-PLT-37, T-PLT-42 | backend-dev | L | Sí | 🟡 | rama `task/T-PLT-38-smoke-stack` |
+| T-PLT-38 | Smoke del stack en el paso 9 | AC-PLT-01, AC-PLT-02, AC-PLT-10, AC-PLT-29 (E2E) | CI | `scripts/smoke_stack.py` | T-PLT-15, T-PLT-37, T-PLT-42 | backend-dev | L | Sí | ✅ | #53 · f24d509 |
 | T-PLT-39 | `env.example` + `spikes/env.example` + paridad | AC-PLT-05, AC-PLT-06, AC-PLT-01 | Config | `env.example`, `spikes/env.example` | T-PLT-09, T-PLT-12, T-PLT-16, T-PLT-26, T-PLT-33 | backend-dev | M | Sí | ✅ | #45 · 6acc087 |
 | T-PLT-40 | Ruleset de `main` + verificación de protección | AC-PLT-24, AC-PLT-20 (cierre) | Gobierno | `.github/rulesets/main.json`, `scripts/verify_repo_protection.py` | T-PLT-07, T-PLT-10, T-PLT-19, T-PLT-21, T-PLT-24, T-PLT-28, T-PLT-38 | backend-dev (+ dueño) | L | Sí | ☐ | — |
 | T-PLT-41 | "Comandos de desarrollo" en `AGENTS.md` + `infra/README.md` | — (RF-PLT-16) | Docs | `AGENTS.md`, `infra/README.md` | T-PLT-38, T-PLT-40 | backend-dev | S | No | ☐ | — |
@@ -1717,7 +1717,7 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   `GET :3000/api/__smoke__` responde 301, no el 404 de `design.md §3.5`; sin diagnosticar (la sospecha es
   `SECURE_SSL_REDIRECT`, porque el BFF le habla HTTP al backend). Diagnosticado y resuelto en T-PLT-42 (Q-065).
 
-### T-PLT-38 — Smoke del stack en el paso 9 — 🟡 en revisión
+### T-PLT-38 — Smoke del stack en el paso 9
 - **AC:** AC-PLT-01, AC-PLT-02, AC-PLT-10, AC-PLT-29 (E2E). RF-PLT-07. **Zona roja:** sí.
 - **Archivos:** `scripts/smoke_stack.py` (secuencia de §3.5; `down -v` siempre; cada fallo nombra servicio o check),
   `scripts/smoke_http.py` y `scripts/smoke_leaks.py` (aparte por C-14),
@@ -1874,7 +1874,7 @@ Pasa a `Verified` solo con el OK explícito del dueño. Ningún agente lo marca 
 | T-PLT-26 | #40 | 3033f63 | ✅ |
 | T-PLT-27 | #21 | 09549c8 | ✅ |
 | T-PLT-28 | #24 | cc1d662 | ✅ |
-| T-PLT-29 | — | — | ☐ |
+| T-PLT-29 | — | — | 🟡 |
 | T-PLT-30 | #33 | 8f1059e | ✅ |
 | T-PLT-31 | #36 | 264e523 | ✅ |
 | T-PLT-32 | #39 | 0d46f55 | ✅ |
@@ -1883,7 +1883,7 @@ Pasa a `Verified` solo con el OK explícito del dueño. Ningún agente lo marca 
 | T-PLT-35 | #37 | 75ea14f | ✅ |
 | T-PLT-36 | #47 | 1cc858e | ✅ |
 | T-PLT-37 | #50 | 4c6fed8 | ✅ |
-| T-PLT-38 | — | — | 🟡 |
+| T-PLT-38 | #53 | f24d509 | ✅ |
 | T-PLT-39 | #45 | 6acc087 | ✅ |
 | T-PLT-40 | — | — | ☐ |
 | T-PLT-41 | — | — | ☐ |
