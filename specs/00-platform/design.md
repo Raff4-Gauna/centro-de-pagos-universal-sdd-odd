@@ -1,7 +1,7 @@
 ---
 spec: SPEC-00
 estado: Aprobado         # aprobado por el usuario junto con la spec (2026-10-31)
-actualizado: 2026-11-06   # §3.2.3 (T-PLT-14, spec 1.0.3); §3.5, §3.6, §3.7.2 (T-PLT-04, spec 1.0.4 y 1.0.5); ADR-0005 Aceptado (spec 1.0.6); §3.3.3 (T-PLT-34, Q-061, spec 1.0.7); §3.6 `ruff.toml` y migraciones (T-PLT-22, sin cambio de spec); §3.2.7 y §10.2 reversibilidad e ida y vuelta, `--allow-data-loss` (T-PLT-24, sin cambio de spec); §3.7.3 `edited`, D-09 y §11.2 (T-PLT-07, spec 1.0.12)
+actualizado: 2026-11-06   # §3.2.3 (T-PLT-14, spec 1.0.3); §3.5, §3.6, §3.7.2 (T-PLT-04, spec 1.0.4 y 1.0.5); ADR-0005 Aceptado (spec 1.0.6); §3.3.3 (T-PLT-34, Q-061, spec 1.0.7); §3.6 `ruff.toml` y migraciones (T-PLT-22, sin cambio de spec); §3.2.7 y §10.2 reversibilidad e ida y vuelta, `--allow-data-loss` (T-PLT-24, sin cambio de spec); §3.7.3 `edited`, D-09 y §11.2 (T-PLT-07, spec 1.0.13); §3.2.2 y §7 `X-Forwarded-Proto` (T-PLT-42, Q-065, spec 1.0.15)
 ---
 # Diseño — Módulo de Plataforma (fundaciones)
 
@@ -165,6 +165,12 @@ excepciones a `build_problem()`; `dev_views.py` solo llama a `diagnostic_ping.de
   r"^readyz$"]` (healthchecks internos por HTTP); `SECURE_PROXY_SSL_HEADER`; HSTS 1 año + subdominios; cookies
   `Secure`; `X_FRAME_OPTIONS="DENY"`. `SECURE_HSTS_PRELOAD=False` con `security.W021` silenciado **explícitamente
   y comentado** hasta tener dominio (Q-020): es el único silenciamiento permitido (otro requiere ADR).
+- **`X-Forwarded-Proto` (Q-065, T-PLT-42):** el BFF le habla al backend por HTTP interno y envía siempre
+  `X-Forwarded-Proto: https`, el valor que pide `SECURE_PROXY_SSL_HEADER`. Se fija con valor constante en
+  `upstreamInit` de `lib/server/backend-proxy.ts` y **no** entra en la allowlist de §3.3.3: lo que mande el
+  navegador no se reenvía. Sin ella, `SECURE_SSL_REDIRECT` responde 301 a `https://backend/...` y, con
+  `redirect: "manual"` y `Location` filtrada, el navegador recibe un 301 sin destino en todo `/api/*`.
+  **Requisito:** el puerto del backend no queda expuesto a internet (§7).
 - **`env.example`** (raíz; sin punto inicial por decisión del dueño sobre Q-048, 2026-11-05, para que los
   agentes lo lean sin tocar `.claude/settings.json`): solo plataforma, por grupos (Django, BD, Redis, Compose
   `POSTGRES_*`, frontend servidor `BACKEND_INTERNAL_URL`, observabilidad, flags comentados); valores ficticios de baja entropía para que gitleaks no
@@ -644,6 +650,10 @@ Nombres de jobs = checks requeridos: `lint`, `file-size`, `secrets`, `deps-audit
   origen; headers en allowlist en ambos sentidos.
 - **Superficie**: sin admin, browsable API, Swagger en prod, CORS ni cookies del backend; HSTS y redirect HTTPS en
   prod (healthchecks exentos); `X-Frame-Options: DENY`. **PII**: ninguna.
+- **Ingreso al backend (Q-065):** el puerto del backend **no** queda expuesto a internet: Django confía en
+  `X-Forwarded-Proto: https` (`SECURE_PROXY_SSL_HEADER`) y quien llegue directo podría falsificarla. El BFF pisa
+  esa cabecera con un valor constante (§3.2.2). Como ese valor no depende de cómo llegó el navegador, el paso a
+  HTTPS de `/api/*` queda a cargo de lo que esté delante del BFF (hosting, Q-020).
 
 ## 8. Tecnologías y dependencias
 > Verificadas el **2026-10-31** (PyPI, npm, Docker Hub, GitHub Releases). Versión exacta (`==` en `pyproject.toml`,
