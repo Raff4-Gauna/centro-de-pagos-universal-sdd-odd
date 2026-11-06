@@ -105,6 +105,10 @@ recargan solos: `docker compose -f infra/docker-compose.yml --env-file .env rest
   lado servidor; el navegador habla únicamente con `:3000`). Django recibe `Host: backend` y, con el valor por
   defecto de `DJANGO_ALLOWED_HOSTS` (`localhost,127.0.0.1`), responde `400 DisallowedHost`: en el `.env` va
   `DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1,backend`. Los healthchecks no dependen de esto.
+- **El puerto del backend no se expone a internet (Q-065, `design.md §7`):** el BFF envía siempre
+  `X-Forwarded-Proto: https` al backend y, con `config.settings.prod`, Django confía en esa cabecera; quien llegue
+  directo podría falsificarla. Este Compose publica `8000` solo en `127.0.0.1`: no cambiar ese bind por `0.0.0.0`.
+  Un túnel (ngrok/cloudflared, Q-020) que apunte a ese puerto también lo expone.
 - `next dev` reescribe `frontend/next-env.d.ts` (apunta a `.next/dev/types`): no commitear ese cambio
   (`git checkout frontend/next-env.d.ts`). Como en `backend`, el target `dev` corre como root.
 
