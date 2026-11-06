@@ -12,6 +12,9 @@ Seis servicios (`design.md §3.4.1`): `db` (PostgreSQL 17.11), `redis` (7.4.12, 
 con `backend` sano. `migrate --noinput` corre **solo** en
 `backend`, antes de gunicorn; `worker` y `beat` no migran (sin carrera).
 
+Los comandos del día a día (levantar, tests, lint, tipos, contrato, migraciones, smoke) están en la sección
+"Comandos de desarrollo" de `AGENTS.md`; acá va el detalle del stack.
+
 ### Prerrequisitos del host (Q-060, `design.md §3.6`)
 - **Docker Desktop** (engine Linux / WSL 2) con **Compose v2** (`docker compose version`).
 - **Git**.
@@ -80,7 +83,8 @@ docker compose -f infra/docker-compose.yml --env-file .env up -d --build --wait
 ```
 `down -v` borra **todos** los volúmenes del proyecto `centro-pagos` (también `frontend_node_modules` y
 `pnpm_store`: el próximo `up` reinstala desde el lockfile). Cambiar `POSTGRES_*` en el `.env` no afecta a
-una BD ya inicializada (la imagen solo los usa sobre un volumen vacío): hay que recrearla.
+una BD ya inicializada (la imagen solo los usa sobre un volumen vacío): hay que recrearla. Al llegar SPEC-01 (usuario
+custom + `auth`/`contenttypes`) hay que recrearla una vez más (Q-053).
 
 ### Hot reload del backend (polling en Windows)
 `../backend` se monta en `/repo/backend` (el venv está en `/opt/venv`, así que el bind mount no lo tapa). En Docker
