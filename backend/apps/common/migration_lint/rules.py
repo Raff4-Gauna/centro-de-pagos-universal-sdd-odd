@@ -6,6 +6,12 @@
   rejected, so data and schema changes can be reverted one without the other. Operations nested
   in ``SeparateDatabaseAndState`` (database and state sides) count as well. Several ``RunPython``
   together are one data migration and pass.
+- Reversible (C-17, AC-PLT-17): any operation with ``reversible is False`` is rejected, which is a
+  ``RunPython`` without ``reverse_code`` or a ``RunSQL`` without ``reverse_sql`` (and any custom
+  operation declaring it), also nested in ``SeparateDatabaseAndState``: Django itself only checks
+  the top level and fails there mid-revert. ``RunPython.noop`` / ``RunSQL.noop`` are reverses
+  and pass. The rule trusts the attribute: a subclass that declares ``reversible = True`` but
+  cannot go back passes here and is caught by ``check_migrations_roundtrip``, which reverts it.
 
 Pure on the migration's name and operations: it never imports, runs nor connects anything.
 """
@@ -15,7 +21,7 @@ from __future__ import annotations
 import re
 from collections.abc import Iterator, Sequence
 
-from django.db.migrations.operations import RunPython, SeparateDatabaseAndState
+from django.db.migrations.operations import RunPython, RunSQL, SeparateDatabaseAndState
 from django.db.migrations.operations.base import Operation
 
 # The project's own code: Django, third-party and test apps are never linted by default.
@@ -27,6 +33,12 @@ AUTO_NAME_PATTERN = re.compile(r"^\d{4}_auto_", re.ASCII)
 AUTO_NAME = "auto-generated name (NNNN_auto_<date>): rename it to describe the change"
 MIXED_RUNPYTHON = (
     "RunPython mixed with other operations: put schema and data changes in separate migrations"
+)
+
+IRREVERSIBLE = "irreversible {operation}: give it {reverse} (C-17)"
+REVERSE_HINTS: tuple[tuple[type[Operation], str], ...] = (
+    (RunPython, "reverse_code (RunPython.noop if there is nothing to undo)"),
+    (RunSQL, "reverse_sql (RunSQL.noop if there is nothing to undo)"),
 )
 
 
@@ -50,6 +62,19 @@ def mixes_runpython(operations: Sequence[Operation]) -> bool:
     return kinds == {True, False}
 
 
+def irreversible_problem(operation: Operation) -> str:
+    """The problem text for one irreversible operation, with the reverse it is missing."""
+    reverse = next(
+        (hint for kind, hint in REVERSE_HINTS if isinstance(operation, kind)), "a reverse"
+    )
+    return IRREVERSIBLE.format(operation=type(operation).__name__, reverse=reverse)
+
+
+def irreversible_operations(operations: Sequence[Operation]) -> list[Operation]:
+    """The operations that cannot be reverted (``reversible is False``), nested ones included."""
+    return [operation for operation in flatten(operations) if operation.reversible is False]
+
+
 def migration_problems(name: str, operations: Sequence[Operation]) -> list[str]:
     """The problems of the migration ``name`` (empty when it passes), in a fixed order."""
     problems: list[str] = []
@@ -57,4 +82,5 @@ def migration_problems(name: str, operations: Sequence[Operation]) -> list[str]:
         problems.append(AUTO_NAME)
     if mixes_runpython(operations):
         problems.append(MIXED_RUNPYTHON)
+    problems.extend(irreversible_problem(op) for op in irreversible_operations(operations))
     return problems

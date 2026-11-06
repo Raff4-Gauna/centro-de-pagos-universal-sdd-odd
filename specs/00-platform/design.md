@@ -1,7 +1,7 @@
 ---
 spec: SPEC-00
 estado: Aprobado         # aprobado por el usuario junto con la spec (2026-10-31)
-actualizado: 2026-11-05   # §3.2.3 (T-PLT-14, spec 1.0.3); §3.5, §3.6, §3.7.2 (T-PLT-04, spec 1.0.4 y 1.0.5); ADR-0005 Aceptado (spec 1.0.6); §3.3.3 (T-PLT-34, Q-061, spec 1.0.7); §3.6 `ruff.toml` y migraciones (T-PLT-22, sin cambio de spec)
+actualizado: 2026-11-05   # §3.2.3 (T-PLT-14, spec 1.0.3); §3.5, §3.6, §3.7.2 (T-PLT-04, spec 1.0.4 y 1.0.5); ADR-0005 Aceptado (spec 1.0.6); §3.3.3 (T-PLT-34, Q-061, spec 1.0.7); §3.6 `ruff.toml` y migraciones (T-PLT-22, sin cambio de spec); §3.2.7 y §10.2 reversibilidad e ida y vuelta, `--allow-data-loss` (T-PLT-24, sin cambio de spec)
 ---
 # Diseño — Módulo de Plataforma (fundaciones)
 
@@ -268,12 +268,20 @@ no-store`, sin auth ni throttle.
 - `makemigrations --check --dry-run`.
 - `lint_migrations` (sobre migraciones de módulos `apps.*` vía `MigrationLoader`): nombre `^\d{4}_auto_` → error
   (`0001_initial` se acepta); operación con `reversible is False` (`RunPython` sin `reverse_code`, `RunSQL` sin
-  `reverse_sql`, recorriendo `SeparateDatabaseAndState`); `RunPython` junto a cualquier otra operación → error. El
-  reverso `RunPython.noop` se acepta.
-- `check_migrations_roundtrip`: `migrate` → `migrate <app> zero` por app propia en orden inverso de dependencias →
-  `migrate`. BD descartable = contenedor de servicio nuevo del job.
-- Sintéticos (`tests/migrations/synthetic_apps/`): `good_reversible`, `bad_irreversible`, `bad_mixed`,
-  `bad_autoname`, `missing_migration`; los comandos corren **en subproceso** con
+  `reverse_sql`, recorriendo `SeparateDatabaseAndState`: Django solo mira el nivel superior); `RunPython` junto a
+  cualquier operación que no sea `RunPython` → error (varios `RunPython` juntos se aceptan: son una sola migración de
+  datos). Los reversos `RunPython.noop` y `RunSQL.noop` se aceptan.
+- `check_migrations_roundtrip`: `migrate` → `migrate <app> zero` por app propia con migraciones en orden inverso de
+  dependencias (la app cuya última migración va más tarde en el plan, primero) → `migrate`; tras cada `zero` no queda
+  ninguna migración de la app aplicada y al final todas sus hojas lo están. Con etiquetas, aplica y revierte solo
+  esas apps (`migrate <app>`), así los casos sintéticos no se mezclan. Una app sin migraciones (`migrations/` solo con
+  `__init__.py`, lo que deja `startapp`) se saltea; etiquetas que no dejan nada para revisar → exit 1 (sin etiquetas,
+  0 apps es válido). `IrreversibleError` o el
+  `NotImplementedError` de un reverso faltante anidado → error (exit 1) con paso y app. BD descartable = contenedor de
+  servicio nuevo del job: revertir a `zero` borra las tablas y sus datos, por eso exige `--allow-data-loss`; sin el
+  flag sale con exit 2 y un mensaje claro antes de abrir conexión (no aplica ni revierte nada).
+- Sintéticos (`tests/migrations/synthetic_apps/`): `good_reversible`, `bad_irreversible`, `empty_migrations`,
+  `bad_mixed`, `bad_autoname`, `missing_migration`; los comandos corren **en subproceso** con
   `tests.migrations.settings_synthetic` (BD `hub_synthetic` creada y borrada por el test), porque el registro de
   apps no cambia en caliente. Cobertura de subprocesos: `[tool.coverage.run] patch = ["subprocess"]`.
 - En 00 las apps reales no tienen migraciones: el job corre igual para estar activo desde el primer commit.
@@ -681,7 +689,7 @@ corridos una vez → ruleset (después de publicar, Q-054).
 | Tests | `DC exec backend pytest` · `DC exec frontend pnpm test` |
 | Lint rápido / tipos | `pre-commit run --all-files` · `DC exec backend mypy . ../scripts` · `pnpm --dir frontend typecheck` |
 | Regenerar contrato | `DC exec backend python manage.py export_openapi` → `pnpm --dir frontend openapi:types` |
-| Migraciones | `DC exec backend sh -c "python manage.py makemigrations --check --dry-run && python manage.py lint_migrations && python manage.py check_migrations_roundtrip"` |
+| Migraciones | `DC exec backend sh -c "python manage.py makemigrations --check --dry-run && python manage.py lint_migrations"` · ida y vuelta **solo contra una BD descartable, nunca la de desarrollo** (revierte a `zero` y borra tablas y datos): `DC exec -e DATABASE_URL=postgres://<usuario>:<clave>@db:5432/hub_roundtrip backend python manage.py check_migrations_roundtrip --allow-data-loss` (BD `hub_roundtrip` creada antes y borrada después) o el job `migrations` de CI |
 | Reiniciar worker/beat | `DC restart worker beat` |
 | Verificar protección (dueño) | `python scripts/verify_repo_protection.py` con `GH_TOKEN` de admin |
 

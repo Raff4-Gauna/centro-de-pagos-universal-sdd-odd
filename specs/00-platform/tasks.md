@@ -93,7 +93,7 @@ Reglas: rebanada vertical · ≤ ~300 líneas de diff · mergeable sola · cita 
 | T-PLT-21 | Gate de cobertura + job `coverage` | AC-PLT-22 | CI | `scripts/check_coverage.py`, `scripts/coverage_thresholds.toml` | T-PLT-08 | backend-dev | L | Sí | ✅ | #12 · b22d762 |
 | T-PLT-22 | Migraciones: faltante + job `migrations` | AC-PLT-16 | Migraciones/CI | `tests/migrations/` | T-PLT-08, T-PLT-11 | backend-dev | M | Sí | ✅ | #34 · 5ecd863 |
 | T-PLT-23 | Migraciones: nombres `auto_` y `RunPython` mezclado | AC-PLT-18 | Migraciones | `apps/common/migration_lint/`, `lint_migrations.py` | T-PLT-22 | backend-dev | L | Sí | ✅ | #38 · f281766 |
-| T-PLT-24 | Migraciones: reversibilidad + ida y vuelta | AC-PLT-17 | Migraciones/CI | `check_migrations_roundtrip.py` | T-PLT-23 | backend-dev | L | Sí | ☐ | — |
+| T-PLT-24 | Migraciones: reversibilidad + ida y vuelta | AC-PLT-17 | Migraciones/CI | `check_migrations_roundtrip.py` | T-PLT-23 | backend-dev | L | Sí | 🟡 | — |
 | T-PLT-25 | Imagen Docker del backend | AC-PLT-25 (backend) | Infra | `backend/Dockerfile`, `config/gunicorn.conf.py` | T-PLT-12 | backend-dev | M | Sí | ✅ | #35 · 33fd905 |
 | T-PLT-26 | Compose de desarrollo (db, redis, backend, worker, beat) | AC-PLT-01 (parcial), AC-PLT-02 (manual) | Infra | `infra/docker-compose.yml` | T-PLT-11, T-PLT-17, T-PLT-25 | backend-dev | L | Sí | ✅ | #40 · 3033f63 |
 | T-PLT-27 | Frontend: proyecto Next + toolchain + CI frontend | AC-PLT-21 (frontend) | Frontend/CI | `frontend/package.json`, `tsconfig.json`, … | T-PLT-03 | frontend-dev | L | Sí | ✅ | #21 · 09549c8 |
@@ -1206,6 +1206,46 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
 - **Plan de pruebas:** `test_AC_PLT_17_runpython_without_reverse_fails`, `test_AC_PLT_17_runsql_without_reverse_fails`,
   `test_AC_PLT_17_irreversible_inside_separate_db_and_state_fails`,
   `test_AC_PLT_17_reversible_migration_roundtrips_on_disposable_db`.
+- **Resultado (implementación):** `rules.py` suma `irreversible_operations` (`reversible is False` sobre
+  `flatten`, o sea también dentro de `SeparateDatabaseAndState`, lado BD y lado estado) y un problema por operación,
+  con el reverso que falta (`reverse_code` / `reverse_sql`; `RunPython.noop` y `RunSQL.noop` pasan); lo reporta
+  `lint_migrations` sin cambios de lógica. `check_migrations_roundtrip [app ...]`: `migrate` (sin etiquetas) o
+  `migrate <app>` por etiqueta → `migrate <app> zero` en orden inverso de dependencias (por posición de la última
+  migración de cada app en el plan) verificando que no quede nada aplicado → reaplicar y verificar que todas las hojas
+  estén aplicadas. Sin etiquetas revisa las apps `apps.*` con migraciones (como corre CI); `IrreversibleError` y el
+  `NotImplementedError` de un reverso anidado faltante salen como `CommandError` (`<paso>: <excepción>: <mensaje>`,
+  exit 1). Sintéticas: `good_reversible` (`AddField`, `RunPython` con `noop`, `RunSQL` con `reverse_sql` dentro de
+  `SeparateDatabaseAndState`) y `bad_irreversible` (`0002` `RunSQL` sin reverso anidado, `0003` `RunSQL` sin reverso,
+  `0004` `RunPython` sin reverso: la ida y vuelta falla en la última), modelos al día. Tests extra: reglas en proceso
+  (`noop`, operación propia `reversible = False` en el lado estado, anidado profundo, orden de los problemas), orden de
+  reversión con un ejecutor falso, conversión de errores con `call_command` falso, comando sin etiquetas (no revierte
+  sintéticas), etiqueta desconocida, apps reales con `config.settings.test` apuntado a `hub_synthetic`; en
+  `scripts/tests/`, `test_AC_PLT_17_migrations_job_runs_roundtrip_last`. Paso de CI `check_migrations_roundtrip`
+  después de `lint_migrations` en el job `migrations` (cadena intacta).
+- **Archivos fuera de la lista (mínimos):** `backend/tests/migrations/settings_synthetic.py` (instalar las dos apps),
+  `backend/apps/common/management/commands/lint_migrations.py` (solo docstring y `help`, que ya no describían todo lo
+  que revisa), `scripts/tests/test_AC_PLT_20_pipeline_chain.py` (step nuevo) y `specs/00-platform/design.md` §3.2.7
+  (etiquetas y verificaciones de la ida y vuelta).
+- **Backlog de T-PLT-23 tomado:** (3) los tests de AC-PLT-17 corren siempre con etiqueta (`good_reversible`,
+  `bad_irreversible`) y el test de ida y vuelta verifica que ninguna otra sintética aparezca. (1) design §3.2.7 dice
+  ahora "`RunPython` junto a cualquier operación que no sea `RunPython`; varios `RunPython` juntos se aceptan".
+- **Decisión del planner (punto abierto de la implementación):** la fila "Migraciones" de design §10 corría
+  `check_migrations_roundtrip` con `DC exec backend`, sobre la BD de desarrollo. Ahora el comando exige
+  `--allow-data-loss`; sin el flag sale con exit 2 y un mensaje claro antes de abrir conexión (no aplica ni revierte
+  nada). El job `migrations` lo pasa (BD descartable del servicio). design §10.2 indica correr la ida y vuelta solo
+  contra una BD descartable (`-e DATABASE_URL=…/hub_roundtrip` o el job de CI), nunca la de desarrollo. Tests:
+  `test_AC_PLT_17_roundtrip_without_allow_data_loss_exits_2_before_connecting` (en proceso, sin acceso a BD) y
+  `test_AC_PLT_17_roundtrip_without_flag_applies_and_reverts_nothing` (`django_migrations` igual antes y después).
+- **Revisión de 05d4468 (1 bloqueante, corregido):** una app con `migrations/` solo con `__init__.py` (lo que deja
+  `startapp`) entraba en `loader.migrated_apps` y `revert_order` caía con `ValueError: max() iterable argument is empty`:
+  la primera app nueva habría puesto `main` en rojo con un traceback. `checked` sale ahora de los nodos del grafo
+  (`graph.leaf_nodes()`); esa app se saltea. Con etiquetas y nada para revisar: exit 1 (`No migrations to check in: …`)
+  antes de aplicar nada; sin etiquetas, 0 apps sigue siendo válido. Sintética `empty_migrations` (sin modelos) y tests
+  `test_AC_PLT_17_app_with_empty_migrations_package_is_skipped`,
+  `test_AC_PLT_17_explicit_labels_with_nothing_to_check_fail` (ambos reprodujeron el `ValueError` antes del arreglo).
+  El docstring de `rules.py` deja dicho que un `reversible = True` declarado por una subclase que no puede volver atrás
+  pasa la regla y lo detecta la ida y vuelta. Mutación medida con la regla desactivada: 7 de 22 tests de
+  `test_AC_PLT_17_reversibility.py` fallan.
 
 ### T-PLT-25 — Imagen Docker del backend
 - **AC:** AC-PLT-25 (backend, estático). RNF-PLT-01, RN-PLT-14, D-05. **Zona roja:** sí (`scripts/tests/`).

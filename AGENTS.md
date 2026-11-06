@@ -130,7 +130,7 @@ Desde la raíz del repo (PowerShell o bash). `DC` = `docker compose -f infra/doc
 | Lint rápido | `pre-commit run --all-files` · `ruff check .` · `ruff format --check .` |
 | Tipos | `DC exec backend mypy . ../scripts` · `pnpm --dir frontend typecheck` |
 | Regenerar contrato | `DC exec backend python manage.py export_openapi` → `pnpm --dir frontend openapi:types` |
-| Migraciones | `DC exec backend sh -c "python manage.py makemigrations --check --dry-run && python manage.py lint_migrations && python manage.py check_migrations_roundtrip"` (`check_migrations_roundtrip`: pendiente, T-PLT-24) |
+| Migraciones | `DC exec backend sh -c "python manage.py makemigrations --check --dry-run && python manage.py lint_migrations"` · ida y vuelta **solo contra una BD descartable, nunca la de desarrollo** (revierte a `zero` y borra tablas y datos): `DC exec -e DATABASE_URL=postgres://<usuario>:<clave>@db:5432/hub_roundtrip backend python manage.py check_migrations_roundtrip --allow-data-loss` (BD `hub_roundtrip` creada antes y borrada después) o el job `migrations` de CI |
 | Reiniciar worker/beat | `DC restart worker beat` |
 | Estado del proyecto | `python scripts/check_spec_state.py` (agregar `--write` para regenerar la conciliación) |
 | Verificar protección (dueño) | `python scripts/verify_repo_protection.py` con `GH_TOKEN` de admin (pendiente, T-PLT-40) |

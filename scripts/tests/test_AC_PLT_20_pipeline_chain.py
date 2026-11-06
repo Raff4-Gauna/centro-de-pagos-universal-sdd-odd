@@ -9,8 +9,9 @@ workflows, so a check that silently passes on anything would fail here.
 
 Also covered: AC-PLT-13 in CI (``file-size`` runs ``check_file_size.py``), AC-PLT-16 in CI
 (``migrations`` runs ``makemigrations --check`` on its own PostgreSQL), AC-PLT-18 in CI (the same
-job runs ``lint_migrations``) and the RN-PLT-18 basics of ``ci.yml`` (read-only token, no
-``pull_request_target``/``workflow_run``, actions pinned by SHA).
+job runs ``lint_migrations``), AC-PLT-17 in CI (and then ``check_migrations_roundtrip``) and the
+RN-PLT-18 basics of ``ci.yml`` (read-only token, no ``pull_request_target``/``workflow_run``,
+actions pinned by SHA).
 """
 
 from __future__ import annotations
@@ -177,6 +178,24 @@ def test_AC_PLT_18_migrations_job_runs_lint_migrations() -> None:
     # After the missing-migration check, in the same job.
     names = [step.get("name") for step in steps]
     assert names.index("makemigrations --check --dry-run") < names.index("lint_migrations")
+
+
+def test_AC_PLT_17_migrations_job_runs_roundtrip_last() -> None:
+    steps = ci_jobs()["migrations"]["steps"]
+    roundtrip = [step for step in steps if step.get("name") == "check_migrations_roundtrip"]
+    assert len(roundtrip) == 1
+    # Without app labels: every app under apps.*, on the job's own throwaway PostgreSQL, which is
+    # what --allow-data-loss confirms (reverting drops the tables).
+    assert (
+        roundtrip[0]["run"].strip()
+        == "python manage.py check_migrations_roundtrip --allow-data-loss"
+    )
+    assert roundtrip[0]["working-directory"] == "backend"
+    assert "continue-on-error" not in roundtrip[0]
+    # After the static checks: an irreversible migration is reported before touching the DB.
+    names = [step.get("name") for step in steps]
+    assert names[-1] == "check_migrations_roundtrip"
+    assert names.index("lint_migrations") < names.index("check_migrations_roundtrip")
 
 
 def test_RN_PLT_18_ci_triggers_and_read_only_token() -> None:
