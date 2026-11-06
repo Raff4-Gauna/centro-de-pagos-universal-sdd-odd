@@ -92,9 +92,10 @@ Una revisión se considera aprobada cuando:
 Reglas:
 - Un **push nuevo invalida el veredicto**: hay que volver a revisar y citar el SHA nuevo.
 - `reviewer` no edita archivos ni mergea. Quien escribe no revisa.
-- Formato del veredicto (también en `.claude/skills/reviewer-verdict/SKILL.md`):
-  `VEREDICTO: aprobado | cambios requeridos — SHA <sha> — <fecha>`, seguido de la tabla de hallazgos
-  bloqueantes/no bloqueantes con `archivo:línea` y regla (`C-xx`/`RN-xx`).
+- Formato del veredicto (`design.md §3.7.3`, también en `.claude/skills/reviewer-verdict/SKILL.md`): tres líneas
+  propias, fuera de bloques de código: `<!-- reviewer-verdict -->`, `Veredicto del reviewer: APROBADO | RECHAZADO`
+  (un solo estado) y `SHA: <40 hex del último commit>`, seguidas de la tabla de hallazgos bloqueantes/no bloqueantes
+  con `archivo:línea` y regla (`C-xx`/`RN-xx`).
 - **Merge (Q-057):** **Claude se encarga del CI y de GitHub**: publica las ramas, abre los PR, aplica el label,
   corrige lo que falle en el pipeline y mergea (decisión del dueño, 2026-10-31, ampliada el 2026-11-02 y el
   2026-11-06). Se mergea solo con certeza total: pipeline completo en verde en el último commit, veredicto sin

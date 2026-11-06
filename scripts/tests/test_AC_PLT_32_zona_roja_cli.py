@@ -297,8 +297,12 @@ def test_AC_PLT_32_verdict_after_a_closed_code_block_counts() -> None:
 
 
 def test_AC_PLT_32_reviewer_docs_use_the_parsed_format() -> None:
-    """The reviewer agent and skill tell it to publish exactly what the check parses (§3.7.3)."""
-    for doc in (".claude/agents/reviewer.md", ".claude/skills/reviewer-verdict/SKILL.md"):
+    """Agent, skill and AGENTS.md ask for exactly what the check parses (§3.7.3)."""
+    for doc in (
+        "AGENTS.md",
+        ".claude/agents/reviewer.md",
+        ".claude/skills/reviewer-verdict/SKILL.md",
+    ):
         text = (REPO_ROOT / doc).read_text(encoding="utf-8")
         assert "<!-- reviewer-verdict -->" in text, doc
         assert "Veredicto del reviewer: APROBADO" in text, doc
