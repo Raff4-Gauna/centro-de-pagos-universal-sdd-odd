@@ -21,7 +21,7 @@ from pathlib import Path
 import pytest
 
 from config.settings.env import PlatformEnv
-from tests.config.test_AC_PLT_05_env_example_parity import spike_vars
+from tests.config._env_example import spike_vars
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
 SCANNED_DIRS = ("config", "apps")

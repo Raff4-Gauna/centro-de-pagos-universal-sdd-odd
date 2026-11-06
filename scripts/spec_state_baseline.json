@@ -2,7 +2,6 @@
   "00-platform": {
     "note": "AC sin test con ID a 2026-11-05. Cada uno tiene una tarea pendiente o bloqueada; no ocultar uno nuevo.",
     "allow_missing_tests": [
-      "AC-PLT-01",
       "AC-PLT-17",
       "AC-PLT-24",
       "AC-PLT-29",

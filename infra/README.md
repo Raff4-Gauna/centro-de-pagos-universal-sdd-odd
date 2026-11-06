@@ -40,8 +40,10 @@ test también corra en el contenedor. Lo mínimo que tiene que tener el `.env`:
 | `REDIS_URL` | broker y caché, con el host **`redis`** | `redis://redis:6379/0` |
 | `DJANGO_SECRET_KEY` | firma de Django (cualquier valor largo en dev; nunca el de prod) | — |
 
-Opcionales (vacías = valor por defecto de `config/settings/env.py`): `DJANGO_ALLOWED_HOSTS` (si se define, tiene que
-seguir incluyendo `localhost`: el healthcheck llama a `http://localhost:8000/readyz`), `LOG_LEVEL`, `APP_VERSION`,
+Opcionales (vacías = valor por defecto de `config/settings/env.py`): `DJANGO_ALLOWED_HOSTS` (tiene que incluir
+`localhost`, porque el healthcheck llama a `http://localhost:8000/readyz`, y `backend`, porque el BFF del servicio
+`frontend` llama a `http://backend:8000` y sin ese host Django responde 400 `DisallowedHost`; `env.example` trae
+`localhost,127.0.0.1,backend` y el valor por defecto, si queda vacía, no incluye `backend`), `LOG_LEVEL`, `APP_VERSION`,
 `API_THROTTLE_ANON_RATE`, `TRUSTED_PROXY_COUNT`. `DJANGO_SETTINGS_MODULE=config.settings.dev` y `DJANGO_DEBUG=true`
 los fija el Compose. Si la contraseña de `POSTGRES_PASSWORD` tiene caracteres especiales, en `DATABASE_URL` va
 percent-encoded.

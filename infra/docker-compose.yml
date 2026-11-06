@@ -21,7 +21,8 @@ x-backend-environment: &backend-environment
   # Container host names: db and redis (see infra/README.md).
   DATABASE_URL: ${DATABASE_URL:?falta DATABASE_URL en .env}
   REDIS_URL: ${REDIS_URL:?falta REDIS_URL en .env}
-  # Must keep localhost: the backend healthcheck calls http://localhost:8000/readyz.
+  # Must keep localhost (the backend healthcheck calls http://localhost:8000/readyz) and backend
+  # (the frontend BFF calls http://backend:8000; else 400 DisallowedHost). env.example sets both.
   DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-}
   LOG_LEVEL: ${LOG_LEVEL:-}
   APP_VERSION: ${APP_VERSION:-}
