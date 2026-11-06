@@ -1,7 +1,7 @@
 ---
 spec: SPEC-00
 estado: Aprobado         # aprobado por el usuario junto con la spec (2026-10-31)
-actualizado: 2026-11-06   # §3.2.3 (T-PLT-14, spec 1.0.3); §3.5, §3.6, §3.7.2 (T-PLT-04, spec 1.0.4 y 1.0.5); ADR-0005 Aceptado (spec 1.0.6); §3.3.3 (T-PLT-34, Q-061, spec 1.0.7); §3.6 `ruff.toml` y migraciones (T-PLT-22, sin cambio de spec); §3.2.7 y §10.2 reversibilidad e ida y vuelta, `--allow-data-loss` (T-PLT-24, sin cambio de spec); §3.7.3 `edited`, D-09 y §11.2 (T-PLT-07, spec 1.0.13); §3.2.2 y §7 `X-Forwarded-Proto` (T-PLT-42, Q-065, spec 1.0.15); §3.1, §3.3.3 y §3.5 smoke y AC-29 E2E (T-PLT-38, spec 1.0.16 provisional); §3.3.3 y §7 cita de §3.2.2 y HSTS (Q-065, spec 1.0.17); §3.6 pre-commit del frontend (T-PLT-29, spec 1.0.18)
+actualizado: 2026-11-06   # §3.2.3 (T-PLT-14, spec 1.0.3); §3.5, §3.6, §3.7.2 (T-PLT-04, spec 1.0.4 y 1.0.5); ADR-0005 Aceptado (spec 1.0.6); §3.3.3 (T-PLT-34, Q-061, spec 1.0.7); §3.6 `ruff.toml` y migraciones (T-PLT-22, sin cambio de spec); §3.2.7 y §10.2 reversibilidad e ida y vuelta, `--allow-data-loss` (T-PLT-24, sin cambio de spec); §3.7.3 `edited`, D-09 y §11.2 (T-PLT-07, spec 1.0.13); §3.2.2 y §7 `X-Forwarded-Proto` (T-PLT-42, Q-065, spec 1.0.15); §3.1, §3.3.3 y §3.5 smoke y AC-29 E2E (T-PLT-38, spec 1.0.16 provisional); §3.3.3 y §7 cita de §3.2.2 y HSTS (Q-065, spec 1.0.17); §3.6 pre-commit del frontend (T-PLT-29, spec 1.0.18); §3.7.1, §3.7.3, §3.7.4 y §11.2 ruleset y verificación (T-PLT-40, spec 1.0.19 provisional)
 ---
 # Diseño — Módulo de Plataforma (fundaciones)
 
@@ -555,13 +555,22 @@ documenta los prefijos (`context/03`, `context/09`). No toca el placeholder ni u
 - `.github/rulesets/main.json`: `target: branch`, `enforcement: active`, `include: ["~DEFAULT_BRANCH"]`,
   **`bypass_actors: []`**; reglas `deletion`, `non_fast_forward`, `required_linear_history`, `pull_request`
   (`required_approving_review_count: 0`, `dismiss_stale_reviews_on_push`, `allowed_merge_methods: ["squash"]`),
-  `required_status_checks` (`strict` = rama al día; los 11 checks de §6.3, con `integration_id` de GitHub Actions
-  para que no se puedan "firmar" con un status externo).
-- `.github/repo-settings.expected.json`: solo squash, `delete_branch_on_merge`, secret scanning y push protection
-  activos, permisos por defecto de Actions `read`, `can_approve_pull_request_reviews=false`, aprobación de
-  workflows de forks para `first_time_contributors`, label `zona-roja` existente.
+  `required_status_checks` (`strict` = rama al día; los 11 checks de §6.3, con `integration_id` 15368, el `app.id`
+  de GitHub Actions en los check runs reales, para que no se puedan "firmar" con un status externo ni con otra app).
+- **Límite de `integration_id`:** filtra por app, no por workflow. Todo workflow del repo reporta como la app 15368,
+  así que un job con el mismo nombre en otro workflow reporta el mismo check. La regla `workflows` (requerir un
+  archivo de workflow concreto) solo existe en rulesets de organización o enterprise, no en una cuenta personal.
+  Un PR capaz de agregar ese job también puede editar `zona-roja.yml`: es el riesgo de Q-063. Lo cubre un test
+  (`test_AC_PLT_20_required_check_names_are_unique_across_workflows`) y la revisión, porque `.github/**` es zona roja.
+- Los jobs saltados por `needs:` cuentan como pasados para GitHub. No abre un hueco porque los 10 jobs son
+  requeridos: el job que falló bloquea el merge aunque los siguientes figuren saltados.
+- `.github/repo-settings.expected.json`: repositorio, visibilidad pública, rama por defecto `main`, solo squash,
+  `delete_branch_on_merge`, secret scanning y push protection activos, permisos por defecto de Actions `read`,
+  `can_approve_pull_request_reviews=false`, aprobación de workflows de forks para `first_time_contributors`, label
+  `zona-roja` existente.
 - Los aplica **el dueño a mano** (`gh api --method POST repos/{o}/{r}/rulesets --input .github/rulesets/main.json`
-  + UI). Los checks tienen que haber corrido una vez antes de marcarlos requeridos.
+  + `gh api` o UI; pasos en `infra/README.md`). Los checks tienen que haber corrido una vez antes de marcarlos
+  requeridos.
 
 #### 3.7.2 Rutas de zona roja (`.github/zona-roja-paths.txt`, globs con `**`)
 - Contratos: `specs/_contracts/**`, `backend/apps/common/api/{exceptions,problems,schema}.py`.
@@ -587,12 +596,18 @@ documenta los prefijos (`context/03`, `context/09`). No toca el placeholder ni u
   `updated_at`) tiene que ser `APROBADO`. Error de API → falla ("no verificado"). Resumen en `$GITHUB_STEP_SUMMARY`.
 - Flujo: el reviewer publica el veredicto con la cuenta del dueño y se re-ejecuta el check (`gh run rerun` o
   quitar/poner el label). Sin `issue_comment` (D-08). Push nuevo → el veredicto deja de citar `head.sha` → rojo.
+- Cada evento del PR abre su propia corrida, en su propio check suite, y `zona-roja` queda varias veces en el mismo
+  head (`opened` + `labeled`, y `edited`). Si todas terminan igual no molesta. GitHub no documenta qué cuenta para
+  un check requerido cuando conviven rojo y verde con el mismo nombre: tras un veredicto se re-ejecutan **todas**
+  las corridas del head (`infra/README.md`), no una sola.
 
 #### 3.7.4 Verificación, publicación y merge
 - `scripts/verify_repo_protection.py`: lo corre **el dueño** con un token de admin propio en `GH_TOKEN` (nunca
   commiteado; el `GITHUB_TOKEN` de Actions no ve `bypass_actors` ni `security_and_analysis`, D-11). Compara
-  `/rulesets`, `/repos/{o}/{r}`, `/actions/permissions/workflow`, `/actions/permissions/fork-pr-contributor-approval`
-  y `/labels/zona-roja` contra los JSON esperados; imprime cada diferencia; exit 0 / 1 (difiere) / 2 (API falló).
+  `/rulesets` y `/rulesets/{id}` (la lista no trae reglas ni bypass), `/repos/{o}/{r}`,
+  `/actions/permissions/workflow`, `/actions/permissions/fork-pr-contributor-approval` y `/labels` (un label
+  ausente es una diferencia, no un error de API) contra los JSON esperados; imprime cada diferencia; exit 0 / 1
+  (difiere) / 2 (no verificado: API falló o falta un campo; sin admin GitHub responde 200 y omite esos dos).
   Complemento manual de AC-24: PR de sacrificio con un check rojo figura como no mergeable.
 - **Antes de pasar a público** (checklist en `infra/README.md`, bloqueado por **Q-054**): rotar tokens de MP y App
   Secret de Clover → `gitleaks git --log-opts="--all"` con 0 hallazgos → aplicar la opción de Q-054 → cambiar
@@ -781,7 +796,7 @@ corridos una vez → ruleset (después de publicar, Q-054).
 | Hot-reload en Windows; Turbopack (dev por defecto en Next 16) puede ignorar `WATCHPACK_POLLING` | probar en la tarea de Compose; plan B `next dev --webpack`; documentar en `infra/README.md` |
 | Healthcheck de `beat` por mtime es indirecto | umbral 300 s con loop de 60 s; si da falsos positivos, se baja a "proceso vivo" y se documenta |
 | Throttle por IP detrás del BFF | sin efecto en 00; 01 define la clave |
-| Un PR puede neutralizar checks (`pull_request` corre su código) | D-09 (script y lista de `zona-roja` se leen de la base) + rutas del gate como zona roja (**Q-058**, provisorio). El workflow `zona-roja.yml` no queda protegido: un PR puede cambiarlo; riesgo aceptado, esos PR los mergea el usuario (**Q-063**) |
+| Un PR puede neutralizar checks (`pull_request` corre su código) | D-09 (script y lista de `zona-roja` se leen de la base) + rutas del gate como zona roja (**Q-058**, provisorio). El workflow `zona-roja.yml` no queda protegido: un PR puede cambiarlo; riesgo aceptado, esos PR los mergea el usuario (**Q-063**). Tampoco lo evita `integration_id`, que no distingue workflows (§3.7.1) |
 | Merge por el agente con 0 aprobaciones | criterios cerrados de §3.7.4 + `--match-head-commit`; ante duda, mergea el usuario |
 | `W021` silenciado | único permitido, comentado, hasta tener dominio (Q-020) |
 | Node local 24.14 < 24.15 (`jsdom` 30) | tests en contenedor/CI; recomendado actualizar el Node local a 24.22.x |

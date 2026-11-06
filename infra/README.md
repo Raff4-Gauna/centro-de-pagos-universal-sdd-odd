@@ -148,3 +148,50 @@ comparten la cola del broker con el servicio `worker`, que les roba las tareas: 
   (`--max-interval 60`; Celery lo sincroniza cada ~3 min).
 - El target `dev` corre como root (el árbol montado es del usuario del host): Celery avisa con un `SecurityWarning`
   al arrancar el worker. Es esperado en dev; la imagen `runtime` corre como uid 10001.
+
+## Repo público: protección de `main` (T-PLT-40, `design.md §3.7`)
+
+El repo ya es público (Q-054 resuelta: gitleaks sobre todo el historial, 0 hallazgos). Sigue pendiente **rotar los
+tokens de MP y el App Secret de Clover**: estuvieron pegados en chats (worklog 2026-10-31).
+
+`.github/rulesets/main.json` y `.github/repo-settings.expected.json` son lo esperado. Solo el dueño los aplica (Q-057).
+Cada bloque se corre desde la raíz, en PowerShell o bash, y `R` es `Raff4-Gauna/centro-de-pagos-universal-sdd-odd`:
+reemplazarlo en el comando. El JSON entra por stdin porque PowerShell rompe las comillas de los argumentos.
+
+### Aplicar
+
+```
+gh api --method POST repos/R/rulesets --input .github/rulesets/main.json --jq '{id,name,enforcement}'
+'{"allow_squash_merge":true,"allow_merge_commit":false,"allow_rebase_merge":false,"delete_branch_on_merge":true,"security_and_analysis":{"secret_scanning":{"status":"enabled"},"secret_scanning_push_protection":{"status":"enabled"}}}' | gh api --method PATCH repos/R --input - --jq '.security_and_analysis'
+'{"default_workflow_permissions":"read","can_approve_pull_request_reviews":false}' | gh api --method PUT repos/R/actions/permissions/workflow --input -
+```
+
+En bash, el JSON va con `echo '{...}' | gh api ...`. Si el ruleset ya existe, el `POST` falla por el nombre repetido:
+para cambiarlo se usa `PUT repos/R/rulesets/<id>` con el mismo archivo.
+
+### Verificar
+
+PowerShell (el token queda solo en esa variable y el script no lo imprime):
+
+```
+$env:GH_TOKEN = gh auth token
+python scripts/verify_repo_protection.py
+$LASTEXITCODE
+Remove-Item Env:GH_TOKEN
+```
+
+- `0`: `OK: ... matches the committed protection`.
+- `1`: una línea `DIFFERS:` por diferencia.
+- `2`: `NOT VERIFIED:` el token no es de admin o la API falló. No dice nada sobre la protección.
+
+Renombrar un job requerido exige cambiar `main.json` y aplicarlo en el mismo cambio (`design.md §6.3`).
+
+### Efectos en el día a día
+
+- `strict`: un PR atrasado respecto de `main` no se mergea. Actualizarlo cambia el head, así que en zona roja hace
+  falta un veredicto nuevo.
+- `zona-roja` corre una vez por evento del PR. Tras publicar un veredicto se re-ejecutan **todas** las corridas del
+  head: `gh run list --workflow zona-roja.yml --commit <sha> --json databaseId --jq '.[].databaseId'` y
+  `gh run rerun <id>` por cada una.
+- Sin bypass, tampoco el dueño puede mergear con un check rojo: para saltear la protección hay que desactivar el
+  ruleset.
