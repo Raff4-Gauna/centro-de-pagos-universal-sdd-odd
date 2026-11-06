@@ -495,12 +495,17 @@ del host y del contenedor están separados (volumen), así que los binarios nati
 1. `pre-commit-hooks` v6.0.0: `mixed-line-ending --fix=lf` (AC-27), `end-of-file-fixer`, `trailing-whitespace`
    (sin `*.md`), `check-yaml/toml/json`, `check-merge-conflict`, `check-case-conflict`,
    `check-added-large-files --maxkb=500`, `detect-private-key`, `no-commit-to-branch --branch main`.
+   `check-yaml` va en dos instancias: la normal, sin `args`, excluye `frontend/pnpm-lock.yaml` (dos documentos,
+   pnpm 12) e `infra/docker-compose.ci.yml` (tag `!reset` de Compose); la segunda, con `--unsafe`, cubre solo esos dos
+   y conserva su chequeo de sintaxis. `--unsafe` deja pasar claves duplicadas, por eso no se aplica a todo el repo.
 2. `ruff-pre-commit` v0.17.3: `ruff-check --fix`, `ruff-format`.
 3. Local `check-file-size` (`language: python`, stdlib, `types_or: [python, ts, tsx, jsx]`).
 4. Local `eslint` y `prettier` (`language: system`, `python scripts/precommit_frontend.py …`, `files: ^frontend/`;
    quita el prefijo, excluye `src/types/`, llama a `pnpm exec` con `frontend/` como directorio de trabajo: con
    corepack, `pnpm --dir frontend` desde la raíz arranca la versión por defecto de corepack y pnpm la rechaza con
-   `ERR_PNPM_BAD_PM_VERSION`, porque la raíz no tiene `package.json`).
+   `ERR_PNPM_BAD_PM_VERSION`, porque la raíz no tiene `package.json`). En Windows pnpm es un shim `.cmd`: cada
+   argumento va entre comillas y un argumento con `"` o `%` da exit 2. Riesgo conocido: cmd.exe rechaza más de 8191
+   caracteres y el hook falla (nunca da verde) cuando las rutas de `--all-files` superen ese largo.
 5. `gitleaks` v8.30.1 (staged, `--redact`, `--ignore-gitleaks-allow`).
 
 **El gate real de secretos es CI** (job `secrets`), no este hook: `git commit --no-verify` lo saltea, y el diff

@@ -1511,14 +1511,14 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   `eslint` y `prettier`, `files: ^frontend/`).
 - **Plan de pruebas:** `test_RF_PLT_12_strips_frontend_prefix`, `test_RF_PLT_12_excludes_generated_types`,
   `test_RF_PLT_12_propagates_tool_exit_code`. Manual: `pre-commit run --all-files` en el host con Node 24 + pnpm.
-- **Hecho (`493fc50`):** los dos hooks corren lo mismo que el job `lint` (`--max-warnings 0`, `--check` sin reescribir,
+- **Hecho (`f7c1c3f`):** los dos hooks corren lo mismo que el job `lint` (`--max-warnings 0`, `--check` sin reescribir,
   `--ignore-path ../.gitignore`), sobre los archivos que cada herramienta cubre allí. `--no-warn-ignored`: un archivo de
   `globalIgnores` nombrado en la línea de comandos es una advertencia, y `next-env.d.ts` habría fallado. Sin pnpm el
   hook falla (exit 2), no se saltea.
 - **Desvíos de la ficha:** (1) `pnpm exec` con `frontend/` como directorio de trabajo, no `pnpm --dir frontend exec`:
   con corepack, desde la raíz arranca la versión por defecto (12.18.0) y pnpm la rechaza (`ERR_PNPM_BAD_PM_VERSION`);
   `design.md §3.6`, spec 1.0.16 (número provisional). (2) En Windows cada argumento va entre comillas: el shim
-  `pnpm.CMD` corta en el `)` de `(dashboard)`. (3) Primero se busca `pnpm.cmd`: `shutil.which("pnpm")` de Python 3.12.0
+  `pnpm.CMD` corta en el `)` de `(dashboard)`; ver "Revisión, inyección". (3) Primero se busca `pnpm.cmd`: `shutil.which("pnpm")` de Python 3.12.0
   devolvía el script sh que corepack deja al lado (`WinError 193`). (4) 290 líneas de diff, sobre las 200 de una M.
 - **Verificación manual** (copia del árbol, contenedor `python:3.12.16-slim-trixie` + Node 24.22.2 + pnpm 12.16.1 +
   pre-commit 4.7.0): mal formateado → falla `prettier`; `any` → falla `eslint`; una advertencia también falla; un `git
@@ -1529,10 +1529,27 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   archivo mal formateado pasa, o sea que el código de salida es lo que frena el commit. En el host Windows (Node
   24.14.0, shim de corepack, script real, sin el framework pre-commit): verde con `(dashboard)` y `[...path]`, y falla
   con un archivo mal formateado y con un error de eslint.
-- **Scope drift, pendiente de decisión:** `pre-commit run --all-files` no queda en verde por dos fallas previas a esta
-  tarea: `end-of-file-fixer` en `context/worklog/2026-11-05-process-stewardship.md` (línea vacía final) y `check-yaml`
-  en `frontend/pnpm-lock.yaml` (pnpm 12 escribe dos documentos YAML). Los hooks `eslint` y `prettier` pasan sobre todo
-  el repo. Corregirlas toca un archivo fuera de la ficha y un hook de T-PLT-04, así que no se tocaron.
+- **Scope drift, resuelto por la sesión principal (no por el dueño):** `pre-commit run --all-files` no quedaba en verde
+  por **tres** fallas ajenas a los hooks de esta tarea: (a) `end-of-file-fixer` en
+  `context/worklog/2026-11-05-process-stewardship.md`, línea vacía final; (b) `check-yaml` en `frontend/pnpm-lock.yaml`,
+  con dos documentos (pnpm 12); (c) `check-yaml` en `infra/docker-compose.ci.yml:32`, tag `!reset` (T-PLT-37), que
+  apareció al rebasear sobre `main`. La sesión principal decidió tocar el hook de T-PLT-04 y el worklog, los dos fuera
+  de la ficha: `cee1931` borró la línea vacía y agregó `--allow-multiple-documents`, que no resolvía (c) y aflojaba todo
+  el repo; el reviewer lo rechazó. `b518577` lo reemplaza por dos instancias de `check-yaml` (`design.md §3.6`).
+- **Verificación tras la revisión** (árbol de `b4acfdd`, misma imagen): `pre-commit run --all-files` **exit 0, los 18 hooks
+  en verde**, `gitleaks` incluido; con `--all-files` no hay nada staged para él, y también pasó sobre un archivo staged.
+  En otra ruta fallan sintaxis rota, clave duplicada, segundo documento y `!reset`; en `infra/docker-compose.yml`, clave
+  duplicada. Sintaxis rota en cualquiera de los dos archivos exceptuados falla. **Límite aceptado:** una clave duplicada
+  en esos dos archivos pasa. En Windows, con el framework pre-commit 4.7.0 y solo los dos hooks locales: `eslint` y
+  `prettier` con `--all-files` en verde, fallan con un archivo malo y `eslint` se saltea fuera de `frontend/`. El
+  `--all-files` completo no corrió en Windows: `pip` falla por `MAX_PATH` con la ruta del scratchpad.
+- **Revisión, inyección (`b4acfdd`):** comillar no alcanza contra cmd.exe. Con el script anterior, `a"&mkdir PWN1&".ts` y
+  la variante con `%CMDCMDLINE:~-1%` ejecutaron `mkdir`. Ahora, en `nt`, un argumento con `"` o `%` que iba a llegar a
+  cmd.exe da exit 2 y no se ejecuta nada (mismos payloads en el host). Un path que los filtros descartan no llega a
+  cmd.exe y no bloquea el commit. Pre-commit no entrega esos nombres (lo probó el reviewer): es defensa en profundidad.
+- **Riesgo conocido, no se arregla acá:** cmd.exe rechaza líneas de más de 8191 caracteres y pre-commit parte recién
+  en unos 30.700. Medido por el reviewer: desde unos 8.000 caracteres de rutas el hook falla en Windows, nunca da verde
+  en falso. Hoy son 69 archivos y unos 2.750 caracteres; `--all-files` va a chocar cuando crezca `frontend/`.
 - **Documentación por corregir, fuera de esta tarea:** `pnpm --dir frontend <comando>` (`install`, `test`, `typecheck`,
   `openapi:types`; en `AGENTS.md`, `infra/README.md`, `design.md §3.6` y comandos, y el mensaje de `ci.yml`) falla igual
   bajo corepack; desde `frontend/` funciona.
@@ -1899,7 +1916,7 @@ Pasa a `Verified` solo con el OK explícito del dueño. Ningún agente lo marca 
 | T-PLT-26 | #40 | 3033f63 | ✅ |
 | T-PLT-27 | #21 | 09549c8 | ✅ |
 | T-PLT-28 | #24 | cc1d662 | ✅ |
-| T-PLT-29 | — | — | 🟡 |
+| T-PLT-29 | #52 | — | 🟡 |
 | T-PLT-30 | #33 | 8f1059e | ✅ |
 | T-PLT-31 | #36 | 264e523 | ✅ |
 | T-PLT-32 | #39 | 0d46f55 | ✅ |
