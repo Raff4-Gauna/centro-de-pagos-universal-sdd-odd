@@ -2,8 +2,8 @@
 
 Payment Hub multi-tenant: conectá tus cuentas de Mercado Pago (y luego Payway y Clover) y operá cobros, conciliación y reportes desde un solo lugar.
 
-**Estado (2026-11-06):** `00-platform` en cierre — 35 de 41 tareas mergeadas (`✅`) y 6 pendientes (`☐`). La
-verificación del módulo está **Con hallazgos** (28 AC cubiertos, 5 parciales, 1 sin test). `01-identity-access` y `02-tenancy-rbac` están `Approved` pero todavía sin `tasks.md`; la spec `04` y el
+**Estado (2026-11-06):** `00-platform` en cierre — 38 de 42 tareas mergeadas (`✅`) y 4 pendientes (`☐`). La
+verificación del módulo está **Con hallazgos** (29 AC cubiertos, 4 parciales, 1 sin test). `01-identity-access` y `02-tenancy-rbac` están `Approved` pero todavía sin `tasks.md`; la spec `04` y el
 spike S-001 siguen pendientes. No hay funcionalidad de negocio implementada.
 
 | Carpeta | Para qué |
