@@ -1511,6 +1511,31 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   `eslint` y `prettier`, `files: ^frontend/`).
 - **Plan de pruebas:** `test_RF_PLT_12_strips_frontend_prefix`, `test_RF_PLT_12_excludes_generated_types`,
   `test_RF_PLT_12_propagates_tool_exit_code`. Manual: `pre-commit run --all-files` en el host con Node 24 + pnpm.
+- **Hecho (`493fc50`):** los dos hooks corren lo mismo que el job `lint` (`--max-warnings 0`, `--check` sin reescribir,
+  `--ignore-path ../.gitignore`), sobre los archivos que cada herramienta cubre allí. `--no-warn-ignored`: un archivo de
+  `globalIgnores` nombrado en la línea de comandos es una advertencia, y `next-env.d.ts` habría fallado. Sin pnpm el
+  hook falla (exit 2), no se saltea.
+- **Desvíos de la ficha:** (1) `pnpm exec` con `frontend/` como directorio de trabajo, no `pnpm --dir frontend exec`:
+  con corepack, desde la raíz arranca la versión por defecto (12.18.0) y pnpm la rechaza (`ERR_PNPM_BAD_PM_VERSION`);
+  `design.md §3.6`, spec 1.0.16 (número provisional). (2) En Windows cada argumento va entre comillas: el shim
+  `pnpm.CMD` corta en el `)` de `(dashboard)`. (3) Primero se busca `pnpm.cmd`: `shutil.which("pnpm")` de Python 3.12.0
+  devolvía el script sh que corepack deja al lado (`WinError 193`). (4) 290 líneas de diff, sobre las 200 de una M.
+- **Verificación manual** (copia del árbol, contenedor `python:3.12.16-slim-trixie` + Node 24.22.2 + pnpm 12.16.1 +
+  pre-commit 4.7.0): mal formateado → falla `prettier`; `any` → falla `eslint`; una advertencia también falla; un `git
+  commit` queda bloqueado por los dos hooks. `bad.ts`, `backend/frontend/bad.ts` y `scripts/frontend/bad.ts` → los dos
+  `Skipped`. `src/types/api.d.ts`, `README.md`, `pnpm-workspace.yaml`, `Dockerfile` y `next-env.d.ts` no los hacen
+  fallar. `(dashboard)`, `[...path]` y `-dashed.ts` se chequean literales. Sin pnpm: falla con exit 2. Mutaciones: sin
+  excluir `src/types/`, sin `--no-warn-ignored` y sin filtrar extensiones, el hook falla; devolviendo siempre 0, un
+  archivo mal formateado pasa, o sea que el código de salida es lo que frena el commit. En el host Windows (Node
+  24.14.0, shim de corepack, script real, sin el framework pre-commit): verde con `(dashboard)` y `[...path]`, y falla
+  con un archivo mal formateado y con un error de eslint.
+- **Scope drift, pendiente de decisión:** `pre-commit run --all-files` no queda en verde por dos fallas previas a esta
+  tarea: `end-of-file-fixer` en `context/worklog/2026-11-05-process-stewardship.md` (línea vacía final) y `check-yaml`
+  en `frontend/pnpm-lock.yaml` (pnpm 12 escribe dos documentos YAML). Los hooks `eslint` y `prettier` pasan sobre todo
+  el repo. Corregirlas toca un archivo fuera de la ficha y un hook de T-PLT-04, así que no se tocaron.
+- **Documentación por corregir, fuera de esta tarea:** `pnpm --dir frontend <comando>` (`install`, `test`, `typecheck`,
+  `openapi:types`; en `AGENTS.md`, `infra/README.md`, `design.md §3.6` y comandos, y el mensaje de `ci.yml`) falla igual
+  bajo corepack; desde `frontend/` funciona.
 
 ### T-PLT-30 — Base visual: tokens, tema, estados de carga
 - **AC:** AC-PLT-28 (`EmptyState`, aviso con "Reintentar"); AC-PLT-22 (umbral frontend). RF-PLT-15 (Q-045).

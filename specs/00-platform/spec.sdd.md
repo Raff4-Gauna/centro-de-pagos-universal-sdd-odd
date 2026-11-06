@@ -3,7 +3,7 @@ id: SPEC-00
 modulo: platform
 estado: Approved
 track: S
-version: 1.0.17
+version: 1.0.18
 depende_de: []
 actualizado: 2026-11-06
 ---
@@ -260,3 +260,4 @@ Se completa al generar `tasks.md`.
 | 1.0.15 | 2026-11-06 | Q-065 decidida por el dueño: el BFF envía siempre `X-Forwarded-Proto: https` al backend, con valor constante y fuera de la allowlist (lo que mande el navegador no se reenvía); requisito: el puerto del backend no queda expuesto a internet. `design.md §3.2.2` y `§7` alineados. Sin cambios en RN/RF/AC: es el modo en que RF-PLT-06 reenvía con settings de prod. Numeración: 1.0.13 y 1.0.14 quedan para #48 y #50, se reordena al mergear | Defecto de T-PLT-42: con `config.settings.prod`, todo `/api/*` devolvía al navegador un 301 sin destino |
 | 1.0.16 | 2026-11-06 | Ajuste de diseño en `design.md §3.1`, `§3.3.3` y `§3.5` (T-PLT-38; versión provisional hasta el merge): el smoke agrega el paso de AC-PLT-29 E2E, que faltaba en §3.5 (páginas tomadas del manifiesto de rutas de la imagen; valor, hostname y nombre de `BACKEND_INTERNAL_URL` en lo que recibe el navegador; hoy ninguna página es dinámica), y fija proyecto Compose propio, cuerpos exactos, sin seguir redirects y volcado de estado antes del `down -v`. Sin cambios en RN/RF/AC | Reconciliación de T-PLT-38: AC-PLT-29 citaba "(E2E)" sin paso ni test |
 | 1.0.17 | 2026-11-06 | Trazabilidad, sin cambios en RN/RF/AC (versión provisional hasta el merge): `design.md §3.3.3` remite a §3.2.2 por `X-Forwarded-Proto` y, con §7, nombra que el HSTS de Django no llega al navegador en `/api/*`, consecuencia ya registrada en Q-065. `clarifications.md` saca Q-063, Q-064 y Q-065, cerradas, de la lista de abiertas | Reconciliación de `00-platform` (`context/worklog/2026-11-06-reconcile-00b.md`) |
+| 1.0.18 | 2026-11-06 | Ajuste de diseño en `design.md §3.6` (T-PLT-29): los hooks de eslint y prettier llaman a `pnpm exec` desde `frontend/` en vez de `pnpm --dir frontend exec`. Sin cambios en RN/RF/AC. Número provisional: se ajusta al mergear | Con corepack, `pnpm --dir frontend` desde la raíz (sin `package.json`) arranca la versión por defecto de corepack y pnpm 12 la rechaza con `ERR_PNPM_BAD_PM_VERSION`: el hook no habría corrido en el host que pide Q-060 |

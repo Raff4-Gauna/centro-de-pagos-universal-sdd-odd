@@ -1,7 +1,7 @@
 ---
 spec: SPEC-00
 estado: Aprobado         # aprobado por el usuario junto con la spec (2026-10-31)
-actualizado: 2026-11-06   # §3.2.3 (T-PLT-14, spec 1.0.3); §3.5, §3.6, §3.7.2 (T-PLT-04, spec 1.0.4 y 1.0.5); ADR-0005 Aceptado (spec 1.0.6); §3.3.3 (T-PLT-34, Q-061, spec 1.0.7); §3.6 `ruff.toml` y migraciones (T-PLT-22, sin cambio de spec); §3.2.7 y §10.2 reversibilidad e ida y vuelta, `--allow-data-loss` (T-PLT-24, sin cambio de spec); §3.7.3 `edited`, D-09 y §11.2 (T-PLT-07, spec 1.0.13); §3.2.2 y §7 `X-Forwarded-Proto` (T-PLT-42, Q-065, spec 1.0.15); §3.1, §3.3.3 y §3.5 smoke y AC-29 E2E (T-PLT-38, spec 1.0.16 provisional); §3.3.3 y §7 cita de §3.2.2 y HSTS (Q-065, spec 1.0.17)
+actualizado: 2026-11-06   # §3.2.3 (T-PLT-14, spec 1.0.3); §3.5, §3.6, §3.7.2 (T-PLT-04, spec 1.0.4 y 1.0.5); ADR-0005 Aceptado (spec 1.0.6); §3.3.3 (T-PLT-34, Q-061, spec 1.0.7); §3.6 `ruff.toml` y migraciones (T-PLT-22, sin cambio de spec); §3.2.7 y §10.2 reversibilidad e ida y vuelta, `--allow-data-loss` (T-PLT-24, sin cambio de spec); §3.7.3 `edited`, D-09 y §11.2 (T-PLT-07, spec 1.0.13); §3.2.2 y §7 `X-Forwarded-Proto` (T-PLT-42, Q-065, spec 1.0.15); §3.1, §3.3.3 y §3.5 smoke y AC-29 E2E (T-PLT-38, spec 1.0.16 provisional); §3.3.3 y §7 cita de §3.2.2 y HSTS (Q-065, spec 1.0.17); §3.6 pre-commit del frontend (T-PLT-29, spec 1.0.18)
 ---
 # Diseño — Módulo de Plataforma (fundaciones)
 
@@ -498,7 +498,9 @@ del host y del contenedor están separados (volumen), así que los binarios nati
 2. `ruff-pre-commit` v0.17.3: `ruff-check --fix`, `ruff-format`.
 3. Local `check-file-size` (`language: python`, stdlib, `types_or: [python, ts, tsx, jsx]`).
 4. Local `eslint` y `prettier` (`language: system`, `python scripts/precommit_frontend.py …`, `files: ^frontend/`;
-   quita el prefijo, excluye `src/types/`, llama a `pnpm --dir frontend exec`).
+   quita el prefijo, excluye `src/types/`, llama a `pnpm exec` con `frontend/` como directorio de trabajo: con
+   corepack, `pnpm --dir frontend` desde la raíz arranca la versión por defecto de corepack y pnpm la rechaza con
+   `ERR_PNPM_BAD_PM_VERSION`, porque la raíz no tiene `package.json`).
 5. `gitleaks` v8.30.1 (staged, `--redact`, `--ignore-gitleaks-allow`).
 
 **El gate real de secretos es CI** (job `secrets`), no este hook: `git commit --no-verify` lo saltea, y el diff
