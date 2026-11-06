@@ -313,7 +313,7 @@ jobs:
           if [ -n "$stale" ]; then
             git --no-pager diff -- src/types
             echo "$stale"
-            echo "::error::frontend/src/types is stale: run 'pnpm --dir frontend openapi:types' and commit it"
+            echo "::error::frontend/src/types is stale: run 'pnpm openapi:types' from frontend/ and commit it"
             exit 1
           fi
       - name: tsc --noEmit

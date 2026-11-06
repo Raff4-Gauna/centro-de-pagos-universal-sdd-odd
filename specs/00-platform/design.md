@@ -594,8 +594,8 @@ documenta los prefijos (`context/03`, `context/09`). No toca el placeholder ni u
   `<!-- reviewer-verdict -->`, `Veredicto del reviewer: APROBADO|RECHAZADO` y `SHA: <40 hex>`; descarta autores sin
   permiso `write/maintain/admin` (`/collaborators/{u}/permission`) y los que no citan `head.sha`; el último (por
   `updated_at`) tiene que ser `APROBADO`. Error de API → falla ("no verificado"). Resumen en `$GITHUB_STEP_SUMMARY`.
-- Flujo: el reviewer publica el veredicto con la cuenta del dueño y se re-ejecuta el check (`gh run rerun` o
-  quitar/poner el label). Sin `issue_comment` (D-08). Push nuevo → el veredicto deja de citar `head.sha` → rojo.
+- Flujo: el reviewer publica el veredicto con la cuenta del dueño y se re-ejecutan todas las corridas del
+  check en el head (`gh run rerun`): quitar y poner el label deja las rojas viejas. Sin `issue_comment` (D-08). Push nuevo → el veredicto deja de citar `head.sha` → rojo.
 - Cada evento del PR abre su propia corrida, en su propio check suite, y `zona-roja` queda varias veces en el mismo
   head (`opened` + `labeled`, y `edited`). Si todas terminan igual no molesta. GitHub no documenta qué cuenta para
   un check requerido cuando conviven rojo y verde con el mismo nombre: tras un veredicto se re-ejecutan **todas**

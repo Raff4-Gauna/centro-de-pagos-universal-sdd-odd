@@ -3,7 +3,7 @@
 # Rules: no `paths:` nor `branches:` filter (a filtered required check stays pending forever); no
 # code of the PR runs: the checkout is the base SHA, so script and path list are the base's (D-09)
 # and the PR data comes from the API. No `issue_comment` trigger (D-08): after publishing a verdict,
-# re-run this check (`gh run rerun`) or remove and re-add the label. Stdlib only: no setup step.
+# re-run every run of this check on the head (`gh run rerun`). Stdlib only: no setup step.
 name: zona-roja
 
 on:

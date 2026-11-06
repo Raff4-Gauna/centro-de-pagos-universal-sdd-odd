@@ -59,7 +59,9 @@ fuera de bloques de código y sin citar (`>`): el comentario se publica **sin** 
 ## Reglas del proyecto
 - 0 aprobaciones nativas de GitHub: la aprobación es el comentario + el label `zona-roja` + el check en verde sobre
   ese SHA.
-- `reviewer` no edita archivos ni mergea.
+- `reviewer` no edita archivos ni mergea, y tampoco re-ejecuta CI: si un job falla, lo reporta.
+- Tras publicar un veredicto, quien mergea re-ejecuta **todas** las corridas de `zona-roja` del head: un comentario no
+  dispara el check (D-08).
 - Con bloqueantes, el veredicto es `cambios requeridos` y el PR no se mergea.
 - Sin bloqueantes y con pipeline verde en ese SHA (salvo `zona-roja`, que espera este veredicto), el veredicto es `aprobado`.
 - El merge lo hace Claude solo con certeza total: pipeline completo en verde, veredicto sin bloqueantes, DoD y squash; ante cualquier duda, mergea el dueño (Q-057).
