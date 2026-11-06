@@ -3,15 +3,15 @@ spec: SPEC-00
 fecha: 2026-11-06
 resultado: Con hallazgos     # Aprobada | Con hallazgos | Rechazada
 verificado_por: project-steward (cobertura) + qa-verifier (ejecución pendiente)
-version_spec: 1.0.16
+version_spec: 1.0.20
 ---
 
 # Verificación — Módulo de Plataforma (SPEC-00)
 
 ## 0. Alcance y método
 
-- Spec verificada: `specs/00-platform/spec.sdd.md` v1.0.16 (`Approved`), la de `main` en `f24d509`. La versión
-  siguiente no cambia AC: 1.0.17 (provisional) solo suma trazabilidad de Q-065 en `design.md`.
+- Spec verificada: `specs/00-platform/spec.sdd.md` v1.0.20 (`Approved`), la de `main` en `82cd31c`. Las
+  versiones 1.0.17 a 1.0.20 no cambian AC.
 - Tareas: `specs/00-platform/tasks.md` (estado conciliado con git el 2026-11-06).
 - Método: matriz AC→test sobre el árbol real, revisión de la cadena de CI y checklist manual.
 - **Leyenda de la columna “Cobertura”:** `✔` el AC tiene al menos un test con su ID y cubre el criterio completo;
@@ -23,7 +23,7 @@ version_spec: 1.0.16
 
 | AC | Test(s) | Cobertura |
 |---|---|---|
-| AC-PLT-01 | `scripts/tests/test_RF_PLT_02_compose_dev.py` (estático, con el servicio `frontend`), `backend/tests/config/test_AC_PLT_05_env_example_parity.py` (`test_AC_PLT_01_every_compose_variable_is_in_env_example`, `test_AC_PLT_01_allowed_hosts_keep_localhost_and_backend`, estáticos), `scripts/tests/test_smoke_stack.py`, `scripts/tests/test_smoke_stack_wiring.py` | ⚠ parcial: el smoke real da `6 services healthy` y `/healthz` 200 (run `42234984567`, `GIT_SHA` `b93b3f7`), pero con el override de CI, no con el comando documentado sobre un clon limpio. Falta la verificación manual del dueño (§4) |
+| AC-PLT-01 | `scripts/tests/test_RF_PLT_02_compose_dev.py` (estático, con el servicio `frontend`), `backend/tests/config/test_AC_PLT_05_env_example_parity.py` (`test_AC_PLT_01_every_compose_variable_is_in_env_example`, `test_AC_PLT_01_allowed_hosts_keep_localhost_and_backend`, estáticos), `scripts/tests/test_smoke_stack.py`, `scripts/tests/test_smoke_stack_wiring.py` | ⚠ parcial: el smoke real da `6 services healthy` y `/healthz` 200 (run `42234984567`, `GIT_SHA` `b93b3f7`), pero con el override de CI. **Falta:** que el dueño corra el comando documentado sobre un clon limpio con `.env` copiado de `env.example` (§4, pasos 1 a 3) |
 | AC-PLT-02 | `backend/tests/health/test_AC_PLT_02_readyz.py`, `scripts/tests/test_smoke_stack.py`, `scripts/tests/test_smoke_stack_wiring.py` | ✔ (E2E en el run `42234984567`: `readyz 200, healthz 200`; `redis stopped, readyz 503 with no details, healthz 200`) |
 | AC-PLT-03 | `backend/tests/config/test_AC_PLT_03_missing_required_var.py` | ✔ |
 | AC-PLT-04 | `backend/tests/config/test_AC_PLT_04_check_deploy.py` | ✔ |
@@ -42,11 +42,11 @@ version_spec: 1.0.16
 | AC-PLT-17 | `backend/tests/migrations/test_AC_PLT_17_reversibility.py`, `scripts/tests/test_AC_PLT_20_pipeline_chain.py` (`test_AC_PLT_17_migrations_job_runs_roundtrip_last`) | ✔ (reglas de `RunPython`/`RunSQL`, ida y vuelta en BD descartable y paso `check_migrations_roundtrip` del job `migrations`) |
 | AC-PLT-18 | `backend/tests/migrations/test_AC_PLT_18_names_and_mixing.py` | ✔ |
 | AC-PLT-19 | `scripts/tests/test_AC_PLT_19_gitleaks.py`, `…_gitleaks_evasions.py`, `…_secrets_job.py` | ✔ |
-| AC-PLT-20 | `scripts/tests/test_AC_PLT_20_pipeline_chain.py` (`test_AC_PLT_20_build_is_last_and_needs_migrations`) | ⚠ parcial: forma de la cadena probada y `build`, con el smoke, corre último en CI (`needs: migrations`). Ningún run real mostró un lint rojo con `build` sin ejecutar: el último `ci` en rojo es del 2026-11-03, anterior a `build`. Falta eso y el ruleset, con su PR de sacrificio (T-PLT-40) |
+| AC-PLT-20 | `scripts/tests/test_AC_PLT_20_pipeline_chain.py` (`test_AC_PLT_20_build_is_last_and_needs_migrations`, `test_AC_PLT_20_ruleset_checks_equal_pipeline_jobs_plus_zona_roja`) | ⚠ parcial: forma de la cadena probada y `build`, con el smoke, corre último en CI (`needs: migrations`). Ningún run real mostró un lint rojo con `build` sin ejecutar: el último `ci` en rojo es del 2026-11-03, anterior a `build`. **Falta:** PR de prueba con lint rojo → `lint` rojo y `build` sin ejecutar, con el ruleset ya aplicado |
 | AC-PLT-21 | `backend/tests/typing/test_AC_PLT_21_mypy_strict.py`, `scripts/tests/test_AC_PLT_21_tsconfig_strict.py` | ✔ |
 | AC-PLT-22 | `scripts/tests/test_AC_PLT_22_check_coverage.py` | ✔ |
 | AC-PLT-23 | `backend/tests/contract/test_AC_PLT_23_openapi_up_to_date.py`, `frontend/src/lib/problem.test.ts` | ✔ |
-| AC-PLT-24 | — | ✘ sin test: falta el ruleset (T-PLT-40) |
+| AC-PLT-24 | `scripts/tests/test_AC_PLT_24_verify_repo_protection.py`, `scripts/tests/test_AC_PLT_24_verify_repo_protection_failures.py` | ✘ el verificador y sus tests existen, pero el AC habla del repo real y **`main` no está protegida**: el ruleset está versionado en `.github/rulesets/main.json` y sin aplicar (`GET /rulesets` → `[]`, 2026-11-06). **Falta:** que el dueño aplique ruleset y ajustes (`infra/README.md`), `verify_repo_protection.py` con `GH_TOKEN` de admin → exit 0, y PR de prueba con check rojo que figure no mergeable |
 | AC-PLT-25 | `scripts/tests/test_AC_PLT_25_dockerfiles.py`, `scripts/tests/test_AC_PLT_25_build_job.py` | ✔ (job `build` real en `main`, run `42231351569` sobre `2d53815`: `uv sync --frozen` y `pnpm install --frozen-lockfile`, imágenes `hub-*:<sha>` con label `revision` = SHA, uid 10001 y 1000) |
 | AC-PLT-26 | `scripts/tests/test_AC_PLT_26_audit_deps.py`, `…_pnpm_audit_isolation.py` | ✔ |
 | AC-PLT-27 | `scripts/tests/test_AC_PLT_27_line_endings.py` | ✔ |
@@ -54,7 +54,7 @@ version_spec: 1.0.16
 | AC-PLT-29 | `frontend/scripts/check-client-bundle.test.ts`, `scripts/tests/test_AC_PLT_25_dockerfiles.py` (`test_AC_PLT_29_builder_checks_the_bundle_built_with_sentinels`), `scripts/tests/test_smoke_client_bundle.py` | ✔ (`builder` con centinela sobre el build real: `client bundle clean: 52 files checked`, run `42231351569`; smoke sobre lo servido: `client bundle clean over HTTP: 3 pages (0 rendered on request), 18 assets`, run `42234984567`). `0 rendered` no deja el chequeo vacío: las 3 páginas son prerenderizadas y se revisan igual. Límite en §6, hallazgo 12 |
 | AC-PLT-30 | `backend/tests/api/test_AC_PLT_30_throttle_429.py` | ✔ |
 | AC-PLT-31 | `backend/tests/architecture/test_AC_PLT_31_no_float_money.py` | ✔ |
-| AC-PLT-32 | `scripts/tests/test_AC_PLT_32_zona_roja_rules.py`, `scripts/tests/test_AC_PLT_32_zona_roja_cli.py` | ⚠ parcial: los unitarios cubren el criterio con un cliente HTTP falso. En vivo se vio rojo sin veredicto y verde tras publicarlo y re-ejecutar (#50, run `42228562758`; #51, run `42229918324`; #53, run `42234984164`). Falta probar en vivo "rutas rojas sin label → rojo" y "push nuevo → rojo" (ficha de T-PLT-07; §6, hallazgo 11) |
+| AC-PLT-32 | `scripts/tests/test_AC_PLT_32_zona_roja_rules.py`, `scripts/tests/test_AC_PLT_32_zona_roja_cli.py` | ⚠ parcial: los unitarios cubren el criterio con un cliente HTTP falso. En vivo se vio rojo sin veredicto y verde tras publicarlo y re-ejecutar (#50, run `42228562758`; #51, run `42229918324`; #53, run `42234984164`). **Falta:** probar en vivo "rutas rojas sin label → rojo" y "push nuevo sobre un veredicto válido → rojo" (ficha de T-PLT-07; §6, hallazgo 11) |
 | AC-PLT-33 | `scripts/tests/test_AC_PLT_33_check_workflows.py`, `scripts/tests/test_AC_PLT_33_check_workflows_refs.py` | ✔ (incluye `test_AC_PLT_33_lint_job_runs_check_workflows`: el job `lint` lo ejecuta) |
 | AC-PLT-34 | `backend/tests/api/test_AC_PLT_34_problem_json.py`, `…_problems_domain.py` | ✔ |
 
@@ -64,18 +64,18 @@ version_spec: 1.0.16
 
 | Suite | Comando | Estado |
 |---|---|---|
-| Pipeline en `main` | workflow `ci` en cada push a `main` (10 jobs: `lint`, `file-size`, `secrets`, `deps-audit`, `typecheck`, `architecture`, `tests`, `coverage`, `migrations`, `build`) | ✔ 10/10 jobs, run `42259450141` sobre `f24d509`, 2026-11-06 |
-| Backend completo, con PostgreSQL y Redis reales | job `tests` del pipeline (`pytest --cov`) | ✔ 559 passed en el run de `f24d509`; localmente no se corrió la parte `integration` |
-| Migraciones (AC-PLT-16, 17, 18) | job `migrations` del pipeline, incluido `check_migrations_roundtrip --allow-data-loss` | ✔ en el run de `f24d509` |
-| Frontend | job `tests` (`pnpm test --coverage`) y job `typecheck` | ✔ 90 tests de vitest en el run de `f24d509`; `pnpm --dir frontend test` no se corrió localmente |
+| Pipeline en `main` | workflow `ci` en cada push a `main` (10 jobs: `lint`, `file-size`, `secrets`, `deps-audit`, `typecheck`, `architecture`, `tests`, `coverage`, `migrations`, `build`) | ✔ 10/10 jobs, run `42271234974` sobre `82cd31c`, 2026-11-06 |
+| Backend completo, con PostgreSQL y Redis reales | job `tests` del pipeline (`pytest --cov`) | ✔ 559 passed en el run de `82cd31c`; localmente no se corrió la parte `integration` |
+| Migraciones (AC-PLT-16, 17, 18) | job `migrations` del pipeline, incluido `check_migrations_roundtrip --allow-data-loss` | ✔ en el run de `82cd31c` |
+| Frontend | job `tests` (`pnpm test --coverage`) y job `typecheck` | ✔ 90 tests de vitest en el run de `82cd31c`; no se corrió localmente |
 | Backend, unit (host) | `pytest -m "not integration"` desde `backend/` | ✔ 523 passed, 1 skipped, 35 deselected (`integration`), 2026-11-06 sobre `1cc858e`, con valores ficticios de entorno; no se repitió sobre `2d53815` |
-| Scripts (host) | `pytest -c scripts/pytest.ini scripts/tests -m "not gitleaks"` | ⚠ 689 passed, 7 failed, 22 deselected (marker `gitleaks`), 2026-11-06 sobre `f24d509`. Los 7 son `test_AC_PLT_12_ruff_print.py`: el Python del host no tiene `ruff`. Es del entorno, no de la suite: el job `tests` del run de `f24d509` da 696 passed, 22 deselected, con esos 7 incluidos |
-| Workflows (host) | `python scripts/check_workflows.py` | ✔ 3 archivos, 2026-11-06 sobre `f24d509` |
-| Secretos | job `secrets` del pipeline, incluido `pytest -m gitleaks` | ✔ 22 passed en el run de `f24d509`; el marker no se corrió localmente |
-| Pre-commit | `pre-commit run --all-files` | ⏳ pendiente |
-| Build de imágenes | job `build` | ✔ en el run de `f24d509`, con el `RUN` del `builder` en caché: la línea `52 files checked` sale en el run `42231351569` |
-| Smoke | último paso del job `build` | ✔ `smoke passed` en el run `42234984567` del PR #53 (`GIT_SHA` `b93b3f7`, el merge commit del PR) y en el run de `f24d509`, con las mismas líneas y `version f24d509` |
-| Check `zona-roja` | workflow `zona-roja`, solo en PR | ✔ rojo sin veredicto y verde tras publicarlo: #50 (run `42228562758`, intentos 1 y 2), #51 (run `42229918324`, intentos 1 y 2) y #53 (run `42234984164`, intentos 1 y 2). No corre en `push` a `main` |
+| Scripts (host) | `pytest -c scripts/pytest.ini scripts/tests -m "not gitleaks"` | ⚠ 827 passed, 7 failed, 22 deselected (marker `gitleaks`), 2026-11-06 sobre `82cd31c`. Los 7 son `test_AC_PLT_12_ruff_print.py`: el Python del host no tiene `ruff`. Es del entorno, no de la suite: el job `tests` del run de `82cd31c` da 834 passed, 22 deselected, con esos 7 incluidos |
+| Workflows (host) | `python scripts/check_workflows.py` | ✔ 3 archivos, 2026-11-06 sobre `82cd31c` |
+| Secretos | job `secrets` del pipeline, incluido `pytest -m gitleaks` | ✔ 22 passed en el run de `82cd31c`; el marker no se corrió localmente |
+| Pre-commit | `pre-commit run --all-files` | ⚠ verde sobre `main` con #52 y `SKIP=gitleaks`, según la nota (6) de T-PLT-41; el hook de gitleaks no terminó en 15 minutos. El steward no lo corrió |
+| Build de imágenes | job `build` | ✔ en el run de `82cd31c`, con el `RUN` del `builder` en caché: la línea `52 files checked` sale en el run `42231351569` |
+| Smoke | último paso del job `build` | ✔ `smoke passed` en el run `42234984567` del PR #53 (`GIT_SHA` `b93b3f7`, el merge commit del PR) y en el run de `82cd31c`, con `version 82cd31c` |
+| Check `zona-roja` | workflow `zona-roja`, solo en PR | ✔ rojo sin veredicto y verde tras publicarlo: #50 (run `42228562758`, intentos 1 y 2), #51 (run `42229918324`, intentos 1 y 2) y #53 (run `42234984164`, intentos 1 y 2); igual en #52, #54, #55 y #56. No corre en `push` a `main` |
 
 > Para pasar a `Verified` hace falta pegar la salida de estas corridas en este archivo (o el enlace al run de CI)
 > y que el dueño lo apruebe. No se acepta “debería pasar”.
@@ -98,10 +98,12 @@ version_spec: 1.0.16
 4. `curl -i http://127.0.0.1:8000/readyz` → 200; detener Redis → 503 sin hosts ni trazas, `/healthz` sigue 200.
 5. Revisar logs: una línea JSON por request con `request_id`, `duration_ms` y plantilla de ruta.
 6. Superar el throttle anónimo → 429 con `Retry-After` y `problem+json`.
-7. `pnpm --dir frontend build` e inspeccionar el bundle: sin URL interna del backend.
-8. `python scripts/export_openapi.py --check` → sin diff.
-9. `pre-commit run --all-files` → verde.
-10. `python scripts/verify_repo_protection.py` → pendiente (T-PLT-40).
+7. `cd frontend; pnpm build; cd ..` e inspeccionar el bundle: sin URL interna del backend.
+8. `DC exec backend python manage.py export_openapi --check` → sin diff.
+9. `pre-commit run --all-files` → verde (hasta hoy solo hay evidencia con `SKIP=gitleaks`, ver §2).
+10. Aplicar ruleset y ajustes con los pasos de `infra/README.md`.
+11. `python scripts/verify_repo_protection.py` con `GH_TOKEN` de admin → exit 0. Hoy no puede dar 0: no hay ruleset.
+12. PR de prueba con un error de lint → `lint` rojo, `build` no corre y el PR figura no mergeable.
 
 ## 5. Revisión de código (reviewer)
 
@@ -109,8 +111,9 @@ version_spec: 1.0.16
 |---|---|---|---|---|
 | — | Sin revisión de cierre del diff completo todavía | — | C-15 | Pendiente |
 
-La revisión por tarea sí ocurrió en los PR mergeados (comentario con SHA + label `zona-roja`). Lo que falta es la
-revisión del **diff acumulado** del módulo.
+La revisión por tarea no quedó registrada igual en todos los PR. #4 a #40 no tienen el label `zona-roja`, creado el
+2026-11-06, y sus comentarios no se auditaron para este documento. #41 a #43 solo tienen constancia retroactiva. Desde
+#44 cada PR lleva comentario con SHA y label. Falta además la revisión del **diff acumulado** del módulo.
 
 ## 6. Hallazgos de proceso
 
@@ -119,13 +122,13 @@ revisión del **diff acumulado** del módulo.
 3. `README.md` y `AGENTS.md` decían que no había código.
 4. Faltaba el archivo de ejemplo de entorno (Q-048, cerrada: `env.example` entró con T-PLT-39, #45). `.vscode/` sigue
    sin política.
-5. El pipeline está completo, con el smoke como último paso de `build`: 10 jobs de `ci.yml` + `zona-roja`. Falta el
-   ruleset que los exija (T-PLT-40).
+5. El pipeline está completo, con el smoke como último paso de `build`: 10 jobs de `ci.yml` + `zona-roja`. Nada los
+   exige todavía: el ruleset está versionado y sin aplicar.
 6. No había ningún mecanismo que detectara el drift: se agrega `scripts/check_spec_state.py`.
 7. Cinco tareas mergeadas (#42, #43, #45, #46, #47) quedaron `🟡` en `tasks.md`: sus PR no llevaron la fila a `✅`
    (regla 1 de estados). Conciliado el 2026-11-06.
 8. `scripts/spec_state_baseline.json` listaba `AC-PLT-17`, `29`, `32` y `33`, que ya tienen test. No producía drift.
-   Conciliado el 2026-11-06: queda solo `AC-PLT-24`.
+   Conciliado el 2026-11-06: el baseline queda vacío, porque desde T-PLT-40 `AC-PLT-24` también tiene test.
 9. T-PLT-07, T-PLT-37 y T-PLT-42 quedaron `🟡` tras mergearse (#48, #50, #51), otra vez la regla 1 de estados.
    Conciliado el 2026-11-06.
 10. El verde de `zona-roja` en #48 no comprobó nada: el workflow corre el script de la base (D-09) y en `8cd5bd9`
@@ -133,12 +136,19 @@ revisión del **diff acumulado** del módulo.
 11. El rojo de #50 y #51 tras el rebase no prueba "push nuevo → rojo". Los dos tenían un veredicto sobre el SHA
     anterior, pero en el formato viejo, sin `<!-- reviewer-verdict -->`, que el check no cuenta como veredicto: el
     rojo sale igual por falta de veredicto válido, no por SHA vencido. Tampoco corrió el check en ningún PR sin label:
-    en #52 y #53 el label ya estaba en el primer run. Sin evidencia nueva hasta `f24d509`.
+    en #52 a #56 el rojo del primer intento fue por falta de veredicto, siempre con el label puesto. #52 tuvo un push
+    nuevo, pero sobre un veredicto RECHAZADO. Sin evidencia nueva hasta `82cd31c`.
 12. Límite de AC-PLT-29: en `scripts/smoke_stack.py:257` un 3xx cuenta como página revisada. Hoy alcanza; hay que
     resolverlo antes de la primera ruta protegida de SPEC-01. Tampoco hay todavía mecanismo de URL de ejemplo para
     rutas `[id]`.
 13. #48 lo mergeó Claude como excepción puntual a Q-063, autorizada por el dueño (comentario en #48). Q-063 sigue
-    vigente para los PR siguientes que toquen `zona-roja.yml`.
+    vigente y el dueño la amplió: todo PR que agregue o cambie un archivo de `.github/workflows/` lo mergea él.
+14. #52 (por scope drift) y #55 (excepción a Q-057) también los mergeó Claude con autorización del dueño, citada en
+    cada PR, y solo para esos PR. #55 solo agrega archivos: no aplicó nada en GitHub.
+15. T-PLT-29, T-PLT-40 y T-PLT-41 quedaron sin `✅` tras mergearse (#52, #55, #56). Conciliado el 2026-11-06. Tercera
+    vez que pasa: `check_spec_state.py` sigue sin correr en CI.
+16. `✅` no significa aplicado: todas las tareas están mergeadas y `main` sigue sin protección. Por eso AC-PLT-24 queda
+    `✘` aunque tenga tests.
 
 ## 7. Decisión
 
@@ -146,13 +156,13 @@ revisión del **diff acumulado** del módulo.
 
 Bloqueantes para cerrar 00-platform:
 
-| Tarea | AC que desbloquea |
+| Acción | AC que desbloquea |
 |---|---|
+| Dueño: aplicar ruleset y ajustes (§4, pasos 10 y 11) | AC-PLT-24 |
+| Dueño: PR de prueba con lint rojo (§4, paso 12) | AC-PLT-20 y el último punto de AC-PLT-24 |
 | Verificación manual de la ficha de T-PLT-07 | AC-PLT-32: rutas rojas sin label → rojo; push nuevo sobre un veredicto válido → rojo |
-| Verificación manual del dueño (§4) | AC-PLT-01 |
-| T-PLT-29 (PR #52 abierto, veredicto RECHAZADO sobre `cee1931`) | Cierre de RF-PLT-12 (sin AC propio) |
-| T-PLT-40 | AC-PLT-24 y el cierre de AC-PLT-20 (con un run que muestre lint rojo y `build` sin ejecutar) |
-| T-PLT-41 | Cierre documental (RF-PLT-16) |
+| Dueño: clon limpio (§4, pasos 1 a 3) | AC-PLT-01 |
+| Revisión del diff acumulado (§5) | Cierre del módulo |
 
-Después de cerrarlas: ejecutar §2, repetir la matriz, marcar las filas `🧪` en `tasks.md` y volver a esta
+No queda ninguna tarea por implementar. Después de cerrar esto: ejecutar §2, repetir la matriz, marcar las filas `🧪` en `tasks.md` y volver a esta
 verificación. La firma final la da el dueño.
