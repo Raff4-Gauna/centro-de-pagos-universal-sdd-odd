@@ -16,7 +16,7 @@ fase: cierre (Implemented pendiente)
 
 | Módulo | Spec | Tareas | Código | Nota |
 |---|---|---|---|---|
-| 00-platform | Approved 1.0.8 | 30 ✅ · 10 ☐ · 1 ⛔ (41) | ~90 % de lo planificado | Verificación **Con hallazgos** |
+| 00-platform | Approved 1.0.10 | 30 ✅ · 10 ☐ · 1 🟡 (41) | ~90 % de lo planificado | Verificación **Con hallazgos** |
 | 01-identity-access | Approved | sin `tasks.md` | 0 % | Depende de 00 |
 | 02-tenancy-rbac | Approved | sin `tasks.md` | 0 % | Se cierra junto con 01 (Q-108) |
 | 03-integrations-engine | Draft | — | 0 % | Falta cerrar el contrato del motor |
@@ -25,10 +25,10 @@ fase: cierre (Implemented pendiente)
 | 06-charges | Draft | — | 0 % | Núcleo del dinero |
 | 07–14 | Por redactar / Futuro | — | 0 % | Ver `specs/ROADMAP.md` |
 
-- **00-platform:** 30 tareas mergeadas (PR #4–#40), 10 pendientes, `T-PLT-39` bloqueada por **Q-048**
-  (`.env.example`). El pipeline tiene 9 de los 11 jobs: faltan `build` (T-PLT-37) y `smoke` (T-PLT-38).
-- **Verificación:** `specs/00-platform/verification.md` existe y da **Con hallazgos**: 24 AC ✔, 4 ⚠
-  (`AC-PLT-01`, `06`, `20`, `25`), 6 ✘ (`AC-PLT-05, 17, 24, 29, 32, 33`). Ningún AC se marcó ✔ sin test.
+- **00-platform:** 30 tareas mergeadas (PR #4–#40), 10 pendientes, `T-PLT-39` en revisión (`env.example`;
+  **Q-048** cerrada: el dueño decidió renombrarlo). El pipeline tiene 9 de los 11 jobs: faltan `build` (T-PLT-37) y `smoke` (T-PLT-38).
+- **Verificación:** `specs/00-platform/verification.md` existe y da **Con hallazgos**: 26 AC ✔, 3 ⚠
+  (`AC-PLT-01`, `20`, `25`), 5 ✘ (`AC-PLT-17, 24, 29, 32, 33`); `05` y `06` cuentan con T-PLT-39, sin mergear. Ningún AC se marcó ✔ sin test.
 - **01 y 02:** specs `Approved` pero **sin `tasks.md`**: no se puede implementar todavía.
 - **04:** sin redactar; es el bloqueo de `06-charges`.
 - **S-001 (Mercado Pago sandbox):** **sin ejecutar**. Es el mayor riesgo abierto del roadmap.
@@ -45,7 +45,8 @@ fase: cierre (Implemented pendiente)
 
 ## 3. Qué sigue, en orden
 
-1. **Destrabar Q-048** con el dueño y crear `.env.example` (T-PLT-39). Sin eso, AC-PLT-05 no se puede cerrar.
+1. **Cerrar T-PLT-39** (`env.example`, Q-048 decidida): revisión y merge. Después, acciones del dueño: mover las
+   claves de spikes de su `.env` a `spikes/.env` y correr la verificación manual de AC-PLT-01.
 2. **Cerrar el camino crítico de 00** en este orden:
    - `T-PLT-05, 06, 07` → AC-PLT-33 y AC-PLT-32 (checks de workflows y zona roja).
    - `T-PLT-24` → AC-PLT-17 (reversibilidad de migraciones).
@@ -86,5 +87,5 @@ fase: cierre (Implemented pendiente)
   `ADR-0011` y `context/12-solid-y-diseno.md`.
 - **Commits de la sesión:** `6273ac4` (tablero + verificación), `8ffbda0` (chequeo de drift), `a1eafb9`
   (agentes, skills y SOLID).
-- **Pendiente / dudas:** Q-048 (dueño: `.env.example`), Q-028 (SPEC-12), Q-059 (versiones), S-001 sin ejecutar.
-- **Siguiente rol sugerido:** `backend-dev` en T-PLT-05 + `reviewer`, o el dueño para Q-048.
+- **Pendiente / dudas:** Q-028 (SPEC-12), Q-059 (versiones), S-001 sin ejecutar.
+- **Siguiente rol sugerido:** `backend-dev` en T-PLT-05 + `reviewer`.

@@ -21,7 +21,8 @@ x-backend-environment: &backend-environment
   # Container host names: db and redis (see infra/README.md).
   DATABASE_URL: ${DATABASE_URL:?falta DATABASE_URL en .env}
   REDIS_URL: ${REDIS_URL:?falta REDIS_URL en .env}
-  # Must keep localhost: the backend healthcheck calls http://localhost:8000/readyz.
+  # Must keep localhost (the backend healthcheck calls http://localhost:8000/readyz) and backend
+  # (the frontend BFF calls http://backend:8000; else 400 DisallowedHost). env.example sets both.
   DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-}
   LOG_LEVEL: ${LOG_LEVEL:-}
   APP_VERSION: ${APP_VERSION:-}
@@ -79,6 +80,10 @@ services:
     volumes:
       - ../backend:/repo/backend
       - ../specs/_contracts:/repo/specs/_contracts
+      # Read-only, for the parity tests run in the container (AC-PLT-05/06, T-PLT-39). Only the
+      # examples: the real .env never enters a container as a file.
+      - ../env.example:/repo/env.example:ro
+      - ../spikes/env.example:/repo/spikes/env.example:ro
     ports:
       - "127.0.0.1:8000:8000"
     depends_on:

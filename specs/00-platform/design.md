@@ -30,8 +30,8 @@ shell `(dashboard)` y la infraestructura común (tokens, tema, estados de carga,
 |---|---|
 | RN-PLT-01 | `infra/docker-compose.yml` + comando único (§3.4, §10.2); prerrequisitos del host (§3.6, Q-060) |
 | RN-PLT-02 | `backend/config/settings/env.py` (`PlatformEnv`, `load_env()`), `prod.py` (`DEBUG=False`, `SECRET_KEY` fuerte) (§3.2.2) |
-| RN-PLT-03 | `.env.example` (raíz, solo plataforma) + `.gitignore` + test de paridad AC-05 |
-| RN-PLT-04 | `spikes/.env.example` separado; Compose con `environment:` explícito, sin `env_file:` (D-04); test AC-06 |
+| RN-PLT-03 | `env.example` (raíz, solo plataforma) + `.gitignore` + test de paridad AC-05 |
+| RN-PLT-04 | `spikes/env.example` separado; Compose con `environment:` explícito, sin `env_file:` (D-04); test AC-06 |
 | RN-PLT-05 | `apps/common/logging/` + `config/gunicorn.conf.py` + señal `setup_logging` de Celery; ruff `T20` (§3.2.3) |
 | RN-PLT-06 | `apps/common/domain/redaction.py` + `middleware/access_log.py` (allowlist de campos, plantilla de ruta); `django.server`/`django.request` silenciados |
 | RN-PLT-07 | `apps/common/domain/request_id.py`, `middleware/request_id.py`, `celery_signals.py`; BFF `lib/server/request-id.ts` |
@@ -55,7 +55,7 @@ shell `(dashboard)` y la infraestructura común (tokens, tema, estados de carga,
 | RF-PLT-01 | Árbol §3.1; `.gitattributes`, `.editorconfig`, `infra/scripts/README.md`, `scripts/` |
 | RF-PLT-02 | `infra/docker-compose.yml` (§3.4: healthchecks, `service_healthy`, volúmenes nombrados, una réplica de `beat`, `migrate` solo en `backend`); recrear BD §10.2 |
 | RF-PLT-03 | `backend/config/settings/{env,base,dev,test,prod}.py` (§3.2.2) |
-| RF-PLT-04 | ⚠ Q-048. `.env.example` + `spikes/.env.example` + tests AC-05/06 |
+| RF-PLT-04 | `env.example` + `spikes/env.example` (Q-048: sin punto inicial) + tests AC-05/06 |
 | RF-PLT-05 | `apps/common/logging/`, `middleware/`, `celery_signals.py` (§3.2.3) |
 | RF-PLT-06 | `frontend/src/app/api/[...path]/route.ts`, `lib/server/backend-proxy.ts`, `request-id.ts` (§3.3.3) |
 | RF-PLT-07 | `/healthz`, `/readyz` + `app/api/health/route.ts`; `scripts/smoke_stack.py` en job `build` |
@@ -87,8 +87,8 @@ shell `(dashboard)` y la infraestructura común (tokens, tema, estados de carga,
 > Solo lo que crea 00 (sin apps de negocio). Ningún archivo de código previsto pasa de ~250 líneas.
 ```
 /  .editorconfig · .gitattributes · .gitignore (+ spikes/.env, coverage/, caches) · .gitleaks.toml
-   .pre-commit-config.yaml · .env.example (solo plataforma) · ruff.toml (config única de ruff)
-spikes/.env.example                 # SOLO variables de spikes; nadie del Hub las lee
+   .pre-commit-config.yaml · env.example (solo plataforma) · ruff.toml (config única de ruff)
+spikes/env.example                  # SOLO variables de spikes; nadie del Hub las lee
 scripts/                            # Python 3.12; stdlib salvo check_workflows (PyYAML del env del backend)
    check_file_size.py · check_workflows.py · check_zona_roja.py · check_coverage.py · coverage_thresholds.toml
    audit_deps.py · audit_exceptions.toml · verify_repo_protection.py · github_api.py (REST mínimo, paginado)
@@ -165,18 +165,22 @@ excepciones a `build_problem()`; `dev_views.py` solo llama a `diagnostic_ping.de
   r"^readyz$"]` (healthchecks internos por HTTP); `SECURE_PROXY_SSL_HEADER`; HSTS 1 año + subdominios; cookies
   `Secure`; `X_FRAME_OPTIONS="DENY"`. `SECURE_HSTS_PRELOAD=False` con `security.W021` silenciado **explícitamente
   y comentado** hasta tener dominio (Q-020): es el único silenciamiento permitido (otro requiere ADR).
-- **`.env.example`** (raíz): solo plataforma, por grupos (Django, BD, Redis, Compose `POSTGRES_*`, frontend servidor
-  `BACKEND_INTERNAL_URL`, observabilidad, flags comentados); valores ficticios de baja entropía para que gitleaks no
-  los marque. **`spikes/.env.example`**: claves de spikes con `<ver .env: NOMBRE>`; el real `spikes/.env` está
+- **`env.example`** (raíz; sin punto inicial por decisión del dueño sobre Q-048, 2026-11-05, para que los
+  agentes lo lean sin tocar `.claude/settings.json`): solo plataforma, por grupos (Django, BD, Redis, Compose
+  `POSTGRES_*`, frontend servidor `BACKEND_INTERNAL_URL`, observabilidad, flags comentados); valores ficticios de baja entropía para que gitleaks no
+  los marque. **`spikes/env.example`**: claves de spikes con `<ver .env: NOMBRE>`; el real `spikes/.env` está
   ignorado. Compose interpola del `.env` raíz pero declara cada variable en `environment:`: aunque queden
   variables de spikes en el `.env` raíz, **no entran a ningún contenedor** (D-04). ⚠ Mover las claves de spikes del
   `.env` actual a `spikes/.env` es acción del usuario (Q-048).
 - Tests (`backend/tests/config/`): **AC-03** subproceso con `config.settings.prod` y cada obligatoria
   ausente/inválida → stderr nombra la variable y no contiene ningún valor centinela; **AC-04** subproceso
   `check --deploy --fail-level WARNING` → 0; con `DJANGO_DEBUG=true` → no arranca; **AC-05** paridad en los dos
-  sentidos entre `PlatformEnv.model_fields` + `COMPOSE_ONLY_VARS` + `FRONTEND_SERVER_VARS` y `.env.example`;
+  sentidos entre `PlatformEnv.model_fields` + `COMPOSE_ONLY_VARS` + `FRONTEND_SERVER_VARS` y `env.example`;
   **AC-06** AST sobre `config/` y `apps/`: ninguna lectura de entorno fuera de `env.py`, ningún campo con patrón
-  `^(MP|MERCADOPAGO|CLOVER|PAYWAY|DECIDIR|PRISMA)_` ni igual a una clave de `spikes/.env.example`.
+  `^(MP|MERCADOPAGO|CLOVER|PAYWAY|DECIDIR|PRISMA)_` ni igual a una clave de `spikes/env.example`. Además (T-PLT-39):
+  las claves de spikes no aparecen en el `env.example` raíz y sus valores son solo `<ver .env: NOMBRE>`; toda
+  variable que interpola el Compose está en `env.example` (AC-01: copiarlo alcanza) y `FRONTEND_SERVER_VARS` coincide
+  con lo que lee `frontend/src`. Esos dos cruces se saltean dentro del contenedor (solo se montan los ejemplos).
 
 #### 3.2.3 Logging y correlación (RN-PLT-05/06/07, RF-PLT-05, RNF-PLT-03)
 - **Una sola configuración** (`logging/setup.py`) para Django (`LOGGING`), gunicorn (`logconfig_dict`) y Celery
@@ -365,7 +369,7 @@ en `modules/` (cuenta para cobertura). Sin protección de rutas ni datos.
 - Volúmenes nombrados: `pgdata`, `frontend_node_modules`, `pnpm_store`; `beat` guarda el schedule en el
   filesystem propio del contenedor (`/tmp/beat`, fuera del código montado; se pierde al recrear) y Redis va sin
   persistencia. Bind mounts de dev bajo `/repo/…` (`../backend:/repo/backend`, `../frontend:/repo/frontend`,
-  `../specs/_contracts:/repo/specs/_contracts`, `../.env.example` y `../spikes/.env.example` `:ro` en `backend`)
+  `../specs/_contracts:/repo/specs/_contracts`, `../env.example` y `../spikes/env.example` `:ro` en `backend`)
   para que las rutas relativas sean iguales en contenedor, host y CI. Venv del backend en `/opt/venv`
   (`UV_PROJECT_ENVIRONMENT`) para que el bind mount no lo tape.
 - `environment:` por servicio con `${VAR:?falta VAR en .env}` (fail-fast). `frontend`:
@@ -635,7 +639,7 @@ Nombres de jobs = checks requeridos: `lint`, `file-size`, `secrets`, `deps-audit
 | Integración (BD/Redis del job) | `/readyz` con Redis caído y real; throttle con Redis; Celery con `start_worker`; migraciones y settings en subproceso | 02–04, 11, 16–18, 30 |
 | API | `problem+json`, 429 + `Retry-After`, logs JSON con `capfd` (campos, redacción, plantilla), rutas dev ausentes en prod, sin CORS | 07–09, 30, 34 |
 | Contrato | `export_openapi --check`; `openapi:types` + `git diff`; `Problem` presente | 23 |
-| Estáticos / config | paridad `.env.example`, lecturas de entorno, T20 sobre `print` sintético, mypy sobre sintéticos, `.gitattributes` + hook LF, Dockerfiles con `--frozen`, forma de la cadena `needs` | 05, 06, 12, 20, 21, 25, 27 |
+| Estáticos / config | paridad `env.example`, lecturas de entorno, T20 sobre `print` sintético, mypy sobre sintéticos, `.gitattributes` + hook LF, Dockerfiles con `--frozen`, forma de la cadena `needs` | 05, 06, 12, 20, 21, 25, 27 |
 | Componentes | `AppShell`, `HomeEmpty`, `ErrorNotice`, `SettingsSectionList`, `PageSkeleton` | 28 |
 | Aislamiento | no aplica (sin datos); C-01 por arquitectura | 15 |
 | Smoke (paso 9) | `smoke_stack.py` con imágenes del SHA | 01, 02, 10, 25, 29 |
@@ -670,7 +674,7 @@ corridos una vez → ruleset (después de publicar, Q-054).
 ### 10.2 "Comandos de desarrollo" para `AGENTS.md` (desde la raíz; PowerShell o bash; `DC` = `docker compose -f infra/docker-compose.yml`)
 | Para | Comando |
 |---|---|
-| Primera vez | `copy .env.example .env` · `pre-commit install` · `corepack enable` · `pnpm --dir frontend install` |
+| Primera vez | `copy env.example .env` · `pre-commit install` · `corepack enable` · `pnpm --dir frontend install` |
 | Levantar todo | `docker compose -f infra/docker-compose.yml --env-file .env up -d --build --wait` |
 | Logs / bajar | `DC logs -f backend worker` · `DC down` |
 | Recrear la BD | `DC down -v` y volver a levantar (borra todos los volúmenes; BD descartable hasta 01) |
@@ -688,7 +692,7 @@ corridos una vez → ruleset (después de publicar, Q-054).
 | D-01 | Contrato OpenAPI code-first commiteado + tipos generados + diff en CI | **ADR-0005** |
 | D-02 | Cadena estricta de 9 pasos (`deps-audit` comparte el 3 con `secrets`) | RN-PLT-11 literal; más lento que paralelizar, compensado con cachés |
 | D-03 | 00 no instala ningún `django.contrib.*` | Q-053 sin tablas `auth_user` que 01 tendría que tirar; DRF anda con `UNAUTHENTICATED_USER=None` |
-| D-04 | `spikes/.env.example` separado + `environment:` explícito en Compose | las variables de spikes no llegan a ningún contenedor; la paridad no necesita marcadores frágiles |
+| D-04 | `spikes/env.example` separado + `environment:` explícito en Compose | las variables de spikes no llegan a ningún contenedor; la paridad no necesita marcadores frágiles |
 | D-05 | gunicorn también en dev (`--reload-engine poll`) | logs del servidor en JSON (runserver imprime texto y paths crudos); reload por polling en Windows |
 | D-06 | Throttle fail-open si Redis falla | disponibilidad; `/readyz` ya lo señala; 01/07/11 pueden elegir fail-closed |
 | D-07 | Tailwind 3.4.19 (`v3-lts`) | `07 §1` usa API de v3 (`tw-`, `preflight: false`, `tailwind.config.ts`); v4 exige editar `07` (Q-059) |
