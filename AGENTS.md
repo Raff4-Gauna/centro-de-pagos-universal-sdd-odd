@@ -168,6 +168,7 @@ Notas:
 2. Actualizar `tasks.md` y `verification.md` si cambió algo.
 3. Correr `python scripts/check_spec_state.py` y mostrar el resultado.
 4. Dejar el bloque: **Hecho / Pendiente (Q-xxx) / Siguiente rol sugerido**.
-5. Commit `docs(platform): session handoff <fecha>` si hubo cambios de documentos.
+5. Si hubo cambios de documentos, commit `docs(platform): session handoff <fecha>` en una rama `log/YYYY-MM-DD-handoff`
+   y **por PR**: con el ruleset activo, un push directo a `main` se rechaza.
 
 El comando `/handoff` hace estos pasos. No se toca código de producción en el cierre.
