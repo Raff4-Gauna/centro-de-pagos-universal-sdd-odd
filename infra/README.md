@@ -206,3 +206,21 @@ Renombrar un job requerido exige cambiar `main.json` y aplicarlo en el mismo cam
   `gh run rerun <id>` por cada una.
 - Sin bypass, tampoco el dueño puede mergear con un check rojo: para saltear la protección hay que desactivar el
   ruleset.
+
+## Desactivar y reactivar el ruleset de `main`
+
+**Lo ejecuta solo el dueño** (Q-057). **Comandos sin probar:** nunca se corrieron contra GitHub.
+
+Hace falta si un check requerido nunca reporta o si entra un bug en lo que `zona-roja` lee de la base (D-09):
+`check_zona_roja.py`, `github_api.py`, `zona_roja_verdict.py`, `glob_paths.py` o `zona-roja-paths.txt`. En ese caso
+`zona-roja` queda en rojo en todos los PR, incluido el que lo arregla.
+
+Desde la raíz, en PowerShell, con `R` = `Raff4-Gauna/centro-de-pagos-universal-sdd-odd` (reemplazarlo en el comando).
+El primero da el `<id>`, el segundo desactiva y el tercero reactiva; en bash, el JSON va con `echo '{...}' | gh api ...`:
+```
+gh api repos/R/rulesets --jq '.[] | {id,name,enforcement}'
+'{"enforcement":"disabled"}' | gh api --method PUT repos/R/rulesets/<id> --input -
+'{"enforcement":"active"}' | gh api --method PUT repos/R/rulesets/<id> --input -
+```
+Mientras está desactivado, `main` queda sin protección: se mergea solo el PR que destraba y se reactiva enseguida.
+Después, `gh api repos/R/rulesets/<id> --jq .enforcement` tiene que dar `active`.
