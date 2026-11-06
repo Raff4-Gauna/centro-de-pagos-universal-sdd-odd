@@ -16,8 +16,11 @@ con `backend` sano. `migrate --noinput` corre **solo** en
 - **Docker Desktop** (engine Linux / WSL 2) con **Compose v2** (`docker compose version`).
 - **Git**.
 - **Python 3.12 + `pre-commit`** (`pre-commit install` una vez).
-- **Node 24 + pnpm** (`corepack enable`) y `pnpm --dir frontend install` una vez: solo para eslint/prettier del
-  pre-commit. Conviene Node ≥ 24.15 (`jsdom` 30); los tests del frontend corren en contenedor/CI.
+- **Node 24 + pnpm** (`corepack enable`) y `cd frontend; pnpm install; cd ..` una vez: solo para eslint/prettier del
+  pre-commit. Conviene Node ≥ 24.15 (`jsdom` 30); los tests del frontend corren en contenedor/CI. pnpm se corre
+  **desde `frontend/`**: corepack elige la versión por el `package.json` del directorio actual y la raíz no tiene
+  uno, así que `pnpm --dir frontend …` desde la raíz arranca la versión por defecto de corepack y pnpm la rechaza
+  con `ERR_PNPM_BAD_PM_VERSION`.
 - `uv` en el host es opcional: el backend corre en el contenedor (venv en `/opt/venv`).
 
 ### Variables

@@ -122,22 +122,24 @@ Desde la raíz del repo (PowerShell o bash). `DC` = `docker compose -f infra/doc
 
 | Para | Comando |
 |---|---|
-| Primera vez | `copy env.example .env` · `pre-commit install` · `corepack enable` · `pnpm --dir frontend install` |
+| Primera vez | `copy env.example .env` · `pre-commit install` · `corepack enable` · `cd frontend; pnpm install; cd ..` |
 | Levantar todo | `DC up -d --build --wait` |
 | Logs / bajar | `DC logs -f backend worker` · `DC down` |
 | Recrear la BD | `DC down -v` y volver a levantar (BD descartable hasta SPEC-01, Q-053) |
 | Tests backend | `DC exec -e DJANGO_SETTINGS_MODULE=config.settings.test backend pytest` |
-| Tests frontend | `pnpm --dir frontend test` · `DC exec frontend pnpm test` |
+| Tests frontend | `DC exec frontend pnpm test` · `cd frontend; pnpm test; cd ..` |
 | Tests de scripts | `pytest -c scripts/pytest.ini scripts/tests` |
 | Lint rápido | `pre-commit run --all-files` · `ruff check .` · `ruff format --check .` |
-| Tipos | `DC exec backend mypy . ../scripts` · `pnpm --dir frontend typecheck` |
-| Regenerar contrato | `DC exec backend python manage.py export_openapi` → `pnpm --dir frontend openapi:types` |
+| Tipos | `DC exec backend mypy . ../scripts` · `cd frontend; pnpm typecheck; cd ..` |
+| Regenerar contrato | `DC exec backend python manage.py export_openapi` → `cd frontend; pnpm openapi:types; cd ..` |
 | Migraciones | `DC exec backend sh -c "python manage.py makemigrations --check --dry-run && python manage.py lint_migrations"` · ida y vuelta **solo contra una BD descartable, nunca la de desarrollo** (revierte a `zero` y borra tablas y datos): `DC exec -e DATABASE_URL=postgres://<usuario>:<clave>@db:5432/hub_roundtrip backend python manage.py check_migrations_roundtrip --allow-data-loss` (BD `hub_roundtrip` creada antes y borrada después) o el job `migrations` de CI |
 | Reiniciar worker/beat | `DC restart worker beat` |
 | Estado del proyecto | `python scripts/check_spec_state.py` (agregar `--write` para regenerar la conciliación) |
 | Verificar protección (dueño) | `python scripts/verify_repo_protection.py` con `GH_TOKEN` de admin (pendiente, T-PLT-40) |
 
 Notas:
+- pnpm se corre **desde `frontend/`**, no con `pnpm --dir frontend`: corepack elige la versión por el `package.json`
+  del directorio actual y la raíz no tiene uno, así que pnpm rechaza la versión por defecto con `ERR_PNPM_BAD_PM_VERSION`.
 - El smoke del pipeline todavía no existe (T-PLT-38): no se inventa. El `build` corre en el job de CI (`infra/docker-compose.ci.yml`).
 - En Windows, si `5432` está ocupado, usar un override fuera del repo (`infra/README.md`).
 

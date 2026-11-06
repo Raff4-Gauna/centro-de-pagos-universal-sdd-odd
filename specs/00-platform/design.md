@@ -1,7 +1,7 @@
 ---
 spec: SPEC-00
 estado: Aprobado         # aprobado por el usuario junto con la spec (2026-10-31)
-actualizado: 2026-11-06   # §3.2.3 (T-PLT-14, spec 1.0.3); §3.5, §3.6, §3.7.2 (T-PLT-04, spec 1.0.4 y 1.0.5); ADR-0005 Aceptado (spec 1.0.6); §3.3.3 (T-PLT-34, Q-061, spec 1.0.7); §3.6 `ruff.toml` y migraciones (T-PLT-22, sin cambio de spec); §3.2.7 y §10.2 reversibilidad e ida y vuelta, `--allow-data-loss` (T-PLT-24, sin cambio de spec); §3.7.3 `edited`, D-09 y §11.2 (T-PLT-07, spec 1.0.13); §3.2.2 y §7 `X-Forwarded-Proto` (T-PLT-42, Q-065, spec 1.0.15); §3.1, §3.3.3 y §3.5 smoke y AC-29 E2E (T-PLT-38, spec 1.0.16 provisional); §3.3.3 y §7 cita de §3.2.2 y HSTS (Q-065, spec 1.0.17); §3.6 pre-commit del frontend (T-PLT-29, spec 1.0.18); §3.7.1, §3.7.3, §3.7.4 y §11.2 ruleset y verificación (T-PLT-40, spec 1.0.19)
+actualizado: 2026-11-06   # §3.2.3 (T-PLT-14, spec 1.0.3); §3.5, §3.6, §3.7.2 (T-PLT-04, spec 1.0.4 y 1.0.5); ADR-0005 Aceptado (spec 1.0.6); §3.3.3 (T-PLT-34, Q-061, spec 1.0.7); §3.6 `ruff.toml` y migraciones (T-PLT-22, sin cambio de spec); §3.2.7 y §10.2 reversibilidad e ida y vuelta, `--allow-data-loss` (T-PLT-24, sin cambio de spec); §3.7.3 `edited`, D-09 y §11.2 (T-PLT-07, spec 1.0.13); §3.2.2 y §7 `X-Forwarded-Proto` (T-PLT-42, Q-065, spec 1.0.15); §3.1, §3.3.3 y §3.5 smoke y AC-29 E2E (T-PLT-38, spec 1.0.16 provisional); §3.3.3 y §7 cita de §3.2.2 y HSTS (Q-065, spec 1.0.17); §3.6 pre-commit del frontend (T-PLT-29, spec 1.0.18); §3.7.1, §3.7.3, §3.7.4 y §11.2 ruleset y verificación (T-PLT-40, spec 1.0.19); §10.2 pnpm desde `frontend/` (T-PLT-41, spec 1.0.20 provisional)
 ---
 # Diseño — Módulo de Plataforma (fundaciones)
 
@@ -755,16 +755,19 @@ corridos una vez → ruleset (después de publicar, Q-054).
 ### 10.2 "Comandos de desarrollo" para `AGENTS.md` (desde la raíz; PowerShell o bash; `DC` = `docker compose -f infra/docker-compose.yml`)
 | Para | Comando |
 |---|---|
-| Primera vez | `copy env.example .env` · `pre-commit install` · `corepack enable` · `pnpm --dir frontend install` |
+| Primera vez | `copy env.example .env` · `pre-commit install` · `corepack enable` · `cd frontend; pnpm install; cd ..` |
 | Levantar todo | `docker compose -f infra/docker-compose.yml --env-file .env up -d --build --wait` |
 | Logs / bajar | `DC logs -f backend worker` · `DC down` |
 | Recrear la BD | `DC down -v` y volver a levantar (borra todos los volúmenes; BD descartable hasta 01) |
 | Tests | `DC exec backend pytest` · `DC exec frontend pnpm test` |
-| Lint rápido / tipos | `pre-commit run --all-files` · `DC exec backend mypy . ../scripts` · `pnpm --dir frontend typecheck` |
-| Regenerar contrato | `DC exec backend python manage.py export_openapi` → `pnpm --dir frontend openapi:types` |
+| Lint rápido / tipos | `pre-commit run --all-files` · `DC exec backend mypy . ../scripts` · `cd frontend; pnpm typecheck; cd ..` |
+| Regenerar contrato | `DC exec backend python manage.py export_openapi` → `cd frontend; pnpm openapi:types; cd ..` |
 | Migraciones | `DC exec backend sh -c "python manage.py makemigrations --check --dry-run && python manage.py lint_migrations"` · ida y vuelta **solo contra una BD descartable, nunca la de desarrollo** (revierte a `zero` y borra tablas y datos): `DC exec -e DATABASE_URL=postgres://<usuario>:<clave>@db:5432/hub_roundtrip backend python manage.py check_migrations_roundtrip --allow-data-loss` (BD `hub_roundtrip` creada antes y borrada después) o el job `migrations` de CI |
 | Reiniciar worker/beat | `DC restart worker beat` |
 | Verificar protección (dueño) | `python scripts/verify_repo_protection.py` con `GH_TOKEN` de admin |
+
+pnpm se corre desde `frontend/`, no con `pnpm --dir frontend`: corepack elige la versión por el `package.json` del
+directorio actual, la raíz no tiene uno y pnpm rechaza la versión por defecto con `ERR_PNPM_BAD_PM_VERSION`.
 
 ## 11. Riesgos técnicos y decisiones
 ### 11.1 Decisiones
