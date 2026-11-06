@@ -1,7 +1,7 @@
 ---
 spec: SPEC-00
 estado: Aprobado         # aprobado por el usuario junto con la spec (2026-10-31)
-actualizado: 2026-11-05   # §3.2.3 (T-PLT-14, spec 1.0.3); §3.5, §3.6, §3.7.2 (T-PLT-04, spec 1.0.4 y 1.0.5); ADR-0005 Aceptado (spec 1.0.6); §3.3.3 (T-PLT-34, Q-061, spec 1.0.7); §3.6 `ruff.toml` y migraciones (T-PLT-22, sin cambio de spec); §3.2.7 y §10.2 reversibilidad e ida y vuelta, `--allow-data-loss` (T-PLT-24, sin cambio de spec)
+actualizado: 2026-11-06   # §3.2.3 (T-PLT-14, spec 1.0.3); §3.5, §3.6, §3.7.2 (T-PLT-04, spec 1.0.4 y 1.0.5); ADR-0005 Aceptado (spec 1.0.6); §3.3.3 (T-PLT-34, Q-061, spec 1.0.7); §3.6 `ruff.toml` y migraciones (T-PLT-22, sin cambio de spec); §3.2.7 y §10.2 reversibilidad e ida y vuelta, `--allow-data-loss` (T-PLT-24, sin cambio de spec); §3.7.3 `edited` (T-PLT-07, spec 1.0.12)
 ---
 # Diseño — Módulo de Plataforma (fundaciones)
 
@@ -535,8 +535,9 @@ documenta los prefijos (`context/03`, `context/09`). No toca el placeholder ni u
   solo y cada huella que lista anula un hallazgo; además el job `secrets` falla si hay alguno trackeado (T-PLT-04).
 
 #### 3.7.3 Check `zona-roja` (`zona-roja.yml` + `check_zona_roja.py`)
-- `on: pull_request` (`opened, synchronize, reopened, labeled, unlabeled, ready_for_review`), **sin `paths:`** (un
-  check requerido filtrado queda pendiente para siempre). `permissions: contents/pull-requests/issues: read`.
+- `on: pull_request` (`opened, synchronize, reopened, labeled, unlabeled, ready_for_review, edited`), **sin `paths:`** (un
+  check requerido filtrado queda pendiente para siempre). `edited` está porque cambiar la base del PR cambia su diff y
+  no dispara ningún otro evento: sin él, un verde obtenido contra otra rama seguiría valiendo al retargetear a `main`. `permissions: contents/pull-requests/issues: read`.
 - **No ejecuta código del PR**: checkout de `pull_request.base.sha` y corre script y lista **de la rama base**
   (D-09); los datos del PR (archivos con rutas viejas y nuevas, labels, comentarios, permisos) salen de la API.
 - Lógica: sin rutas rojas y sin label → pasa; rutas rojas sin label → falla; con label → busca comentarios con

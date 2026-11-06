@@ -228,6 +228,7 @@ def test_AC_PLT_32_workflow_checks_out_base_sha_without_paths() -> None:
         "labeled",
         "unlabeled",
         "ready_for_review",
+        "edited",  # retargeting a PR to another base fires nothing else
     }
     assert workflow["permissions"] == {
         "contents": "read",

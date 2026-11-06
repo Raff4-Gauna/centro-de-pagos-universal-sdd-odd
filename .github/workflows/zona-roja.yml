@@ -8,7 +8,8 @@ name: zona-roja
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, labeled, unlabeled, ready_for_review]
+    # `edited`: a new base changes the diff, and it reports no other event (design.md §3.7.3).
+    types: [opened, synchronize, reopened, labeled, unlabeled, ready_for_review, edited]
 
 permissions:
   contents: read
