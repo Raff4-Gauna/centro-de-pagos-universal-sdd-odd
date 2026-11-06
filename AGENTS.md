@@ -86,7 +86,7 @@ La aprobación **no** es un "approve" nativo de GitHub: el repo trabaja con **0 
 Una revisión se considera aprobada cuando:
 1. El subagente `reviewer` (solo lectura, sin Write/Edit) revisó el diff completo del PR.
 2. Dejó un **comentario en el PR** con el veredicto y el **SHA del último commit revisado**.
-3. El dueño aplicó el label **`zona-roja`** (obligatorio cuando la tarea es de zona roja).
+3. Claude aplicó el label **`zona-roja`** (obligatorio cuando la tarea es de zona roja).
 4. El check requerido del pipeline está en verde sobre **ese mismo SHA**.
 
 Reglas:
@@ -95,9 +95,14 @@ Reglas:
 - Formato del veredicto (también en `.claude/skills/reviewer-verdict/SKILL.md`):
   `VEREDICTO: aprobado | cambios requeridos — SHA <sha> — <fecha>`, seguido de la tabla de hallazgos
   bloqueantes/no bloqueantes con `archivo:línea` y regla (`C-xx`/`RN-xx`).
-- **Merge (Q-057):** solo con pipeline completo en verde, veredicto sin bloqueantes y DoD completo, por squash
-  (`--match-head-commit <sha>`). Mientras no existan los 11 checks y el ruleset (hasta T-PLT-40), **mergea el dueño**.
-  Ante cualquier duda, mergea el dueño.
+- **Merge (Q-057):** **Claude se encarga del CI y de GitHub**: publica las ramas, abre los PR, aplica el label,
+  corrige lo que falle en el pipeline y mergea (decisión del dueño, 2026-10-31, ampliada el 2026-11-02 y el
+  2026-11-06). Se mergea solo con certeza total: pipeline completo en verde en el último commit, veredicto sin
+  bloqueantes, DoD completo y squash (`--match-head-commit <sha>`). Hasta T-PLT-40, "pipeline completo" son todos los
+  checks de todos los workflows que corren en ese commit (lectura propuesta por Claude, pendiente de que el dueño la
+  corrija o confirme). Ante cualquier duda (`design.md §3.7.4`: check inestable, re-run manual, scope drift, `Q-xxx`
+  abierta, advertencias nuevas, entre otras) el PR queda para el dueño.
+- **Solo el dueño** cambia ruleset, visibilidad y ajustes del repo; esos PR los mergea él.
 - El veredicto se guarda como comentario, no como revisión nativa. Eso es intencional y no se "corrige" con un
   approve de la UI.
 
