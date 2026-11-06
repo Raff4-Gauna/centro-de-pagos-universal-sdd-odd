@@ -107,7 +107,7 @@ Reglas: rebanada vertical · ≤ ~300 líneas de diff · mergeable sola · cita 
 | T-PLT-35 | Cliente tipado + tipos desde OpenAPI + diff en CI | AC-PLT-23 (frontend) | Frontend/CI | `src/lib/{api-client,problem}.ts`, `src/types/api.d.ts` | T-PLT-18, T-PLT-27 | frontend-dev | M | Sí | ✅ | #37 · 75ea14f |
 | T-PLT-36 | Imagen del frontend + chequeo de bundle + servicio en Compose | AC-PLT-29, AC-PLT-25 (FE), AC-PLT-01 | Infra/Frontend | `frontend/Dockerfile`, `frontend/scripts/check-client-bundle.ts` | T-PLT-26, T-PLT-33, T-PLT-34 | frontend-dev | L | Sí | ✅ | #47 · 1cc858e |
 | T-PLT-37 | Job `build` (imágenes por SHA, no root) | AC-PLT-25, AC-PLT-20 | CI | `infra/docker-compose.ci.yml`, `ci.yml` | T-PLT-24, T-PLT-36 | backend-dev | M | Sí | 🟡 | — |
-| T-PLT-38 | Smoke del stack en el paso 9 | AC-PLT-01, AC-PLT-02, AC-PLT-10, AC-PLT-29 (E2E) | CI | `scripts/smoke_stack.py` | T-PLT-15, T-PLT-37, T-PLT-42 | backend-dev | L | Sí | ☐ | — |
+| T-PLT-38 | Smoke del stack en el paso 9 | AC-PLT-01, AC-PLT-02, AC-PLT-10, AC-PLT-29 (E2E) | CI | `scripts/smoke_stack.py` | T-PLT-15, T-PLT-37, T-PLT-42 | backend-dev | L | Sí | 🟡 | rama `task/T-PLT-38-smoke-stack` |
 | T-PLT-39 | `env.example` + `spikes/env.example` + paridad | AC-PLT-05, AC-PLT-06, AC-PLT-01 | Config | `env.example`, `spikes/env.example` | T-PLT-09, T-PLT-12, T-PLT-16, T-PLT-26, T-PLT-33 | backend-dev | M | Sí | ✅ | #45 · 6acc087 |
 | T-PLT-40 | Ruleset de `main` + verificación de protección | AC-PLT-24, AC-PLT-20 (cierre) | Gobierno | `.github/rulesets/main.json`, `scripts/verify_repo_protection.py` | T-PLT-07, T-PLT-10, T-PLT-19, T-PLT-21, T-PLT-24, T-PLT-28, T-PLT-38 | backend-dev (+ dueño) | L | Sí | ☐ | — |
 | T-PLT-41 | "Comandos de desarrollo" en `AGENTS.md` + `infra/README.md` | — (RF-PLT-16) | Docs | `AGENTS.md`, `infra/README.md` | T-PLT-38, T-PLT-40 | backend-dev | S | No | ☐ | — |
@@ -1715,14 +1715,28 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   `GET :3000/api/__smoke__` responde 301, no el 404 de `design.md §3.5`; sin diagnosticar (la sospecha es
   `SECURE_SSL_REDIRECT`, porque el BFF le habla HTTP al backend).
 
-### T-PLT-38 — Smoke del stack en el paso 9
+### T-PLT-38 — Smoke del stack en el paso 9 — 🟡 en revisión
 - **AC:** AC-PLT-01, AC-PLT-02, AC-PLT-10, AC-PLT-29 (E2E). RF-PLT-07. **Zona roja:** sí.
 - **Archivos:** `scripts/smoke_stack.py` (secuencia de §3.5; `down -v` siempre; cada fallo nombra servicio o check),
+  `scripts/smoke_http.py` y `scripts/smoke_leaks.py` (aparte por C-14),
   `scripts/tests/test_smoke_stack.py` (subprocesos/HTTP mockeados, para la cobertura de `scripts/`),
-  `.github/workflows/ci.yml` (step smoke en `build`).
+  `scripts/tests/test_smoke_client_bundle.py`, `scripts/tests/test_smoke_stack_wiring.py`,
+  `scripts/tests/smoke_stack_fakes.py` (ídem), `.github/workflows/ci.yml` (step smoke en `build`),
+  `infra/docker-compose.ci.yml` (`LOG_LEVEL`, `API_THROTTLE_ANON_RATE`, `TRUSTED_PROXY_COUNT` fijos: sugerencia de la
+  revisión de T-PLT-37; el chequeo de AC-10 lee el access log INFO).
 - **Plan de pruebas:** `test_AC_PLT_01_smoke_requires_all_services_healthy`, `test_AC_PLT_02_smoke_expects_503_with_redis_stopped`,
   `test_AC_PLT_02_smoke_rejects_internal_details_in_body`, `test_AC_PLT_10_smoke_matches_bff_request_id_in_backend_logs`,
-  `test_AC_PLT_01_smoke_always_tears_down`; E2E real en el job `build`.
+  `test_AC_PLT_01_smoke_always_tears_down`, `test_AC_PLT_29_smoke_rejects_url_hostname_and_name_in_a_dynamic_page`,
+  `test_AC_PLT_29_pages_come_from_the_manifest_of_the_image`; E2E real en el job `build`.
+- **Notas de implementación (2026-11-06):** (1) El paso de AC-29 no estaba ni en §3.5 ni en este plan, aunque §3.3.3 le
+  asignaba las páginas dinámicas: se agregó (spec 1.0.16 provisional). (2) **Hoy no hay ninguna página dinámica:** `/`,
+  `/inicio` y `/configuracion` responden `x-nextjs-prerender: 1`, así que en `main` el chequeo corre sobre
+  prerenderizadas y el smoke imprime `0 rendered on request`. Por eso las páginas salen del manifiesto de la imagen:
+  la primera dinámica entra sola. Se probó con una página `force-dynamic` en una copia del frontend. (3) `up --wait`
+  tarda unos 20 s con Docker reciente: `start_interval` (5 s por defecto) rige durante el `start_period`. (4) `/healthz`
+  no prueba que la imagen traiga el SHA: el override fija `APP_VERSION=${GIT_SHA}`, así que compara el entorno consigo
+  mismo; lo que prueba la imagen es el step del label `revision`. (5) Quedó desactualizada la nota de `AGENTS.md`
+  ("el smoke todavía no existe"): es de T-PLT-41.
 - **Depende de T-PLT-42:** con `config.settings.prod`, sin la cabecera `X-Forwarded-Proto: https` del BFF, el
   `GET :3000/api/__smoke__` de §3.5 recibe 301 y no el 404 `problem+json`.
 
@@ -1867,7 +1881,7 @@ Pasa a `Verified` solo con el OK explícito del dueño. Ningún agente lo marca 
 | T-PLT-35 | #37 | 75ea14f | ✅ |
 | T-PLT-36 | #47 | 1cc858e | ✅ |
 | T-PLT-37 | — | — | 🟡 |
-| T-PLT-38 | — | — | ☐ |
+| T-PLT-38 | — | — | 🟡 |
 | T-PLT-39 | #45 | 6acc087 | ✅ |
 | T-PLT-40 | — | — | ☐ |
 | T-PLT-41 | — | — | ☐ |

@@ -590,3 +590,8 @@ jobs:
             echo "$images"
             exit 1
           fi
+      # AC-PLT-01/02/10/29 on the images above (RF-PLT-07, design.md sec. 3.5). It compares the
+      # version with GIT_SHA of this job, never with the head of the branch, and removes the stack
+      # with its volumes whatever happens. The runner's python3: the script is standard library only.
+      - name: Smoke of the stack
+        run: python3 scripts/smoke_stack.py

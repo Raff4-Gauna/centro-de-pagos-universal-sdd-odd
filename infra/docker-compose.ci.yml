@@ -21,6 +21,11 @@ x-backend-environment: &backend-environment
   REDIS_URL: redis://redis:6379/0
   # The dev file passes APP_VERSION from .env, which would replace the one baked into the image.
   APP_VERSION: ${GIT_SHA:?falta GIT_SHA}
+  # Fixed here, not left to env.example: scripts/smoke_stack.py reads the INFO access log of the
+  # backend, and a change of these values for development must not change what the smoke proves.
+  LOG_LEVEL: INFO
+  API_THROTTLE_ANON_RATE: 300/min
+  TRUSTED_PROXY_COUNT: "0"
 
 services:
   db:
