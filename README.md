@@ -2,9 +2,8 @@
 
 Payment Hub multi-tenant: conectá tus cuentas de Mercado Pago (y luego Payway y Clover) y operá cobros, conciliación y reportes desde un solo lugar.
 
-**Estado (2026-11-05):** `00-platform` en cierre — 30 de 41 tareas mergeadas (`✅`), 10 pendientes (`☐`) y 1
-bloqueada por Q-048 (`⛔`). La verificación del módulo está **Con hallazgos** (24 AC cubiertos, 4 parciales, 6 sin
-test). `01-identity-access` y `02-tenancy-rbac` están `Approved` pero todavía sin `tasks.md`; la spec `04` y el
+**Estado (2026-11-06):** `00-platform` en cierre — 35 de 41 tareas mergeadas (`✅`) y 6 pendientes (`☐`). La
+verificación del módulo está **Con hallazgos** (28 AC cubiertos, 5 parciales, 1 sin test). `01-identity-access` y `02-tenancy-rbac` están `Approved` pero todavía sin `tasks.md`; la spec `04` y el
 spike S-001 siguen pendientes. No hay funcionalidad de negocio implementada.
 
 | Carpeta | Para qué |
@@ -22,6 +21,6 @@ spike S-001 siguen pendientes. No hay funcionalidad de negocio implementada.
 2. `AGENTS.md` — reglas operativas, estados, reviewer, comandos y cierre de sesión.
 3. `specs/ROADMAP.md` y `specs/00-platform/verification.md`.
 4. `python scripts/check_spec_state.py` — detecta drift entre documentos y git.
-5. `specs/00-platform/clarifications.md` — preguntas abiertas (empezando por Q-048).
+5. `specs/00-platform/clarifications.md` — preguntas abiertas.
 
 Para una sesión nueva: `/reconcile 00-platform` si hay drift; al terminar, `/handoff`.
