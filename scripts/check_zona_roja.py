@@ -41,6 +41,7 @@ from glob_paths import compile_glob, matches
 from zona_roja_verdict import (
     Comment,
     CountedVerdict,
+    is_unreadable_rejection,
     latest_verdict,
     parse_timestamp,
     parse_verdict,
@@ -222,10 +223,11 @@ def fetch_pull_request(
     comments: list[Comment] = []
     permissions: dict[str, str] = {}
     for raw in api.get_list(f"{base}/issues/{number}/comments") if LABEL in labels else []:
-        body = raw.get("body") or ""
-        parsed = parse_verdict(body) if isinstance(body, str) else None
-        if parsed is None or parsed.sha != head:
-            continue  # only verdicts citing the head SHA cost a permission lookup
+        body = str(raw.get("body") or "")
+        parsed = parse_verdict(body)
+        cites_head = parsed is not None and parsed.sha == head
+        if not cites_head and not is_unreadable_rejection(body):
+            continue  # only what can decide about the head costs a permission lookup
         author = _str(raw, "user", "login")
         if author not in permissions:
             login = urllib.parse.quote(author, safe="")
@@ -281,7 +283,8 @@ def main(
         api = GitHubClient(env.get("GITHUB_TOKEN", ""), api_url=api_url, transport=transport)
         labels, files, comments = fetch_pull_request(api, repo, number, head)
         result = evaluate(changed_paths(files), labels, comments, head, rules=rules)
-    # OSError: event or rules file unreadable; ValueError: bad JSON, rules, SHA or timestamp.
+    # OSError: event or rules file unreadable. ValueError: bad JSON, rules, SHA or timestamp, or
+    # UnreadableVerdictError.
     except (GitHubAPIError, OSError, ValueError) as exc:
         _emit(f"## zona-roja\n\n**NOT VERIFIED**: {exc}\n", summary_path)
         return EXIT_NOT_VERIFIED

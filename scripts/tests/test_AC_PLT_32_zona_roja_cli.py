@@ -210,6 +210,59 @@ def test_AC_PLT_32_cli_quotes_the_login_in_the_permission_url(tmp_path: Path) ->
     assert run(tmp_path, fake)[0] == EXIT_PASSED
 
 
+def unreadable_rejection(sha_lines: str = "SHA: abc1234") -> str:
+    return f"<!-- reviewer-verdict -->\nVeredicto del reviewer: RECHAZADO\n{sha_lines}\n"
+
+
+@pytest.mark.parametrize(
+    "sha_lines",
+    ["SHA: abc1234", f"SHA: {HEAD}\nSHA: {OLD}", ""],
+    ids=["short-sha", "two-shas", "no-sha"],
+)
+def test_AC_PLT_32_unreadable_rejection_after_approval_is_not_verified(
+    tmp_path: Path, sha_lines: str
+) -> None:
+    fake = FakeGitHub(
+        files=[{"filename": RED, "status": "modified"}],
+        labels=(LABEL,),
+        comments=(
+            comment("owner", verdict(), "2026-11-05T12:00:00Z"),
+            comment("owner", unreadable_rejection(sha_lines), "2026-11-05T13:00:00Z"),
+        ),
+        permissions={"owner": "admin"},
+    )
+    code, summary = run(tmp_path, fake)
+    assert code == EXIT_NOT_VERIFIED
+    assert "NOT VERIFIED" in summary
+
+
+def test_AC_PLT_32_unreadable_rejection_by_a_reader_is_ignored(tmp_path: Path) -> None:
+    """Anyone can comment on a public repo: this must not block the check."""
+    fake = FakeGitHub(
+        files=[{"filename": RED, "status": "modified"}],
+        labels=(LABEL,),
+        comments=(
+            comment("owner", verdict(), "2026-11-05T12:00:00Z"),
+            comment("outsider", unreadable_rejection(), "2026-11-05T13:00:00Z"),
+        ),
+        permissions={"owner": "admin", "outsider": "read"},
+    )
+    assert run(tmp_path, fake)[0] == EXIT_PASSED
+
+
+def test_AC_PLT_32_newer_approval_supersedes_an_unreadable_rejection(tmp_path: Path) -> None:
+    fake = FakeGitHub(
+        files=[{"filename": RED, "status": "modified"}],
+        labels=(LABEL,),
+        comments=(
+            comment("owner", unreadable_rejection(), "2026-11-05T12:00:00Z"),
+            comment("owner", verdict(), "2026-11-05T13:00:00Z"),
+        ),
+        permissions={"owner": "admin"},
+    )
+    assert run(tmp_path, fake)[0] == EXIT_PASSED
+
+
 # --- Workflow (D-09) ---
 
 
