@@ -148,7 +148,18 @@ Notas:
   `DC exec frontend pnpm openapi:types` fallan; por eso `DC run` con el montaje. `DC exec backend mypy .` solo mira el backend.
 - `pytest` y `ruff` del host no son prerrequisitos (`infra/README.md`): van instalados aparte, `ruff` en `0.17.3`.
   `pre-commit` trae su propio `ruff`.
-- El smoke del pipeline todavía no existe (T-PLT-38): no se inventa. El `build` corre en el job de CI (`infra/docker-compose.ci.yml`).
+- Smoke del stack (`scripts/smoke_stack.py`, T-PLT-38): corre en el job `build` de CI (`infra/docker-compose.ci.yml`) y
+  a mano sobre las imágenes `runtime` del commit. PowerShell, desde la raíz:
+  ```
+  $env:GIT_SHA = git rev-parse HEAD
+  docker build --target runtime --build-arg GIT_SHA=$env:GIT_SHA -t hub-backend:$env:GIT_SHA backend
+  docker build --target runtime --build-arg GIT_SHA=$env:GIT_SHA -t hub-frontend:$env:GIT_SHA frontend
+  python scripts/smoke_stack.py
+  ```
+  En bash: `export GIT_SHA=$(git rev-parse HEAD)` y `$GIT_SHA`. Usa su propio proyecto Compose (`hub-smoke`) y lo baja con
+  `down -v`, así que no toca los volúmenes de desarrollo; no necesita `.env`. Exige libres `8000` y `3000`; si no lo
+  están: `--compose-file <override fuera del repo> --backend-url http://127.0.0.1:<puerto> --frontend-url http://127.0.0.1:<puerto>`,
+  con `ports: !override` como en `infra/README.md`.
 - En Windows, si `5432` está ocupado, usar un override fuera del repo (`infra/README.md`).
 
 ## Cierre de sesión (obligatorio si la sesión termina acá)
