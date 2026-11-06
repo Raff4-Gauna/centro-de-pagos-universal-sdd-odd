@@ -12,7 +12,13 @@ import { REQUEST_ID_HEADER, resolveRequestId } from "./request-id";
 // (design §6.2) that always carry the X-Request-ID; every request, failed or not, logs one line.
 
 // Request headers sent upstream besides X-Request-ID (06 adds `idempotency-key`).
-const REQUEST_HEADER_ALLOWLIST = ["accept", "accept-language", "content-type"] as const;
+export const REQUEST_HEADER_ALLOWLIST = ["accept", "accept-language", "content-type"] as const;
+
+// Always sent to the backend, with this constant value (Q-065, design §3.2.2): the internal hop is
+// plain HTTP and `SECURE_SSL_REDIRECT` would answer every request with a 301 to
+// `https://backend/...`. It stays out of the allowlist on purpose: what the browser sends is dropped.
+const FORWARDED_PROTO_HEADER = "x-forwarded-proto";
+const FORWARDED_PROTO = "https";
 
 // Response headers returned to the browser besides X-Request-ID.
 const RESPONSE_HEADER_ALLOWLIST = [
@@ -159,6 +165,7 @@ function bodyFraming(request: Request): BodyFraming {
 
 function upstreamInit(request: Request, requestId: string): StreamingRequestInit {
   const headers = pickHeaders(request.headers, REQUEST_HEADER_ALLOWLIST, requestId);
+  headers.set(FORWARDED_PROTO_HEADER, FORWARDED_PROTO);
   const init: StreamingRequestInit = {
     method: request.method,
     headers,
