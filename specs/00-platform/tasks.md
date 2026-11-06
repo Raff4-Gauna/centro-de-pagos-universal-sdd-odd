@@ -1640,7 +1640,7 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
 
 ### T-PLT-39 — `env.example` + `spikes/env.example` + paridad — 🟡 en revisión
 - **Destrabada (2026-11-05):** el dueño decidió Q-048 renombrando los archivos sin punto inicial (`env.example`,
-  `spikes/env.example`): no caen en el `Read(./.env.*)` denegado y `.claude/settings.json` no se toca. Spec 1.0.9.
+  `spikes/env.example`): no caen en el `Read(./.env.*)` denegado y `.claude/settings.json` no se toca. Spec 1.0.10.
   Sigue siendo acción del usuario mover las claves de spikes de su `.env` local a `spikes/.env` (design §3.2.2).
 - **AC:** AC-PLT-05, AC-PLT-06 (claves de spikes), AC-PLT-01 (clon limpio con `.env` copiado). RN-PLT-03, RN-PLT-04,
   RF-PLT-04. **Zona roja:** sí (separación de credenciales, C-06).
