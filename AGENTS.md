@@ -86,7 +86,7 @@ La aprobación **no** es un "approve" nativo de GitHub: el repo trabaja con **0 
 Una revisión se considera aprobada cuando:
 1. El subagente `reviewer` (solo lectura, sin Write/Edit) revisó el diff completo del PR.
 2. Dejó un **comentario en el PR** con el veredicto y el **SHA del último commit revisado**.
-3. El dueño aplicó el label **`zona-roja`** (obligatorio cuando la tarea es de zona roja).
+3. Claude aplicó el label **`zona-roja`** (obligatorio cuando la tarea es de zona roja).
 4. El check requerido del pipeline está en verde sobre **ese mismo SHA**.
 
 Reglas:
@@ -95,9 +95,11 @@ Reglas:
 - Formato del veredicto (también en `.claude/skills/reviewer-verdict/SKILL.md`):
   `VEREDICTO: aprobado | cambios requeridos — SHA <sha> — <fecha>`, seguido de la tabla de hallazgos
   bloqueantes/no bloqueantes con `archivo:línea` y regla (`C-xx`/`RN-xx`).
-- **Merge (Q-057):** solo con pipeline completo en verde, veredicto sin bloqueantes y DoD completo, por squash
-  (`--match-head-commit <sha>`). Mientras no existan los 11 checks y el ruleset (hasta T-PLT-40), **mergea el dueño**.
-  Ante cualquier duda, mergea el dueño.
+- **Merge (Q-057):** **Claude se encarga de todo el CI y de GitHub**: publica las ramas, abre los PR, aplica el
+  label, corrige lo que falle en el pipeline y mergea (decisión del dueño, 2026-10-31 y 2026-11-02, reafirmada el
+  2026-11-06). Se mergea solo con pipeline completo en verde, veredicto sin bloqueantes y DoD completo, por squash
+  (`--match-head-commit <sha>`), sin esperar a T-PLT-40. Ante cualquier duda real (test inestable, riesgo de
+  migración, check salteado), no se mergea: se deja el PR y se le avisa al dueño.
 - El veredicto se guarda como comentario, no como revisión nativa. Eso es intencional y no se "corrige" con un
   approve de la UI.
 

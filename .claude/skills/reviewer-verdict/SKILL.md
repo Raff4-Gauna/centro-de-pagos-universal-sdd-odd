@@ -55,7 +55,7 @@ VEREDICTO: aprobado | cambios requeridos — SHA <sha> — <YYYY-MM-DD>
 - `reviewer` no edita archivos ni mergea.
 - Con bloqueantes, el veredicto es `cambios requeridos` y el PR no se mergea.
 - Sin bloqueantes y con pipeline verde en ese SHA, el veredicto es `aprobado`.
-- El merge lo hace el dueño mientras no existan los 11 checks y el ruleset (Q-057, T-PLT-40).
+- El merge lo hace Claude con pipeline verde y veredicto sin bloqueantes; ante cualquier duda, lo decide el dueño (Q-057).
 
 ## Errores típicos
 - Citar el SHA equivocado o el de la base.

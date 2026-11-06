@@ -45,7 +45,7 @@ VEREDICTO: aprobado | cambios requeridos — SHA <sha-del-último-commit> — <Y
 Reglas:
 - El SHA **debe** ser el del último commit del PR. Si el autor hace un push nuevo, el veredicto queda invalidado y
   hay que volver a revisar.
-- El label `zona-roja` lo aplica el dueño; no lo pidas como sustituto del veredicto.
+- El label `zona-roja` lo aplica Claude al abrir el PR; no reemplaza al veredicto.
 - No mergeás, no editás, no aprobás specs.
 - Si no hay hallazgos bloqueantes y el pipeline está verde en ese SHA, el veredicto es `aprobado`.
 - Si falta información para decidir, el veredicto es `cambios requeridos` con la pregunta concreta.
