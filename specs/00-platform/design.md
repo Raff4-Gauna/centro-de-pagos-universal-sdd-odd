@@ -361,6 +361,13 @@ en `modules/` (cuenta para cobertura). Sin protección de rutas ni datos.
 - **AC-29**: el stage `builder` construye con valores centinela para las variables solo-servidor y
   `scripts/check-client-bundle.ts` falla si algún centinela o nombre de variable no `NEXT_PUBLIC_` aparece en
   `.next/static/**`.
+  **(ajustado tras revisión de T-PLT-36)**: también escanea lo prerenderizado de `.next/server/app/**`
+  (`.html`, `.rsc` y el `.body`/`.meta` de los route handlers estáticos), que llega al navegador; además del
+  valor completo busca el **hostname** del centinela (único; sobrevive a `new URL(x).host` y a
+  `encodeURIComponent`); las referencias se buscan como `env.NOMBRE`/`env["NOMBRE"]` en mayúsculas, porque Turbopack
+  compila un `process.env.X` de cliente a `<módulo>.default.env.X`. El `RUN` del `builder` exige la línea
+  `client bundle clean: …`, no solo exit 0. Límites conocidos: base64, escapes y strings partidos no se detectan,
+  y las páginas dinámicas se cubren en el smoke (T-PLT-38).
 
 ### 3.4 Infraestructura
 
@@ -372,7 +379,7 @@ en `modules/` (cuenta para cobertura). Sin protección de rutas ni datos.
 | `backend` | `../backend`, target `dev` | `migrate --noinput && gunicorn -c config/gunicorn.conf.py config.wsgi` | `python -c` urllib → `/readyz` == 200 (10s/3s/5/30s) | `db`, `redis` | 8000 |
 | `worker` | imagen de `backend` | `celery -A config -q worker -l INFO --concurrency 2` (**sin migrate**) | `celery -A config inspect ping -d celery@$$HOSTNAME --timeout 5` (30s/10s/3/30s) | `db`, `redis`, `backend` | — |
 | `beat` | imagen de `backend`, `replicas: 1` | `sh -c "mkdir -p /tmp/beat && exec celery -A config -q beat -l INFO --schedule /tmp/beat/schedule --max-interval 60"` (**sin migrate**) | `python -m apps.common.health.beat_alive` (mtime < 300 s, `beat_max_loop_interval=60`) (60s/5s/3/90s) | `redis`, `backend` | — |
-| `frontend` | `../frontend`, target `dev` | `pnpm install --frozen-lockfile && pnpm dev --hostname 0.0.0.0` | `node -e` fetch `/api/health` == 200 (10s/5s/10/60s) | `backend` | 3000 |
+| `frontend` | `../frontend`, target `dev` | `pnpm install --frozen-lockfile --ignore-scripts --ignore-pnpmfile && exec pnpm dev --hostname 0.0.0.0` (las flags del install de CI) | `node -e` fetch `/api/health` == 200 (10s/5s/10/60s) | `backend` | 3000 |
 
 - Volúmenes nombrados: `pgdata`, `frontend_node_modules`, `pnpm_store`; `beat` guarda el schedule en el
   filesystem propio del contenedor (`/tmp/beat`, fuera del código montado; se pierde al recrear) y Redis va sin
@@ -396,9 +403,10 @@ en `modules/` (cuenta para cobertura). Sin protección de rutas ni datos.
   `uv sync --frozen --no-dev --no-install-project`) → `dev` (+ grupo dev) → `runtime` (copia `/opt/venv`, `apps/`,
   `config/`, `manage.py`, **sin** `tests/`; usuario `app` uid 10001; `ARG GIT_SHA` → `APP_VERSION`; label
   `org.opencontainers.image.revision`). `psycopg[binary]`: no se compila nada.
-- **frontend**: `node:24.22.2-trixie-slim@sha256` + `corepack enable` → `deps` (`pnpm install --frozen-lockfile`) →
-  `dev` → `builder` (`pnpm build` con centinelas + bundle check) → `runtime` (`.next/standalone`, `.next/static`,
-  `public`; `USER node`; `node server.js`).
+- **frontend**: `node:24.22.2-trixie-slim@sha256` + `corepack enable` → `deps` (`pnpm install --frozen-lockfile
+  --ignore-scripts --ignore-pnpmfile`, las flags del install de CI) → `dev` → `builder` (`pnpm build` con centinelas +
+  bundle check) → `runtime` (`.next/standalone`, `.next/static`; `USER node`; `node server.js`). Sin `public/` por
+  ahora: el `COPY` llega con el primer archivo de esa carpeta (ajustado en T-PLT-36).
 - `.dockerignore` en ambos: `**/.env*` (sin excepciones), `.git`, `node_modules`, `.next`, `.venv`, `__pycache__`,
   `coverage`, caches.
 - **Override de CI** (`docker-compose.ci.yml`): imágenes `hub-backend:${GIT_SHA}`/`hub-frontend:${GIT_SHA}` (target

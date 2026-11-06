@@ -3,7 +3,7 @@ id: SPEC-00
 modulo: platform
 estado: Approved
 track: S
-version: 1.0.10
+version: 1.0.11
 depende_de: []
 actualizado: 2026-11-06
 ---
@@ -253,3 +253,4 @@ Se completa al generar `tasks.md`.
 | 1.0.8 | 2026-11-05 | Ajuste de diseño en `design.md §3.4.1` (T-PLT-26): `beat` sin `tmpfs` (el schedule va al filesystem propio del contenedor, fuera del código montado; `dbm.gnu` escribe por mmap y en un tmpfs no actualiza el mtime que lee `beat_alive`), `--max-interval 60` en el comando de `beat` y `pg_isready -h 127.0.0.1` en el healthcheck de `db` (como el job `tests` de CI). Sin cambios en RN/RF/AC | Verificación de T-PLT-26 en el stack real (beat `unhealthy` a los ~5 min con tmpfs); opción A decidida por el planner |
 | 1.0.9 | 2026-11-06 | Q-057 ampliada por el dueño: Claude se encarga del CI y de GitHub y el agente etiqueta. Lectura propuesta por Claude, pendiente de que el dueño la corrija o confirme: hasta T-PLT-40 "pipeline completo" son todos los checks de todos los workflows que corren en ese commit (`design.md §3.7.4`). Sin cambios en RN/RF/AC | `AGENTS.md` y `tasks.md` decían que mergeaba el dueño hasta T-PLT-40, en contra del pedido del dueño del 2026-11-02 |
 | 1.0.10 | 2026-11-06 | Q-048 decidida por el dueño: el archivo de ejemplo de entorno se renombra a `env.example` (raíz) y el de spikes a `spikes/env.example`, sin punto inicial, para que los agentes lo lean sin cambiar `.claude/settings.json`. Se reemplaza el nombre en §3, RN-PLT-03, RN-PLT-04 (que además nombra la opción ya elegida en design: archivo aparte), RF-PLT-04, AC-PLT-01, AC-PLT-05 y §16; `design.md §3.2.2` y `tasks.md` (T-PLT-39) alineados. Sin cambio de comportamiento ni de RN/RF/AC | Decisión del dueño sobre Q-048 (2026-11-05), aplicada en T-PLT-39 |
+| 1.0.11 | 2026-11-06 | Ajuste de diseño en `design.md §3.3.3`, `§3.4.1` y `§3.4.2` (T-PLT-36): el chequeo de bundle también escanea lo prerenderizado de `.next/server/app/**` (`.html`, `.rsc`, `.body`, `.meta`) y el hostname del centinela, y el `builder` exige la línea `client bundle clean`; el `pnpm install` de la imagen y del servicio `frontend` usa `--ignore-scripts --ignore-pnpmfile`, como CI; el `runtime` no copia `public/` mientras no exista. Sin cambios en RN/RF/AC | Revisión de T-PLT-36 (SHA `a1eeffa`): el centinela pasaba el chequeo en un route handler `force-static` (`.body`), con `new URL(x).host` y con `encodeURIComponent`, reproducido con build real; enmienda autorizada por el coordinador |

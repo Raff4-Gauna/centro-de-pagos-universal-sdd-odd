@@ -105,7 +105,7 @@ Reglas: rebanada vertical · ≤ ~300 líneas de diff · mergeable sola · cita 
 | T-PLT-33 | BFF pass-through con `X-Request-ID` | AC-PLT-10, AC-PLT-09 (BFF) | BFF | `app/api/[...path]/route.ts`, `src/lib/server/*` | T-PLT-27 | frontend-dev | L | No (reviewer recomendado) | ✅ | #22 · 1b493d4 |
 | T-PLT-34 | BFF: rutas seguras y errores 400/502/504 | AC-PLT-10 (robustez) | BFF | `src/lib/server/backend-proxy.ts`, `next.config.ts` | T-PLT-33 | frontend-dev | M | No (reviewer recomendado) | ✅ | #23 · c842e3c |
 | T-PLT-35 | Cliente tipado + tipos desde OpenAPI + diff en CI | AC-PLT-23 (frontend) | Frontend/CI | `src/lib/{api-client,problem}.ts`, `src/types/api.d.ts` | T-PLT-18, T-PLT-27 | frontend-dev | M | Sí | ✅ | #37 · 75ea14f |
-| T-PLT-36 | Imagen del frontend + chequeo de bundle + servicio en Compose | AC-PLT-29, AC-PLT-25 (FE), AC-PLT-01 | Infra/Frontend | `frontend/Dockerfile`, `frontend/scripts/check-client-bundle.ts` | T-PLT-26, T-PLT-33, T-PLT-34 | frontend-dev | L | Sí | ☐ | — |
+| T-PLT-36 | Imagen del frontend + chequeo de bundle + servicio en Compose | AC-PLT-29, AC-PLT-25 (FE), AC-PLT-01 | Infra/Frontend | `frontend/Dockerfile`, `frontend/scripts/check-client-bundle.ts` | T-PLT-26, T-PLT-33, T-PLT-34 | frontend-dev | L | Sí | 🟡 | — |
 | T-PLT-37 | Job `build` (imágenes por SHA, no root) | AC-PLT-25, AC-PLT-20 | CI | `infra/docker-compose.ci.yml`, `ci.yml` | T-PLT-24, T-PLT-36 | backend-dev | M | Sí | ☐ | — |
 | T-PLT-38 | Smoke del stack en el paso 9 | AC-PLT-01, AC-PLT-02, AC-PLT-10, AC-PLT-29 (E2E) | CI | `scripts/smoke_stack.py` | T-PLT-15, T-PLT-37 | backend-dev | L | Sí | ☐ | — |
 | T-PLT-39 | `env.example` + `spikes/env.example` + paridad | AC-PLT-05, AC-PLT-06, AC-PLT-01 | Config | `env.example`, `spikes/env.example` | T-PLT-09, T-PLT-12, T-PLT-16, T-PLT-26, T-PLT-33 | backend-dev | M | Sí | 🟡 | rama `task/T-PLT-39-env-example` |
@@ -1649,16 +1649,35 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   check/`runtime` standalone con `USER node`), `frontend/.dockerignore`, `frontend/scripts/check-client-bundle.ts`,
   `frontend/scripts/check-client-bundle.test.ts`, `frontend/vitest.config.mts` (incluye `scripts/`),
   `infra/docker-compose.yml` (servicio `frontend`, volúmenes `frontend_node_modules` y `pnpm_store`,
-  `WATCHPACK_POLLING`), `scripts/tests/test_AC_PLT_25_dockerfiles.py`,
+  `WATCHPACK_POLLING`), `infra/README.md`, `scripts/tests/test_AC_PLT_25_dockerfiles.py`,
   `scripts/tests/test_RF_PLT_02_compose_dev.py`. Nota: pnpm 12 usa `pnpm_config_store_dir` (ignora
   `npm_config_store_dir`); sin eso crea `.pnpm-store/` en el bind mount. El `docker` `/frontend` de
   `.github/dependabot.yml` ya lo agregó T-PLT-28. El `pnpm install` del Dockerfile usa las mismas flags que el
   install de CI: `--frozen-lockfile --ignore-scripts --ignore-pnpmfile` (review de T-PLT-28, B-2).
 - **Plan de pruebas:** `test_AC_PLT_29_bundle_with_sentinel_fails`, `test_AC_PLT_29_bundle_with_non_public_var_name_fails`,
-  `test_AC_PLT_29_clean_bundle_passes`, `test_AC_PLT_25_frontend_frozen_lockfile_and_non_root`,
+  `test_AC_PLT_29_clean_bundle_passes`, `test_AC_PLT_29_static_route_body_is_scanned`,
+  `test_AC_PLT_29_partial_or_encoded_sentinel_fails`, `test_AC_PLT_25_frontend_frozen_lockfile_and_non_root`,
   `test_RF_PLT_02_frontend_depends_on_healthy_backend`.
 - **Verificación manual (dueño, Windows 11):** los 6 servicios `healthy`; hot-reload del frontend (si Turbopack
   ignora el polling, plan B `next dev --webpack` documentado en `infra/README.md`).
+- **Notas de implementación (2026-11-05):** (1) Turbopack compila un `process.env.X` de cliente a
+  `<módulo>.default.env.X` (polyfill de `process`): el chequeo busca cualquier `env.NOMBRE`/`env["NOMBRE"]` en
+  MAYÚSCULAS, no solo `process.env.`. (2) Además de `.next/static/**` escanea lo prerenderizado
+  (`.next/server/app/**/*.html|*.rsc|*.body|*.meta`), que también llega al navegador: un Server Component que
+  renderiza `BACKEND_INTERNAL_URL` deja el centinela solo ahí (probado en un build real). (3) Turbopack ignora
+  `WATCHPACK_POLLING` (verificado en Docker Desktop): plan B `--webpack` en `infra/README.md`; `watchOptions:
+  { pollIntervalMs }` en `next.config.ts` también funciona con Turbopack pero queda fuera de esta tarea.
+  (4) Con el `DJANGO_ALLOWED_HOSTS` por defecto el backend rechaza el `Host: backend` del BFF (400
+  `DisallowedHost`): documentado en `infra/README.md`; el default queda como decisión pendiente (T-PLT-38/39).
+  (5) Sin `public/` todavía: el `runtime` no lo copia.
+- **Revisión (SHA `a1eeffa`, 1 bloqueante, resuelto):** el centinela pasaba el chequeo en un route handler
+  `force-static` (`.body`, sin escanear), con `new URL(x).host` y con `encodeURIComponent`. Ahora se escanean `.body`
+  y `.meta` y se busca también el hostname del centinela (los tres casos fallan en un build real). No bloqueantes
+  atendidos: el `RUN` del `builder` exige la línea `client bundle clean` (un entrypoint que no corre daría exit 0
+  sin chequear nada), los límites van en el encabezado del script, `infra/README.md` entra en "Archivos". Enmienda
+  de `design.md` §3.3.3/§3.4.1/§3.4.2 en la versión 1.0.11 de la spec.
+- **Para después:** `next dev` reescribe `frontend/next-env.d.ts`, que está versionado (apunta a
+  `.next/dev/types`): cada corrida del stack ensucia el checkout; hoy `infra/README.md` indica revertirlo a mano.
 
 ### T-PLT-37 — Job `build`
 - **AC:** AC-PLT-25, AC-PLT-20 (build último de la cadena). Q-049. **Zona roja:** sí.

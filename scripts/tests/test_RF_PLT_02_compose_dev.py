@@ -1,15 +1,17 @@
-"""RF-PLT-02, RN-PLT-01, RN-PLT-04 (T-PLT-26, design.md §3.4.1, D-04): the dev Compose, statically.
+"""RF-PLT-02, RN-PLT-01, RN-PLT-04 (T-PLT-26, T-PLT-36, design.md §3.4.1, D-04): the dev Compose.
 
-``infra/docker-compose.yml`` has the five backend-side services (``frontend`` arrives with
-T-PLT-36), each with a healthcheck; every ``depends_on`` waits for ``service_healthy``; ``migrate``
-runs only in ``backend``; ``beat`` is a single replica whose schedule lives in the container's own
-filesystem (not a ``tmpfs``: ``dbm.gnu`` writes through mmap and on a tmpfs its writes never update
-the mtime the healthcheck reads) and whose healthcheck reads that same file; published ports
-listen on ``127.0.0.1`` only. The environment is explicit per service (no ``env_file:``), so a
-variable in ``.env`` reaches a container only if it is listed; required ones fail fast
-(``${VAR:?…}``). ``db``/``redis`` use the same ``tag@sha256`` as the services of the CI ``tests``
-job. Running it (``up --wait``, Redis stopped) is the manual verification of the task and, later,
-``smoke_stack.py`` (T-PLT-38).
+Read statically. ``infra/docker-compose.yml`` has the six services, each with a healthcheck; every
+``depends_on`` waits for ``service_healthy``; ``migrate`` runs only in ``backend``; ``beat`` is a
+single replica whose schedule lives in the container's own filesystem (not a ``tmpfs``:
+``dbm.gnu`` writes through mmap and on a tmpfs its writes never update the mtime the healthcheck
+reads) and whose healthcheck reads that same file; published ports listen on ``127.0.0.1`` only.
+The environment is explicit per service (no ``env_file:``), so a variable in ``.env`` reaches a
+container only if it is listed; required ones fail fast (``${VAR:?…}``). ``db``/``redis`` use the
+same ``tag@sha256`` as the services of the CI ``tests`` job. ``frontend`` (target ``dev`` of
+``frontend/Dockerfile``) waits for a healthy ``backend``, reaches it by its internal URL (server
+side only, RN-PLT-16), polls for changes and keeps ``node_modules`` and the pnpm store in named
+volumes. Running it (``up --wait``, Redis stopped) is the manual verification of the tasks and,
+later, ``smoke_stack.py`` (T-PLT-38).
 """
 
 from __future__ import annotations
@@ -25,7 +27,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 COMPOSE_FILE = REPO_ROOT / "infra" / "docker-compose.yml"
 CI_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "ci.yml"
 
-SERVICES = {"db", "redis", "backend", "worker", "beat"}
+SERVICES = {"db", "redis", "backend", "worker", "beat", "frontend"}
 BACKEND_IMAGE_USERS = {"backend", "worker", "beat"}
 # design.md §3.4.1: (interval, timeout, retries, start_period) and the healthy dependencies.
 HEALTH_TIMINGS = {
@@ -34,6 +36,7 @@ HEALTH_TIMINGS = {
     "backend": ("10s", "3s", 5, "30s"),
     "worker": ("30s", "10s", 3, "30s"),
     "beat": ("60s", "5s", 3, "90s"),
+    "frontend": ("10s", "5s", 10, "60s"),
 }
 DEPENDS_ON = {
     "db": set(),
@@ -41,8 +44,13 @@ DEPENDS_ON = {
     "backend": {"db", "redis"},
     "worker": {"db", "redis", "backend"},
     "beat": {"redis", "backend"},
+    "frontend": {"backend"},
 }
-PUBLISHED_PORTS = {"db": "127.0.0.1:5432:5432", "backend": "127.0.0.1:8000:8000"}
+PUBLISHED_PORTS = {
+    "db": "127.0.0.1:5432:5432",
+    "backend": "127.0.0.1:8000:8000",
+    "frontend": "127.0.0.1:3000:3000",
+}
 REQUIRED_VARIABLES = {
     "db": {"POSTGRES_USER", "POSTGRES_PASSWORD", "POSTGRES_DB"},
     "backend": {"DJANGO_SECRET_KEY", "DATABASE_URL", "REDIS_URL"},
@@ -183,8 +191,8 @@ def test_RF_PLT_02_redis_without_persistence(services: dict[str, dict[str, Any]]
     assert "volumes" not in services["redis"]
 
 
-def test_RF_PLT_02_pgdata_volume(compose: dict[str, Any]) -> None:
-    assert set(compose["volumes"]) == {"pgdata"}
+def test_RF_PLT_02_named_volumes(compose: dict[str, Any]) -> None:
+    assert set(compose["volumes"]) == {"pgdata", "frontend_node_modules", "pnpm_store"}
     assert "pgdata:/var/lib/postgresql/data" in compose["services"]["db"]["volumes"]
 
 
@@ -246,3 +254,44 @@ def test_RF_PLT_02_db_and_redis_images_match_ci_services(
         image = services[compose_name]["image"]
         assert digest.match(image), f"{compose_name}: tag@sha256 of the multi-arch index"
         assert image == ci_services[ci_name]["image"], compose_name
+
+
+def test_RF_PLT_02_frontend_depends_on_healthy_backend(
+    services: dict[str, dict[str, Any]],
+) -> None:
+    frontend = services["frontend"]
+    assert frontend["depends_on"] == {"backend": {"condition": "service_healthy"}}
+    assert frontend["build"] == {"context": "../frontend", "target": "dev"}
+    # The BFF's own health (never the backend's): node's fetch, healthy only on a 200.
+    check = healthcheck_command(frontend)
+    assert check.startswith('node -e fetch("http://localhost:3000/api/health")')
+    assert "r.status === 200 ? 0 : 1" in check
+    command = words(frontend["command"])
+    assert command == (
+        "sh -c pnpm install --frozen-lockfile --ignore-scripts --ignore-pnpmfile"
+        " && exec pnpm dev --hostname 0.0.0.0"
+    )
+
+
+def test_RN_PLT_16_frontend_reaches_backend_server_side_only(
+    services: dict[str, dict[str, Any]],
+) -> None:
+    environment = services["frontend"]["environment"]
+    # The service name on the Compose network; never a NEXT_PUBLIC_ variable (Q-050).
+    assert environment["BACKEND_INTERNAL_URL"] == "http://backend:8000"
+    assert not [name for name in environment if name.startswith("NEXT_PUBLIC_")]
+    assert environment["NEXT_TELEMETRY_DISABLED"] == "1"
+
+
+def test_RNF_PLT_05_frontend_hot_reload_by_polling(services: dict[str, dict[str, Any]]) -> None:
+    frontend = services["frontend"]
+    assert frontend["environment"]["WATCHPACK_POLLING"] == "true"
+    # The source from the host; node_modules and the store (pnpm_config_store_dir in
+    # frontend/Dockerfile) in named volumes, so neither lands in the bind-mounted tree.
+    assert frontend["volumes"] == [
+        "../frontend:/repo/frontend",
+        "frontend_node_modules:/repo/frontend/node_modules",
+        "pnpm_store:/pnpm-store",
+    ]
+    dockerfile = (REPO_ROOT / "frontend" / "Dockerfile").read_text(encoding="utf-8")
+    assert "pnpm_config_store_dir=/pnpm-store" in dockerfile

@@ -14,14 +14,15 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     setupFiles: ["./vitest.setup.ts"],
-    include: ["src/**/*.test.{ts,tsx}"],
+    // scripts/: build-time checks run by frontend/Dockerfile (check-client-bundle.ts, AC-PLT-29).
+    include: ["src/**/*.test.{ts,tsx}", "scripts/**/*.test.ts"],
     restoreMocks: true,
     coverage: {
       provider: "v8",
       reportsDirectory: "coverage",
       reporter: ["text", "json-summary"],
-      include: ["src/**/*.{ts,tsx}"],
-      exclude: ["src/**/*.test.{ts,tsx}", "src/types/**"],
+      include: ["src/**/*.{ts,tsx}", "scripts/**/*.ts"],
+      exclude: ["src/**/*.test.{ts,tsx}", "scripts/**/*.test.ts", "src/types/**"],
     },
   },
 });
