@@ -1,0 +1,23 @@
+{
+  "repository": "Raff4-Gauna/centro-de-pagos-universal-sdd-odd",
+  "repo": {
+    "visibility": "public",
+    "default_branch": "main",
+    "allow_squash_merge": true,
+    "allow_merge_commit": false,
+    "allow_rebase_merge": false,
+    "delete_branch_on_merge": true,
+    "security_and_analysis": {
+      "secret_scanning": { "status": "enabled" },
+      "secret_scanning_push_protection": { "status": "enabled" }
+    }
+  },
+  "actions_workflow_permissions": {
+    "default_workflow_permissions": "read",
+    "can_approve_pull_request_reviews": false
+  },
+  "fork_pr_contributor_approval": {
+    "approval_policy": "first_time_contributors"
+  },
+  "labels": ["zona-roja"]
+}

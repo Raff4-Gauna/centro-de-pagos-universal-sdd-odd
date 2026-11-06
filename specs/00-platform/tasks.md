@@ -109,7 +109,7 @@ Reglas: rebanada vertical · ≤ ~300 líneas de diff · mergeable sola · cita 
 | T-PLT-37 | Job `build` (imágenes por SHA, no root) | AC-PLT-25, AC-PLT-20 | CI | `infra/docker-compose.ci.yml`, `ci.yml` | T-PLT-24, T-PLT-36 | backend-dev | M | Sí | ✅ | #50 · 4c6fed8 |
 | T-PLT-38 | Smoke del stack en el paso 9 | AC-PLT-01, AC-PLT-02, AC-PLT-10, AC-PLT-29 (E2E) | CI | `scripts/smoke_stack.py` | T-PLT-15, T-PLT-37, T-PLT-42 | backend-dev | L | Sí | ✅ | #53 · f24d509 |
 | T-PLT-39 | `env.example` + `spikes/env.example` + paridad | AC-PLT-05, AC-PLT-06, AC-PLT-01 | Config | `env.example`, `spikes/env.example` | T-PLT-09, T-PLT-12, T-PLT-16, T-PLT-26, T-PLT-33 | backend-dev | M | Sí | ✅ | #45 · 6acc087 |
-| T-PLT-40 | Ruleset de `main` + verificación de protección | AC-PLT-24, AC-PLT-20 (cierre) | Gobierno | `.github/rulesets/main.json`, `scripts/verify_repo_protection.py` | T-PLT-07, T-PLT-10, T-PLT-19, T-PLT-21, T-PLT-24, T-PLT-28, T-PLT-38 | backend-dev (+ dueño) | L | Sí | ☐ | — |
+| T-PLT-40 | Ruleset de `main` + verificación de protección | AC-PLT-24, AC-PLT-20 (cierre) | Gobierno | `.github/rulesets/main.json`, `scripts/verify_repo_protection.py` | T-PLT-07, T-PLT-10, T-PLT-19, T-PLT-21, T-PLT-24, T-PLT-28, T-PLT-38 | backend-dev (+ dueño) | L | Sí | 🟡 | — |
 | T-PLT-41 | "Comandos de desarrollo" en `AGENTS.md` + `infra/README.md` | — (RF-PLT-16) | Docs | `AGENTS.md`, `infra/README.md` | T-PLT-38, T-PLT-40 | backend-dev | S | No | ☐ | — |
 | T-PLT-42 | BFF: `X-Forwarded-Proto: https` hacia el backend | — (RF-PLT-06, Q-065) | BFF | `src/lib/server/backend-proxy.ts` | T-PLT-09, T-PLT-33 | frontend-dev | S | No (reviewer recomendado) | ✅ | #51 · 2d53815 |
 
@@ -1832,6 +1832,8 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   (aprobaciones ≠ 0, actor con bypass, check faltante, merge distinto de squash, force-push o borrado permitidos,
   secret scanning o push protection apagados, permisos de Actions de escritura),
   `test_AC_PLT_24_api_failure_exits_2_never_success`, `test_AC_PLT_20_ruleset_checks_equal_pipeline_jobs_plus_zona_roja`.
+  Los tests de AC-24 superan las 400 líneas: se parten en `..._verify_repo_protection.py` (diferencias),
+  `..._failures.py` (exit 2 y token) y `repo_protection_fakes.py` (C-14).
 - **Verificación manual (dueño):** aplicar `main.json` con `gh api` + ajustes por UI (los checks ya corrieron al menos
   una vez); `python scripts/verify_repo_protection.py` con `GH_TOKEN` de admin propio → 0; PR de sacrificio con un error
   de lint → `lint` rojo, `build` no corre y el PR figura no mergeable.
@@ -1927,7 +1929,7 @@ Pasa a `Verified` solo con el OK explícito del dueño. Ningún agente lo marca 
 | T-PLT-37 | #50 | 4c6fed8 | ✅ |
 | T-PLT-38 | #53 | f24d509 | ✅ |
 | T-PLT-39 | #45 | 6acc087 | ✅ |
-| T-PLT-40 | — | — | ☐ |
+| T-PLT-40 | — | — | 🟡 |
 | T-PLT-41 | — | — | ☐ |
 | T-PLT-42 | #51 | 2d53815 | ✅ |
 <!-- check_spec_state:end -->
