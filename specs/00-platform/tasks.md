@@ -55,9 +55,9 @@ Reglas: rebanada vertical · ≤ ~300 líneas de diff · mergeable sola · cita 
   Si la tarea pasa a `🧪`, actualiza además su fila en `verification.md`.
 - **Quién mergea (Q-057):** el agente solo con certeza total (pipeline completo en verde en el último commit,
   veredicto del reviewer sin bloqueantes —obligatorio en zona roja—, DoD completo, squash). Hasta T-PLT-40 inclusive,
-  "pipeline completo" son todos los checks de todos los workflows que corren en ese commit (lectura propuesta por
-  Claude, pendiente de que el dueño la corrija o confirme).
-  Mergea el dueño todo PR que cambie ruleset/ajustes del repo (T-PLT-40) o que quede con duda.
+  "pipeline completo" son todos los checks de todos los workflows que corren en ese commit.
+  Mergea el dueño todo PR que cambie ruleset/ajustes del repo (T-PLT-40), que toque `zona-roja.yml` (Q-063) o que
+  quede con duda.
 - Varias tareas editan `ci.yml`, `backend/pyproject.toml`, `config/settings/base.py`, `frontend/package.json`: en
   paralelo habrá conflictos de texto chicos; se rebasea sobre `main` antes de pedir el veredicto (un push nuevo
   invalida el veredicto anterior, AC-PLT-32).
@@ -76,7 +76,7 @@ Reglas: rebanada vertical · ≤ ~300 líneas de diff · mergeable sola · cita 
 | T-PLT-04 | Pre-commit + gitleaks + job `secrets` | AC-PLT-19, AC-PLT-27, AC-PLT-13 | Infra/CI | `.pre-commit-config.yaml`, `.gitleaks.toml` | T-PLT-03 | backend-dev | M | Sí | ✅ | #19 · dbb770e |
 | T-PLT-05 | `check_workflows.py` en `lint` | AC-PLT-33 | CI | `scripts/check_workflows.py` | T-PLT-03 | backend-dev | L | Sí | ✅ | #43 · 91aa385 |
 | T-PLT-06 | Check `zona-roja`: reglas y rutas | AC-PLT-32 | CI | `scripts/check_zona_roja.py`, `.github/zona-roja-paths.txt` | T-PLT-03 | backend-dev | L | Sí | ✅ | #42 · 349fd0e |
-| T-PLT-07 | Check `zona-roja`: API de GitHub + workflow | AC-PLT-32 | CI | `scripts/github_api.py`, `.github/workflows/zona-roja.yml` | T-PLT-05, T-PLT-06 | backend-dev | L | Sí | ☐ | — |
+| T-PLT-07 | Check `zona-roja`: API de GitHub + workflow | AC-PLT-32 | CI | `scripts/github_api.py`, `.github/workflows/zona-roja.yml` | T-PLT-05, T-PLT-06 | backend-dev | L | Sí | 🟡 | — |
 | T-PLT-08 | Proyecto Django + settings validados | AC-PLT-03 | Backend | `backend/config/settings/*`, `manage.py` | T-PLT-03 | backend-dev | L | Sí | ✅ | #7 · 6754818 |
 | T-PLT-09 | `prod` endurecido + lecturas de entorno + feature flags | AC-PLT-04, AC-PLT-06 (parcial) | Backend | `config/settings/prod.py`, `apps/common/feature_flags.py` | T-PLT-08 | backend-dev | L | No | ✅ | #16 · 2a489ae |
 | T-PLT-10 | mypy + job `typecheck` (backend) | AC-PLT-21 (backend) | CI/Backend | `backend/pyproject.toml`, `tests/typing/` | T-PLT-08 | backend-dev | M | Sí | ✅ | #14 · 321c3ab |
@@ -436,6 +436,19 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   sobre `zona-roja.yml`.
 - **Verificación manual (dueño):** crear el label `zona-roja`; en un PR real: rutas rojas sin label → rojo; label +
   veredicto con el SHA → verde tras re-run; push nuevo → rojo.
+
+- **Nota (implementación, 2026-11-06):** `main()` dejaba `check_zona_roja.py` en ~420 líneas: por `C-14` el formato
+  del veredicto pasó a `scripts/zona_roja_verdict.py` (archivo no listado arriba, desvío a aceptar por el planner). El
+  backlog de T-PLT-06 quedó hecho: `updated_at` en UTC aware, veredictos dentro de bloques de código ignorados
+  (cercados e indentados: el parser admite hasta 3 espacios) y formato alineado en `.claude/agents/reviewer.md` y
+  `.claude/skills/reviewer-verdict/SKILL.md`. Fallan como "no verificado", además de los errores de API: head del
+  PR distinto al del evento y lista de archivos truncada (`changed_files` ≠ listados; el endpoint corta en 3000).
+- **Nota (revisión de `f2d5aa2`):** `edited` entró en los tipos (spec 1.0.13); `AGENTS.md` ya usa el formato de
+  §3.7.3; un RECHAZADO de una cuenta con escritura sin un SHA completo y único, si no es anterior al último veredicto,
+  falla como "no verificado". Q-063 y Q-064, cerradas por el dueño: este PR crea `zona-roja.yml`, así que lo
+  mergea él.
+- **Para después:** (1) la cuenta borrada `ghost` responde 200 `read`: un veredicto suyo no cuenta y no bloquea.
+  (2) Un fence dentro de un ítem de lista (`- ````) no se reconoce como bloque de código.
 
 ### T-PLT-08 — Proyecto Django + settings validados
 - **AC:** AC-PLT-03. RN-PLT-02, RF-PLT-03 (Q-040, Q-046). **Zona roja:** sí (`backend/pyproject.toml`, `ci.yml`).

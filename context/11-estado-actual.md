@@ -16,7 +16,7 @@ fase: cierre (Implemented pendiente)
 
 | Módulo | Spec | Tareas | Código | Nota |
 |---|---|---|---|---|
-| 00-platform | Approved 1.0.12 | 35 ✅ · 6 ☐ (41) | 35 de 41 tareas | Verificación **Con hallazgos** |
+| 00-platform | Approved 1.0.13 | 35 ✅ · 6 ☐ (41) | 35 de 41 tareas | Verificación **Con hallazgos** |
 | 01-identity-access | Approved | sin `tasks.md` | 0 % | Depende de 00 |
 | 02-tenancy-rbac | Approved | sin `tasks.md` | 0 % | Se cierra junto con 01 (Q-108) |
 | 03-integrations-engine | Draft | — | 0 % | Falta cerrar el contrato del motor |
@@ -49,8 +49,8 @@ fase: cierre (Implemented pendiente)
 
 ## 3. Qué sigue, en orden
 
-1. **Cerrar T-PLT-07** (PR #48) → AC-PLT-32. Trae Q-063 y Q-064, que decide el dueño y todavía no están en `main`: si
-   siguen abiertas, el PR queda para el dueño.
+1. **Cerrar T-PLT-07** (PR #48) → AC-PLT-32. Lo mergea el dueño porque crea `zona-roja.yml` (Q-063). Después, probar
+   el check en el PR siguiente, según la verificación manual de la ficha.
 2. **Cerrar el camino crítico de 00** en este orden:
    - `T-PLT-37` → AC-PLT-25 y parte de AC-PLT-20 y AC-PLT-29 (job `build`).
    - `T-PLT-38` → AC-PLT-01 y el resto de AC-PLT-29 (smoke).
@@ -91,6 +91,6 @@ fase: cierre (Implemented pendiente)
 - **Hecho:** reconciliación de 00 con git sobre `1cc858e` (35 ✅ · 6 ☐), matriz de `verification.md` rehecha
   (28 ✔ / 5 ⚠ / 1 ✘), trazabilidad de Q-048 y nota de `.next/server/pages/**` en `design.md §3.3.3` (spec 1.0.12).
 - **Merges de la sesión:** #42, #43, #44, #45, #46 y #47. Worklog: `context/worklog/2026-11-06-reconcile-00.md`.
-- **Pendiente / dudas:** Q-063 y Q-064 (dueño, llegan con #48), Q-028 (SPEC-12), S-001 sin ejecutar, triaje de
+- **Pendiente / dudas:** Q-028 (SPEC-12), S-001 sin ejecutar, triaje de
   Dependabot.
 - **Siguiente rol sugerido:** `reviewer` sobre #48; después `backend-dev` en T-PLT-37.
