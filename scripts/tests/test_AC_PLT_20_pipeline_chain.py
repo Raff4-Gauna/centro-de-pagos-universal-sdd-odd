@@ -126,6 +126,18 @@ def test_AC_PLT_20_no_job_level_if_on_required_jobs() -> None:
     assert job_level_if_errors({"lint": {"if": "github.event_name == 'push'"}}) != []
 
 
+def test_AC_PLT_20_build_is_last_and_needs_migrations() -> None:
+    jobs = ci_jobs()
+    # The whole chain of design.md §3.5 is there now, with build at the end (T-PLT-37).
+    assert list(jobs) == CANONICAL_ORDER
+    assert list(jobs)[-1] == "build"
+    assert needs_of(jobs["build"]) == {"migrations"}
+    assert "if" not in jobs["build"]
+    # A failed build fails the required check, step by step too.
+    assert "continue-on-error" not in jobs["build"]
+    assert all("continue-on-error" not in step for step in jobs["build"]["steps"])
+
+
 def test_AC_PLT_13_file_size_job_runs_check_file_size() -> None:
     runs = [step.get("run", "") for step in ci_jobs()["file-size"]["steps"]]
     assert any("scripts/check_file_size.py" in run for run in runs)

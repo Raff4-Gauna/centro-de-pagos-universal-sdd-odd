@@ -498,3 +498,95 @@ jobs:
       - name: check_migrations_roundtrip
         working-directory: backend
         run: python manage.py check_migrations_roundtrip --allow-data-loss
+
+  # Step 9. AC-PLT-25 (RN-PLT-14, RNF-PLT-01, Q-049): the runtime images of backend and frontend,
+  # from the frozen lockfiles, tagged with the commit built and never pushed. github.sha is what
+  # checkout builds: on a PR that is the merge commit, not the head of the branch. A v* tag that is
+  # exactly vX.Y.Z adds that tag too. AC-PLT-29: `runtime` copies from the `builder` stage of
+  # frontend/Dockerfile, so that stage runs here, and a sentinel in the client bundle fails its RUN
+  # and with it the step. A cache hit only skips a RUN that passed on those same inputs: a failed
+  # one exports nothing. Caches go by component so one image does not evict the other's. Buildx
+  # runs BuildKit from an image: pinned like the others (tag + digest of the index), though
+  # Dependabot does not see this line.
+  build:
+    needs: migrations
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      GIT_SHA: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # Event values go through env, never into the script text. A ref name is only used as an
+      # image tag once it matches vX.Y.Z.
+      - name: Image tags
+        id: tags
+        env:
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          [[ "$GIT_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::GIT_SHA is not a commit SHA: '$GIT_SHA'"; exit 1; }
+          backend="hub-backend:$GIT_SHA"
+          frontend="hub-frontend:$GIT_SHA"
+          if [ "$REF_TYPE" = tag ] && [[ "$REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            backend+=",hub-backend:$REF_NAME"
+            frontend+=",hub-frontend:$REF_NAME"
+          fi
+          echo "backend=$backend" >> "$GITHUB_OUTPUT"
+          echo "frontend=$frontend" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+        with:
+          driver-opts: image=moby/buildkit:v0.34.2@sha256:c5f8862f52499773af85bc07695b2379ef08e8002352b0df2c4864c91d78dabe
+      - name: Build backend image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: backend
+          target: runtime
+          build-args: GIT_SHA=${{ env.GIT_SHA }}
+          tags: ${{ steps.tags.outputs.backend }}
+          push: false
+          load: true
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,mode=max,scope=backend
+      - name: Build frontend image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: frontend
+          target: runtime
+          build-args: GIT_SHA=${{ env.GIT_SHA }}
+          tags: ${{ steps.tags.outputs.frontend }}
+          push: false
+          load: true
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,mode=max,scope=frontend
+      # What the loaded images really are, not what the Dockerfiles say: the same default user and
+      # entrypoint the containers start with. Only a positive number passes: empty proves nothing.
+      - name: Images carry the commit SHA and do not run as root
+        run: |
+          for image in "hub-backend:$GIT_SHA" "hub-frontend:$GIT_SHA"; do
+            revision="$(docker image inspect \
+              --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$image")"
+            if [ "$revision" != "$GIT_SHA" ]; then
+              echo "::error::$image has revision '$revision', expected $GIT_SHA"
+              exit 1
+            fi
+            uid="$(docker run --rm "$image" id -u)"
+            if ! [[ "$uid" =~ ^[1-9][0-9]*$ ]]; then
+              echo "::error::$image runs as uid '$uid': it must not be root"
+              exit 1
+            fi
+            echo "$image: revision $revision, uid $uid"
+          done
+      # The stack of the smoke (T-PLT-38) resolves to these images and no dev one. db and redis keep
+      # their own pinned images.
+      - name: Compose override names these images
+        run: |
+          expected="$(printf 'hub-backend:%s\nhub-frontend:%s\n' "$GIT_SHA" "$GIT_SHA")"
+          images="$(docker compose -f infra/docker-compose.yml -f infra/docker-compose.ci.yml \
+            --env-file env.example config --images | grep -Ev '^(postgres|redis):' | sort -u)"
+          if [ "$images" != "$expected" ]; then
+            echo "::error::the CI stack runs other images:"
+            echo "$images"
+            exit 1
+          fi

@@ -3,7 +3,7 @@ id: SPEC-00
 modulo: platform
 estado: Approved
 track: S
-version: 1.0.13
+version: 1.0.14
 depende_de: []
 actualizado: 2026-11-06
 ---
@@ -256,3 +256,4 @@ Se completa al generar `tasks.md`.
 | 1.0.11 | 2026-11-06 | Ajuste de diseño en `design.md §3.3.3`, `§3.4.1` y `§3.4.2` (T-PLT-36): el chequeo de bundle también escanea lo prerenderizado de `.next/server/app/**` (`.html`, `.rsc`, `.body`, `.meta`) y el hostname del centinela, y el `builder` exige la línea `client bundle clean`; el `pnpm install` de la imagen y del servicio `frontend` usa `--ignore-scripts --ignore-pnpmfile`, como CI; el `runtime` no copia `public/` mientras no exista. Sin cambios en RN/RF/AC | Revisión de T-PLT-36 (SHA `a1eeffa`): el centinela pasaba el chequeo en un route handler `force-static` (`.body`), con `new URL(x).host` y con `encodeURIComponent`, reproducido con build real; enmienda autorizada por el coordinador |
 | 1.0.12 | 2026-11-06 | Trazabilidad, sin cambios en RN/RF/AC: `design.md §3.3.3` deja anotado que el chequeo de bundle no escanea `.next/server/pages/**` (qué genera ahí un build real y por qué hoy no agrega superficie); §16 y `clarifications.md` (Q-048) citaban la versión 1.0.9 y es 1.0.10. | Reconciliación de `00-platform` (`context/worklog/2026-11-06-reconcile-00.md`) |
 | 1.0.13 | 2026-11-06 | Ajuste de diseño en `design.md §3.7.3` (T-PLT-07): el workflow `zona-roja` suma el tipo `edited`, para que cambiar la base de un PR re-ejecute el check. D-09 y §11.2 dejan de afirmar que el PR no puede modificar el check: el script y la lista se leen de la base, y el workflow no queda protegido. Decisiones del dueño: Q-063 (a), esos PR los mergea él; Q-064, re-ejecutar `zona-roja` tras un veredicto no es re-run manual; y confirma que hasta T-PLT-40 "pipeline completo" son todos los checks de todos los workflows del commit. Sin cambios en RN/RF/AC | Revisión de T-PLT-07: retargetear un PR dejaba vigente un verde obtenido contra otra base |
+| 1.0.14 | 2026-11-06 | Ajuste de diseño en `design.md §3.4.2`, `§3.5` y `§8` (T-PLT-37): el override de CI anula `build`, `volumes` y los `ports` de `db` con `!reset`, no usa `--reload`, fija `APP_VERSION` con `GIT_SHA` y se invoca con `--env-file env.example`; el job `build` etiqueta `github.sha` (en un PR, el merge commit), solo `vX.Y.Z` agrega la versión, verifica el label `revision` y `config --images`, y corre BuildKit fijado por digest. Sin cambios en RN/RF/AC | Trazabilidad de lo implementado en T-PLT-37; el mecanismo de `!reset` y la interpolación de Compose se verificaron con `docker compose config` |

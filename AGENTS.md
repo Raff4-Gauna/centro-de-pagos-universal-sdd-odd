@@ -138,7 +138,7 @@ Desde la raíz del repo (PowerShell o bash). `DC` = `docker compose -f infra/doc
 | Verificar protección (dueño) | `python scripts/verify_repo_protection.py` con `GH_TOKEN` de admin (pendiente, T-PLT-40) |
 
 Notas:
-- Los comandos de `build` y `smoke` del pipeline todavía no existen (T-PLT-37/38): no se inventan.
+- El smoke del pipeline todavía no existe (T-PLT-38): no se inventa. El `build` corre en el job de CI (`infra/docker-compose.ci.yml`).
 - En Windows, si `5432` está ocupado, usar un override fuera del repo (`infra/README.md`).
 
 ## Cierre de sesión (obligatorio si la sesión termina acá)
