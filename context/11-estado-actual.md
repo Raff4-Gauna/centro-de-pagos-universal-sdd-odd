@@ -55,8 +55,9 @@ fase: cierre (Implemented pendiente)
 
 ## 3. Qué sigue, en orden
 
-1. **Dueño: aplicar el ruleset y los ajustes** con los pasos de `infra/README.md`, y abrir un PR de prueba con lint
-   rojo → AC-PLT-24 y AC-PLT-20. Hasta entonces, nada figura como protegido.
+1. **Dueño: aplicar el ruleset y los ajustes** con los pasos de `infra/README.md`, comprobar con
+   `verify_repo_protection.py` y abrir un PR de prueba con lint rojo → AC-PLT-24 y AC-PLT-20. Esos comandos nunca se
+   corrieron contra GitHub. Hasta entonces, nada figura como protegido.
 2. **Probar "sin label → rojo" y "push nuevo → rojo"** → AC-PLT-32, según la ficha de T-PLT-07.
 3. **Verificación manual de AC-PLT-01** (`verification.md §4`). Antes, el dueño mueve las claves de spikes de su
    `.env` a `spikes/.env`.

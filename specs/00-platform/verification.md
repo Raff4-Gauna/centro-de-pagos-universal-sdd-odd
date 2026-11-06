@@ -100,7 +100,7 @@ version_spec: 1.0.20
 6. Superar el throttle anónimo → 429 con `Retry-After` y `problem+json`.
 7. `cd frontend; pnpm build; cd ..` e inspeccionar el bundle: sin URL interna del backend.
 8. `DC exec backend python manage.py export_openapi --check` → sin diff.
-9. `pre-commit run --all-files` → verde.
+9. `pre-commit run --all-files` → verde (hasta hoy solo hay evidencia con `SKIP=gitleaks`, ver §2).
 10. Aplicar ruleset y ajustes con los pasos de `infra/README.md`.
 11. `python scripts/verify_repo_protection.py` con `GH_TOKEN` de admin → exit 0. Hoy no puede dar 0: no hay ruleset.
 12. PR de prueba con un error de lint → `lint` rojo, `build` no corre y el PR figura no mergeable.
@@ -111,8 +111,9 @@ version_spec: 1.0.20
 |---|---|---|---|---|
 | — | Sin revisión de cierre del diff completo todavía | — | C-15 | Pendiente |
 
-La revisión por tarea sí ocurrió en los PR mergeados (comentario con SHA + label `zona-roja`). Lo que falta es la
-revisión del **diff acumulado** del módulo.
+La revisión por tarea no quedó registrada igual en todos los PR. #4 a #40 no tienen el label `zona-roja`, creado el
+2026-11-06, y sus comentarios no se auditaron para este documento. #41 a #43 solo tienen constancia retroactiva. Desde
+#44 cada PR lleva comentario con SHA y label. Falta además la revisión del **diff acumulado** del módulo.
 
 ## 6. Hallazgos de proceso
 
@@ -127,7 +128,7 @@ revisión del **diff acumulado** del módulo.
 7. Cinco tareas mergeadas (#42, #43, #45, #46, #47) quedaron `🟡` en `tasks.md`: sus PR no llevaron la fila a `✅`
    (regla 1 de estados). Conciliado el 2026-11-06.
 8. `scripts/spec_state_baseline.json` listaba `AC-PLT-17`, `29`, `32` y `33`, que ya tienen test. No producía drift.
-   Conciliado el 2026-11-06: quedó solo `AC-PLT-24`, y desde T-PLT-40 ninguno.
+   Conciliado el 2026-11-06: el baseline queda vacío, porque desde T-PLT-40 `AC-PLT-24` también tiene test.
 9. T-PLT-07, T-PLT-37 y T-PLT-42 quedaron `🟡` tras mergearse (#48, #50, #51), otra vez la regla 1 de estados.
    Conciliado el 2026-11-06.
 10. El verde de `zona-roja` en #48 no comprobó nada: el workflow corre el script de la base (D-09) y en `8cd5bd9`
