@@ -55,9 +55,9 @@ Reglas: rebanada vertical · ≤ ~300 líneas de diff · mergeable sola · cita 
   Si la tarea pasa a `🧪`, actualiza además su fila en `verification.md`.
 - **Quién mergea (Q-057):** el agente solo con certeza total (pipeline completo en verde en el último commit,
   veredicto del reviewer sin bloqueantes —obligatorio en zona roja—, DoD completo, squash). Hasta T-PLT-40 inclusive,
-  "pipeline completo" son todos los checks de todos los workflows que corren en ese commit (lectura propuesta por
-  Claude, pendiente de que el dueño la corrija o confirme).
-  Mergea el dueño todo PR que cambie ruleset/ajustes del repo (T-PLT-40) o que quede con duda.
+  "pipeline completo" son todos los checks de todos los workflows que corren en ese commit.
+  Mergea el dueño todo PR que cambie ruleset/ajustes del repo (T-PLT-40), que toque `zona-roja.yml` (Q-063) o que
+  quede con duda.
 - Varias tareas editan `ci.yml`, `backend/pyproject.toml`, `config/settings/base.py`, `frontend/package.json`: en
   paralelo habrá conflictos de texto chicos; se rebasea sobre `main` antes de pedir el veredicto (un push nuevo
   invalida el veredicto anterior, AC-PLT-32).
@@ -443,10 +443,10 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   (cercados e indentados: el parser admite hasta 3 espacios) y formato alineado en `.claude/agents/reviewer.md` y
   `.claude/skills/reviewer-verdict/SKILL.md`. Fallan como "no verificado", además de los errores de API: head del
   PR distinto al del evento y lista de archivos truncada (`changed_files` ≠ listados; el endpoint corta en 3000).
-- **Nota (revisión de `f2d5aa2`):** `edited` entró en los tipos (spec 1.0.12); `AGENTS.md` ya usa el formato de
+- **Nota (revisión de `f2d5aa2`):** `edited` entró en los tipos (spec 1.0.13); `AGENTS.md` ya usa el formato de
   §3.7.3; un RECHAZADO de una cuenta con escritura sin un SHA completo y único, si no es anterior al último veredicto,
-  falla como "no verificado". Cómo proteger el workflow: Q-063. Si el re-run del veredicto cuenta como manual: Q-064.
-  Ambas abiertas: bloquean el merge de esta tarea.
+  falla como "no verificado". Q-063 y Q-064, cerradas por el dueño: este PR crea `zona-roja.yml`, así que lo
+  mergea él.
 - **Para después:** (1) la cuenta borrada `ghost` responde 200 `read`: un veredicto suyo no cuenta y no bloquea.
   (2) Un fence dentro de un ítem de lista (`- ````) no se reconoce como bloque de código.
 

@@ -558,12 +558,12 @@ documenta los prefijos (`context/03`, `context/09`). No toca el placeholder ni u
   visibilidad → aplicar ruleset y ajustes → `verify_repo_protection.py` en verde.
 - **Merge a `main` (Q-057, decidida por el usuario 2026-10-31):** Claude abre los PR y **puede mergear solo si está
   100 % seguro de que no rompe producción**: (1) los 11 checks requeridos en verde **en el último commit** del PR
-  (hasta T-PLT-40, todos los checks de todos los workflows que corren en ese commit: lectura propuesta por Claude,
-  pendiente de que el usuario la corrija o confirme);
+  (hasta T-PLT-40, todos los checks de todos los workflows que corren en ese commit);
   (2) veredicto del `reviewer` sin bloqueantes (obligatorio en zona roja, citando ese SHA); (3) DoD de la tarea
   completo; (4) squash. Para mergear exactamente lo verificado usa `gh pr merge --squash --match-head-commit
   <sha>`. **Ante cualquier duda** (check flaky, re-run manual, scope drift, Q abierta, cambio de ruleset/ajustes,
-  advertencias nuevas) el PR queda para que mergee el usuario. La regla va a `AGENTS.md` en la tarea de RF-PLT-16.
+  advertencias nuevas) el PR queda para que mergee el usuario. Re-ejecutar `zona-roja` tras un veredicto, o quitar y
+  poner el label, no es re-run manual (Q-064). Todo PR que toque `zona-roja.yml` lo mergea el usuario (Q-063). La regla va a `AGENTS.md` en la tarea de RF-PLT-16.
   Técnicamente el ruleset no distingue (0 aprobaciones, mismo token): es regla de proceso respaldada por los checks.
 
 ## 4. Flujos principales
@@ -717,7 +717,7 @@ corridos una vez → ruleset (después de publicar, Q-054).
 | D-06 | Throttle fail-open si Redis falla | disponibilidad; `/readyz` ya lo señala; 01/07/11 pueden elegir fail-closed |
 | D-07 | Tailwind 3.4.19 (`v3-lts`) | `07 §1` usa API de v3 (`tw-`, `preflight: false`, `tailwind.config.ts`); v4 exige editar `07` (Q-059) |
 | D-08 | `zona-roja` sin `issue_comment`, re-run manual tras el veredicto | `issue_comment` corre en la base y no actualiza el check del SHA del PR; evita un workflow disparable por cualquiera |
-| D-09 | `zona-roja` lee script y lista de la rama base | el PR no puede modificar ese script ni esa lista; el workflow `zona-roja.yml` lo toma GitHub de la rama del PR y **no queda protegido** (Q-063) |
+| D-09 | `zona-roja` lee script y lista de la rama base | el PR no puede modificar ese script ni esa lista; el workflow `zona-roja.yml` lo toma GitHub de la rama del PR y **no queda protegido**: riesgo aceptado, esos PR los mergea el usuario (Q-063) |
 | D-10 | `pip-audit` envuelto por `audit_deps.py` | `pip-audit` no da severidad ni vencimientos; OSV + severidad desconocida = alta |
 | D-11 | `verify_repo_protection.py` lo corre el dueño | `GITHUB_TOKEN` no ve bypass ni seguridad; un token admin en CI sería un secreto en un repo público |
 | D-12 | `ruff.toml` único en la raíz con `force-exclude` | cubre `backend/` y `scripts/` y excluye el legacy aunque pre-commit pase archivos explícitos |
@@ -735,7 +735,7 @@ corridos una vez → ruleset (después de publicar, Q-054).
 | Hot-reload en Windows; Turbopack (dev por defecto en Next 16) puede ignorar `WATCHPACK_POLLING` | probar en la tarea de Compose; plan B `next dev --webpack`; documentar en `infra/README.md` |
 | Healthcheck de `beat` por mtime es indirecto | umbral 300 s con loop de 60 s; si da falsos positivos, se baja a "proceso vivo" y se documenta |
 | Throttle por IP detrás del BFF | sin efecto en 00; 01 define la clave |
-| Un PR puede neutralizar checks (`pull_request` corre su código) | D-09 (script y lista de `zona-roja` se leen de la base) + rutas del gate como zona roja (**Q-058**, provisorio). El workflow `zona-roja.yml` no queda protegido: un PR puede cambiarlo (**Q-063**, abierta) |
+| Un PR puede neutralizar checks (`pull_request` corre su código) | D-09 (script y lista de `zona-roja` se leen de la base) + rutas del gate como zona roja (**Q-058**, provisorio). El workflow `zona-roja.yml` no queda protegido: un PR puede cambiarlo; riesgo aceptado, esos PR los mergea el usuario (**Q-063**) |
 | Merge por el agente con 0 aprobaciones | criterios cerrados de §3.7.4 + `--match-head-commit`; ante duda, mergea el usuario |
 | `W021` silenciado | único permitido, comentado, hasta tener dominio (Q-020) |
 | Node local 24.14 < 24.15 (`jsdom` 30) | tests en contenedor/CI; recomendado actualizar el Node local a 24.22.x |
