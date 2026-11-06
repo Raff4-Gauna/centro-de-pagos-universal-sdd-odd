@@ -56,7 +56,7 @@ Reglas: rebanada vertical · ≤ ~300 líneas de diff · mergeable sola · cita 
 - **Quién mergea (Q-057):** el agente solo con certeza total (pipeline completo en verde en el último commit,
   veredicto del reviewer sin bloqueantes —obligatorio en zona roja—, DoD completo, squash). Hasta T-PLT-40 inclusive,
   "pipeline completo" son todos los checks de todos los workflows que corren en ese commit.
-  Mergea el dueño todo PR que cambie ruleset/ajustes del repo (T-PLT-40), que toque `zona-roja.yml` (Q-063) o que
+  Mergea el dueño todo PR que cambie ruleset/ajustes del repo (T-PLT-40), que agregue o cambie un archivo de `.github/workflows/` (Q-063) o que
   quede con duda.
 - Varias tareas editan `ci.yml`, `backend/pyproject.toml`, `config/settings/base.py`, `frontend/package.json`: en
   paralelo habrá conflictos de texto chicos; se rebasea sobre `main` antes de pedir el veredicto (un push nuevo
@@ -449,7 +449,7 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   falla como "no verificado". Q-063 y Q-064, cerradas por el dueño: este PR crea `zona-roja.yml`, así que lo
   mergea él.
 - **Nota (merge, 2026-11-06):** #48 lo mergeó Claude como excepción puntual a Q-063, autorizada por el dueño
-  (comentario en #48). La regla sigue vigente para los PR siguientes que toquen `zona-roja.yml`.
+  (comentario en #48). La regla sigue vigente para los PR siguientes, y el dueño la amplió a todo `.github/workflows/`.
 - **Para después:** (1) la cuenta borrada `ghost` responde 200 `read`: un veredicto suyo no cuenta y no bloquea.
   (2) Un fence dentro de un ítem de lista (`- ````) no se reconoce como bloque de código.
 

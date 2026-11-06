@@ -104,7 +104,8 @@ Reglas:
   re-run manual, scope drift, `Q-xxx` abierta, advertencias nuevas, entre otras) el PR queda para el dueño. Re-ejecutar
   `zona-roja` tras publicar un veredicto, o quitar y poner el label, no cuenta como re-run manual (Q-064).
 - **Solo el dueño** cambia ruleset, visibilidad y ajustes del repo; esos PR los mergea él. También mergea todo PR que
-  toque `.github/workflows/zona-roja.yml`: un PR puede cambiar ese workflow y es un riesgo aceptado (Q-063).
+  agregue o cambie un archivo de `.github/workflows/`: un PR puede neutralizar `zona-roja` con eso y es un riesgo
+  aceptado (Q-063).
 - El veredicto se guarda como comentario, no como revisión nativa. Eso es intencional y no se "corrige" con un
   approve de la UI.
 
@@ -135,7 +136,7 @@ Desde la raíz del repo (PowerShell o bash). `DC` = `docker compose -f infra/doc
 | Migraciones | `DC exec backend sh -c "python manage.py makemigrations --check --dry-run && python manage.py lint_migrations"` · ida y vuelta **solo contra una BD descartable, nunca la de desarrollo** (revierte a `zero` y borra tablas y datos): `DC exec db createdb -U <usuario> hub_roundtrip` → `DC exec -e DATABASE_URL=postgres://<usuario>:<clave>@db:5432/hub_roundtrip backend python manage.py check_migrations_roundtrip --allow-data-loss` → `DC exec db dropdb -U <usuario> hub_roundtrip`, o el job `migrations` de CI |
 | Reiniciar worker/beat | `DC restart worker beat` |
 | Estado del proyecto | `python scripts/check_spec_state.py` (agregar `--write` para regenerar la conciliación) |
-| Verificar protección (dueño) | `python scripts/verify_repo_protection.py` con `GH_TOKEN` de admin (pendiente, T-PLT-40) |
+| Verificar protección (dueño) | `python scripts/verify_repo_protection.py` con `GH_TOKEN` de admin |
 
 Notas:
 - pnpm se corre **desde `frontend/`**, no con `pnpm --dir frontend`: corepack elige la versión por el `package.json`

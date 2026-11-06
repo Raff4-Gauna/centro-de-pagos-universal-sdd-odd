@@ -1,7 +1,7 @@
 ---
 spec: SPEC-00
 estado: Aprobado         # aprobado por el usuario junto con la spec (2026-10-31)
-actualizado: 2026-11-06   # §3.2.3 (T-PLT-14, spec 1.0.3); §3.5, §3.6, §3.7.2 (T-PLT-04, spec 1.0.4 y 1.0.5); ADR-0005 Aceptado (spec 1.0.6); §3.3.3 (T-PLT-34, Q-061, spec 1.0.7); §3.6 `ruff.toml` y migraciones (T-PLT-22, sin cambio de spec); §3.2.7 y §10.2 reversibilidad e ida y vuelta, `--allow-data-loss` (T-PLT-24, sin cambio de spec); §3.7.3 `edited`, D-09 y §11.2 (T-PLT-07, spec 1.0.13); §3.2.2 y §7 `X-Forwarded-Proto` (T-PLT-42, Q-065, spec 1.0.15); §3.1, §3.3.3 y §3.5 smoke y AC-29 E2E (T-PLT-38, spec 1.0.16 provisional); §3.3.3 y §7 cita de §3.2.2 y HSTS (Q-065, spec 1.0.17); §3.6 pre-commit del frontend (T-PLT-29, spec 1.0.18); §3.7.1, §3.7.3, §3.7.4 y §11.2 ruleset y verificación (T-PLT-40, spec 1.0.19); §10.2 pnpm desde `frontend/` (T-PLT-41, spec 1.0.20 provisional); §3.6 y §10.2 comandos alineados con `AGENTS.md` (T-PLT-41, spec 1.0.20 provisional)
+actualizado: 2026-11-06   # §3.2.3 (T-PLT-14, spec 1.0.3); §3.5, §3.6, §3.7.2 (T-PLT-04, spec 1.0.4 y 1.0.5); ADR-0005 Aceptado (spec 1.0.6); §3.3.3 (T-PLT-34, Q-061, spec 1.0.7); §3.6 `ruff.toml` y migraciones (T-PLT-22, sin cambio de spec); §3.2.7 y §10.2 reversibilidad e ida y vuelta, `--allow-data-loss` (T-PLT-24, sin cambio de spec); §3.7.3 `edited`, D-09 y §11.2 (T-PLT-07, spec 1.0.13); §3.2.2 y §7 `X-Forwarded-Proto` (T-PLT-42, Q-065, spec 1.0.15); §3.1, §3.3.3 y §3.5 smoke y AC-29 E2E (T-PLT-38, spec 1.0.16 provisional); §3.3.3 y §7 cita de §3.2.2 y HSTS (Q-065, spec 1.0.17); §3.6 pre-commit del frontend (T-PLT-29, spec 1.0.18); §3.7.1, §3.7.3, §3.7.4 y §11.2 ruleset y verificación (T-PLT-40, spec 1.0.19); §10.2 pnpm desde `frontend/` (T-PLT-41, spec 1.0.20); §3.6 y §10.2 comandos alineados con `AGENTS.md` (T-PLT-41, spec 1.0.20)
 ---
 # Diseño — Módulo de Plataforma (fundaciones)
 
@@ -619,7 +619,7 @@ documenta los prefijos (`context/03`, `context/09`). No toca el placeholder ni u
   completo; (4) squash. Para mergear exactamente lo verificado usa `gh pr merge --squash --match-head-commit
   <sha>`. **Ante cualquier duda** (check flaky, re-run manual, scope drift, Q abierta, cambio de ruleset/ajustes,
   advertencias nuevas) el PR queda para que mergee el usuario. Re-ejecutar `zona-roja` tras un veredicto, o quitar y
-  poner el label, no es re-run manual (Q-064). Todo PR que toque `zona-roja.yml` lo mergea el usuario (Q-063). La regla va a `AGENTS.md` en la tarea de RF-PLT-16.
+  poner el label, no es re-run manual (Q-064). Todo PR que agregue o cambie un archivo de `.github/workflows/` lo mergea el usuario (Q-063). La regla va a `AGENTS.md` en la tarea de RF-PLT-16.
   Técnicamente el ruleset no distingue (0 aprobaciones, mismo token): es regla de proceso respaldada por los checks.
 
 ## 4. Flujos principales

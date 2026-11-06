@@ -16,7 +16,7 @@ fase: cierre (Implemented pendiente)
 
 | Módulo | Spec | Tareas | Código | Nota |
 |---|---|---|---|---|
-| 00-platform | Approved 1.0.19 | 39 ✅ · 1 🟡 · 2 ☐ (42) | 39 de 42 tareas | Verificación **Con hallazgos** |
+| 00-platform | Approved 1.0.20 | 39 ✅ · 1 🟡 · 2 ☐ (42) | 39 de 42 tareas | Verificación **Con hallazgos** |
 | 01-identity-access | Approved | sin `tasks.md` | 0 % | Depende de 00 |
 | 02-tenancy-rbac | Approved | sin `tasks.md` | 0 % | Se cierra junto con 01 (Q-108) |
 | 03-integrations-engine | Draft | — | 0 % | Falta cerrar el contrato del motor |
@@ -33,7 +33,7 @@ fase: cierre (Implemented pendiente)
 - **Requisito vigente para hosting (Q-065):** el puerto del backend no se expone a internet y el HTTPS queda a cargo
   del frente. **Webhooks:** ruta de entrada sin definir; abrir un `Q-xxx` al redactar ese módulo.
 - **Merge de #48:** lo hizo Claude como excepción puntual autorizada por el dueño. La regla de Q-063 sigue vigente:
-  los PR que toquen `zona-roja.yml` los mergea él.
+  los PR que agreguen o cambien archivos de `.github/workflows/` los mergea él.
 - **Dependabot:** 7 PR abiertos desde el 2026-11-03 (#25–#31), sin triaje: un grupo de parches (#25) y seis saltos de
   versión mayor (Django 6.1, redis 8, Tailwind 4, mypy 2, django-stubs-ext 6, @types/node 26). #26 (mypy) falla en
   `typecheck`. Sus checks son de cuando se abrieron: 8 jobs, sin `migrations`.
