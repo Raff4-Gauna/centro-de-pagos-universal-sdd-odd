@@ -16,7 +16,7 @@ fase: cierre (Implemented pendiente)
 
 | Módulo | Spec | Tareas | Código | Nota |
 |---|---|---|---|---|
-| 00-platform | Approved 1.0.17 (provisional) | 39 ✅ · 1 🟡 · 2 ☐ (42) | 39 de 42 tareas | Verificación **Con hallazgos** |
+| 00-platform | Approved 1.0.18 | 39 ✅ · 1 🟡 · 2 ☐ (42) | 39 de 42 tareas | Verificación **Con hallazgos** |
 | 01-identity-access | Approved | sin `tasks.md` | 0 % | Depende de 00 |
 | 02-tenancy-rbac | Approved | sin `tasks.md` | 0 % | Se cierra junto con 01 (Q-108) |
 | 03-integrations-engine | Draft | — | 0 % | Falta cerrar el contrato del motor |

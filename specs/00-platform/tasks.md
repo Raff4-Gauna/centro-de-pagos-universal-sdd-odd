@@ -1517,7 +1517,7 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   hook falla (exit 2), no se saltea.
 - **Desvíos de la ficha:** (1) `pnpm exec` con `frontend/` como directorio de trabajo, no `pnpm --dir frontend exec`:
   con corepack, desde la raíz arranca la versión por defecto (12.18.0) y pnpm la rechaza (`ERR_PNPM_BAD_PM_VERSION`);
-  `design.md §3.6`, spec 1.0.16 (número provisional). (2) En Windows cada argumento va entre comillas: el shim
+  `design.md §3.6`, spec 1.0.18. (2) En Windows cada argumento va entre comillas: el shim
   `pnpm.CMD` corta en el `)` de `(dashboard)`; ver "Revisión, inyección". (3) Primero se busca `pnpm.cmd`: `shutil.which("pnpm")` de Python 3.12.0
   devolvía el script sh que corepack deja al lado (`WinError 193`). (4) 290 líneas de diff, sobre las 200 de una M.
 - **Verificación manual** (copia del árbol, contenedor `python:3.12.16-slim-trixie` + Node 24.22.2 + pnpm 12.16.1 +
