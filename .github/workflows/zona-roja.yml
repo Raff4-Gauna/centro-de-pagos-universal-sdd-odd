@@ -1,0 +1,31 @@
+# Check `zona-roja` (design.md §3.7.3, AC-PLT-32, RN-PLT-12): a PR with the label or touching
+# red-zone paths needs the label and an APROBADO reviewer verdict citing its head SHA.
+# Rules: no `paths:` nor `branches:` filter (a filtered required check stays pending forever); no
+# code of the PR runs: the checkout is the base SHA, so script and path list are the base's (D-09)
+# and the PR data comes from the API. No `issue_comment` trigger (D-08): after publishing a verdict,
+# re-run this check (`gh run rerun`) or remove and re-add the label. Stdlib only: no setup step.
+name: zona-roja
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: read
+  issues: read
+
+jobs:
+  # Required check: name stable (design.md §6.3) and no job-level `if:`.
+  zona-roja:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+      - name: check_zona_roja.py
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 scripts/check_zona_roja.py

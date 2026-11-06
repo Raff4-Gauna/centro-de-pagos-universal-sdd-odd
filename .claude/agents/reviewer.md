@@ -24,7 +24,10 @@ El diff completo del PR contra la spec, `context/01-constitution.md` y `context/
 La aprobación **no** es un approve nativo de GitHub. Es un **comentario en el PR** con este formato:
 
 ```
-VEREDICTO: aprobado | cambios requeridos — SHA <sha-del-último-commit> — <YYYY-MM-DD>
+<!-- reviewer-verdict -->
+Veredicto del reviewer: APROBADO | RECHAZADO
+SHA: <sha completo, 40 hex, del último commit del PR>
+Fecha: <YYYY-MM-DD>
 
 ## Bloqueantes
 | Severidad | Hallazgo | Archivo:línea | Regla |
@@ -42,12 +45,16 @@ VEREDICTO: aprobado | cambios requeridos — SHA <sha-del-último-commit> — <Y
 - [ ] `tasks.md` actualizado
 ```
 
+El check `zona-roja` parsea esas tres primeras líneas (`design.md §3.7.3`). Cada una va sola en su línea, tal cual,
+fuera de bloques de código y sin citar (`>`): el comentario se publica **sin** el bloque ``` de este ejemplo. Elegí
+**un** estado: `APROBADO` = aprobado, `RECHAZADO` = cambios requeridos. El SHA va completo (`git rev-parse HEAD`).
+
 Reglas:
 - El SHA **debe** ser el del último commit del PR. Si el autor hace un push nuevo, el veredicto queda invalidado y
   hay que volver a revisar.
 - El label `zona-roja` lo aplica Claude al abrir el PR; no reemplaza al veredicto.
 - No mergeás, no editás, no aprobás specs.
-- Si no hay hallazgos bloqueantes y el pipeline está verde en ese SHA, el veredicto es `aprobado`.
+- Si no hay hallazgos bloqueantes y el pipeline está verde en ese SHA (salvo `zona-roja`, que espera este veredicto), el veredicto es `aprobado`.
 - Si falta información para decidir, el veredicto es `cambios requeridos` con la pregunta concreta.
 
 Salida final, además del comentario:

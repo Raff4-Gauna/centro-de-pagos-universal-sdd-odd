@@ -1,8 +1,13 @@
 """Decision of the ``zona-roja`` check (AC-PLT-32, RN-PLT-12, design.md sec. 3.7.3).
 
-Pure logic, no network (T-PLT-06). The GitHub API calls, ``main()`` and the workflow come in
-T-PLT-07: they collect the PR data (changed files with old and new names, labels, comments and each
-author's permission) and hand it to ``evaluate``.
+Usage (CI, ``.github/workflows/zona-roja.yml``, from a checkout of the PR's base SHA, D-09):
+    python3 scripts/check_zona_roja.py [--rules PATH]
+
+``evaluate`` is the pure decision (T-PLT-06). ``main()`` (T-PLT-07) reads the PR number and head SHA
+from ``$GITHUB_EVENT_PATH``, collects the PR data from the GitHub API (``github_api.py``: changed
+files with old and new names, labels, comments, each verdict author's permission), hands it to
+``evaluate`` and writes the result to stdout and ``$GITHUB_STEP_SUMMARY``. Exit 0 passed, 1 failed,
+2 not verified (any API error or unexpected data: the check fails closed).
 
 Rules:
 
@@ -10,9 +15,10 @@ Rules:
 - Red-zone paths without the label: fails.
 - With the label (red paths or not): needs a reviewer verdict. Only comments that carry the marker
   ``<!-- reviewer-verdict -->``, a line ``Veredicto del reviewer: APROBADO|RECHAZADO`` and a line
-  ``SHA: <40 hex>`` are verdicts; the ones whose author lacks ``write``/``maintain``/``admin``
-  permission, or that do not cite the head SHA, are discarded. The latest remaining one (by
-  ``updated_at``; on a tie RECHAZADO wins) must be APROBADO.
+  ``SHA: <40 hex>`` are verdicts (lines inside fenced or indented code blocks do not count); the
+  ones whose author lacks ``write``/``maintain``/``admin`` permission, or that do not cite the head
+  SHA, are discarded. The latest remaining one (by ``updated_at``, compared in UTC; on a tie
+  RECHAZADO wins) must be APROBADO. The verdict format lives in ``zona_roja_verdict.py``.
 
 The red-zone paths live in ``.github/zona-roja-paths.txt`` (syntax documented in that file), with
 globs from ``glob_paths``. Stdlib only.
@@ -20,29 +26,33 @@ globs from ``glob_paths``. Stdlib only.
 
 from __future__ import annotations
 
+import argparse
+import json
+import os
 import re
-from collections.abc import Iterable, Sequence
+import sys
+import urllib.parse
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
-from datetime import datetime
 from pathlib import Path
-from typing import Literal
 
+from github_api import DEFAULT_API_URL, GitHubAPIError, GitHubClient, Transport, urllib_transport
 from glob_paths import compile_glob, matches
+from zona_roja_verdict import (
+    Comment,
+    CountedVerdict,
+    latest_verdict,
+    parse_timestamp,
+    parse_verdict,
+)
 
 LABEL = "zona-roja"
-VERDICT_MARKER = "<!-- reviewer-verdict -->"
-# `permission` values of GET /repos/{o}/{r}/collaborators/{u}/permission (role_name: maintain).
-WRITE_PERMISSIONS = frozenset({"admin", "maintain", "write"})
 DEFAULT_RULES_FILE = Path(__file__).resolve().parent.parent / ".github" / "zona-roja-paths.txt"
-
-Status = Literal["APROBADO", "RECHAZADO"]
+EXIT_PASSED, EXIT_FAILED, EXIT_NOT_VERIFIED = 0, 1, 2
+SUMMARY_MAX_PATHS = 100
 
 _SHA_RE = re.compile(r"[0-9a-f]{40}")
-# Whole lines only: a quoted (`> ...`) or decorated line is not a verdict.
-_VERDICT_LINE_RE = re.compile(
-    r"^[ \t]*Veredicto del reviewer:[ \t]*(APROBADO|RECHAZADO)[ \t]*$", re.M
-)
-_SHA_LINE_RE = re.compile(r"^[ \t]*SHA:[ \t]*([0-9a-fA-F]{40})[ \t]*$", re.M)
+_REPO_RE = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+")
 
 
 @dataclass(frozen=True)
@@ -69,34 +79,6 @@ class ChangedFile:
 
     path: str
     previous_path: str | None = None
-
-
-@dataclass(frozen=True)
-class Comment:
-    """A PR comment, with its author's repository permission as the API reports it."""
-
-    author: str
-    permission: str
-    body: str
-    updated_at: datetime
-
-
-@dataclass(frozen=True)
-class Verdict:
-    """A parsed reviewer verdict. ``sha`` is lowercase."""
-
-    status: Status
-    sha: str
-
-
-@dataclass(frozen=True)
-class CountedVerdict:
-    """The verdict that decided the check, and who published it."""
-
-    author: str
-    status: Status
-    sha: str
-    updated_at: datetime
 
 
 @dataclass(frozen=True)
@@ -155,40 +137,6 @@ def red_paths(paths: Iterable[str], rules: Sequence[RedRule]) -> tuple[str, ...]
     return tuple(sorted({path for path in paths if any(rule.matches(path) for rule in rules)}))
 
 
-def parse_verdict(body: str) -> Verdict | None:
-    """Parse a verdict comment; ``None`` if it is not one (or cites no single SHA).
-
-    Contradictory verdict lines in one comment count as RECHAZADO (never as an approval).
-    """
-    text = body.replace("\r\n", "\n").replace("\r", "\n")
-    if VERDICT_MARKER not in text:
-        return None
-    statuses = set(_VERDICT_LINE_RE.findall(text))
-    shas = {sha.lower() for sha in _SHA_LINE_RE.findall(text)}
-    if not statuses or len(shas) != 1:
-        return None
-    status: Status = "APROBADO" if statuses == {"APROBADO"} else "RECHAZADO"
-    return Verdict(status=status, sha=shas.pop())
-
-
-def latest_verdict(comments: Iterable[Comment], head_sha: str) -> CountedVerdict | None:
-    """The latest verdict that counts: by a writer and citing ``head_sha`` (lowercase)."""
-    counted: list[CountedVerdict] = []
-    for comment in comments:
-        if comment.permission not in WRITE_PERMISSIONS:
-            continue
-        parsed = parse_verdict(comment.body)
-        if parsed is None or parsed.sha != head_sha:
-            continue
-        counted.append(
-            CountedVerdict(comment.author, parsed.status, parsed.sha, comment.updated_at)
-        )
-    if not counted:
-        return None
-    # Latest first; on a tie RECHAZADO sorts before APROBADO, so a rejection is never hidden.
-    return max(counted, key=lambda verdict: (verdict.updated_at, verdict.status == "RECHAZADO"))
-
-
 def evaluate(
     changed_paths: Iterable[str],
     labels: Iterable[str],
@@ -224,3 +172,122 @@ def evaluate(
         return Result(False, reason, red, has_label, verdict)
     reason = f"reviewer verdict APROBADO on {head} (by {verdict.author})"
     return Result(True, reason, red, has_label, verdict)
+
+
+# --- CLI (T-PLT-07): PR data from the GitHub API, result to stdout and the step summary ---
+
+
+def _str(obj: object, *keys: str) -> str:
+    """``obj[k1][k2]...`` as a non-empty string; anything else raises ``GitHubAPIError``."""
+    for key in keys:
+        obj = obj.get(key) if isinstance(obj, dict) else None
+    if not isinstance(obj, str) or not obj:
+        raise GitHubAPIError(f"unexpected API data: no string at {'.'.join(keys)}")
+    return obj
+
+
+def read_event(environ: Mapping[str, str]) -> tuple[str, int, str]:
+    """(``owner/repo``, PR number, head SHA) of the ``pull_request`` event that started the run."""
+    repo = environ.get("GITHUB_REPOSITORY", "")
+    if _REPO_RE.fullmatch(repo) is None:
+        raise ValueError(f"GITHUB_REPOSITORY is not owner/repo: {repo!r}")
+    event = json.loads(Path(environ.get("GITHUB_EVENT_PATH", "")).read_text(encoding="utf-8"))
+    pull = event.get("pull_request") if isinstance(event, dict) else None
+    number = pull.get("number") if isinstance(pull, dict) else None
+    if not isinstance(number, int) or isinstance(number, bool) or number < 1:
+        raise ValueError("the event has no pull_request.number")
+    return repo, number, _str(pull, "head", "sha").lower()
+
+
+def fetch_pull_request(
+    api: GitHubClient, repo: str, number: int, head: str
+) -> tuple[list[str], list[ChangedFile], list[Comment]]:
+    """Labels, files (old and new names) and, with the label, the verdicts that cite ``head``."""
+    base = f"/repos/{repo}"
+    pull = api.get_object(f"{base}/pulls/{number}")
+    if _str(pull, "head", "sha").lower() != head:
+        raise GitHubAPIError("the PR head moved since this run started (a newer run decides)")
+    raw_labels = pull.get("labels")
+    if not isinstance(raw_labels, list):
+        raise GitHubAPIError("unexpected API data: labels is not a list")
+    labels = [_str(label, "name") for label in raw_labels]
+    files = []
+    for raw in api.get_list(f"{base}/pulls/{number}/files"):
+        old = _str(raw, "previous_filename") if "previous_filename" in raw else None
+        files.append(ChangedFile(_str(raw, "filename"), old))
+    expected = pull.get("changed_files")
+    # The files endpoint lists at most 3000 files: a truncated list could hide a red path.
+    if not isinstance(expected, int) or isinstance(expected, bool) or len(files) != expected:
+        raise GitHubAPIError(f"the API listed {len(files)} of {expected!r} changed files")
+    comments: list[Comment] = []
+    permissions: dict[str, str] = {}
+    for raw in api.get_list(f"{base}/issues/{number}/comments") if LABEL in labels else []:
+        body = raw.get("body") or ""
+        parsed = parse_verdict(body) if isinstance(body, str) else None
+        if parsed is None or parsed.sha != head:
+            continue  # only verdicts citing the head SHA cost a permission lookup
+        author = _str(raw, "user", "login")
+        if author not in permissions:
+            login = urllib.parse.quote(author, safe="")
+            answer = api.get_object(f"{base}/collaborators/{login}/permission")
+            permissions[author] = _str(answer, "permission")
+        updated_at = parse_timestamp(_str(raw, "updated_at"))
+        comments.append(Comment(author, permissions[author], body, updated_at))
+    return labels, files, comments
+
+
+def _code(text: str) -> str:
+    return "`" + re.sub(r"[`\r\n]", "'", text) + "`"
+
+
+def render_summary(result: Result, head: str) -> str:
+    lines = [
+        f"## zona-roja\n\n**{'PASSED' if result.passed else 'FAILED'}**: {result.reason}\n",
+        f"- Head SHA: {_code(head)}",
+        f"- Label `{LABEL}`: {'yes' if result.has_label else 'no'}",
+    ]
+    if (counted := result.verdict) is not None:
+        when = counted.updated_at.isoformat()
+        lines.append(f"- Verdict: {counted.status} by {_code(counted.author)} at {when}")
+    lines.append(f"- Red-zone paths: {len(result.red_paths)}")
+    lines += [f"  - {_code(path)}" for path in result.red_paths[:SUMMARY_MAX_PATHS]]
+    if len(result.red_paths) > SUMMARY_MAX_PATHS:
+        lines.append(f"  - ... and {len(result.red_paths) - SUMMARY_MAX_PATHS} more")
+    return "\n".join(lines) + "\n"
+
+
+def _emit(text: str, summary_path: str | None) -> None:
+    print(text, end="")
+    if summary_path:
+        with Path(summary_path).open("a", encoding="utf-8") as summary:
+            summary.write(text)
+
+
+def main(
+    argv: Sequence[str] | None = None,
+    *,
+    environ: Mapping[str, str] | None = None,
+    transport: Transport = urllib_transport,
+) -> int:
+    parser = argparse.ArgumentParser(description="zona-roja check (AC-PLT-32).")
+    parser.add_argument("--rules", type=Path, default=DEFAULT_RULES_FILE)
+    args = parser.parse_args(argv)
+    env = os.environ if environ is None else environ
+    summary_path = env.get("GITHUB_STEP_SUMMARY")
+    try:
+        rules = load_rules(args.rules)
+        repo, number, head = read_event(env)
+        api_url = env.get("GITHUB_API_URL") or DEFAULT_API_URL
+        api = GitHubClient(env.get("GITHUB_TOKEN", ""), api_url=api_url, transport=transport)
+        labels, files, comments = fetch_pull_request(api, repo, number, head)
+        result = evaluate(changed_paths(files), labels, comments, head, rules=rules)
+    # OSError: event or rules file unreadable; ValueError: bad JSON, rules, SHA or timestamp.
+    except (GitHubAPIError, OSError, ValueError) as exc:
+        _emit(f"## zona-roja\n\n**NOT VERIFIED**: {exc}\n", summary_path)
+        return EXIT_NOT_VERIFIED
+    _emit(render_summary(result, head), summary_path)
+    return EXIT_PASSED if result.passed else EXIT_FAILED
+
+
+if __name__ == "__main__":
+    sys.exit(main())

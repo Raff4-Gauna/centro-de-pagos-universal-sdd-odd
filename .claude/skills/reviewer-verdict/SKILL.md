@@ -30,7 +30,10 @@ allowed-tools: Read, Grep, Glob, Bash
 
 ## Formato
 ```
-VEREDICTO: aprobado | cambios requeridos — SHA <sha> — <YYYY-MM-DD>
+<!-- reviewer-verdict -->
+Veredicto del reviewer: APROBADO | RECHAZADO
+SHA: <sha completo, 40 hex, del último commit del PR>
+Fecha: <YYYY-MM-DD>
 
 ## Bloqueantes
 | Severidad | Hallazgo | Archivo:línea | Regla |
@@ -49,12 +52,16 @@ VEREDICTO: aprobado | cambios requeridos — SHA <sha> — <YYYY-MM-DD>
 - [ ] Sin secretos/PII
 ```
 
+El check `zona-roja` parsea esas tres primeras líneas (`design.md §3.7.3`). Cada una va sola en su línea, tal cual,
+fuera de bloques de código y sin citar (`>`): el comentario se publica **sin** el bloque ``` de este ejemplo. Elegí
+**un** estado: `APROBADO` = aprobado, `RECHAZADO` = cambios requeridos. El SHA va completo (`git rev-parse HEAD`).
+
 ## Reglas del proyecto
 - 0 aprobaciones nativas de GitHub: la aprobación es el comentario + el label `zona-roja` + el check en verde sobre
   ese SHA.
 - `reviewer` no edita archivos ni mergea.
 - Con bloqueantes, el veredicto es `cambios requeridos` y el PR no se mergea.
-- Sin bloqueantes y con pipeline verde en ese SHA, el veredicto es `aprobado`.
+- Sin bloqueantes y con pipeline verde en ese SHA (salvo `zona-roja`, que espera este veredicto), el veredicto es `aprobado`.
 - El merge lo hace Claude solo con certeza total: pipeline completo en verde, veredicto sin bloqueantes, DoD y squash; ante cualquier duda, mergea el dueño (Q-057).
 
 ## Errores típicos
