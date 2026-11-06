@@ -1,7 +1,7 @@
 ---
 spec: SPEC-00
 estado: Aprobado         # aprobado por el usuario junto con la spec (2026-10-31)
-actualizado: 2026-11-06   # §3.2.3 (T-PLT-14, spec 1.0.3); §3.5, §3.6, §3.7.2 (T-PLT-04, spec 1.0.4 y 1.0.5); ADR-0005 Aceptado (spec 1.0.6); §3.3.3 (T-PLT-34, Q-061, spec 1.0.7); §3.6 `ruff.toml` y migraciones (T-PLT-22, sin cambio de spec); §3.2.7 y §10.2 reversibilidad e ida y vuelta, `--allow-data-loss` (T-PLT-24, sin cambio de spec); §3.7.3 `edited`, D-09 y §11.2 (T-PLT-07, spec 1.0.13); §3.2.2 y §7 `X-Forwarded-Proto` (T-PLT-42, Q-065, spec 1.0.15); §3.1, §3.3.3 y §3.5 smoke y AC-29 E2E (T-PLT-38, spec 1.0.16 provisional)
+actualizado: 2026-11-06   # §3.2.3 (T-PLT-14, spec 1.0.3); §3.5, §3.6, §3.7.2 (T-PLT-04, spec 1.0.4 y 1.0.5); ADR-0005 Aceptado (spec 1.0.6); §3.3.3 (T-PLT-34, Q-061, spec 1.0.7); §3.6 `ruff.toml` y migraciones (T-PLT-22, sin cambio de spec); §3.2.7 y §10.2 reversibilidad e ida y vuelta, `--allow-data-loss` (T-PLT-24, sin cambio de spec); §3.7.3 `edited`, D-09 y §11.2 (T-PLT-07, spec 1.0.13); §3.2.2 y §7 `X-Forwarded-Proto` (T-PLT-42, Q-065, spec 1.0.15); §3.1, §3.3.3 y §3.5 smoke y AC-29 E2E (T-PLT-38, spec 1.0.16 provisional); §3.3.3 y §7 cita de §3.2.2 y HSTS (Q-065, spec 1.0.17)
 ---
 # Diseño — Módulo de Plataforma (fundaciones)
 
@@ -354,6 +354,9 @@ en `modules/` (cuenta para cobertura). Sin protección de rutas ni datos.
   `content-length` no numérico → `411 bff.length_required` sin llamar al backend (sin ninguno de los dos no hay
   body, RFC 9112 §6.3: Next entrega un stream vacío hasta en un DELETE sin cuerpo); el log del 502 lleva
   `reason` (`config`/`network`/`client_abort`, nunca en la respuesta) y el corte del navegador se loguea como `info`.
+  **(Q-065, T-PLT-42)**: además de la allowlist, el BFF fija `X-Forwarded-Proto: https` hacia el backend; el detalle
+  está en §3.2.2. `Strict-Transport-Security` no está en la allowlist de respuesta: en `/api/*` el HSTS de Django no
+  llega al navegador (§7).
 - `app/api/health/route.ts` → `{"status":"ok"}` sin llamar al backend.
 - `lib/server/env.ts`: `BACKEND_INTERNAL_URL` leída en runtime, validada. **Ninguna** variable `NEXT_PUBLIC_` en 00.
   `lib/server/*` con `import "server-only"`.
@@ -670,7 +673,8 @@ Nombres de jobs = checks requeridos: `lint`, `file-size`, `secrets`, `deps-audit
 - **Ingreso al backend (Q-065):** el puerto del backend **no** queda expuesto a internet: Django confía en
   `X-Forwarded-Proto: https` (`SECURE_PROXY_SSL_HEADER`) y quien llegue directo podría falsificarla. El BFF pisa
   esa cabecera con un valor constante (§3.2.2). Como ese valor no depende de cómo llegó el navegador, el paso a
-  HTTPS de `/api/*` queda a cargo de lo que esté delante del BFF (hosting, Q-020).
+  HTTPS de `/api/*` queda a cargo de lo que esté delante del BFF (hosting, Q-020), y también su HSTS: el de Django
+  no llega al navegador por esa ruta (§3.3.3).
 
 ## 8. Tecnologías y dependencias
 > Verificadas el **2026-10-31** (PyPI, npm, Docker Hub, GitHub Releases). Versión exacta (`==` en `pyproject.toml`,
