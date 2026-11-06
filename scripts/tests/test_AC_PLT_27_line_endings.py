@@ -120,6 +120,28 @@ def test_RF_PLT_12_precommit_runs_lf_ruff_file_size_and_gitleaks() -> None:
     assert {"no-commit-to-branch", "detect-private-key", "check-added-large-files"} <= present
 
 
+def test_RF_PLT_12_check_yaml_relaxes_only_the_two_files_that_need_it() -> None:
+    config = load_config()
+    instances = [h for repo in config["repos"] for h in repo["hooks"] if h["id"] == "check-yaml"]
+    strict, relaxed = instances
+    needs_relaxing = ("frontend/pnpm-lock.yaml", "infra/docker-compose.ci.yml")
+
+    assert "args" not in strict
+    assert "files" not in strict
+    assert all(skips(strict, path) for path in needs_relaxing)
+    assert skips(strict, LEGACY_FILE)
+    assert not any(skips(strict, path) for path in ("infra/docker-compose.yml", ".github/a.yml"))
+
+    assert relaxed["args"] == ["--unsafe"]
+    assert all(re.search(relaxed["files"], path) for path in needs_relaxing)
+    others = (
+        "infra/docker-compose.yml",
+        "frontend/pnpm-workspace.yaml",
+        "x/frontend/pnpm-lock.yaml",
+    )
+    assert not any(re.search(relaxed["files"], path) for path in others)
+
+
 def test_AC_PLT_13_precommit_runs_check_file_size_on_code_files() -> None:
     hook = hooks(load_config())["check-file-size"]
 

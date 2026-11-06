@@ -18,8 +18,15 @@ repos:
         exclude: *legacy
       - id: trailing-whitespace
         exclude: ^context/legacy-source/|\.md$
+      # Two instances, so the relaxed one reaches only the two files that need it: the lockfile
+      # has two documents (pnpm 12) and the CI override uses Compose's `!reset` tag.
       - id: check-yaml
-        args: [--allow-multiple-documents]
+        exclude: ^context/legacy-source/|^frontend/pnpm-lock\.yaml$|^infra/docker-compose\.ci\.yml$
+      # --unsafe only parses: it accepts both, but also duplicate keys. Never on the whole repo.
+      - id: check-yaml
+        name: check yaml (syntax only)
+        args: [--unsafe]
+        files: ^(frontend/pnpm-lock\.yaml|infra/docker-compose\.ci\.yml)$
         exclude: *legacy
       - id: check-toml
         exclude: *legacy
