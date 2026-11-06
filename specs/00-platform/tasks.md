@@ -65,7 +65,7 @@ Reglas: rebanada vertical · ≤ ~300 líneas de diff · mergeable sola · cita 
 
 ## Resumen
 
-> Conciliado con `git log` el 2026-11-06: 39 tareas mergeadas (`✅`), T-PLT-29 y T-PLT-41 en revisión (`🟡`) y 1 pendiente (`☐`).
+> Conciliado con `git log` el 2026-11-06: las 42 tareas mergeadas (`✅`). Mergeada no es aplicada: el ruleset de T-PLT-40 está versionado y sin aplicar.
 > La columna **Evidencia** es obligatoria para `✅` y la verifica `scripts/check_spec_state.py`.
 
 | ID | Título | AC | Capa | Archivos esperados (ver detalle) | Depende de | Agente | Tamaño | Zona roja | Estado | Evidencia |
@@ -98,7 +98,7 @@ Reglas: rebanada vertical · ≤ ~300 líneas de diff · mergeable sola · cita 
 | T-PLT-26 | Compose de desarrollo (db, redis, backend, worker, beat) | AC-PLT-01 (parcial), AC-PLT-02 (manual) | Infra | `infra/docker-compose.yml` | T-PLT-11, T-PLT-17, T-PLT-25 | backend-dev | L | Sí | ✅ | #40 · 3033f63 |
 | T-PLT-27 | Frontend: proyecto Next + toolchain + CI frontend | AC-PLT-21 (frontend) | Frontend/CI | `frontend/package.json`, `tsconfig.json`, … | T-PLT-03 | frontend-dev | L | Sí | ✅ | #21 · 09549c8 |
 | T-PLT-28 | Auditoría de dependencias + Dependabot | AC-PLT-26 | CI | `scripts/audit_deps.py`, `.github/dependabot.yml` | T-PLT-27 | backend-dev | L | Sí | ✅ | #24 · cc1d662 |
-| T-PLT-29 | Pre-commit de eslint/prettier | — (RF-PLT-12) | Infra | `scripts/precommit_frontend.py` | T-PLT-04, T-PLT-27 | frontend-dev | M | Sí | 🟡 | PR #52 abierto |
+| T-PLT-29 | Pre-commit de eslint/prettier | — (RF-PLT-12) | Infra | `scripts/precommit_frontend.py` | T-PLT-04, T-PLT-27 | frontend-dev | M | Sí | ✅ | #52 · d17daa8 |
 | T-PLT-30 | Base visual: tokens, tema, estados de carga | AC-PLT-28 (parcial), AC-PLT-22 (FE) | UI | `src/lib/{design-tokens,theme,query-client}.ts`, `src/components/*` | T-PLT-21, T-PLT-27 | frontend-dev | L | Sí | ✅ | #33 · 8f1059e |
 | T-PLT-31 | Shell `(dashboard)` + Inicio | AC-PLT-28 | UI | `src/components/shell/*`, `app/(dashboard)/inicio/*` | T-PLT-30 | frontend-dev | L | No | ✅ | #36 · 264e523 |
 | T-PLT-32 | Configuración (secciones deshabilitadas) | AC-PLT-28 | UI | `app/(dashboard)/configuracion/*`, `src/modules/settings/*` | T-PLT-31 | frontend-dev | M | No | ✅ | #39 · 0d46f55 |
@@ -109,8 +109,8 @@ Reglas: rebanada vertical · ≤ ~300 líneas de diff · mergeable sola · cita 
 | T-PLT-37 | Job `build` (imágenes por SHA, no root) | AC-PLT-25, AC-PLT-20 | CI | `infra/docker-compose.ci.yml`, `ci.yml` | T-PLT-24, T-PLT-36 | backend-dev | M | Sí | ✅ | #50 · 4c6fed8 |
 | T-PLT-38 | Smoke del stack en el paso 9 | AC-PLT-01, AC-PLT-02, AC-PLT-10, AC-PLT-29 (E2E) | CI | `scripts/smoke_stack.py` | T-PLT-15, T-PLT-37, T-PLT-42 | backend-dev | L | Sí | ✅ | #53 · f24d509 |
 | T-PLT-39 | `env.example` + `spikes/env.example` + paridad | AC-PLT-05, AC-PLT-06, AC-PLT-01 | Config | `env.example`, `spikes/env.example` | T-PLT-09, T-PLT-12, T-PLT-16, T-PLT-26, T-PLT-33 | backend-dev | M | Sí | ✅ | #45 · 6acc087 |
-| T-PLT-40 | Ruleset de `main` + verificación de protección | AC-PLT-24, AC-PLT-20 (cierre) | Gobierno | `.github/rulesets/main.json`, `scripts/verify_repo_protection.py` | T-PLT-07, T-PLT-10, T-PLT-19, T-PLT-21, T-PLT-24, T-PLT-28, T-PLT-38 | backend-dev (+ dueño) | L | Sí | 🟡 | — |
-| T-PLT-41 | "Comandos de desarrollo" en `AGENTS.md` + `infra/README.md` | — (RF-PLT-16) | Docs | `AGENTS.md`, `infra/README.md` | T-PLT-38, T-PLT-40 | backend-dev | S | No | 🟡 | — |
+| T-PLT-40 | Ruleset de `main` + verificación de protección | AC-PLT-24, AC-PLT-20 (cierre) | Gobierno | `.github/rulesets/main.json`, `scripts/verify_repo_protection.py` | T-PLT-07, T-PLT-10, T-PLT-19, T-PLT-21, T-PLT-24, T-PLT-28, T-PLT-38 | backend-dev (+ dueño) | L | Sí | ✅ | #55 · 49a9f91 |
+| T-PLT-41 | "Comandos de desarrollo" en `AGENTS.md` + `infra/README.md` | — (RF-PLT-16) | Docs | `AGENTS.md`, `infra/README.md` | T-PLT-38, T-PLT-40 | backend-dev | S | No | ✅ | #56 · 82cd31c |
 | T-PLT-42 | BFF: `X-Forwarded-Proto: https` hacia el backend | — (RF-PLT-06, Q-065) | BFF | `src/lib/server/backend-proxy.ts` | T-PLT-09, T-PLT-33 | frontend-dev | S | No (reviewer recomendado) | ✅ | #51 · 2d53815 |
 
 ## Cobertura AC → tareas
@@ -1837,6 +1837,9 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
 - **Verificación manual (dueño):** aplicar `main.json` con `gh api` + ajustes por UI (los checks ya corrieron al menos
   una vez); `python scripts/verify_repo_protection.py` con `GH_TOKEN` de admin propio → 0; PR de sacrificio con un error
   de lint → `lint` rojo, `build` no corre y el PR figura no mergeable.
+- **Nota (merge, 2026-11-06):** #55 lo mergeó Claude como excepción puntual a Q-057, autorizada por el dueño
+  (comentario en #55). Ese merge solo agrega archivos: el ruleset **no está aplicado** (`GET /rulesets` → `[]`), y
+  aplicarlo sigue siendo solo del dueño.
 
 ### T-PLT-42 — BFF: `X-Forwarded-Proto: https` hacia el backend
 - **AC:** ninguno propio. RF-PLT-06, Q-065. **Zona roja:** no (reviewer recomendado, como T-PLT-33/34).
@@ -1870,7 +1873,9 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
   `§10.2` y `spec.sdd.md` (Historial, 1.0.20 provisional): pnpm desde `frontend/`, y `§10.2` igual a `AGENTS.md`.
   Ampliación decidida por la sesión principal, no por el dueño. También suma el comando del ruleset en
   `infra/README.md`, sin probar, y el paso 5 de "Cierre de sesión" de `AGENTS.md`. (2) La ficha
-  depende de T-PLT-40, sin mergear: `verify_repo_protection.py` no existe y su fila sigue "pendiente", sin probar. (3)
+  depende de T-PLT-40, que entró antes de este merge (#55, `49a9f91`): `verify_repo_protection.py` ya existe y su fila
+  de `AGENTS.md` no dice "pendiente", pero el comando sigue sin probarse contra GitHub porque el ruleset no está
+  aplicado. (3)
   **Comandos corregidos al probarlos:** `pnpm --dir frontend …` da `ERR_PNPM_BAD_PM_VERSION` bajo corepack; `exec backend
   mypy . ../scripts` y `exec frontend pnpm openapi:types` fallan porque `scripts/` y el contrato no están montados. (4)
   **Límites que quedan en `pytest` del contenedor:** dos tests leen `.github/` y fallan siempre ahí; pasan en CI. (5)
@@ -1929,7 +1934,7 @@ Pasa a `Verified` solo con el OK explícito del dueño. Ningún agente lo marca 
 | T-PLT-26 | #40 | 3033f63 | ✅ |
 | T-PLT-27 | #21 | 09549c8 | ✅ |
 | T-PLT-28 | #24 | cc1d662 | ✅ |
-| T-PLT-29 | #52 | — | 🟡 |
+| T-PLT-29 | #52 | d17daa8 | ✅ |
 | T-PLT-30 | #33 | 8f1059e | ✅ |
 | T-PLT-31 | #36 | 264e523 | ✅ |
 | T-PLT-32 | #39 | 0d46f55 | ✅ |
@@ -1940,7 +1945,7 @@ Pasa a `Verified` solo con el OK explícito del dueño. Ningún agente lo marca 
 | T-PLT-37 | #50 | 4c6fed8 | ✅ |
 | T-PLT-38 | #53 | f24d509 | ✅ |
 | T-PLT-39 | #45 | 6acc087 | ✅ |
-| T-PLT-40 | — | — | 🟡 |
-| T-PLT-41 | — | — | ☐ |
+| T-PLT-40 | #55 | 49a9f91 | ✅ |
+| T-PLT-41 | #56 | 82cd31c | ✅ |
 | T-PLT-42 | #51 | 2d53815 | ✅ |
 <!-- check_spec_state:end -->
