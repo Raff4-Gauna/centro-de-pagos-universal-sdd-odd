@@ -139,6 +139,10 @@ comparten la cola del broker con el servicio `worker`, que les roba las tareas: 
 `specs/_contracts/` y los dos `env.example` están montados: esos corren en el host o en CI (los dos cruces de
 `test_AC_PLT_05_…` contra `infra/` y `frontend/` se saltean en el contenedor).
 
+Por lo mismo, `exec backend mypy . ../scripts` y `exec frontend pnpm openapi:types` fallan: `scripts/` no está montado
+en `backend` ni `specs/_contracts/` en `frontend`. Las formas que funcionan están en "Comandos de desarrollo" de
+`AGENTS.md`.
+
 ### Qué esperar cuando algo cae
 - `docker compose … stop redis` → `/readyz` 503 (`{"status": "unavailable"}`, la causa solo en el log
   `health.not_ready`) y `/healthz` sigue en 200; `backend` pasa a `unhealthy` y el worker loguea que reintenta
