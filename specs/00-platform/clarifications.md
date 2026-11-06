@@ -189,9 +189,7 @@ estas preguntas respecta.
 - Q-058: rutas del propio gate (`.github/**`, `scripts/**`, configs de lint/tests) como zona roja (recomendado: sí; aplicado provisoriamente).
 - **Q-059 (decide el usuario):** actualizar versiones de Q-029 ya superadas (Celery 5.6, MUI v9, Tailwind v4) — conviene antes de *Approved*.
 - Q-060: prerrequisitos del host para pre-commit (recomendado: Node 24 + pnpm en el host).
-- **Q-063, Q-064 (cerradas, 2026-11-06):** decididas por el usuario; ver la tabla.
 - Q-028: solo bloquea SPEC-12.
-- **Q-065 (cerrada, 2026-11-06):** decidida por el dueño; ver la tabla.
 
 > ⚠️ **Nota sobre Q-002 (impacto de alcance):** meter Point en el MVP agrega un adaptador completo (selección de
 > terminal, envío de monto al dispositivo, confirmación por evento del dispositivo — ver
