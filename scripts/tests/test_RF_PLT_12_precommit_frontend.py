@@ -157,6 +157,49 @@ def test_RF_PLT_12_windows_quotes_every_argument(monkeypatch: pytest.MonkeyPatch
     assert line == '"C:/a b/pnpm.CMD" "exec" "src/app/(dashboard)/page.tsx"'
 
 
+@pytest.mark.parametrize("path", ['frontend/a"&mkdir X&".ts', "frontend/%CMDCMDLINE%.ts"])
+def test_RF_PLT_12_windows_refuses_what_quotes_cannot_protect(
+    path: str,
+    monkeypatch: pytest.MonkeyPatch,
+    calls: list[list[str]],
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(pf.os, "name", "nt")
+
+    assert pf.main(["eslint", "frontend/src/ok.ts", path]) == 2
+
+    assert calls == []
+    assert path.removeprefix("frontend/") in capsys.readouterr().err
+
+
+def test_RF_PLT_12_windows_runs_the_quoted_line(
+    monkeypatch: pytest.MonkeyPatch, calls: list[list[str]]
+) -> None:
+    monkeypatch.setattr(pf.os, "name", "nt")
+
+    assert pf.main(["prettier", "frontend/src/app/(dashboard)/page.tsx"]) == 0
+
+    line = '"/fake/bin/pnpm" "exec" "prettier" "--check" "--ignore-path" "../.gitignore" "--" '
+    assert calls == [f'{line}"src/app/(dashboard)/page.tsx"']
+
+
+def test_RF_PLT_12_windows_only_checks_what_reaches_cmd(
+    monkeypatch: pytest.MonkeyPatch, calls: list[list[str]]
+) -> None:
+    """A path no tool covers never reaches cmd.exe: it must not block the commit."""
+    monkeypatch.setattr(pf.os, "name", "nt")
+
+    assert pf.main(["prettier", "frontend/100%.md", "scripts/%x%.ts"]) == 0
+
+    assert calls == []
+
+
+def test_RF_PLT_12_percent_and_quote_are_fine_without_cmd(calls: list[list[str]]) -> None:
+    assert pf.main(["eslint", 'frontend/src/100%"x.ts']) == 0
+
+    assert files_passed(calls[0]) == ['src/100%"x.ts']
+
+
 def local_hooks() -> dict[str, dict[str, Any]]:
     text = (REPO_ROOT / ".pre-commit-config.yaml").read_text(encoding="utf-8")
     config = yaml.safe_load(text)

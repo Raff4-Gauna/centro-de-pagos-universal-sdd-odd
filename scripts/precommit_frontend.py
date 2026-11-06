@@ -12,7 +12,12 @@ never reach them, and with nothing left to check pnpm does not run at all.
 
 Needs Node 24 + pnpm and ``pnpm install`` in ``frontend/`` on the host (Q-060). No pnpm is an error,
 not a skip: a hook that passes without checking anything is worse than one that fails.
-Exit codes: the tool's own, 0 with nothing to check, 2 usage error or pnpm not found. Stdlib only.
+Exit codes: the tool's own, 0 with nothing to check, 2 usage error, pnpm not found or a path that
+cannot go through cmd.exe. Stdlib only.
+
+On Windows pnpm is a ``.cmd`` shim, so cmd.exe parses the command line. Known limit: past 8191
+characters it refuses the line and the hook fails (never passes); pre-commit splits later than that,
+so ``--all-files`` will hit it when ``frontend/`` grows to some 8000 characters of paths.
 """
 
 from __future__ import annotations
@@ -28,6 +33,7 @@ from pathlib import Path
 FRONTEND_DIR = Path(__file__).resolve().parents[1] / "frontend"
 FRONTEND_PREFIX = "frontend/"
 GENERATED_PREFIX = "src/types/"
+CMD_UNSAFE = frozenset('"%')
 
 # The flags of frontend/package.json; `--no-warn-ignored` because `eslint .` never reports a file
 # of its globalIgnores, while one named on the command line is a warning and --max-warnings 0 fails.
@@ -57,9 +63,16 @@ def command(pnpm: str, tool: str, files: Sequence[str]) -> list[str]:
     return [pnpm, "exec", *COMMANDS[tool], "--", *files]
 
 
+def unsafe_for_cmd(argv: Sequence[str]) -> list[str]:
+    """Arguments quoting cannot protect on Windows: ``"`` closes the quotes and cmd.exe expands
+    ``%VAR%`` inside them, so either one can run a command or change the path."""
+    return [arg for arg in argv if os.name == "nt" and set(arg) & CMD_UNSAFE]
+
+
 def spawnable(argv: Sequence[str]) -> str | list[str]:
-    """On Windows pnpm is a ``.cmd`` shim: cmd.exe parses the line, and an unquoted ``)`` of a Next
-    route group such as ``(dashboard)`` closes a block of the shim. Paths cannot contain ``"``."""
+    """On Windows, a line with every argument quoted: cmd.exe would take an unquoted ``&`` as a
+    new command, and the ``)`` of a route group such as ``(dashboard)`` closes a block of the shim.
+    Only for arguments that passed ``unsafe_for_cmd``."""
     return " ".join(f'"{arg}"' for arg in argv) if os.name == "nt" else list(argv)
 
 
@@ -77,8 +90,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     if pnpm is None:
         print("pnpm not found: install Node 24 and run `corepack enable`", file=sys.stderr)
         return 2
-    return subprocess.run(  # noqa: S603 - fixed tool, no shell
-        spawnable(command(pnpm, args.tool, files)), cwd=FRONTEND_DIR, check=False
+    full = command(pnpm, args.tool, files)
+    if unsafe := unsafe_for_cmd(full):
+        print(f'cannot pass through cmd.exe (contains " or %): {unsafe}', file=sys.stderr)
+        return 2
+    # On POSIX there is no shell; on Windows cmd.exe runs the shim, hence the check above.
+    return subprocess.run(  # noqa: S603
+        spawnable(full), cwd=FRONTEND_DIR, check=False
     ).returncode
 
 
