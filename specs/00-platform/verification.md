@@ -33,7 +33,7 @@ version_spec: 1.0.11
 | AC-PLT-07 | `backend/tests/logging/test_AC_PLT_07_access_log_json.py` | ✔ |
 | AC-PLT-08 | `backend/tests/logging/test_AC_PLT_08_redaction.py`, `…_redaction_domain.py`, `…_redaction_performance.py`, `…_sql_and_reports.py` | ✔ |
 | AC-PLT-09 | `backend/tests/logging/test_AC_PLT_09_request_id.py`, `frontend/src/lib/server/request-id.test.ts`, `frontend/src/lib/server/backend-proxy.test.ts` | ✔ |
-| AC-PLT-10 | `frontend/src/lib/server/backend-proxy.test.ts`, `backend-proxy.errors.test.ts`, `backend-proxy.paths.test.ts` | ✔ |
+| AC-PLT-10 | `frontend/src/lib/server/backend-proxy.test.ts`, `backend-proxy.errors.test.ts`, `backend-proxy.paths.test.ts`; lado backend: `test_AC_PLT_09_valid_uuid4_is_kept_in_log_and_response`. E2E entre los dos servicios: T-PLT-38 | ✔ |
 | AC-PLT-11 | `backend/tests/logging/test_AC_PLT_11_celery_task_log.py`, `…_celery_rejected_messages.py` | ✔ |
 | AC-PLT-12 | `scripts/tests/test_AC_PLT_12_ruff_print.py` | ✔ |
 | AC-PLT-13 | `scripts/tests/test_AC_PLT_13_check_file_size.py`, `test_AC_PLT_20_pipeline_chain.py`, `test_AC_PLT_27_line_endings.py` | ✔ |
@@ -124,8 +124,8 @@ revisión del **diff acumulado** del módulo.
 6. No había ningún mecanismo que detectara el drift: se agrega `scripts/check_spec_state.py`.
 7. Cinco tareas mergeadas (#42, #43, #45, #46, #47) quedaron `🟡` en `tasks.md`: sus PR no llevaron la fila a `✅`
    (regla 1 de estados). Conciliado el 2026-11-06.
-8. `scripts/spec_state_baseline.json` todavía lista `AC-PLT-17`, `29`, `32` y `33`, que ya tienen test. No produce
-   drift, pero esas excepciones quedaron de más.
+8. `scripts/spec_state_baseline.json` listaba `AC-PLT-17`, `29`, `32` y `33`, que ya tienen test. No producía drift.
+   Conciliado el 2026-11-06: queda solo `AC-PLT-24`.
 
 ## 7. Decisión
 

@@ -92,6 +92,5 @@ fase: cierre (Implemented pendiente)
   (28 ✔ / 5 ⚠ / 1 ✘), trazabilidad de Q-048 y nota de `.next/server/pages/**` en `design.md §3.3.3` (spec 1.0.12).
 - **Merges de la sesión:** #42, #43, #44, #45, #46 y #47. Worklog: `context/worklog/2026-11-06-reconcile-00.md`.
 - **Pendiente / dudas:** Q-063 y Q-064 (dueño, llegan con #48), Q-028 (SPEC-12), S-001 sin ejecutar, triaje de
-  Dependabot. Quedan para aplicar por PR con `reviewer`: sacar de `scripts/spec_state_baseline.json` los AC con test y
-  quitar de `AGENTS.md` lo pendiente de T-PLT-39.
+  Dependabot.
 - **Siguiente rol sugerido:** `reviewer` sobre #48; después `backend-dev` en T-PLT-37.

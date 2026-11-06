@@ -369,8 +369,7 @@ en `modules/` (cuenta para cobertura). Sin protección de rutas ni datos.
   `client bundle clean: …`, no solo exit 0. Límites conocidos: base64, escapes y strings partidos no se detectan,
   y las páginas dinámicas se cubren en el smoke (T-PLT-38). `.next/server/pages/**` no se escanea: aun sin Pages
   Router el build deja ahí `404.html` y `500.html`, que hoy son copias de `server/app/_not-found.html` y
-  `_global-error.html`, sí escaneados (comparado en el build de `296fe9f`, Next 16.4.3: difieren solo en el CSS
-  inline). Para escribir código propio ahí hay que crear `src/pages/`, que hoy no existe; si se crea, este límite
+  `_global-error.html`, sí escaneados (comparado en el build de `296fe9f`, Next 16.4.3: mismo contenido, sin centinela). Para escribir código propio ahí hay que crear `src/pages/`, que hoy no existe; si se crea, este límite
   deja de valer.
 
 ### 3.4 Infraestructura
