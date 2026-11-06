@@ -11,8 +11,9 @@
 ## Qué se hizo
 `AGENTS.md` y `tasks.md` decían que hasta T-PLT-40 mergeaba el dueño; el dueño había pedido el 2026-11-02 que Claude
 publique y mergee, y lo confirmó el 2026-11-06 ("seguí mergeando vos y actualizá el AGENTS"). Se registra en Q-057, con
-el alcance: "pipeline completo" hasta T-PLT-40 son los jobs que existen en `ci.yml`, y ruleset, visibilidad y ajustes
-siguen siendo solo del dueño. La lectura de "pipeline completo" la propuso Claude: el dueño puede corregirla.
+el alcance: ruleset, visibilidad y ajustes siguen siendo solo del dueño. Queda aparte, como lectura propuesta por
+Claude y pendiente de que el dueño la corrija o confirme: hasta T-PLT-40, "pipeline completo" son todos los checks de
+todos los workflows que corren en ese commit (incluye `zona-roja`, que vive fuera de `ci.yml`).
 
 ## Resultado
 Hecho. **Incumplimiento registrado:** #41, #42 y #43 se mergearon después de que `AGENTS.md` exigiera comentario con

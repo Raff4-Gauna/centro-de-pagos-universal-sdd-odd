@@ -99,8 +99,9 @@ Reglas:
   corrige lo que falle en el pipeline y mergea (decisión del dueño, 2026-10-31, ampliada el 2026-11-02 y el
   2026-11-06). Se mergea solo con certeza total: pipeline completo en verde en el último commit, veredicto sin
   bloqueantes, DoD completo y squash (`--match-head-commit <sha>`). Hasta T-PLT-40, "pipeline completo" son todos los
-  jobs que existen en `ci.yml` en ese commit. Ante cualquier duda (`design.md §3.7.4`: check inestable, re-run
-  manual, scope drift, `Q-xxx` abierta, advertencias nuevas, entre otras) el PR queda para el dueño.
+  checks de todos los workflows que corren en ese commit (lectura propuesta por Claude, pendiente de que el dueño la
+  corrija o confirme). Ante cualquier duda (`design.md §3.7.4`: check inestable, re-run manual, scope drift, `Q-xxx`
+  abierta, advertencias nuevas, entre otras) el PR queda para el dueño.
 - **Solo el dueño** cambia ruleset, visibilidad y ajustes del repo; esos PR los mergea él.
 - El veredicto se guarda como comentario, no como revisión nativa. Eso es intencional y no se "corrige" con un
   approve de la UI.

@@ -55,7 +55,8 @@ Reglas: rebanada vertical · ≤ ~300 líneas de diff · mergeable sola · cita 
   Si la tarea pasa a `🧪`, actualiza además su fila en `verification.md`.
 - **Quién mergea (Q-057):** el agente solo con certeza total (pipeline completo en verde en el último commit,
   veredicto del reviewer sin bloqueantes —obligatorio en zona roja—, DoD completo, squash). Hasta T-PLT-40 inclusive,
-  "pipeline completo" son todos los jobs que existen en `ci.yml` en ese commit (ampliación del dueño, 2026-11-06).
+  "pipeline completo" son todos los checks de todos los workflows que corren en ese commit (lectura propuesta por
+  Claude, pendiente de que el dueño la corrija o confirme).
   Mergea el dueño todo PR que cambie ruleset/ajustes del repo (T-PLT-40) o que quede con duda.
 - Varias tareas editan `ci.yml`, `backend/pyproject.toml`, `config/settings/base.py`, `frontend/package.json`: en
   paralelo habrá conflictos de texto chicos; se rebasea sobre `main` antes de pedir el veredicto (un push nuevo

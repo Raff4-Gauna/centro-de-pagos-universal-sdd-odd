@@ -5,7 +5,7 @@ estado: Approved
 track: S
 version: 1.0.9
 depende_de: []
-actualizado: 2026-11-05
+actualizado: 2026-11-06
 ---
 
 # Módulo de Plataforma (fundaciones)
@@ -251,4 +251,4 @@ Se completa al generar `tasks.md`.
 | 1.0.6 | 2026-11-02 | ADR-0005 (contrato OpenAPI): estado Propuesto → **Aceptado**; se actualiza la mención del encabezado de `design.md`. Las menciones de "Propuesto" en entradas anteriores del historial (0.3.0, *Handoff* de `design.md`) quedan como registro. Sin cambios en RN/RF/AC | Aceptado por el dueño del proyecto (2026-11-02), transmitido por el coordinador |
 | 1.0.7 | 2026-11-01 | design §3.3.3 ajustado tras revisión de T-PLT-33/34 (validación sobre URL resuelta, barra final, content-length solo dígitos, 411 sin longitud, request id en minúsculas, AbortSignal); Q-061 decidida por defecto | Trazabilidad de cambios sobre artefactos aprobados (AGENTS.md); sin cambios en RN/RF/AC |
 | 1.0.8 | 2026-11-05 | Ajuste de diseño en `design.md §3.4.1` (T-PLT-26): `beat` sin `tmpfs` (el schedule va al filesystem propio del contenedor, fuera del código montado; `dbm.gnu` escribe por mmap y en un tmpfs no actualiza el mtime que lee `beat_alive`), `--max-interval 60` en el comando de `beat` y `pg_isready -h 127.0.0.1` en el healthcheck de `db` (como el job `tests` de CI). Sin cambios en RN/RF/AC | Verificación de T-PLT-26 en el stack real (beat `unhealthy` a los ~5 min con tmpfs); opción A decidida por el planner |
-| 1.0.9 | 2026-11-06 | Q-057 ampliada por el dueño: Claude se encarga del CI y de GitHub, el agente etiqueta, y hasta T-PLT-40 "pipeline completo" son los jobs que existen en `ci.yml` (`design.md §3.7.4`). Sin cambios en RN/RF/AC | `AGENTS.md` y `tasks.md` decían que mergeaba el dueño hasta T-PLT-40, en contra del pedido del dueño del 2026-11-02 |
+| 1.0.9 | 2026-11-06 | Q-057 ampliada por el dueño: Claude se encarga del CI y de GitHub y el agente etiqueta. Lectura propuesta por Claude, pendiente de que el dueño la corrija o confirme: hasta T-PLT-40 "pipeline completo" son todos los checks de todos los workflows que corren en ese commit (`design.md §3.7.4`). Sin cambios en RN/RF/AC | `AGENTS.md` y `tasks.md` decían que mergeaba el dueño hasta T-PLT-40, en contra del pedido del dueño del 2026-11-02 |
