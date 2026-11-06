@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DELETE, GET, PATCH, POST, PUT, dynamic, runtime } from "@/app/api/[...path]/route";
 
-import { proxyToBackend } from "./backend-proxy";
+import { REQUEST_HEADER_ALLOWLIST, proxyToBackend } from "./backend-proxy";
 import { getBackendInternalUrl } from "./env";
 
 // `server-only` throws outside the react-server condition; that the modules import it is
@@ -108,6 +108,56 @@ describe("BFF pass-through (AC-PLT-10, RN-PLT-16, RF-PLT-06)", () => {
     expect(new Set([GET, POST, PUT, PATCH, DELETE]).size).toBe(1);
   });
 
+  it("test_RF_PLT_06_bff_always_sends_forwarded_proto_https_upstream", async () => {
+    const { calls } = mockBackend();
+
+    await proxyToBackend(new Request(`${BFF}/api/__smoke__`), ["__smoke__"]);
+    await proxyToBackend(
+      new Request(`${BFF}/api/charges/`, {
+        method: "POST",
+        body: "{}",
+        headers: { "content-type": "application/json", "content-length": "2" },
+      }),
+      ["charges"],
+    );
+    await proxyToBackend(new Request(`${BFF}/api/charges/1/`, { method: "DELETE" }), [
+      "charges",
+      "1",
+    ]);
+
+    expect(calls).toHaveLength(3);
+    for (const call of calls) {
+      expect(forwardedHeaders(call)["x-forwarded-proto"]).toBe("https");
+    }
+  });
+
+  it("test_RF_PLT_06_bff_drops_forwarded_proto_sent_by_the_browser", async () => {
+    const { calls } = mockBackend();
+
+    for (const value of ["http", "ftp", "http, https"]) {
+      const incoming = new Request(`${BFF}/api/__smoke__`, {
+        headers: { "x-forwarded-proto": value },
+      });
+      // Precondition: the runtime does keep the header on the incoming request.
+      expect(incoming.headers.get("x-forwarded-proto")).toBe(value);
+
+      await proxyToBackend(incoming, ["__smoke__"]);
+    }
+
+    expect(calls).toHaveLength(3);
+    for (const call of calls) {
+      expect(forwardedHeaders(call)["x-forwarded-proto"]).toBe("https");
+    }
+  });
+
+  it("test_RF_PLT_06_bff_forwarded_proto_stays_out_of_the_allowlist", () => {
+    // With the `set` in place an entry here changes nothing today, and the day the `set` moves or
+    // goes away the browser would decide the scheme Django trusts (Q-065).
+    const allowlist = REQUEST_HEADER_ALLOWLIST.map((name) => name.toLowerCase());
+
+    expect(allowlist).not.toContain("x-forwarded-proto");
+  });
+
   it("test_RN_PLT_16_bff_forwards_only_allowlisted_headers_never_cookie", async () => {
     const { calls } = mockBackend();
     const body = '{"amount":"10.00"}';
@@ -141,6 +191,8 @@ describe("BFF pass-through (AC-PLT-10, RN-PLT-16, RF-PLT-06)", () => {
       // Kept so Django/gunicorn get a sized body instead of `Transfer-Encoding: chunked`.
       "content-length": String(body.length),
       "x-request-id": VALID,
+      // Not from the browser: the BFF sets it (Q-065).
+      "x-forwarded-proto": "https",
     });
     expect(calls[0]!.init.method).toBe("POST");
     // The body is streamed as-is, not parsed or rewritten.

@@ -44,6 +44,22 @@ describe("BFF request body against a real HTTP backend (RN-PLT-16)", () => {
   });
 });
 
+describe("BFF scheme header against a real HTTP backend (RF-PLT-06)", () => {
+  it("test_RF_PLT_06_bff_forwarded_proto_reaches_the_backend_as_one_https_value", async () => {
+    const backend = await startBackend();
+    vi.stubEnv("BACKEND_INTERNAL_URL", backend.origin);
+
+    await proxyToBackend(
+      new Request(`${BFF}/api/__smoke__`, { headers: { "x-forwarded-proto": "http" } }),
+      ["__smoke__"],
+    );
+
+    // On the wire, not on the mock: Django only trusts the first value of a list.
+    expect(backend.received).toHaveLength(1);
+    expect(backend.received[0]!.headers["x-forwarded-proto"]).toBe("https");
+  });
+});
+
 describe("BFF request without a usable length (RN-PLT-16)", () => {
   it("test_RN_PLT_16_bff_body_without_content_length_returns_411_problem", async () => {
     const calls = mockFetch();

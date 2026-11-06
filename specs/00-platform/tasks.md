@@ -65,7 +65,7 @@ Reglas: rebanada vertical · ≤ ~300 líneas de diff · mergeable sola · cita 
 
 ## Resumen
 
-> Conciliado con `git log` el 2026-11-06: 35 tareas mergeadas (`✅`) y 6 pendientes (`☐`).
+> Conciliado con `git log` el 2026-11-06: 35 tareas mergeadas (`✅`), 6 pendientes (`☐`) y T-PLT-42 en revisión (`🟡`).
 > La columna **Evidencia** es obligatoria para `✅` y la verifica `scripts/check_spec_state.py`.
 
 | ID | Título | AC | Capa | Archivos esperados (ver detalle) | Depende de | Agente | Tamaño | Zona roja | Estado | Evidencia |
@@ -107,10 +107,11 @@ Reglas: rebanada vertical · ≤ ~300 líneas de diff · mergeable sola · cita 
 | T-PLT-35 | Cliente tipado + tipos desde OpenAPI + diff en CI | AC-PLT-23 (frontend) | Frontend/CI | `src/lib/{api-client,problem}.ts`, `src/types/api.d.ts` | T-PLT-18, T-PLT-27 | frontend-dev | M | Sí | ✅ | #37 · 75ea14f |
 | T-PLT-36 | Imagen del frontend + chequeo de bundle + servicio en Compose | AC-PLT-29, AC-PLT-25 (FE), AC-PLT-01 | Infra/Frontend | `frontend/Dockerfile`, `frontend/scripts/check-client-bundle.ts` | T-PLT-26, T-PLT-33, T-PLT-34 | frontend-dev | L | Sí | ✅ | #47 · 1cc858e |
 | T-PLT-37 | Job `build` (imágenes por SHA, no root) | AC-PLT-25, AC-PLT-20 | CI | `infra/docker-compose.ci.yml`, `ci.yml` | T-PLT-24, T-PLT-36 | backend-dev | M | Sí | 🟡 | — |
-| T-PLT-38 | Smoke del stack en el paso 9 | AC-PLT-01, AC-PLT-02, AC-PLT-10, AC-PLT-29 (E2E) | CI | `scripts/smoke_stack.py` | T-PLT-15, T-PLT-37 | backend-dev | L | Sí | ☐ | — |
+| T-PLT-38 | Smoke del stack en el paso 9 | AC-PLT-01, AC-PLT-02, AC-PLT-10, AC-PLT-29 (E2E) | CI | `scripts/smoke_stack.py` | T-PLT-15, T-PLT-37, T-PLT-42 | backend-dev | L | Sí | ☐ | — |
 | T-PLT-39 | `env.example` + `spikes/env.example` + paridad | AC-PLT-05, AC-PLT-06, AC-PLT-01 | Config | `env.example`, `spikes/env.example` | T-PLT-09, T-PLT-12, T-PLT-16, T-PLT-26, T-PLT-33 | backend-dev | M | Sí | ✅ | #45 · 6acc087 |
 | T-PLT-40 | Ruleset de `main` + verificación de protección | AC-PLT-24, AC-PLT-20 (cierre) | Gobierno | `.github/rulesets/main.json`, `scripts/verify_repo_protection.py` | T-PLT-07, T-PLT-10, T-PLT-19, T-PLT-21, T-PLT-24, T-PLT-28, T-PLT-38 | backend-dev (+ dueño) | L | Sí | ☐ | — |
 | T-PLT-41 | "Comandos de desarrollo" en `AGENTS.md` + `infra/README.md` | — (RF-PLT-16) | Docs | `AGENTS.md`, `infra/README.md` | T-PLT-38, T-PLT-40 | backend-dev | S | No | ☐ | — |
+| T-PLT-42 | BFF: `X-Forwarded-Proto: https` hacia el backend | — (RF-PLT-06, Q-065) | BFF | `src/lib/server/backend-proxy.ts` | T-PLT-09, T-PLT-33 | frontend-dev | S | No (reviewer recomendado) | 🟡 | — |
 
 ## Cobertura AC → tareas
 | AC | Tareas |
@@ -150,7 +151,7 @@ Reglas: rebanada vertical · ≤ ~300 líneas de diff · mergeable sola · cita 
 | AC-PLT-33 | T-PLT-05 |
 | AC-PLT-34 | T-PLT-15 |
 
-**Sin AC propio** (cubiertos por tarea y test nombrado por RF/RN): RF-PLT-01 → T-PLT-01; RF-PLT-16 → T-PLT-41;
+**Sin AC propio** (cubiertos por tarea y test nombrado por RF/RN): RF-PLT-01 → T-PLT-01; RF-PLT-06 (`X-Forwarded-Proto`, Q-065) → T-PLT-42; RF-PLT-16 → T-PLT-41;
 RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36 (manual); Q-056 → T-PLT-17/T-PLT-18.
 **Huecos: ninguno.** AC-PLT-05 y la parte de spikes de AC-PLT-06 quedan cubiertos solo por T-PLT-39 (mergeada, #45).
 
@@ -161,7 +162,7 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
 | 1 (tres carriles en paralelo) | **Gobierno:** T-PLT-04, T-PLT-05, T-PLT-06 (entre sí en paralelo) → T-PLT-07 · **Backend:** T-PLT-08 · **Frontend:** T-PLT-27 | |
 | 2 | **Backend (tras T-PLT-08), en paralelo:** T-PLT-09, T-PLT-10, T-PLT-11, T-PLT-12, T-PLT-19, T-PLT-21 · **Frontend (tras T-PLT-27):** T-PLT-28, T-PLT-29, T-PLT-33 | |
 | 3 | T-PLT-13 → T-PLT-14 · T-PLT-15 → {T-PLT-16, T-PLT-18} · T-PLT-17 · T-PLT-20 · T-PLT-22 → T-PLT-23 → T-PLT-24 · T-PLT-25 → T-PLT-26 · T-PLT-30 → T-PLT-31 → T-PLT-32 · T-PLT-34 · T-PLT-35 (tras T-PLT-18) | |
-| 4 (secuencial) | T-PLT-36 → T-PLT-37 → T-PLT-38 → T-PLT-40 → T-PLT-41 | T-PLT-36 espera también a T-PLT-34 (el BFF no se expone en Compose sin la validación de rutas) · T-PLT-39 entra apenas se destrabe Q-048 (y antes de T-PLT-41) |
+| 4 (secuencial) | T-PLT-36 → T-PLT-37 → T-PLT-38 → T-PLT-40 → T-PLT-41 | T-PLT-36 espera también a T-PLT-34 (el BFF no se expone en Compose sin la validación de rutas) · T-PLT-39 entra apenas se destrabe Q-048 (y antes de T-PLT-41) · T-PLT-42 entra antes de T-PLT-38 |
 
 ---
 
@@ -1722,6 +1723,8 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
 - **Plan de pruebas:** `test_AC_PLT_01_smoke_requires_all_services_healthy`, `test_AC_PLT_02_smoke_expects_503_with_redis_stopped`,
   `test_AC_PLT_02_smoke_rejects_internal_details_in_body`, `test_AC_PLT_10_smoke_matches_bff_request_id_in_backend_logs`,
   `test_AC_PLT_01_smoke_always_tears_down`; E2E real en el job `build`.
+- **Depende de T-PLT-42:** con `config.settings.prod`, sin la cabecera `X-Forwarded-Proto: https` del BFF, el
+  `GET :3000/api/__smoke__` de §3.5 recibe 301 y no el 404 `problem+json`.
 
 ### T-PLT-39 — `env.example` + `spikes/env.example` + paridad — ✅ mergeada (#45)
 - **Destrabada (2026-11-05):** el dueño decidió Q-048 renombrando los archivos sin punto inicial (`env.example`,
@@ -1774,6 +1777,28 @@ RF-PLT-19 → T-PLT-09; RNF-PLT-05 (hot-reload en Windows) → T-PLT-26/T-PLT-36
 - **Verificación manual (dueño):** aplicar `main.json` con `gh api` + ajustes por UI (los checks ya corrieron al menos
   una vez); `python scripts/verify_repo_protection.py` con `GH_TOKEN` de admin propio → 0; PR de sacrificio con un error
   de lint → `lint` rojo, `build` no corre y el PR figura no mergeable.
+
+### T-PLT-42 — BFF: `X-Forwarded-Proto: https` hacia el backend — 🟡 en revisión
+- **AC:** ninguno propio. RF-PLT-06, Q-065. **Zona roja:** no (reviewer recomendado, como T-PLT-33/34).
+- **Defecto:** con `config.settings.prod`, Django responde 301 a `https://backend/...` (`SECURE_SSL_REDIRECT`) porque
+  el BFF le habla por HTTP interno; con `redirect: "manual"` y `Location` filtrada, el navegador recibe un 301 sin
+  destino en todo `/api/*`.
+- **Archivos:** `frontend/src/lib/server/backend-proxy.ts` (valor constante con `headers.set` en `upstreamInit`, fuera
+  de `REQUEST_HEADER_ALLOWLIST`, que se exporta para el test), `backend-proxy.test.ts`,
+  `backend-proxy.errors.test.ts`; documentos: `clarifications.md` (Q-065), `design.md §3.2.2` y `§7`, `spec.sdd.md`
+  (1.0.15), `infra/README.md`.
+- **Plan de pruebas:** `test_RF_PLT_06_bff_always_sends_forwarded_proto_https_upstream`,
+  `test_RF_PLT_06_bff_drops_forwarded_proto_sent_by_the_browser`,
+  `test_RF_PLT_06_bff_forwarded_proto_stays_out_of_the_allowlist`,
+  `test_RF_PLT_06_bff_forwarded_proto_reaches_the_backend_as_one_https_value` (HTTP real). Mutación: fallan sin el
+  `set`, con la cabecera en la allowlist (con o sin el `set`, y con `append`), con otro valor y si el `set` solo
+  corre con o sin cuerpo.
+- **Verificación con el stack (2026-11-06):** imágenes `runtime` con `config.settings.prod`, `infra/docker-compose.ci.yml`
+  de T-PLT-37 tomado de su rama (fuera de este PR). Base `8cd5bd9`: `GET`/`POST` por el BFF → 301 sin `Location`. Con el
+  cambio: 404 `problem+json` en los dos casos y también con `X-Forwarded-Proto: http` del navegador, y el `request_id`
+  del BFF aparece en el log del backend.
+- **Para después:** el backend directo sin la cabecera sigue dando 301 (esperado). Falta definir por dónde entran los
+  webhooks (Q-020, spec §3.2): no pueden llegar al puerto del backend directo sin violar el requisito de Q-065.
 
 ### T-PLT-41 — "Comandos de desarrollo" en `AGENTS.md` + `infra/README.md`
 - **AC:** ninguno propio (RF-PLT-16; Q-057). **Zona roja:** no.
@@ -1846,4 +1871,5 @@ Pasa a `Verified` solo con el OK explícito del dueño. Ningún agente lo marca 
 | T-PLT-39 | #45 | 6acc087 | ✅ |
 | T-PLT-40 | — | — | ☐ |
 | T-PLT-41 | — | — | ☐ |
+| T-PLT-42 | — | — | 🟡 |
 <!-- check_spec_state:end -->
