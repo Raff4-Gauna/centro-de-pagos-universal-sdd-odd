@@ -1,7 +1,7 @@
 ---
 spec: SPEC-02
 estado: Aprobado         # Draft | Aprobado — aprobado por el dueño el 2026-11-06
-actualizado: 2026-11-06
+actualizado: 2026-11-07
 ---
 # Diseño — Módulo de Organizaciones, Sucursales y Roles (tenancy + RBAC)
 
@@ -148,7 +148,7 @@ Ningún archivo pasa de ~250 líneas estimadas; los más grandes son `role_rules
   `organization_id=ctx.organization_id`; si hay un `ContextVar` activo, debe coincidir), y en modelos que lo
   declaran: `Membership.for_user(user_id)`, `Invitation.by_token_hash(h)`, `Invitation.pending_for_email(email)`
   (puerto SPEC-01), `Invitation.for_session_accept(id)` (aceptar desde la sesión, §4.4: la lectura cruza organizaciones
-  y el servicio decide por email antes de devolver nada). `unscoped(reason: UnscopedReason)` marca el queryset como deliberadamente global.
+  y el servicio decide por email antes de devolver nada; se permite **solo** en `services/invitation_accept.py`). `unscoped(reason: UnscopedReason)` marca el queryset como deliberadamente global.
 - Todo método que **ejecuta** SQL (`_fetch_all`/iteración, `count`, `exists`, `aggregate`, `iterator`, `update`,
   `delete`, `get`, `create`, `bulk_create`, `bulk_update`, `in_bulk`, `get_or_create`, `update_or_create`,
   `explain`, `contains`) verifica la marca y si falta lanza `TenantScopeError` **antes** de ir a la BD (AC-TEN-11).

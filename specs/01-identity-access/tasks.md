@@ -495,4 +495,4 @@ módulos se aprueba en la misma pasada, después de `T-TEN-36`.
 ---
 **Hecho:** 32 tareas, 38 AC y 10 RF cubiertos, olas y división de archivos.
 **Pendiente / dudas:** ninguna de 01.
-**Siguiente rol sugerido:** `backend-dev` en `T-IDA-00`, después `reviewer`.
+**Siguiente rol sugerido:** `reviewer` en `T-IDA-01` (#65); después `backend-dev` en la ola 1.

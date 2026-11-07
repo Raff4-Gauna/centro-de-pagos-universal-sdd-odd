@@ -1,12 +1,12 @@
 ---
 spec: SPEC-01
 estado: Aprobado         # Draft | Aprobado — aprobado por el dueño el 2026-11-06 (gate humano)
-actualizado: 2026-11-06
+actualizado: 2026-11-07
 ---
 # Diseño — Módulo de Identidad y Acceso (`01-identity-access`)
 
-> Parte de `spec.sdd.md` 1.0.1 (Approved). Decisión central en `context/decisions/ADR-0004-sesion-y-tokens-en-navegador.md`
-> (Propuesto), que resuelve los 15 puntos de la spec §15. Zona roja (auth): toda tarea derivada pasa por `reviewer`.
+> Parte de `spec.sdd.md` 1.0.2 (Approved). Decisión central en `context/decisions/ADR-0004-sesion-y-tokens-en-navegador.md`
+> (Aceptado), que resuelve los 15 puntos de la spec §15. Zona roja (auth): toda tarea derivada pasa por `reviewer`.
 > **No cambia reglas de negocio.** Q-119…Q-125 están decididas por el usuario (2026-11-06, ver §11).
 > Donde el código real de SPEC-00 obliga a nombrar distinto, manda `tasks.md` ("Ajustes al diseño").
 

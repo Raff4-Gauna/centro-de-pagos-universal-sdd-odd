@@ -93,7 +93,7 @@ en el BFF; mutaciones solo por Route Handlers (no Server Actions). Django no apl
 cookie (`SessionAuthentication` fuera de DRF).
 
 ### 7. Header de organización activa
-Nombre **`X-Organization-Id`** (UUID), confirmado por `specs/02-tenancy-rbac/design.md`. Q-119 por defecto **b)**: cada pestaña manda
+Nombre **`X-Organization-Id`** (UUID), confirmado por `specs/02-tenancy-rbac/design.md`. Q-119 **b)**: cada pestaña manda
 la empresa que muestra desde su propio estado; el BFF la reenvía validando el formato y **nunca** la inyecta. La
 "persistencia en la sesión del servidor del BFF" (Q-112) es la cookie `HttpOnly` `__Host-cpu_org`, que solo el
 servidor lee y escribe (`PUT /api/session/active-organization`), y que sirve como valor inicial de pestañas nuevas y
@@ -141,7 +141,7 @@ auditar. Insertar primero hace que un segundo callback concurrente espere el ín
 `IntegrityError`, reintente una vez y entre por el caso (a) (AC-IDA-02). `MembershipSelectorPort.list_active_memberships(user_id)`
 para `/api/me`. Stubs por settings (`NullInvitationPort`, `EmptyMembershipSelector`, `LogAuditPort`) hasta que existan
 SPEC-02/SPEC-10; identity no importa `tenancy` (resolución por dotted path). El comando **`tenancy_create_org`
-vive en `apps/tenancy`** (SPEC-02 es dueña de crear organizaciones e invitaciones; Q-123 por defecto: sirve para toda
+vive en `apps/tenancy`** (SPEC-02 es dueña de crear organizaciones e invitaciones; Q-123: sirve para toda
 organización nueva, idempotente, auditado). Los comandos `deactivate_user`/`reactivate_user` viven en `apps/identity`.
 
 ### 12. Vencimiento y purga

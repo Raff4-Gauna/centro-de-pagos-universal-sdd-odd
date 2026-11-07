@@ -1,5 +1,5 @@
 ---
-actualizado: 2026-11-06
+actualizado: 2026-11-07
 ultimo_commit: c57db14
 ultimo_pr: "#63"
 modulo_activo: 01-identity-access
@@ -58,7 +58,7 @@ fase: implementación (00 en cierre, Implemented pendiente)
 1. **Verificación manual de AC-PLT-01** (`verification.md §4`). Antes, el dueño mueve las claves de spikes de su
    `.env` a `spikes/.env`.
 2. **Repetir la verificación** de 00 y marcar las filas `🧪`. Solo el dueño puede pasar la spec a `Verified`.
-3. **Implementar 01 y 02:** ola 0 de `specs/01-identity-access/tasks.md` (`T-IDA-00`, `T-IDA-01`) y seguir por olas.
+3. **Implementar 01 y 02:** `T-IDA-01` (PR #65) y `T-IDA-26`, y seguir por olas en `specs/01-identity-access/tasks.md`.
 4. **Redactar la spec 04** (bloquea a 06).
 5. **Ejecutar S-001** antes de diseñar el adaptador de Mercado Pago.
 6. Incorporar el checklist de buenas prácticas de software escalable que el dueño va a pasar; mapearlo contra

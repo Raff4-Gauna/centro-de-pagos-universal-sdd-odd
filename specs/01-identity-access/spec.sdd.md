@@ -5,7 +5,7 @@ estado: Approved
 track: S
 version: 1.0.2
 depende_de: [SPEC-00]
-actualizado: 2026-11-06
+actualizado: 2026-11-07
 ---
 
 # Módulo de Identidad y Acceso
@@ -258,7 +258,7 @@ Interfaces internas:
 - Supuesto: Google es suficiente como único IdP para los pilotos (Q-001, Q-101 decidido).
 - Supuesto: SPEC-02 implementa el puerto de invitaciones y el selector de memberships antes de cerrar H1 (Q-108); hasta entonces hay stubs.
 - **Propuesta original descartada:** §6.1 de la propuesta entregaba el JWT al frontend para mandarlo en cada request (expuesto a JS) y §8 exigía "JWT en todos los endpoints". Se reemplaza por cookie `httpOnly` gestionada por el BFF de Next.js, con tokens nunca accesibles desde JavaScript (Q-102 decidido 2026-10-31), y el ERP usa API keys (Q-011).
-- **Para el architect (ADR-0004):** *(resueltos el 2026-10-31 en `context/decisions/ADR-0004-sesion-y-tokens-en-navegador.md`, Propuesto, puntos 1–15, y en `design.md`)*
+- **Para el architect (ADR-0004):** *(resueltos el 2026-10-31 en `context/decisions/ADR-0004-sesion-y-tokens-en-navegador.md`, Aceptado, puntos 1–15, y en `design.md`)*
   1. Quién termina el callback OIDC (BFF o Django) y el flujo exacto (authorization code; PKCE además del client secret).
   2. Diseño de cookies: qué viaja (tokens o un identificador opaco de sesión), nombres/prefijo `__Host-`, `SameSite` (el retorno desde Google exige que la cookie del intento sobreviva a la navegación cruzada), `Path`, `Max-Age` alineado a la vida absoluta de 30 días, límites de tamaño.
   3. Concurrencia del refresh (Q-103): serialización en el BFF (con varias instancias de Next.js necesita un candado compartido) **o** ventana de gracia (duración y qué se devuelve dentro de ella), cumpliendo AC-IDA-28 sin debilitar AC-IDA-15.

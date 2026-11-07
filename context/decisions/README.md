@@ -15,4 +15,4 @@ Plantilla: `specs/_templates/adr.md`. Una decisión por archivo: `ADR-NNNN-slug.
 | ADR-0008 | Auth máquina-a-máquina: API keys por organización con scopes | Spec 11 |
 | ADR-0009 | Límite de tamaño de archivo (~400 líneas) y modularidad por capas — **Aceptado** 2026-10-31 | Spec 00 |
 | ADR-0010 | Control de versiones, CI/CD, tests, logs y rollback — **Aceptado** 2026-10-31 | Spec 00 |
-| ADR-0011 | SOLID como criterio de diseño por fronteras, subordinado a `C-xx` y a la proporcionalidad de ODD — **Aceptado** 2026-11-05 | Specs 00–07, 11 |
+| ADR-0011 | SOLID como criterio de diseño por fronteras, subordinado a `C-xx` y a la proporcionalidad de ODD — **Aceptado** 2026-11-07 | Specs 00–07, 11 |

@@ -5,7 +5,7 @@ estado: Approved
 track: S
 version: 1.0.22
 depende_de: []
-actualizado: 2026-11-06
+actualizado: 2026-11-07
 ---
 
 # Módulo de Plataforma (fundaciones)

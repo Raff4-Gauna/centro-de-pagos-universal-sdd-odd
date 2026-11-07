@@ -69,7 +69,7 @@ Donde el diseño y el código de SPEC-00, o el orden real, difieren, manda esta 
 | T-TEN-13 | Datos de la organización activa | AC-TEN-29 (API) | API | `apps/tenancy/api/organizations.py`, `services/organizations.py`, `domain/tax_id.py` | T-TEN-10, T-TEN-11, T-TEN-12 | backend-dev | L | Sí | ☐ | |
 | T-TEN-14 | `Invitation` + migración 0003 + reglas puras | AC-TEN-25, AC-TEN-35 (unidad) | DB | `apps/tenancy/models/invitation.py`, `domain/invitations.py` | T-TEN-05 | backend-dev | L | Sí | ☐ | |
 | T-TEN-15 | Aceptar invitación con token | AC-TEN-17, AC-TEN-18, AC-TEN-19, AC-TEN-25, AC-TEN-35 | Servicio/API | `services/invitation_accept.py`, `api/invitations.py` | T-TEN-10, T-TEN-11, T-TEN-14 | backend-dev | L | Sí | ☐ | |
-| T-TEN-16 | Mis invitaciones y aceptar desde la sesión (Q-124) | AC-TEN-39, AC-TEN-28 | Servicio/API | `selectors/invitations.py`, `api/invitations.py`, `services/invitation_accept.py` | T-TEN-15 | backend-dev | L | Sí | ☐ | |
+| T-TEN-16 | Mis invitaciones y aceptar desde la sesión (Q-124) | AC-TEN-39, AC-TEN-28, AC-TEN-10 | Servicio/API | `selectors/invitations.py`, `api/invitations.py`, `services/invitation_accept.py` | T-TEN-15 | backend-dev | L | Sí | ☐ | |
 | T-TEN-17 | `TenancyInvitationPort` (puerto de SPEC-01) | AC-TEN-17 (vía puerto), AC-IDA-02, AC-IDA-04, AC-IDA-05, AC-IDA-31 | Servicio | `services/invitation_port.py`, `config/settings/base.py` | T-TEN-15, T-IDA-13 | backend-dev | M | Sí | ☐ | |
 | T-TEN-18 | Comando `tenancy_create_org` | AC-TEN-22, AC-TEN-40, AC-IDA-32 | Comandos | `services/platform_org.py`, `management/commands/tenancy_create_org.py` | T-TEN-16, T-TEN-17 | backend-dev | L | Sí | ☐ | |
 | T-TEN-19 | Comandos de suspensión y primer owner | AC-TEN-28, AC-TEN-29 | Comandos | `management/commands/{tenancy_set_org_status,tenancy_owner_invite}.py` | T-TEN-18 | backend-dev | M | Sí | ☐ | |
@@ -103,7 +103,7 @@ Donde el diseño y el código de SPEC-00, o el orden real, difieren, manda esta 
 | AC-TEN-07 | T-TEN-03, T-TEN-24 |
 | AC-TEN-08 | T-TEN-12, T-TEN-36 |
 | AC-TEN-09 | T-TEN-25 |
-| AC-TEN-10 | T-TEN-04 |
+| AC-TEN-10 | T-TEN-04, T-TEN-16 |
 | AC-TEN-11 | T-TEN-02, T-TEN-03 |
 | AC-TEN-12 | T-TEN-09 |
 | AC-TEN-13 | T-TEN-07, T-TEN-22, T-TEN-23 |
@@ -293,8 +293,8 @@ T-TEN-30 · suspendida → T-TEN-29.
   `test_AC_TEN_35_case_and_alias`.
 
 ### T-TEN-16 — Mis invitaciones y aceptar desde la sesión (Q-124)
-- **AC:** AC-TEN-39, AC-TEN-28 (ruta exenta). RF-TEN-05, RN-TEN-11, Q-121, Q-124. **Zona roja:** sí.
-- **Archivos:** `models/invitation.py` (scope `for_session_accept`), `backend/tests/architecture/allowlists.py`,
+- **AC:** AC-TEN-39, AC-TEN-28 (ruta exenta), AC-TEN-10 (scope limitado). RF-TEN-05, RN-TEN-11, Q-121, Q-124. **Zona roja:** sí.
+- **Archivos:** `models/invitation.py` (scope `for_session_accept`), `backend/tests/architecture/allowlists.py`, `tenant_rules.py`,
   `selectors/invitations.py`, `services/invitation_accept.py`, `api/invitations.py`, `api/urls.py`,
   `backend/tests/cross_tenant/cases/tenancy.py`, `openapi.yaml`, `api.d.ts`, tests.
 - **Cambios:** `GET /api/invitations/mine/` y `POST /api/invitations/{id}/accept/` (`design.md §4.4`, con su orden de
@@ -473,5 +473,5 @@ T-TEN-30 · suspendida → T-TEN-29.
 
 ---
 **Hecho:** 36 tareas, 40 AC y 9 RF cubiertos, olas y división de archivos.
-**Pendiente / dudas:** Q-220 (SPEC-04/05); `scripts/spec_state_baseline.json` necesita estos AC.
+**Pendiente / dudas:** Q-220 (SPEC-04/05).
 **Siguiente rol sugerido:** `backend-dev` en `T-TEN-01`, en paralelo con la ola 0 de SPEC-01, después `reviewer`.

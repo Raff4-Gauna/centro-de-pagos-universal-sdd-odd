@@ -2,7 +2,7 @@
 # Patches are grouped into one PR per ecosystem; minors come one PR each. Majors are ignored: they
 # touch versions pinned by C-13 and Q-029, so each one is decided by spec. Every PR goes through the
 # full CI chain, deps-audit included. pre-commit hooks are not covered here: `pre-commit autoupdate` by hand, monthly.
-# Checked by scripts/tests/test_AC_PLT_26_audit_deps.py.
+# Checked by scripts/tests/test_RN_PLT_14_dependabot_and_setup.py.
 version: 2
 
 updates:
@@ -48,7 +48,7 @@ updates:
       docker-patches:
         update-types: [patch]
     ignore:
-      # Majors are decided by spec, not by Dependabot (owner, 2026-11-07; C-13, Q-029).
+      # Same rule, extended by Claude on the owner's delegation (2026-11-07): also pinned.
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
 
@@ -61,6 +61,6 @@ updates:
       actions-patches:
         update-types: [patch]
     ignore:
-      # Majors are decided by spec, not by Dependabot (owner, 2026-11-07; C-13, Q-029).
+      # Same rule, extended by Claude on the owner's delegation (2026-11-07): also pinned.
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
