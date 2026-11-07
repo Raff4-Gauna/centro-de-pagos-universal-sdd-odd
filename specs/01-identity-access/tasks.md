@@ -467,8 +467,10 @@ módulos se aprueba en la misma pasada, después de `T-TEN-36`.
 ### T-IDA-28 — Pantalla "Ingresar" y protección de rutas
 - **AC:** AC-IDA-19 (UI). Spec §14. **Zona roja:** sí (`src/proxy.ts` decide acceso).
 - **Archivos:** `src/proxy.ts`, `src/app/(auth)/login/page.tsx`, `src/modules/identity/components/{LoginCard,LoginErrorAlert}.tsx`,
-  `src/modules/identity/lib/login-errors.ts` y sus tests.
-- **Cambios:** `design.md §3.4`. Primera ruta protegida: por eso depende de `T-IDA-26`.
+  `src/modules/identity/lib/login-errors.ts` y sus tests, `scripts/smoke_pages.py` y `scripts/tests/test_smoke_pages.py`.
+- **Cambios:** `design.md §3.4`. Primera ruta protegida: por eso depende de `T-IDA-26`. Agrega las páginas protegidas a
+  `EXPECTED_REDIRECTS` de `smoke_pages.py`, con `/login` como destino. El smoke sigue un solo salto y compara el origen:
+  `/` tiene que ir directo a `/login` o quedar listada con su destino real, y un `Location` absoluto con otro host falla.
 - **Pruebas:** `test_AC_IDA_19` en `login-errors.test.ts` (código desconocido → genérico), un caso por estado de §14.
 
 ### T-IDA-29 — Mi perfil, menú de usuario y "sin empresas"
