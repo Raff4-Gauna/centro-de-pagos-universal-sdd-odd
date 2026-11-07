@@ -12,10 +12,11 @@ credentials are ``SecretStr``/``Secret[...]``, masked in ``repr``, ``str`` and `
 
 from __future__ import annotations
 
+import json
 import os
 import re
 from collections.abc import Collection
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, Literal, Self
 from urllib.parse import unquote
 
 from django.core.exceptions import ImproperlyConfigured
@@ -28,6 +29,7 @@ from pydantic import (
     Secret,
     SecretStr,
     ValidationError,
+    model_validator,
 )
 from pydantic_core import PydanticCustomError
 from pydantic_settings import (
@@ -36,6 +38,8 @@ from pydantic_settings import (
     PydanticBaseSettingsSource,
     SettingsConfigDict,
 )
+
+from apps.identity.tokens.keys import is_public_key_of, load_private_key, load_public_key
 
 # Custom error messages are never shown (only the type is), but they carry no value either.
 
@@ -91,12 +95,52 @@ def _throttle_rate(value: str) -> str:
     return value
 
 
+def _json_object(value: object) -> object:
+    """A JSON object. Decoded here because pydantic-settings' own failure is no ValidationError:
+    ``load_env`` would not catch it."""
+    if not isinstance(value, str):
+        return value
+    try:
+        decoded = json.loads(value)
+    except ValueError:
+        decoded = None
+    if not isinstance(decoded, dict):
+        raise PydanticCustomError("json_object", "expected a JSON object")
+    return decoded
+
+
+def _jwt_signing_key(value: SecretStr) -> SecretStr:
+    """Empty is the default, which pydantic-settings validates too: no signer in this process."""
+    try:
+        if pem := value.get_secret_value():
+            load_private_key(pem)
+    except ValueError:
+        raise PydanticCustomError("jwt_signing_key_format", "expected a P-256 PEM") from None
+    return value
+
+
+def _jwt_verification_keys(value: dict[str, str]) -> dict[str, str]:
+    try:
+        for pem in value.values():
+            load_public_key(pem)
+    except ValueError:
+        raise PydanticCustomError("jwt_verification_key_format", "expected P-256 PEMs") from None
+    return value
+
+
 EnvBool = Annotated[bool, BeforeValidator(_strict_bool)]
 # NoDecode: pydantic-settings would otherwise parse a list variable as JSON.
 CsvList = Annotated[list[str], NoDecode, BeforeValidator(_csv)]
 NonEmptyStr = Annotated[str, Field(min_length=1)]
 DjangoPostgresDsn = Annotated[PostgresDsn, AfterValidator(_django_postgres_dsn)]
 ThrottleRate = Annotated[str, AfterValidator(_throttle_rate)]
+JwtSigningKey = Annotated[SecretStr, AfterValidator(_jwt_signing_key)]
+JwtVerificationKeys = Annotated[
+    dict[str, str],
+    NoDecode,
+    BeforeValidator(_json_object),
+    AfterValidator(_jwt_verification_keys),
+]
 
 
 class PlatformEnv(BaseSettings):
@@ -128,6 +172,27 @@ class PlatformEnv(BaseSettings):
     # throttle keys on REMOTE_ADDR and ignores the header, which any client can forge. Set with the
     # hosting (Q-020).
     TRUSTED_PROXY_COUNT: Annotated[int, Field(ge=0)] = 0
+    # The Hub's access JWT (ADR-0004 sec. 5). Without keys the process starts and issuing or
+    # verifying fails closed (apps.identity.tokens.keys).
+    IDENTITY_JWT_ISSUER: NonEmptyStr = "centro-de-pagos"
+    IDENTITY_JWT_AUDIENCE: NonEmptyStr = "centro-de-pagos-api"
+    IDENTITY_JWT_SIGNING_KID: str = ""
+    IDENTITY_JWT_SIGNING_KEY: JwtSigningKey = SecretStr("")
+    # {kid: public PEM}: the active key and, during a rotation, the previous one.
+    IDENTITY_JWT_VERIFICATION_KEYS: JwtVerificationKeys = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def _jwt_signer_verifies_its_own_tokens(self) -> Self:
+        """A signer without its ``kid``, or whose public key is not listed, would issue tokens the
+        Hub itself rejects: it does not start. A process that only verifies has no signer."""
+        kid = self.IDENTITY_JWT_SIGNING_KID
+        key = self.IDENTITY_JWT_SIGNING_KEY.get_secret_value()
+        if bool(kid) != bool(key):
+            raise PydanticCustomError("jwt_signing_pair", "set both the kid and the key, or none")
+        public_pem = self.IDENTITY_JWT_VERIFICATION_KEYS.get(kid)
+        if key and (public_pem is None or not is_public_key_of(public_pem, key)):
+            raise PydanticCustomError("jwt_signing_key_not_verifiable", "public key not listed")
+        return self
 
     @classmethod
     def settings_customise_sources(

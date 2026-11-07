@@ -2,10 +2,14 @@
 
 Same validation as dev: the CI job sets non-secret values for the required variables. The cache
 is in memory so unit tests never need Redis (the throttle counts there too); integration tests that
-do (throttling, /readyz) override it with the job's Redis.
+do (throttling, /readyz) override it with the job's Redis. Each process generates its JWT key pair:
+no key in the repo nor in the CI job (C-06).
 """
 
 from __future__ import annotations
+
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import ec
 
 from apps.common.feature_flags import REGISTRY as FEATURE_REGISTRY
 from apps.common.logging.setup import logging_config
@@ -39,6 +43,22 @@ REST_FRAMEWORK = {**REST_FRAMEWORK, "NUM_PROXIES": _env.TRUSTED_PROXY_COUNT}
 LOGGING = logging_config(_env.LOG_LEVEL)
 # RF-PLT-19: read through apps.common.feature_flags.is_enabled, never directly.
 FEATURE_FLAGS = load_feature_flags(FEATURE_REGISTRY)
+# The Hub's access JWT (ADR-0004 sec. 5), read through apps.identity.tokens.
+IDENTITY_JWT_ISSUER = _env.IDENTITY_JWT_ISSUER
+IDENTITY_JWT_AUDIENCE = _env.IDENTITY_JWT_AUDIENCE
+_jwt_key = ec.generate_private_key(ec.SECP256R1())
+IDENTITY_JWT_SIGNING_KID = "test-key"
+IDENTITY_JWT_SIGNING_KEY = _jwt_key.private_bytes(
+    serialization.Encoding.PEM,
+    serialization.PrivateFormat.PKCS8,
+    serialization.NoEncryption(),
+).decode()
+IDENTITY_JWT_VERIFICATION_KEYS = {
+    IDENTITY_JWT_SIGNING_KID: _jwt_key.public_key()
+    .public_bytes(serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo)
+    .decode()
+}
+del _jwt_key
 
 # Drop the env object: it must not outlive the settings it fed (C-06).
 del _env
