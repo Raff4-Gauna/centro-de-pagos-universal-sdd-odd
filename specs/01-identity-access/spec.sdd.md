@@ -295,6 +295,6 @@ La tabla AC → tareas está en `tasks.md` ("Cobertura AC → tareas"); la matri
 | 1.0.2 | 2026-11-07 | ADR-0004 pasa a Aceptado; no cambia ningún RF ni AC | Decisión del dueño del 2026-11-07 |
 
 ---
-**Hecho:** spec Approved 1.0.2 (25 RN, 10 RF, 7 RNF, 38 AC); `design.md` aprobado; `tasks.md` creado; ADR-0004 Propuesto.
+**Hecho:** spec Approved 1.0.2 (25 RN, 10 RF, 7 RNF, 38 AC); `design.md` aprobado; `tasks.md` creado; ADR-0004 Aceptado.
 **Pendiente:** aplicar `07 §3.2` (lo hace `T-IDA-27`).
 **Siguiente rol:** implementadores, según `tasks.md`.
