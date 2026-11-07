@@ -27,6 +27,12 @@ INSTALLED_APPS = [
 
 AUTH_USER_MODEL = "identity.User"
 
+# Ports of apps.identity (design.md §6.4), resolved by ports/registry.py: identity never imports
+# tenancy nor audit. Fixed dotted paths, not environment variables; SPEC-02 and SPEC-10 change them.
+IDENTITY_INVITATION_PORT = "apps.identity.ports.stubs.NullInvitationPort"
+IDENTITY_MEMBERSHIP_SELECTOR = "apps.identity.ports.stubs.EmptyMembershipSelector"
+IDENTITY_AUDIT_PORT = "apps.identity.ports.stubs.LogAuditPort"
+
 # RequestId first (T-PLT-12): every log event of the request carries its id. AccessLog (T-PLT-13)
 # right after Security, so it times and logs everything the rest of the chain answers.
 MIDDLEWARE = [
