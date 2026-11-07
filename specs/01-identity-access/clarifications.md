@@ -93,7 +93,7 @@ staging/prod), Q-123 (el comando crea toda organización nueva, idempotente y au
 (acepta adentro del Hub) y Q-125 c) (no se guarda email ni `sub`).
 **Abiertas:** ninguna.
 **Para el architect (ADR-0004):** resuelto en `context/decisions/ADR-0004-sesion-y-tokens-en-navegador.md`
-(Propuesto) y `design.md`.
+(Aceptado) y `design.md`.
 
 ---
 **Hecho:** todas las Q del módulo decididas; matriz de permisos completa (8 columnas, incluye anónimo, sin membership

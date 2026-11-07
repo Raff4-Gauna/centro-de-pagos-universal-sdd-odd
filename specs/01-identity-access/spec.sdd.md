@@ -3,16 +3,16 @@ id: SPEC-01
 modulo: identity-access
 estado: Approved
 track: S
-version: 1.0.1
+version: 1.0.2
 depende_de: [SPEC-00]
-actualizado: 2026-11-06
+actualizado: 2026-11-07
 ---
 
 # Módulo de Identidad y Acceso
 
 > **Zona roja (auth).** Todo cambio pasa por Carril S y `reviewer`. Preguntas en
 > `specs/01-identity-access/clarifications.md` (rango Q-101…Q-199): **ninguna abierta**; Q-119…Q-125 quedaron
-> decididas por el usuario el 2026-11-06. Diseño aprobado: `design.md` + ADR-0004 (Propuesto).
+> decididas por el usuario el 2026-11-06. Diseño aprobado: `design.md` + ADR-0004 (Aceptado).
 > SPEC-01 y SPEC-02 se cierran juntas en H1 (Q-108).
 
 ## 1. Contexto y problema
@@ -258,7 +258,7 @@ Interfaces internas:
 - Supuesto: Google es suficiente como único IdP para los pilotos (Q-001, Q-101 decidido).
 - Supuesto: SPEC-02 implementa el puerto de invitaciones y el selector de memberships antes de cerrar H1 (Q-108); hasta entonces hay stubs.
 - **Propuesta original descartada:** §6.1 de la propuesta entregaba el JWT al frontend para mandarlo en cada request (expuesto a JS) y §8 exigía "JWT en todos los endpoints". Se reemplaza por cookie `httpOnly` gestionada por el BFF de Next.js, con tokens nunca accesibles desde JavaScript (Q-102 decidido 2026-10-31), y el ERP usa API keys (Q-011).
-- **Para el architect (ADR-0004):** *(resueltos el 2026-10-31 en `context/decisions/ADR-0004-sesion-y-tokens-en-navegador.md`, Propuesto, puntos 1–15, y en `design.md`)*
+- **Para el architect (ADR-0004):** *(resueltos el 2026-10-31 en `context/decisions/ADR-0004-sesion-y-tokens-en-navegador.md`, Aceptado, puntos 1–15, y en `design.md`)*
   1. Quién termina el callback OIDC (BFF o Django) y el flujo exacto (authorization code; PKCE además del client secret).
   2. Diseño de cookies: qué viaja (tokens o un identificador opaco de sesión), nombres/prefijo `__Host-`, `SameSite` (el retorno desde Google exige que la cookie del intento sobreviva a la navegación cruzada), `Path`, `Max-Age` alineado a la vida absoluta de 30 días, límites de tamaño.
   3. Concurrencia del refresh (Q-103): serialización en el BFF (con varias instancias de Next.js necesita un candado compartido) **o** ventana de gracia (duración y qué se devuelve dentro de ella), cumpliendo AC-IDA-28 sin debilitar AC-IDA-15.
@@ -292,8 +292,9 @@ La tabla AC → tareas está en `tasks.md` ("Cobertura AC → tareas"); la matri
 | 0.3.0 | 2026-10-31 | Estado → Designed. Se agregan `design.md` y ADR-0004 (Propuesto) que resuelve los 15 puntos de §15. Q-119…Q-123 pasan de "abiertas, provisional" a "decididas por defecto, confirmables antes de Approved" con **el mismo valor** que ya usaban las RN (sin cambio de reglas); notas de estado en RN-IDA-01/05/06/09/23, §11 (contratos finales en `design.md §6`), §12, §15, §16. Nuevas Q-124 y Q-125 (no bloqueantes, abiertas) | Paso 3 SDD (architect) |
 | 1.0.0 | 2026-10-31 | Estado → **Approved** por el dueño. Confirmadas Q-119…Q-123 (defaults); decididas Q-124 (si el owner indicado al crear la organización ya tiene usuario, el comando de bootstrap crea la membership `owner` directamente, auditada; si no, invitación) y Q-125 (el evento de login rechazado no guarda email ni `sub`) | Gate humano *Approved* (2026-10-31) |
 | 1.0.1 | 2026-11-06 | Q-119…Q-125 pasan a decididas por el usuario. **Q-124 cambia:** el owner que ya tiene usuario acepta adentro del Hub, igual que cualquier invitación (Q-121); el comando siempre emite invitación y nunca crea la membership. Se limpian las citas "por defecto" y "abierta" en RN-IDA-01/05/06/09/23, §11, §12 y §16; §17 apunta a `tasks.md`. Sin cambios en RF ni AC: RN-IDA-05 y el login no cambian; el flujo nuevo vive en SPEC-02 | Decisiones del dueño del 2026-11-06 |
+| 1.0.2 | 2026-11-07 | ADR-0004 pasa a Aceptado; no cambia ningún RF ni AC | Decisión del dueño del 2026-11-07 |
 
 ---
-**Hecho:** spec Approved 1.0.1 (25 RN, 10 RF, 7 RNF, 38 AC); `design.md` aprobado; `tasks.md` creado; ADR-0004 Propuesto.
+**Hecho:** spec Approved 1.0.2 (25 RN, 10 RF, 7 RNF, 38 AC); `design.md` aprobado; `tasks.md` creado; ADR-0004 Aceptado.
 **Pendiente:** aplicar `07 §3.2` (lo hace `T-IDA-27`).
 **Siguiente rol:** implementadores, según `tasks.md`.

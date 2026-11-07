@@ -6,8 +6,8 @@ actualizado: 2026-11-06
 
 Reglas: rebanada vertical · ≤ ~300 líneas de diff · mergeable sola · cita AC · lista archivos esperados · incluye su plan de pruebas.
 
-> Entradas: `spec.sdd.md` **Approved 1.0.1**, `design.md` **Aprobado**, `clarifications.md` (incluida "Confirmación
-> (2026-11-06)"), ADR-0004 (Propuesto: `T-IDA-04` y `T-IDA-08` no arrancan hasta que el dueño lo acepte),
+> Entradas: `spec.sdd.md` **Approved 1.0.2**, `design.md` **Aprobado**, `clarifications.md` (incluida "Confirmación
+> (2026-11-06)"), ADR-0004 (**Aceptado** 2026-11-07),
 > `context/08-control-de-versiones-ci-cd.md`.
 > **Se cierra junto con SPEC-02 (Q-108):** ninguno de los dos pasa a `Verified` sin el otro.
 > `specs/02-tenancy-rbac/tasks.md` depende de `T-IDA-01`, `T-IDA-06`, `T-IDA-07`, `T-IDA-13`, `T-IDA-27` y `T-IDA-29`.
@@ -56,11 +56,11 @@ El diseño se escribió antes de que existiera el código de SPEC-00. Donde difi
 
 ## Resumen
 
-> Ninguna tarea empezada. La columna **Evidencia** es obligatoria para `✅` y la verifica `scripts/check_spec_state.py`.
+> La columna **Evidencia** es obligatoria para `✅` y la verifica `scripts/check_spec_state.py`.
 
 | ID | Título | AC | Capa | Archivos esperados (ver detalle) | Depende de | Agente | Tamaño | Zona roja | Estado | Evidencia |
 |---|---|---|---|---|---|---|---|---|---|---|
-| T-IDA-00 | Guarda de `check_migrations_roundtrip` (deuda de 00) | AC-PLT-17 (regresión) | Migraciones | `check_migrations_roundtrip.py` | — | backend-dev | M | Sí | 🟡 | PR abierto |
+| T-IDA-00 | Guarda de `check_migrations_roundtrip` (deuda de 00) | AC-PLT-17 (regresión) | Migraciones | `check_migrations_roundtrip.py` | — | backend-dev | M | Sí | ✅ | #63 · c57db14 |
 | T-IDA-01 | `User` + `AUTH_USER_MODEL` + migración 0001 | AC-IDA-31 (normalización) | DB | `apps/identity/models/user.py`, `domain/emails.py`, `domain/profile.py` | T-IDA-00 | backend-dev | L | Sí | ☐ | |
 | T-IDA-02 | Reglas puras de sesión y formato de secretos | AC-IDA-15, AC-IDA-16, AC-IDA-28 (decisión) | Dominio | `domain/session_policy.py`, `domain/secrets_format.py`, `domain/errors.py` | T-IDA-01 | backend-dev | M | Sí | ☐ | |
 | T-IDA-03 | `AuthSession`, `RefreshToken` + migración 0002 | AC-IDA-14 (solo hash), AC-IDA-16 (constraints) | DB | `models/auth_session.py`, `models/refresh_token.py`, `services/session_lifecycle.py` | T-IDA-02 | backend-dev | L | Sí | ☐ | |
@@ -174,7 +174,7 @@ módulos se aprueba en la misma pasada, después de `T-TEN-36`.
   `backend/tests/migrations/test_AC_PLT_17_reversibility.py`.
 - **Cambios:** `--allow-data-loss` no mira a qué BD apunta y la de CI se llama `hub`, igual que la de desarrollo: un
   chequeo por nombre obligaría a cambiar `ci.yml` (Q-063). Por eso se mira el contenido: antes del primer `migrate`,
-  si cualquier tabla de la BD salvo `django_migrations` tiene filas (`EXISTS` real, no estadísticas), sale con 2
+  si cualquier tabla del `search_path` salvo `django_migrations` tiene filas (`EXISTS` real, no estadísticas), sale con 2
   nombrando BD y tabla, sin ningún valor. Son todas y no solo las de las apps pedidas: `migrate identity zero` también
   revierte lo que depende de `identity`. `hub_synthetic` se comparte y `test_AC_PLT_17_runpython_without_reverse_fails`
   deja una fila de `0004_seed_items`: los roundtrips de la suite tienen que partir de una BD vacía, o saldrían con 2.
@@ -376,7 +376,7 @@ módulos se aprueba en la misma pasada, después de `T-TEN-36`.
 - **Archivos:** `services/user_status.py`, `management/commands/{deactivate_user,reactivate_user}.py`,
   `backend/tests/identity/test_AC_IDA_27_deactivate.py`, `backend/tests/identity/test_AC_IDA_32_no_endpoints.py`.
 - **Cambios:** `design.md §6.5`; actor `platform_operator` con `--operator` y usuario del SO.
-- **Fuera:** comando de bootstrap (`T-TEN-18`). No hay admin que apagar: D-03 sigue en pie y Q-228 está abierta.
+- **Fuera:** comando de bootstrap (`T-TEN-18`). No hay admin que apagar: D-03 sigue en pie y Q-228 decidió que no hay admin en el MVP.
 - **Pruebas:** `test_AC_IDA_27_two_sessions_revoked_and_next_request_401`,
   `test_AC_IDA_27_reactivate_does_not_revive`, `test_AC_IDA_32_schema_has_no_provisioning_endpoints`,
   `test_AC_IDA_32_admin_does_not_answer`.
@@ -494,5 +494,5 @@ módulos se aprueba en la misma pasada, después de `T-TEN-36`.
 
 ---
 **Hecho:** 32 tareas, 38 AC y 10 RF cubiertos, olas y división de archivos.
-**Pendiente / dudas:** ADR-0004 sigue Propuesto; `scripts/spec_state_baseline.json` necesita estos AC (`scripts/**`).
-**Siguiente rol sugerido:** `backend-dev` en `T-IDA-00`, después `reviewer`.
+**Pendiente / dudas:** ninguna de 01.
+**Siguiente rol sugerido:** `reviewer` en `T-IDA-01` (#65); después `backend-dev` en la ola 1.

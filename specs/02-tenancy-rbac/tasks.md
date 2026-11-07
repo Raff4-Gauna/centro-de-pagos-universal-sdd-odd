@@ -6,7 +6,7 @@ actualizado: 2026-11-06
 
 Reglas: rebanada vertical · ≤ ~300 líneas de diff · mergeable sola · cita AC · lista archivos esperados · incluye su plan de pruebas.
 
-> Entradas: `spec.sdd.md` **Approved 1.0.1**, `design.md` **Aprobado** (con los ajustes que indica su cabecera),
+> Entradas: `spec.sdd.md` **Approved 1.0.2**, `design.md` **Aprobado** (con los ajustes que indica su cabecera),
 > `clarifications.md` (incluida "Confirmación (2026-11-06)"), ADR-0001 y ADR-0002 **Aceptados**, `context/08-control-de-versiones-ci-cd.md`.
 > **Se cierra junto con SPEC-01 (Q-108):** ninguno de los dos pasa a `Verified` sin el otro. `Invitation` vive acá, y
 > acá se implementan los dos puertos que define SPEC-01: `T-TEN-12` (memberships) y `T-TEN-17` (invitaciones). Esta
@@ -44,7 +44,7 @@ Donde el diseño y el código de SPEC-00, o el orden real, difieren, manda esta 
 | Cada módulo prohíbe `.objects` crudo con un test nuevo | Regla nueva en `backend/tests/architecture/tenant_rules.py`, enganchada a `ast_rules.py` | `ast_rules.py` tiene 273 líneas (`C-14`) y su regla C-01 marca **todo** `.objects`; hay que permitir los scopes |
 | Humo E2E con Playwright | Script por HTTP sin navegador, `scripts/e2e_tenancy.py` | Playwright es dependencia nueva (`C-13`, ADR) y no hace falta para estos AC |
 | `/sin-organizacion` con `EmptyState` propio | Página que reutiliza `NoOrganizationState` de `T-IDA-29`, con contacto del operador | SPEC-01 y SPEC-02 describen la misma pantalla (Q-109, Q-205) |
-| `admin.py` de solo lectura | **Sin tarea** | Q-228 abierta: incompatible con D-03 y con `identity.User` |
+| `admin.py` de solo lectura | **Sin tarea** | Q-228 decidida (2026-11-07): sin admin en el MVP |
 | `TENANT_MODEL`, `PLATFORM_OPERATOR_EMAILS`, etc. | Campos en `PlatformEnv` los que vienen del entorno; constantes en `base.py` los demás | `env.py` es el único que lee el entorno (RN-PLT-02) |
 | Auditoría `apps/common/audit` y `AuditPort` de identity | Conviven; los dos escriben al canal `audit` | El diseño aprobado define ambos; unificarlos queda para SPEC-10, que aporta el sink real |
 
@@ -69,7 +69,7 @@ Donde el diseño y el código de SPEC-00, o el orden real, difieren, manda esta 
 | T-TEN-13 | Datos de la organización activa | AC-TEN-29 (API) | API | `apps/tenancy/api/organizations.py`, `services/organizations.py`, `domain/tax_id.py` | T-TEN-10, T-TEN-11, T-TEN-12 | backend-dev | L | Sí | ☐ | |
 | T-TEN-14 | `Invitation` + migración 0003 + reglas puras | AC-TEN-25, AC-TEN-35 (unidad) | DB | `apps/tenancy/models/invitation.py`, `domain/invitations.py` | T-TEN-05 | backend-dev | L | Sí | ☐ | |
 | T-TEN-15 | Aceptar invitación con token | AC-TEN-17, AC-TEN-18, AC-TEN-19, AC-TEN-25, AC-TEN-35 | Servicio/API | `services/invitation_accept.py`, `api/invitations.py` | T-TEN-10, T-TEN-11, T-TEN-14 | backend-dev | L | Sí | ☐ | |
-| T-TEN-16 | Mis invitaciones y aceptar desde la sesión (Q-124) | AC-TEN-39, AC-TEN-28 | Servicio/API | `selectors/invitations.py`, `api/invitations.py`, `services/invitation_accept.py` | T-TEN-15 | backend-dev | M | Sí | ☐ | |
+| T-TEN-16 | Mis invitaciones y aceptar desde la sesión (Q-124) | AC-TEN-39, AC-TEN-28, AC-TEN-10 | Servicio/API | `selectors/invitations.py`, `api/invitations.py`, `services/invitation_accept.py` | T-TEN-15 | backend-dev | L | Sí | ☐ | |
 | T-TEN-17 | `TenancyInvitationPort` (puerto de SPEC-01) | AC-TEN-17 (vía puerto), AC-IDA-02, AC-IDA-04, AC-IDA-05, AC-IDA-31 | Servicio | `services/invitation_port.py`, `config/settings/base.py` | T-TEN-15, T-IDA-13 | backend-dev | M | Sí | ☐ | |
 | T-TEN-18 | Comando `tenancy_create_org` | AC-TEN-22, AC-TEN-40, AC-IDA-32 | Comandos | `services/platform_org.py`, `management/commands/tenancy_create_org.py` | T-TEN-16, T-TEN-17 | backend-dev | L | Sí | ☐ | |
 | T-TEN-19 | Comandos de suspensión y primer owner | AC-TEN-28, AC-TEN-29 | Comandos | `management/commands/{tenancy_set_org_status,tenancy_owner_invite}.py` | T-TEN-18 | backend-dev | M | Sí | ☐ | |
@@ -103,7 +103,7 @@ Donde el diseño y el código de SPEC-00, o el orden real, difieren, manda esta 
 | AC-TEN-07 | T-TEN-03, T-TEN-24 |
 | AC-TEN-08 | T-TEN-12, T-TEN-36 |
 | AC-TEN-09 | T-TEN-25 |
-| AC-TEN-10 | T-TEN-04 |
+| AC-TEN-10 | T-TEN-04, T-TEN-16 |
 | AC-TEN-11 | T-TEN-02, T-TEN-03 |
 | AC-TEN-12 | T-TEN-09 |
 | AC-TEN-13 | T-TEN-07, T-TEN-22, T-TEN-23 |
@@ -149,7 +149,6 @@ Sucursales → T-TEN-33 · Aceptar invitación → T-TEN-31 · Invitaciones en l
 T-TEN-30 · suspendida → T-TEN-29.
 
 **Huecos:** ningún AC ni RF sin tarea. Dos salvedades:
-- **RN-TEN-10, "(y Django admin restringido)":** sin tarea hasta decidir **Q-228**. Ningún AC depende de ese admin.
 - **Q-220 (Caja):** no es de este módulo. RN-TEN-15 queda cubierta del lado de 02 por `branch_org_id_uniq` en `T-TEN-24`;
   la FK compuesta la agrega SPEC-04/05.
 
@@ -294,19 +293,23 @@ T-TEN-30 · suspendida → T-TEN-29.
   `test_AC_TEN_35_case_and_alias`.
 
 ### T-TEN-16 — Mis invitaciones y aceptar desde la sesión (Q-124)
-- **AC:** AC-TEN-39, AC-TEN-28 (ruta exenta). RF-TEN-05, RN-TEN-11, Q-121, Q-124. **Zona roja:** sí.
-- **Archivos:** `models/invitation.py` (scope `for_session_accept`), `backend/tests/architecture/allowlists.py`,
+- **AC:** AC-TEN-39, AC-TEN-28 (ruta exenta), AC-TEN-10 (scope limitado). RF-TEN-05, RN-TEN-11, Q-121, Q-124. **Zona roja:** sí.
+- **Archivos:** `models/invitation.py` (scope `for_session_accept`), `backend/tests/architecture/allowlists.py`, `tenant_rules.py`,
   `selectors/invitations.py`, `services/invitation_accept.py`, `api/invitations.py`, `api/urls.py`,
   `backend/tests/cross_tenant/cases/tenancy.py`, `openapi.yaml`, `api.d.ts`, tests.
 - **Cambios:** `GET /api/invitations/mine/` y `POST /api/invitations/{id}/accept/` (`design.md §4.4`, con su orden de
-  tres pasos); exentas de organización activa. Sin token en ninguna respuesta.
+  tres pasos); exentas de organización activa. Sin token en ninguna respuesta. `for_session_accept` **no** entra en la
+  lista general de scopes de `T-TEN-04`: se permite solo en `services/invitation_accept.py`, con una entrada que cite el
+  motivo. Si al releer bajo lock el email ya no coincide, responde `not_found`, sin membership y con `invitation.rejected`
+  fuera del `atomic`.
 - **Fuera:** UI (`T-TEN-30`).
 - **Pruebas:** `test_AC_TEN_39_lists_only_my_email`, `test_AC_TEN_39_response_has_no_token`,
   `test_AC_TEN_39_accept_from_session`, `test_AC_TEN_39_other_email_is_invalid_and_stays_pending`,
   `test_AC_TEN_39_expired_and_suspended_are_not_listed`, `test_AC_TEN_39_foreign_and_missing_same_body`,
   `test_AC_TEN_39_foreign_attempt_is_audited` (`transaction=True`: el evento debe quedar confirmado),
   `test_AC_TEN_28_accept_from_session_is_409`, `test_AC_TEN_39_double_accept_one_membership`,
-  `test_AC_TEN_39_accept_vs_revoke_in_parallel` (hilos).
+  `test_AC_TEN_39_accept_vs_revoke_in_parallel` (hilos), `test_AC_TEN_39_email_changed_under_lock_is_not_found`,
+  `test_AC_TEN_10_for_session_accept_outside_its_service_fails`.
 
 ### T-TEN-17 — `TenancyInvitationPort` (puerto de SPEC-01)
 - **AC:** AC-TEN-17 (vía puerto); AC-IDA-02, 04, 05, 31 con puerto real. RN-TEN-11, RN-IDA-06, Q-108, Q-120. **Zona roja:** sí.
@@ -470,5 +473,5 @@ T-TEN-30 · suspendida → T-TEN-29.
 
 ---
 **Hecho:** 36 tareas, 40 AC y 9 RF cubiertos, olas y división de archivos.
-**Pendiente / dudas:** Q-228 (admin de Django), Q-220 (SPEC-04/05); `scripts/spec_state_baseline.json` necesita estos AC.
+**Pendiente / dudas:** Q-220 (SPEC-04/05).
 **Siguiente rol sugerido:** `backend-dev` en `T-TEN-01`, en paralelo con la ola 0 de SPEC-01, después `reviewer`.

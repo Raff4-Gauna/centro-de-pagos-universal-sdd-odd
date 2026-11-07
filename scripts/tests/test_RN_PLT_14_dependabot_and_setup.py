@@ -166,9 +166,13 @@ def test_RN_PLT_14_dependabot_weekly_for_all_ecosystems() -> None:
     assert "/" in directories(updates["github-actions"])
     for name, entry in updates.items():
         assert entry["schedule"]["interval"] == "weekly", name
-        # Patches grouped in one PR; majors (and minors) stay separate.
+        # Patches grouped in one PR; minors stay separate; majors are decided by spec (C-13).
         groups = list(entry["groups"].values())
         assert [group["update-types"] for group in groups] == [["patch"]], name
+        majors = [rule for rule in entry["ignore"] if rule["dependency-name"] == "*"]
+        assert majors == [
+            {"dependency-name": "*", "update-types": ["version-update:semver-major"]}
+        ], name
     eslint = [rule for rule in updates["npm"]["ignore"] if rule["dependency-name"] == "eslint"]
     assert eslint == [
         {"dependency-name": "eslint", "update-types": ["version-update:semver-major"]}
