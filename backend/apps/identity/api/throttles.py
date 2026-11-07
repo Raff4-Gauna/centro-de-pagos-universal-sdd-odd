@@ -3,7 +3,7 @@
 ``login_start_ip`` and ``login_complete_ip`` allow 10/min per client IP (each its own quota; the key
 holds ``sha256(ip)[:16]``, never the IP) and ``refresh_session`` 30/min per session. The limits are
 fixed by the spec, so no environment variable moves them. DRF runs throttles before the view, so an
-excess never reaches Google, and answers ``429 throttled`` with ``Retry-After``.
+excess never reaches Google; ``BffAPIView`` answers it ``429 rate_limited`` with ``Retry-After``.
 
 They extend the platform's throttle for its fail-open on Redis errors (D-06, which SPEC-01 does not
 change); setting ``rate`` keeps its ``get_rate``, which is the anonymous one, from running.

@@ -284,7 +284,10 @@ módulos se aprueba en la misma pasada, después de `T-TEN-36`.
   `backend/tests/config/test_RF_PLT_19_feature_flags.py` (dos aserciones suponían `REGISTRY` vacío; la flag lo llena).
 - **Cambios:** `IsBffCaller` con comparación en tiempo constante, `404` sin credencial, lista vigente/anterior; IP desde
   `X-Hub-Client-IP` solo con credencial válida; scopes de `design.md §7.6`; flag `IDENTITY_GOOGLE_LOGIN` en `REGISTRY`.
-- **Redis caído:** los tres throttles heredan el fail-open de D-06 (SPEC-01 no eligió fail-closed); lo evalúa el reviewer.
+- **Vistas:** `BffAPIView` (en `bff_auth.py`) responde sin credencial lo mismo que una ruta inexistente (bytes, sin `Allow`),
+  no autentica por `Authorization` y convierte el exceso en `429 rate_limited` (`design.md §6.1`, §6.3).
+- **Redis caído:** los tres throttles heredan el fail-open de D-06; aceptado por el reviewer (#78). Conviene alertar sobre
+  `throttle.cache_unavailable`.
 - **Fuera:** las vistas que los usan (`T-IDA-10`, `13`, `14`).
 - **Pruebas:** `test_AC_IDA_20_key_is_per_ip_and_scope`, `test_AC_IDA_37_ten_client_ips_share_no_quota`,
   `test_client_ip_header_ignored_without_credential`, `test_bff_endpoint_without_credential_is_404`.
@@ -292,11 +295,14 @@ módulos se aprueba en la misma pasada, después de `T-TEN-36`.
 ### T-IDA-10 — Iniciar login: `LoginAttempt` + migración 0003
 - **AC:** AC-IDA-19 (servidor), AC-IDA-20, AC-IDA-37. RF-IDA-01, RN-IDA-13, RNF-IDA-06. **Zona roja:** sí.
 - **Archivos:** `models/login_attempt.py`, `migrations/0003_login_attempts.py`, `domain/return_path.py`,
-  `services/login_start.py`, `api/views_bff.py`, `api/urls.py`, `infra/docker-compose.yml`, `openapi.yaml`, `api.d.ts`, tests.
+  `services/login_start.py`, `api/views_bff.py`, `api/urls.py`, `infra/docker-compose.yml`,
+  `apps/common/logging/report_filter.py`, `openapi.yaml`, `api.d.ts`, tests.
 - **Cambios:** `POST /api/auth/bff/login/start`; solo hashes salvo `code_verifier`; `503 login_disabled` con el flag
   apagado.
 - **Compose:** `infra/docker-compose.yml` pasa `IDENTITY_BFF_CREDENTIALS` y `FEATURE_*`, para que `auth/bff/*` funcione en dev antes de `T-IDA-27`.
-- **Vistas:** declaran `authentication_classes = ()` y `throttle_classes` explícitos (`T-IDA-09`).
+- **Reportes de error:** adelantado desde `T-IDA-21`: `report_filter.py` oculta `HTTP_X_HUB_BFF_CREDENTIAL`, que empieza a circular acá.
+- **Vistas:** extienden `BffAPIView` (`T-IDA-09`: ya trae `authentication_classes = ()`, el `404` idéntico y
+  `rate_limited`) y declaran `throttle_classes` explícitos.
 - **Fuera:** callback.
 - **Pruebas:** `test_AC_IDA_19_hostile_return_path_goes_home` (absoluto, esquema, `//host`, otro dominio),
   `test_AC_IDA_20_eleventh_start_is_429_without_google`, `test_AC_IDA_37_ten_ips_via_bff_no_429`,
@@ -332,7 +338,8 @@ módulos se aprueba en la misma pasada, después de `T-TEN-36`.
   `backend/tests/identity/api/test_login_complete.py`.
 - **Cambios:** tabla de `design.md §4.2` en orden fijo; `DELETE … RETURNING` del intento. Éxito audita dentro de la
   transacción; rechazo después del rollback, solo con el motivo (**Q-125:** sin email ni `sub`).
-- **Vistas:** declaran `authentication_classes = ()` y `throttle_classes` explícitos (`T-IDA-09`).
+- **Vistas:** extienden `BffAPIView` (`T-IDA-09`: ya trae `authentication_classes = ()`, el `404` idéntico y
+  `rate_limited`) y declaran `throttle_classes` explícitos.
 - **Fuera:** cookies.
 - **Pruebas:** `test_AC_IDA_01_active_user_gets_session`, `test_AC_IDA_03_rejected_is_audited`,
   `test_AC_IDA_06_unverified_email`, `test_AC_IDA_08_bad_state_never_calls_google`, `test_AC_IDA_08_repeated_callback`,
@@ -344,8 +351,11 @@ módulos se aprueba en la misma pasada, después de `T-TEN-36`.
 - **Archivos:** `services/refresh.py`, `api/views_bff.py`, `api/serializers.py`, `openapi.yaml`, `api.d.ts`, tests.
 - **Cambios:** `POST /api/auth/bff/refresh`, camino de rotación de `design.md §4.5` con `FOR UPDATE`; el vencimiento
   materializa `expired`.
-- **Vistas:** declaran `authentication_classes = ()` y `throttle_classes` explícitos (`T-IDA-09`).
+- **Vistas:** extienden `BffAPIView` (`T-IDA-09`: ya trae `authentication_classes = ()`, el `404` idéntico y
+  `rate_limited`) y declaran `throttle_classes` explícitos.
 - **`sid`:** unificar el parseo local de `api/throttles.py` con `domain/secrets_format.py`.
+- **Tope por IP:** el refresh limita solo por `sid`; un `sid` aleatorio con formato válido estrena cupo y no hay tope por IP.
+  Decidirlo acá (planner).
 - **Fuera:** gracia y reuso (`T-IDA-15`).
 - **Pruebas:** `test_AC_IDA_14_rotation_new_pair`, `test_AC_IDA_16_idle_expired_refresh`,
   `test_AC_IDA_16_absolute_expired_refresh`, `test_AC_IDA_16_refresh_never_moves_absolute`,
@@ -403,7 +413,8 @@ módulos se aprueba en la misma pasada, después de `T-TEN-36`.
 - **Cambios:** ver "Ajustes al diseño" por `APP_ENV`; `IdentityConfig.ready()` lanza `ImproperlyConfigured` si
   `IDENTITY_OIDC_PROVIDER=fake` sin `IDENTITY_FAKE_OIDC_ALLOWED`; `checks.py` exige secretos distintos y, en prod, issuer y
   endpoints exactos de Google. `/dev-oidc/*` no se monta en prod.
-- **Credencial BFF:** evaluar una longitud mínima de `IDENTITY_BFF_CREDENTIALS` en prod (hoy no se exige).
+- **Credencial BFF:** evaluar una longitud mínima de `IDENTITY_BFF_CREDENTIALS` en prod (hoy no se exige), y que prod
+  rechace el placeholder público de `env.example`.
 - **Pruebas:** `test_RNF_IDA_06_fake_provider_fails_in_prod_settings`, `test_RN_IDA_16_equal_secrets_fail_check`,
   `test_RN_IDA_01_dev_oidc_routes_absent_in_prod`.
 
@@ -412,7 +423,7 @@ módulos se aprueba en la misma pasada, después de `T-TEN-36`.
 - **Archivos:** `apps/common/domain/redaction.py`, servicios que falten eventos, `backend/tests/identity/test_AC_IDA_23_*.py`,
   `test_AC_IDA_24_events.py`.
 - **Cambios:** claves de `design.md §7.5`; eventos `auth.*` con `outcome`/`reason` y `alert=true`.
-- **Reportes de error:** `backend/apps/common/logging/report_filter.py` debe ocultar `HTTP_X_HUB_BFF_CREDENTIAL`.
+- **Reportes de error:** el ocultamiento de `HTTP_X_HUB_BFF_CREDENTIAL` en `report_filter.py` se adelantó a `T-IDA-10`.
 - **Pruebas:** `test_AC_IDA_23_no_secret_in_logs_or_errors` (login, refresh, logout, rechazo),
   `test_AC_IDA_24_every_event_is_emitted`, `test_AC_IDA_24_429_is_not_audited`.
 - **Aviso de `T-IDA-05`:** el logger `audit` hereda el nivel del root, así que con `LOG_LEVEL=WARNING` se pierden los eventos `info`: darle nivel propio en `apps/common/logging/setup.py` (sumarlo a los archivos). Una clave de `metadata` con `session` o `token` sale `[REDACTED]` en ese canal.

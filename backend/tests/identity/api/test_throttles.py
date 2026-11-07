@@ -20,6 +20,7 @@ from django.urls import URLPattern, URLResolver, path
 from pydantic import SecretStr
 from pytest_django.fixtures import Settings as SettingsWrapper
 from redis.exceptions import ConnectionError as RedisConnectionError
+from rest_framework.exceptions import NotFound
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.test import APIRequestFactory
@@ -27,7 +28,7 @@ from rest_framework.views import APIView
 from structlog.testing import capture_logs
 
 from apps.common import feature_flags
-from apps.identity.api.bff_auth import IsBffCaller
+from apps.identity.api.bff_auth import BffAPIView, IsBffCaller
 from apps.identity.api.client_ip import INVALID_CLIENT_IP_EVENT, client_ip_for
 from apps.identity.api.throttles import (
     LoginCompleteIpThrottle,
@@ -55,10 +56,8 @@ TOKEN_TAIL = "tail-of-the-refresh"  # noqa: S105 - a stand-in, not a token
 reached_views: list[str] = []
 
 
-class _StandIn(APIView):
+class _StandIn(BffAPIView):
     """What a view of ``auth/bff/*`` declares; it records that the view body ran."""
-
-    permission_classes = (IsBffCaller,)
 
     def post(self, request: Request) -> Response:
         reached_views.append(request.path)
@@ -102,6 +101,13 @@ def rest_request(headers: dict[str, str], remote_addr: str = "10.0.0.5") -> Requ
     return Request(APIRequestFactory().post("/", headers=headers, REMOTE_ADDR=remote_addr))
 
 
+def as_missing_route(response: Any) -> tuple[int, dict[str, str], bytes]:
+    """Status, headers and body bytes, without what changes on every request (its id)."""
+    request_id = response["X-Request-ID"]
+    headers = {name: value for name, value in response.items() if name != "X-Request-ID"}
+    return response.status_code, headers, response.content.replace(request_id.encode(), b"")
+
+
 def problem(response: Any) -> dict[str, Any]:
     body: dict[str, Any] = json.loads(response.content)
     body.pop("request_id", None)
@@ -126,14 +132,24 @@ def problem(response: Any) -> dict[str, Any]:
 )
 def test_bff_endpoint_without_credential_is_404(client: Client, headers: dict[str, str]) -> None:
     response = client.post(START, {}, content_type="application/json", headers=headers)
+    missing = client.post("/api/test/bff/nothing-here", {}, content_type="application/json")
     assert response.status_code == 404
     assert reached_views == []
-    # The same answer as a route that does not exist.
-    assert problem(response) == problem(client.post("/api/test/bff/nothing-here"))
+    # Byte for byte the answer of a route that does not exist: no Allow, same rendering.
+    assert "Allow" not in response
+    assert as_missing_route(response) == as_missing_route(missing)
 
 
-def test_bff_endpoint_is_404_for_any_method_without_credential(client: Client) -> None:
-    assert client.get(START).status_code == 404
+@pytest.mark.parametrize("method", ["get", "put", "delete", "options"])
+def test_bff_endpoint_is_404_for_any_method_without_credential(client: Client, method: str) -> None:
+    response = getattr(client, method)(START)
+    missing = getattr(client, method)("/api/test/bff/nothing-here")
+    assert as_missing_route(response) == as_missing_route(missing)
+
+
+def test_is_bff_caller_alone_still_refuses_with_404() -> None:
+    with pytest.raises(NotFound):
+        IsBffCaller().has_permission(rest_request({}), APIView())
 
 
 @pytest.mark.parametrize("credential", [CURRENT, PREVIOUS])
@@ -239,7 +255,7 @@ def test_AC_IDA_20_eleventh_from_one_ip_is_429_with_retry_after(client: Client, 
     response = bff_post(client, url, "203.0.113.1")
 
     assert response.status_code == 429
-    assert problem(response)["code"] == "throttled"
+    assert problem(response)["code"] == "rate_limited"  # design.md §6.1, allowlist of §6.3
     assert 0 < int(response["Retry-After"]) <= 60
     assert len(reached_views) == 10  # the throttle stops it before the view, so before Google
 
@@ -270,6 +286,7 @@ def test_AC_IDA_20_thirty_first_refresh_of_a_session_is_429(client: Client) -> N
     response = bff_post(client, REFRESH, "203.0.113.2", refresh_token=token)
 
     assert response.status_code == 429  # by session: another IP does not help
+    assert problem(response)["code"] == "rate_limited"
     assert int(response["Retry-After"]) > 0
     other = f"rt1.{SESSION_B}.{TOKEN_TAIL}"
     assert bff_post(client, REFRESH, "203.0.113.1", refresh_token=other).status_code == 200
