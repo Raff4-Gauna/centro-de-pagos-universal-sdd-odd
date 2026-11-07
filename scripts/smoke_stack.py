@@ -15,11 +15,12 @@ It raises the six services with the CI override and proves, in this order:
   name, as the browser gets them, carry no value, hostname nor name of a server-only variable. A
   page rendered on request exists only at this point, and a cached ``builder`` stage prints nothing
   to rely on. Limits: a chunk no page names is left to that stage, and a transformed value (base64,
-  escapes, a split string) is not found, as there.
+  escapes, a split string) is not found, as there. A redirect is not a page: ``smoke_pages.py``.
 - AC-PLT-02, with Redis stopped: ``/readyz`` 503 with the exact body, ``/healthz`` still 200.
 
 Health bodies are compared whole, so a host, a version or a trace fails, and they are never
-printed. Redirects are not followed: a 301 from ``SECURE_SSL_REDIRECT`` is a failure, not a page.
+printed. ``http_get`` follows no redirect, so a 301 from ``SECURE_SSL_REDIRECT`` is a failure; the
+only ones followed are those ``smoke_pages.py`` lists, once.
 
 ``down -v`` always runs, on Ctrl-C too, after printing the state and the last logs: the only trace
 a failed job leaves. The Compose project is its own (``hub-smoke``), so a run on a dev machine never
@@ -47,7 +48,7 @@ from pathlib import Path
 from typing import Any
 
 from smoke_http import HttpResponse, SmokeError, http_get
-from smoke_leaks import leaks_in, page_leaks_in, pages_in_manifest, static_assets
+from smoke_pages import ROUTES_MANIFEST, check_client_bundle, page_paths
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 COMPOSE_FILES = ("infra/docker-compose.yml", "infra/docker-compose.ci.yml")
@@ -71,7 +72,6 @@ TAIL_LINES = 5
 DUMP_LOG_LINES = "40"
 
 SMOKE_PATH = "/api/__smoke__"
-ROUTES_MANIFEST = ".next/app-path-routes-manifest.json"
 PROBLEM_CONTENT_TYPE = "application/problem+json"
 
 
@@ -220,56 +220,11 @@ def check_request_id(config: Config) -> None:
     raise SmokeError(check, f"no 404 with request_id {request_id} in the backend log")
 
 
-def page_paths(config: Config) -> list[str]:
-    """The pages the image really has: a fixed list would miss the next dynamic one."""
-    check = "client-bundle"
+def read_manifest(config: Config) -> str:
     result = compose(config, "exec", "-T", "frontend", "cat", ROUTES_MANIFEST)
-    try:
-        if result.returncode != 0:
-            raise ValueError
-        pages = pages_in_manifest(result.stdout)
-    except (ValueError, AttributeError) as error:
-        raise SmokeError(check, f"{ROUTES_MANIFEST} is unreadable") from error
-    parametrized = [path for path in pages if "[" in path]
-    if parametrized:
-        raise SmokeError(check, f"no URL to render {parametrized}: give the smoke a sample one")
-    if not pages:
-        raise SmokeError(check, "no page in the manifest: nothing was checked")
-    return pages
-
-
-def page_text(response: HttpResponse) -> str:
-    return "\n".join([response.body, *response.headers.values()])
-
-
-def fail_on_leaks(path: str, found: list[str]) -> None:
-    if found:
-        raise SmokeError("client-bundle", f"{path} carries {', '.join(sorted(set(found)))}")
-
-
-def check_client_bundle(frontend_url: str, pages: Sequence[str]) -> None:
-    """A redirect is fine for a page (``/`` has no screen); what it sends is checked too."""
-    check = "client-bundle"
-    assets: set[str] = set()
-    rendered_on_request = 0
-    for path in pages:
-        response = http_get(f"{frontend_url}{path}")
-        if not 200 <= response.status < 400:
-            raise SmokeError(check, f"{path} answered {response.status}, expected a page")
-        rendered_on_request += "x-nextjs-prerender" not in response.headers
-        text = page_text(response)
-        fail_on_leaks(path, page_leaks_in(text))
-        assets.update(static_assets(text))
-    if not any(asset.endswith(".js") for asset in assets):
-        raise SmokeError(check, "no client chunk in the pages: nothing was checked")
-    for path in sorted(assets):
-        response = http_get(f"{frontend_url}{path}")
-        expect_status(check, response, 200, path)
-        fail_on_leaks(path, leaks_in(page_text(response)))
-    print(
-        f"ok: client bundle clean over HTTP: {len(pages)} pages "
-        f"({rendered_on_request} rendered on request), {len(assets)} assets"
-    )
+    if result.returncode != 0:
+        raise SmokeError("client-bundle", f"{ROUTES_MANIFEST} is unreadable")
+    return result.stdout
 
 
 def check_redis_down(config: Config) -> None:
@@ -292,7 +247,7 @@ def run_checks(config: Config) -> None:
     print("ok: BFF health 200")
     check_request_id(config)
     print("ok: X-Request-ID of the BFF in the backend log")
-    check_client_bundle(frontend, page_paths(config))
+    check_client_bundle(frontend, page_paths(read_manifest(config)))
     check_redis_down(config)
     print("ok: redis stopped, readyz 503 with no details, healthz 200")
 

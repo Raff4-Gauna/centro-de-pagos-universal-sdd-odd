@@ -15,6 +15,7 @@ import subprocess
 from collections.abc import Callable
 
 import pytest
+import smoke_pages
 import smoke_stack
 from smoke_http import HttpResponse
 from smoke_stack_fakes import (
@@ -33,6 +34,7 @@ def stack(monkeypatch: pytest.MonkeyPatch) -> FakeStack:
     fake = FakeStack()
     monkeypatch.setattr(smoke_stack, "run_command", fake.run)
     monkeypatch.setattr(smoke_stack, "http_get", fake.get)
+    monkeypatch.setattr(smoke_pages, "http_get", fake.get)
     monkeypatch.setattr(smoke_stack.time, "sleep", lambda _: None)
     monkeypatch.setenv("GIT_SHA", SHA)
     return fake
@@ -218,6 +220,7 @@ def test_AC_PLT_01_extra_compose_file_and_urls_are_honored(
         return stack.get(url.replace(":55480", ":8000").replace(":55481", ":3000"))
 
     monkeypatch.setattr(smoke_stack, "http_get", get)
+    monkeypatch.setattr(smoke_pages, "http_get", get)
     argv = [
         "--compose-file",
         "ports.yml",
