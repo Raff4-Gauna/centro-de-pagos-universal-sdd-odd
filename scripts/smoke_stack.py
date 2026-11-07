@@ -145,9 +145,9 @@ def check_services_healthy(config: Config) -> None:
         raise SmokeError("services", "; ".join(problems))
 
 
-def expect_status(check: str, response: HttpResponse, expected: int, path: str = "") -> None:
+def expect_status(check: str, response: HttpResponse, expected: int) -> None:
     if response.status != expected:
-        raise SmokeError(check, f"{path} answered {response.status}, expected {expected}".strip())
+        raise SmokeError(check, f"answered {response.status}, expected {expected}")
 
 
 def json_body(check: str, response: HttpResponse) -> Any:
