@@ -4,8 +4,9 @@ Only static values live here. The values that come from the environment are set 
 ``dev``/``test``/``prod``, which validate it with their own env class (``ProdEnv`` in prod is
 stricter) through ``config.settings.env.load_env``: this module never reads the environment.
 
-No ``django.contrib.*`` app (D-03): 00 has no users, sessions, admin or static files, so no table
-other than ``django_migrations`` exists until module 01 decides auth.
+No ``django.contrib.*`` app (D-03): no admin, static files, Django sessions or ``auth_*`` tables.
+The user is ``apps.identity``'s own; ``AbstractBaseUser`` does not need ``django.contrib.auth``
+installed (``django/contrib/auth/base_user.py``).
 """
 
 from __future__ import annotations
@@ -21,7 +22,10 @@ INSTALLED_APPS = [
     "rest_framework",
     "drf_spectacular",
     "apps.common",
+    "apps.identity",
 ]
+
+AUTH_USER_MODEL = "identity.User"
 
 # RequestId first (T-PLT-12): every log event of the request carries its id. AccessLog (T-PLT-13)
 # right after Security, so it times and logs everything the rest of the chain answers.
