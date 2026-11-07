@@ -221,6 +221,7 @@ def test_AC_PLT_17_reversible_migration_passes_lint(run_manage: RunDjango) -> No
 
 
 @pytest.mark.integration
+@pytest.mark.usefixtures("fresh_synthetic_db")
 def test_AC_PLT_17_reversible_migration_roundtrips_on_disposable_db(run_manage: RunDjango) -> None:
     result = run_manage(*ROUNDTRIP, "good_reversible")
 
@@ -252,6 +253,7 @@ def test_AC_PLT_17_reversible_migration_roundtrips_on_disposable_db(run_manage: 
 
 
 @pytest.mark.integration
+@pytest.mark.usefixtures("fresh_synthetic_db")
 def test_AC_PLT_17_default_run_reverts_only_apps_modules(run_manage: RunDjango) -> None:
     """Without labels (as CI runs it) the whole project is migrated but only ``apps.*`` reverted."""
     result = run_manage(*ROUNDTRIP)
@@ -277,6 +279,7 @@ def test_AC_PLT_17_roundtrip_without_flag_applies_and_reverts_nothing(
 
 
 @pytest.mark.integration
+@pytest.mark.usefixtures("fresh_synthetic_db")
 def test_AC_PLT_17_app_with_empty_migrations_package_is_skipped(run_manage: RunDjango) -> None:
     """``startapp`` leaves ``migrations/`` with only ``__init__.py``: nothing to revert there."""
     result = run_manage(*ROUNDTRIP, "good_reversible", "empty_migrations")
@@ -306,7 +309,7 @@ def test_AC_PLT_17_unknown_app_label_fails(run_manage: RunDjango) -> None:
 
 
 @pytest.mark.integration
-def test_AC_PLT_17_real_apps_roundtrip(run_django: RunDjango, synthetic_db: str) -> None:
+def test_AC_PLT_17_real_apps_roundtrip(run_django: RunDjango, fresh_synthetic_db: str) -> None:
     """The real settings (as CI runs it), pointed at the throwaway database, not at ``hub``."""
     values = {**subprocess_values(), "DATABASE_URL": synthetic_url()}
     result = run_django(
