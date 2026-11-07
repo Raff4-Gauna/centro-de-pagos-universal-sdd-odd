@@ -62,7 +62,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         discovered = discover_specs(root, args.spec)
         specs = [path for path in discovered if (path / "tasks.md").is_file()]
         skipped = [path.name for path in discovered if path not in specs]
-        commits = {**squashed_without_id(root, baseline), **git_commits(root)}
+        linked = squashed_without_id(root, baseline)
+        found = git_commits(root)
+        # A commit naming the task wins, unless it has no PR and the baseline links a real merge.
+        commits = {**linked, **{k: v for k, v in found.items() if v.pr or k not in linked}}
         corpus = test_corpus(root)
         results = [check_spec(spec, commits, corpus, baseline) for spec in specs]
         if args.write:

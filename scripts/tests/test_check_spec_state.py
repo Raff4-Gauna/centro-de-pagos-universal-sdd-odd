@@ -12,6 +12,7 @@ from pathlib import Path
 
 import check_spec_state
 import gitleaks_support as gl
+import pytest
 from conftest import GitRepo
 
 SPEC = """---
@@ -145,15 +146,18 @@ def test_baseline_allows_known_missing_ac(git_repo: GitRepo, tmp_path: Path) -> 
     assert run(git_repo, baseline(tmp_path, data)) == 0
 
 
-def squash_without_id(repo: GitRepo) -> str:
-    """A merged task whose squash names only the PR; return its SHA."""
+def squash_without_id(repo: GitRepo) -> tuple[str, str]:
+    """A merged task whose squash names only the PR; return its SHA and the one of HEAD."""
     build(repo, evidence="#7 · 0000000", commit_task=False)
     repo.write_bytes("feature.txt", b"demo\n")
     sha = gl.commit(repo, "feat: demo (#7)")
     tasks = TASKS.format(rows=row("✅", f"#7 · {sha[:7]}"))
     repo.write_bytes("specs/00-demo/tasks.md", tasks.encode())
-    gl.commit(repo, "docs: tasks")
-    return sha
+    return sha, gl.commit(repo, "docs: tasks")
+
+
+def link(tmp_path: Path, value: object) -> Path:
+    return baseline(tmp_path, {"squashed_without_id": {"T-DEMO-01": value}})
 
 
 def test_squash_without_id_fails_without_a_baseline_entry(
@@ -165,24 +169,63 @@ def test_squash_without_id_fails_without_a_baseline_entry(
 
 
 def test_squash_without_id_is_linked_by_the_baseline(git_repo: GitRepo, tmp_path: Path) -> None:
-    sha = squash_without_id(git_repo)
-    data: dict[str, object] = {"squashed_without_id": {"T-DEMO-01": sha}}
-    assert run(git_repo, baseline(tmp_path, data)) == 0
+    sha, _ = squash_without_id(git_repo)
+    assert run(git_repo, link(tmp_path, sha)) == 0
 
 
 def test_squash_entry_with_an_unknown_sha_is_an_error(
     git_repo: GitRepo, tmp_path: Path, capsys
 ) -> None:
     squash_without_id(git_repo)
-    data: dict[str, object] = {"squashed_without_id": {"T-DEMO-01": "0" * 40}}
-    assert run(git_repo, baseline(tmp_path, data)) == 2
+    assert run(git_repo, link(tmp_path, "0" * 40)) == 2
     assert "no es un merge con PR" in capsys.readouterr().err
 
 
 def test_squash_entry_on_a_commit_without_pr_is_an_error(git_repo: GitRepo, tmp_path: Path) -> None:
+    _, head = squash_without_id(git_repo)
+    assert run(git_repo, link(tmp_path, head)) == 2
+
+
+@pytest.mark.parametrize("value", ["short", "ref", "HEAD", "tag", "path", 7])
+def test_squash_entry_must_be_a_full_sha(
+    git_repo: GitRepo, tmp_path: Path, capsys, value: object
+) -> None:
+    sha, _ = squash_without_id(git_repo)
+    git_repo.git("tag", "v-demo", sha)
+    given = (
+        {
+            "short": sha[:7],
+            "ref": "HEAD~1",
+            "HEAD": "HEAD",
+            "tag": "v-demo",
+            "path": "feature.txt",
+        }.get(value, value)
+        if isinstance(value, str)
+        else value
+    )
+    assert run(git_repo, link(tmp_path, given)) == 2
+    assert "no es un SHA completo" in capsys.readouterr().err
+
+
+def test_squash_entry_on_an_unmerged_branch_is_an_error(
+    git_repo: GitRepo, tmp_path: Path, capsys
+) -> None:
     squash_without_id(git_repo)
-    data: dict[str, object] = {"squashed_without_id": {"T-DEMO-01": "HEAD"}}
-    assert run(git_repo, baseline(tmp_path, data)) == 2
+    git_repo.git("checkout", "-q", "-b", "side")
+    git_repo.write_bytes("side.txt", b"side\n")
+    side = gl.commit(git_repo, "feat: never merged (#99)")
+    git_repo.git("checkout", "-q", "-")
+    assert run(git_repo, link(tmp_path, side)) == 2
+    assert "no es un merge con PR en main" in capsys.readouterr().err
+
+
+def test_commit_without_pr_does_not_override_a_linked_merge(
+    git_repo: GitRepo, tmp_path: Path
+) -> None:
+    sha, _ = squash_without_id(git_repo)
+    git_repo.write_bytes("note.txt", b"note\n")
+    gl.commit(git_repo, "docs: mention T-DEMO-01")
+    assert run(git_repo, link(tmp_path, sha)) == 0
 
 
 def test_implemented_without_verification_fails(git_repo: GitRepo, tmp_path: Path, capsys) -> None:

@@ -308,7 +308,7 @@ módulos se aprueba en la misma pasada, después de `T-TEN-36`.
 - **Pruebas:** `test_AC_IDA_29_email_change_free`, `test_AC_IDA_29_new_sub_with_taken_email_is_conflict`,
   `test_AC_IDA_29_collision_keeps_old_email`, `test_AC_IDA_09_inactive_user_rejected`,
   `test_AC_IDA_30_no_memberships_still_logs_in`, `test_Q_121_case_a_never_touches_invitations`.
-- **Notas del reviewer de #65:** los `CHECK` de `users` dejan pasar tabuladores, NBSP, U+3000 y `""`, así que el callback valida el email con la normalización de Python. El texto de `IntegrityError` trae email y `sub`: esta tarea y `T-IDA-12` no usan `logger.exception` ni `str(exc)` con ese error. `AC-IDA-31` queda ⚠ en `verification.md` hasta `T-IDA-12` y `T-TEN-17`.
+- **Notas del reviewer de #65:** los `CHECK` de `users` dejan pasar tabuladores, NBSP, U+3000 y `""`: antes de esta tarea se decide si el callback valida el email con la normalización de Python o si se endurece el `CHECK`. El texto de `IntegrityError` trae email y `sub`: esta tarea y `T-IDA-12` no usan `logger.exception` ni `str(exc)` con ese error. Un NUL en nombre o avatar lanza `DataError`, aunque el docstring de `domain/profile.py` dice que un dato inutilizable nunca rechaza un login. `AC-IDA-31` queda ⚠ en el `verification.md` de 01, cuando exista, hasta `T-IDA-12` y `T-TEN-17`.
 
 ### T-IDA-12 — Usuario nuevo por invitación y carrera de callbacks
 - **AC:** AC-IDA-02, 03, 04, 05, 31. RN-IDA-05 caso (b), RN-IDA-06. **Zona roja:** sí.
@@ -496,4 +496,4 @@ módulos se aprueba en la misma pasada, después de `T-TEN-36`.
 ---
 **Hecho:** 32 tareas, 38 AC y 10 RF cubiertos, olas y división de archivos.
 **Pendiente / dudas:** ninguna de 01.
-**Siguiente rol sugerido:** `reviewer` en `T-IDA-01` (#65); después `backend-dev` en la ola 1.
+**Siguiente rol sugerido:** `backend-dev` en la ola 1 (`T-IDA-02`, `04`, `05`, `09`) y `T-IDA-26`; después `reviewer`.
