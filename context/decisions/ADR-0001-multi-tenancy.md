@@ -1,9 +1,9 @@
 # ADR-0001 — Multi-tenancy: esquema compartido, `organization_id` y fallo cerrado
 
-- **Estado:** Propuesto
+- **Estado:** Aceptado (2026-11-06)
 - **Fecha:** 2026-10-31
 - **Specs afectadas:** SPEC-02 (dueña), y todas las que guardan datos de negocio: SPEC-04, 05, 06, 07, 08, 09, 10, 11.
-  Reglas de constitución `C-01`, `C-08`, `C-16`. Decisiones: Q-001, Q-215, Q-217, Q-219, Q-221 (default).
+  Reglas de constitución `C-01`, `C-08`, `C-16`. Decisiones: Q-001, Q-215, Q-217, Q-219, Q-221.
 
 ## Contexto
 El Hub es multi-tenant real (Q-001) y una fuga entre organizaciones expone dinero y datos de terceros (brief §8).
@@ -80,4 +80,4 @@ Opción 4, con estas piezas (detalle en `specs/02-tenancy-rbac/design.md` §3):
   crudo mínimo (`FOR KEY SHARE`) en un helper; un queryset sin scope usado como subconsulta no se detecta en runtime
   (lo cubre el test de arquitectura y, luego, RLS).
 - Pendiente: activar RLS antes de onboardear comercios ajenos (Q-215); scope de API key para lectura de Branch
-  (SPEC-11, `ApiKeyActor`); confirmar Q-221.
+  (SPEC-11, `ApiKeyActor`).

@@ -1,14 +1,14 @@
 ---
 spec: SPEC-01
-estado: Draft            # Draft | Aprobado — pasa a Aprobado junto con la spec (gate humano)
-actualizado: 2026-10-31
+estado: Aprobado         # Draft | Aprobado — aprobado por el dueño el 2026-11-06 (gate humano)
+actualizado: 2026-11-06
 ---
 # Diseño — Módulo de Identidad y Acceso (`01-identity-access`)
 
-> Parte de `spec.sdd.md` 0.3.0 (Designed). Decisión central en `context/decisions/ADR-0004-sesion-y-tokens-en-navegador.md`
+> Parte de `spec.sdd.md` 1.0.1 (Approved). Decisión central en `context/decisions/ADR-0004-sesion-y-tokens-en-navegador.md`
 > (Propuesto), que resuelve los 15 puntos de la spec §15. Zona roja (auth): toda tarea derivada pasa por `reviewer`.
-> **No cambia reglas de negocio.** Q-119…Q-123 se toman con su valor **decidido por defecto, confirmable antes de
-> Approved**; las preguntas nuevas Q-124 y Q-125 quedan abiertas (no bloquean el diseño, ver §11).
+> **No cambia reglas de negocio.** Q-119…Q-125 están decididas por el usuario (2026-11-06, ver §11).
+> Donde el código real de SPEC-00 obliga a nombrar distinto, manda `tasks.md` ("Ajustes al diseño").
 
 ## 1. Resumen de la solución
 - **Django termina el OIDC, el BFF termina el navegador.** Google redirige al Route Handler de Next.js
@@ -354,7 +354,7 @@ Códigos admitidos en `/login?error=` (allowlist; cualquier otro → genérico):
 
 ### 6.4 Interfaces internas (puertos)
 ```python
-# apps/identity/ports/invitations.py — definido por SPEC-01, implementado por SPEC-02 (Q-108, Q-120 por defecto: plural)
+# apps/identity/ports/invitations.py — definido por SPEC-01, implementado por SPEC-02 (Q-108, Q-120: plural)
 @dataclass(frozen=True)
 class InvitationRef:
     invitation_id: UUID
@@ -391,7 +391,7 @@ SPEC-02 los reemplaza por settings (`IDENTITY_INVITATION_PORT`, `IDENTITY_MEMBER
 |---|---|---|---|---|
 | `deactivate_user` | identity | `--email \| --user-id`, `--operator <nombre>` (obligatorio), `--reason` | atomic: `is_active=false`, `deactivated_at=now`, revoca todas las sesiones `active` (`user_deactivated`). Repetido sobre inactivo → no-op informado | `user_deactivated` + `session_revoked` × N; actor `platform_operator` (`--operator` + usuario del SO) |
 | `reactivate_user` | identity | ídem | `is_active=true`, `deactivated_at=null`; **no** toca sesiones | `user_reactivated` |
-| `bootstrap_organization` | **tenancy (SPEC-02)** | `--name`, `--owner-email`, `--operator` | crea organización + invitación owner (Q-123 por defecto: sirve para **toda** organización nueva; repetirlo con invitación owner pendiente para esa empresa/email no crea nada e informa) | `organization_bootstrapped` (org = la nueva). Contrato exigido por RF-IDA-08/AC-IDA-32; lo implementa SPEC-02 |
+| `tenancy_create_org` (forma final en `specs/02-tenancy-rbac/design.md §4.5`) | **tenancy (SPEC-02)** | `--key`, `--name`, `--owner-email`, `--operator` | crea organización + invitación owner (Q-123: sirve para **toda** organización nueva; repetirlo para esa empresa/email no crea nada e informa). Si el email ya tiene usuario, igual emite la invitación y la persona la acepta adentro del Hub (Q-124) | `organization.created` + `invitation.created` (org = la nueva). Contrato exigido por RF-IDA-08/AC-IDA-32; lo implementa SPEC-02 |
 
 ## 7. Seguridad y privacidad
 
@@ -413,7 +413,7 @@ invitación llegarían sin sesión. El CSRF no depende de `SameSite` (§7.2).
   (2) `X-CSRF-Token` debe igualar a `__Host-cpu_csrf` (comparación en tiempo constante). Falla → `403 csrf_failed` sin
   llamar a Django. El proxy no habilita CORS. Django no necesita CSRF: nunca autentica por cookie. No se usan Server
   Actions para mutaciones (quedarían fuera de este esquema).
-- **Organización activa (Q-112, Q-119 por defecto b):** cada pestaña guarda su empresa en el estado del shell y la
+- **Organización activa (Q-112, Q-119 b):** cada pestaña guarda su empresa en el estado del shell y la
   manda en `X-Organization-Id` en cada request; el BFF la reenvía (validando formato UUID) y **nunca** la inyecta desde
   la cookie. `__Host-cpu_org` guarda la última elegida solo como valor inicial para pestañas nuevas o recargas: el
   layout `(dashboard)` (Server Component) la lee y se la pasa al shell. SPEC-02 valida la membership en cada request.
@@ -437,11 +437,11 @@ invitación llegarían sin sesión. El CSRF no depende de `SameSite` (§7.2).
 | `identity.refresh_reuse_detected` | §4.5 reuso | nula | system (+ `alert`) |
 | `identity.user_deactivated` / `identity.user_reactivated` | comandos | nula | platform_operator |
 | `identity.email_changed` / `identity.email_change_collision` | RN-IDA-21 | nula | user |
-| `tenancy.organization_bootstrapped` | comando de SPEC-02 | la nueva | platform_operator |
+| `organization.created` + `invitation.created` (SPEC-02, RNF-TEN-04) | comando de SPEC-02 | la nueva | platform_operator |
 
 Éxitos: dentro de la transacción del cambio. Rechazos: después del rollback, en escritura propia. `429`,
-`google_unavailable` y `login_cancelled` → solo logs y métricas. Contenido de los rechazos: **sin** email ni `sub`
-de la persona rechazada mientras Q-125 esté abierta (valor conservador según RNF-IDA-05).
+`google_unavailable` y `login_cancelled` → solo logs y métricas. Contenido de los rechazos: solo el motivo, **sin**
+email ni `sub` de la persona rechazada (Q-125, RNF-IDA-05).
 
 ### 7.5 Secretos y logs (RN-IDA-16, RNF-IDA-03, AC-IDA-23)
 - Secretos separados: `IDENTITY_GOOGLE_CLIENT_SECRET`, `IDENTITY_JWT_SIGNING_KEY`, `IDENTITY_BFF_CREDENTIALS` (Django)
@@ -543,13 +543,16 @@ que firma ID tokens con una clave RSA de test y expone su JWKS en memoria.
 | Varias cajas detrás de una IP comparten el cupo 10/min | Consecuencia de Q-111; métrica de `429` |
 | Cambio de `AUTH_USER_MODEL` tardío rompe migraciones | T-IDA-01 primero; coordinación con SPEC-00 |
 | Test C-01 de SPEC-00 podría marcar `Model.objects` en servicios de identity | Lista de modelos globales exentos (coordinar con SPEC-00) |
-| Formas de `MembershipSummary` y nombre `X-Organization-Id` no cerrados | Coordinación con SPEC-02 antes de Approved; identity solo pasa la lista y valida formato |
-| Bootstrap vive en SPEC-02 | RF-IDA-08/AC-IDA-32 quedan trazados a una tarea de SPEC-02 (T-TEN-…) |
-| Q-124 (abierta): el bootstrap de una organización nueva cuyo owner **ya tiene usuario** depende del flujo explícito de aceptación de SPEC-02 (Q-121 por defecto) | Si ese flujo no está en H1, ese owner no puede entrar a la empresa nueva. No bloquea a 01 |
-| Q-125 (abierta): ¿los eventos de login rechazado guardan el email verificado de la persona rechazada? | Mientras tanto no se guarda (conservador); agregarlo es un campo en `metadata` |
+| Forma de `MembershipSummary` | La fija SPEC-02 (`T-TEN-12`); identity solo pasa la lista. Header `X-Organization-Id` cerrado en `specs/02-tenancy-rbac/design.md` |
+| Bootstrap vive en SPEC-02 | RF-IDA-08/AC-IDA-32 quedan trazados a `T-TEN-18` |
+| Q-124 (decidida 2026-11-06): el owner de una organización nueva que **ya tiene usuario** acepta adentro del Hub (Q-121) | El flujo entra en H1: `T-TEN-16` y `T-TEN-30` de SPEC-02 (`AC-TEN-39`, `AC-TEN-40`). No toca el login |
+| Q-125 (decidida 2026-11-06): los eventos de login rechazado no guardan email ni `sub` | Solo el motivo; test en `T-IDA-21` |
 | Decisiones no obvias | ADR-0004 (los 15 puntos de la spec §15) |
 
 ## 12. Corte preliminar en tareas (insumo para `task-planner`; ≤ ~300 líneas de diff cada una)
+> **Reemplazado por `tasks.md`** (2026-11-06): los IDs de abajo son los preliminares, no los finales; `T-IDA-01` es lo
+> único que conserva el mismo contenido.
+
 | # | Tarea (propuesta) | AC principales | Depende de |
 |---|---|---|---|
 | T-IDA-01 | `User` + manager + `AUTH_USER_MODEL` + `domain/emails.py`, `profile.py` + migración 0001 | 31 (normalización), base de 1–2 | SPEC-00 esqueleto |
@@ -573,12 +576,12 @@ que firma ID tokens con una clave RSA de test y expone su JWKS en memoria.
 | T-IDA-19 | Pantalla "Ingresar" + `login-errors.ts` | §14 | 17 |
 | T-IDA-20 | "Mi perfil", "Seguridad", `UserMenu`, `NoOrganizationState` | 30 (UI), 33 (UI) | 18 |
 | T-IDA-21 | E2E humo con proveedor falso | 1, 17, 33 | 14, 19, 20 |
-| (SPEC-02) | `bootstrap_organization` + implementación de `InvitationPort` y `MembershipSelectorPort` | 32 (bootstrap), 2/5 con puerto real | 04 |
+| (SPEC-02) | `tenancy_create_org` + implementación de `InvitationPort` y `MembershipSelectorPort` | 32 (bootstrap), 2/5 con puerto real | 04 |
 
 Orden sugerido: 01 → 02 → 03 → 04 → 05 → 06 → 07 → 08 → 09 → 10 → 11 → 12 → 13 → 14 → 15; el frontend (16 → 21)
 puede arrancar cuando los contratos de 07/09/10 estén mergeados.
 
-## 13. Cambio a aplicar en `context/07-frontend-ui-guidelines.md §3.2` (lo aplica el orquestador)
+## 13. Cambio a aplicar en `context/07-frontend-ui-guidelines.md §3.2` (lo aplica `T-IDA-27`)
 Reemplazar el primer punto de §3.2 por:
 
 > - **Qué hace (ADR-0004):** (1) **termina el navegador** del login con Google: inicia el intento, recibe el callback,
