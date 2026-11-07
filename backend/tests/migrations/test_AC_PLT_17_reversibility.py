@@ -260,8 +260,11 @@ def test_AC_PLT_17_default_run_reverts_only_apps_modules(run_manage: RunDjango) 
     result = run_manage(*ROUNDTRIP)
 
     assert result.returncode == 0, output(result)
-    assert "Round trip passed for 0 app(s): none with migrations" in result.stdout
-    assert "Unapplying" not in output(result)
+    assert "Round trip passed for 1 app(s): identity" in result.stdout
+    # Migrated with the rest of the project; the only one reverted is the app under ``apps``.
+    assert "Applying good_reversible.0004_part_code_index" in result.stdout
+    assert "Unapplying identity.0001_users" in result.stdout
+    assert result.stdout.count("Unapplying") == result.stdout.count("Unapplying identity.")
 
 
 @pytest.mark.integration
@@ -321,4 +324,6 @@ def test_AC_PLT_17_real_apps_roundtrip(run_django: RunDjango, fresh_synthetic_db
     )
 
     assert result.returncode == 0, output(result)
-    assert "Round trip passed for 0 app(s)" in result.stdout
+    assert "Round trip passed for 1 app(s): identity" in result.stdout
+    assert "Unapplying identity.0001_users" in result.stdout
+    assert result.stdout.index("Unapplying") < result.stdout.rindex("Applying identity.0001_users")
