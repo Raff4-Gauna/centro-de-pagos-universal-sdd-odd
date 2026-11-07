@@ -1,7 +1,7 @@
 ---
 actualizado: 2026-11-07
-ultimo_commit: c57db14
-ultimo_pr: "#63"
+ultimo_commit: c5c3136
+ultimo_pr: "#65"
 modulo_activo: 01-identity-access
 fase: implementación (00 en cierre, Implemented pendiente)
 ---
@@ -12,12 +12,12 @@ fase: implementación (00 en cierre, Implemented pendiente)
 > es `specs/NN-modulo/tasks.md` + `verification.md` + `git log`; si este archivo y git no coinciden, manda git y
 > hay que correr `/reconcile`.
 
-## 1. Dónde estamos (2026-11-06)
+## 1. Dónde estamos (2026-11-07)
 
 | Módulo | Spec | Tareas | Código | Nota |
 |---|---|---|---|---|
 | 00-platform | Approved 1.0.22 | 42 ✅ (42) | 42 de 42 tareas | Verificación **Con hallazgos**; ruleset activo |
-| 01-identity-access | Approved 1.0.2 | 1 ✅ · 31 ☐ (32) | 3 % | Depende de 00; diseño aprobado |
+| 01-identity-access | Approved 1.0.2 | 1 ✅ · 1 🟡 · 30 ☐ (32) | 6 % | Depende de 00; diseño aprobado |
 | 02-tenancy-rbac | Approved 1.0.2 | 36 ☐ (36) | 0 % | Se cierra junto con 01 (Q-108); diseño aprobado |
 | 03-integrations-engine | Draft | — | 0 % | Falta cerrar el contrato del motor |
 | 04-integration-management | Por redactar | — | 0 % | Bloquea a 06 |
@@ -58,7 +58,7 @@ fase: implementación (00 en cierre, Implemented pendiente)
 1. **Verificación manual de AC-PLT-01** (`verification.md §4`). Antes, el dueño mueve las claves de spikes de su
    `.env` a `spikes/.env`.
 2. **Repetir la verificación** de 00 y marcar las filas `🧪`. Solo el dueño puede pasar la spec a `Verified`.
-3. **Implementar 01 y 02:** `T-IDA-01` (PR #65) y `T-IDA-26`, y seguir por olas en `specs/01-identity-access/tasks.md`.
+3. **Implementar 01 y 02:** cerrar la cola abierta (ver §6) y seguir por olas en `specs/01-identity-access/tasks.md`.
 4. **Redactar la spec 04** (bloquea a 06).
 5. **Ejecutar S-001** antes de diseñar el adaptador de Mercado Pago.
 6. Incorporar el checklist de buenas prácticas de software escalable que el dueño va a pasar; mapearlo contra
@@ -91,7 +91,21 @@ fase: implementación (00 en cierre, Implemented pendiente)
 
 ## 6. Pie de la última sesión
 
-- **Hecho:** reconciliación final de 00 con git sobre `82cd31c` (42 ✅) y `verification.md` al día (33 ✔ / 1 ⚠). Ruleset aplicado y probado en vivo (#58, #59).
-- **Merges de la sesión:** #48, #50 a #56. Worklog: `context/worklog/2026-11-06-reconcile-00c.md`.
-- **Pendiente / dudas:** Q-028 (SPEC-12), S-001 sin ejecutar.
-- **Siguiente rol sugerido:** el dueño corre AC-PLT-01; después `qa-verifier` repite la verificación de 00.
+- **Hecho:** decisiones del dueño registradas (#61, #64): diseños de 01 y 02, ADR-0001, 0002, 0004 y 0011, Q-124, Q-125,
+  Q-228. `tasks.md` de 01 y 02. `T-IDA-00` (#63) y `T-IDA-01` (#65) mergeadas, parches de #62, y Dependabot sin saltos
+  mayores.
+- **Merges de la sesión:** #61 a #65.
+- **`T-IDA-01` está mergeada y su fila sigue en 🟡:** el squash de #65 salió sin el ID. Lo concilia #74.
+- **Cola abierta, en este orden:**
+  1. **#74**, RECHAZADO sobre `2882241`. `squashed_without_id` debe exigir 40 hex (`re.fullmatch`) y ascendencia con
+     `git merge-base --is-ancestor <sha> HEAD`, con un test por caso. El test con `HEAD` pasa a SHA completo. Actualizar
+     `tasks.md:499`, y sumar `## Resultado` al worklog.
+  2. **#66** (`T-IDA-26`): rechazo corregido en `ac47698`, falta re-revisión. Avisar al reviewer de dos límites: una fuga
+     que dependa de la query no se detecta, y un destino inesperado imprime su path.
+  3. **#75** (`T-IDA-02`) y **#76** (`T-IDA-05`, +623 líneas: aceptar o dividir): sin revisar.
+  4. **`T-IDA-04` y `T-IDA-09`:** en curso al cerrar, en sus worktrees, sin PR.
+  5. **Dependabot:** #70 (Django 5.2.19, tomarlo pronto), #68, #72, #73, y #67 (toca `.github/actions/`, mirarlo aparte).
+- **Pendiente / dudas:** ignorar Python en `docker` de `.github/dependabot.yml`, porque lo trató como menor (#69).
+  `--write` sin `--spec` sale con 2, porque 01 no tiene marcadores; rompe el paso 6 de `/reconcile`. En 00:
+  `design.md:95` no lista `smoke_pages.py`, y faltan las menciones de "línea 257". Q-028, S-001 sin ejecutar, AC-PLT-01.
+- **Siguiente rol sugerido:** implementador en #74; después `reviewer` en #66.
