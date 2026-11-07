@@ -1,7 +1,7 @@
 ---
 actualizado: 2026-11-07
-ultimo_commit: c57db14
-ultimo_pr: "#63"
+ultimo_commit: c5c3136
+ultimo_pr: "#65"
 modulo_activo: 01-identity-access
 fase: implementación (00 en cierre, Implemented pendiente)
 ---
@@ -17,7 +17,7 @@ fase: implementación (00 en cierre, Implemented pendiente)
 | Módulo | Spec | Tareas | Código | Nota |
 |---|---|---|---|---|
 | 00-platform | Approved 1.0.22 | 42 ✅ (42) | 42 de 42 tareas | Verificación **Con hallazgos**; ruleset activo |
-| 01-identity-access | Approved 1.0.2 | 1 ✅ · 31 ☐ (32) | 3 % | Depende de 00; diseño aprobado |
+| 01-identity-access | Approved 1.0.2 | 2 ✅ · 1 🟡 · 29 ☐ (32) | 6 % | Depende de 00; diseño aprobado |
 | 02-tenancy-rbac | Approved 1.0.2 | 36 ☐ (36) | 0 % | Se cierra junto con 01 (Q-108); diseño aprobado |
 | 03-integrations-engine | Draft | — | 0 % | Falta cerrar el contrato del motor |
 | 04-integration-management | Por redactar | — | 0 % | Bloquea a 06 |
