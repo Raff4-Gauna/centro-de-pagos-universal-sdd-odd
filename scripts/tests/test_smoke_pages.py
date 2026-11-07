@@ -16,6 +16,7 @@ from smoke_http import HttpResponse, SmokeError
 FRONTEND = "http://127.0.0.1:3000"
 CHUNK = "/_next/static/chunks/app.js"
 PAGE = HttpResponse(200, {}, f'<html><script src="{CHUNK}"></script></html>')
+QUERY = "token=abc"
 
 
 def to(location: str, status: int = 307) -> HttpResponse:
@@ -32,11 +33,15 @@ class Frontend:
             "/inicio": PAGE,
             CHUNK: HttpResponse(200, {}, "console.log(1)"),
         }
+        self.unreachable: set[str] = set()
         self.requested: list[str] = []
 
     def get(self, url: str) -> HttpResponse:
         self.requested.append(url)
-        return self.responses[url.removeprefix(FRONTEND)]
+        path = url.removeprefix(FRONTEND)
+        if path in self.unreachable:
+            raise SmokeError("http", f"GET {url}: URLError")  # what smoke_http.py prints
+        return self.responses[path]
 
     def error(self) -> str:
         with pytest.raises(SmokeError) as caught:
@@ -122,13 +127,12 @@ def test_AC_PLT_29_destination_already_in_the_pages_is_not_fetched_twice(
     assert frontend.requested.count(f"{FRONTEND}/inicio") == 1
 
 
-def test_AC_PLT_29_query_of_the_destination_is_followed_and_not_compared(
+def test_AC_PLT_29_query_of_the_destination_is_dropped_and_not_compared(
     protected: Frontend,
 ) -> None:
     protected.responses["/inicio"] = to("/login?return_to=/inicio")
-    protected.responses["/login?return_to=/inicio"] = PAGE
     smoke_pages.check_client_bundle(FRONTEND, protected.pages)
-    assert f"{FRONTEND}/login?return_to=/inicio" in protected.requested
+    assert protected.requested.count(f"{FRONTEND}/login") == 1
 
 
 def test_AC_PLT_29_absolute_location_of_the_same_origin_is_followed(frontend: Frontend) -> None:
@@ -164,7 +168,7 @@ def test_AC_PLT_29_redirect_without_location_fails(frontend: Frontend) -> None:
 def test_AC_PLT_29_redirect_to_another_origin_fails(location: str, frontend: Frontend) -> None:
     frontend.responses["/"] = to(location)
     assert "/ redirects to another origin" in frontend.error()
-    assert location not in frontend.requested
+    assert frontend.requested == [f"{FRONTEND}/"]
 
 
 def test_AC_PLT_29_redirect_to_another_path_fails(frontend: Frontend) -> None:
@@ -172,14 +176,49 @@ def test_AC_PLT_29_redirect_to_another_path_fails(frontend: Frontend) -> None:
     assert "/ redirects to /otra, expected /inicio" in frontend.error()
 
 
+@pytest.mark.parametrize("location", ["/\\evil.example", "\\\\evil.example"])
+def test_AC_PLT_29_backslash_location_is_not_followed(location: str, frontend: Frontend) -> None:
+    # A browser reads both as another host; here they are a path that is not the expected one.
+    frontend.responses["/"] = to(location)
+    assert "expected /inicio" in frontend.error()
+    assert frontend.requested == [f"{FRONTEND}/"]
+
+
 def test_AC_PLT_29_unreadable_location_fails(frontend: Frontend) -> None:
     frontend.responses["/"] = to("http://[broken/inicio")
     assert "/ redirects to an unreadable Location" in frontend.error()
 
 
-def test_AC_PLT_29_location_query_is_not_printed(frontend: Frontend) -> None:
-    frontend.responses["/"] = to("/otra?token=abc")
-    assert "abc" not in frontend.error()
+@pytest.mark.parametrize(
+    "destination",
+    [
+        HttpResponse(500, {}, ""),
+        HttpResponse(200, {}, PAGE.body + "backend:8000"),
+        to("/otra"),
+        None,
+    ],
+    ids=["error-status", "leak", "second-hop", "unreachable"],
+)
+def test_AC_PLT_29_location_query_is_not_printed(
+    destination: HttpResponse | None, protected: Frontend
+) -> None:
+    protected.responses.update({"/": to(f"/login?{QUERY}"), "/inicio": to(f"/login?{QUERY}")})
+    for path in ("/login", f"/login?{QUERY}"):
+        if destination is None:
+            protected.unreachable.add(path)
+        else:
+            protected.responses[path] = destination
+    with pytest.raises(SmokeError) as caught:
+        smoke_pages.check_client_bundle(FRONTEND, protected.pages)
+    assert QUERY not in str(caught.value)
+    assert not any(QUERY in url for url in protected.requested)
+
+
+def test_AC_PLT_29_query_of_an_unexpected_destination_is_not_printed(
+    frontend: Frontend,
+) -> None:
+    frontend.responses["/"] = to(f"/otra?{QUERY}")
+    assert QUERY not in frontend.error()
 
 
 def test_AC_PLT_29_redirect_chain_fails_after_one_hop(protected: Frontend) -> None:

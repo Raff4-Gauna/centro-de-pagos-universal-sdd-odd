@@ -60,9 +60,10 @@ def is_redirect(response: HttpResponse) -> bool:
 
 
 def redirect_target(frontend_url: str, path: str, response: HttpResponse) -> str:
-    """Path and query to follow. The query is not compared: ``return_to`` varies by page.
+    """The path to follow, without the query of the ``Location``.
 
-    It is not printed either: only the path of an unexpected destination reaches the log.
+    The query is not compared, ``return_to`` varies by page, and it is not requested: what is
+    requested reaches the log when it fails, here and in ``http_get``.
     """
     expected = EXPECTED_REDIRECTS.get(path)
     if expected is None:
@@ -80,7 +81,7 @@ def redirect_target(frontend_url: str, path: str, response: HttpResponse) -> str
         raise SmokeError(CHECK, f"{path} redirects to another origin, expected {expected}")
     if target.path != expected:
         raise SmokeError(CHECK, f"{path} redirects to {target.path}, expected {expected}")
-    return f"{target.path}?{target.query}" if target.query else target.path
+    return target.path
 
 
 def check_client_bundle(frontend_url: str, pages: Sequence[str]) -> None:
