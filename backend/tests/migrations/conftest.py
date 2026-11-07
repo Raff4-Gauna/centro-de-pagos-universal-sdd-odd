@@ -34,6 +34,12 @@ def _drop_synthetic(connection: psycopg.Connection[tuple[object, ...]]) -> None:
     connection.execute(statement.format(sql.Identifier(SYNTHETIC_DATABASE)))
 
 
+def _create_synthetic(connection: psycopg.Connection[tuple[object, ...]]) -> None:
+    _drop_synthetic(connection)
+    statement = sql.SQL("CREATE DATABASE {}")
+    connection.execute(statement.format(sql.Identifier(SYNTHETIC_DATABASE)))
+
+
 @pytest.fixture(scope="session")
 def synthetic_db() -> Iterator[str]:
     """A fresh, empty ``hub_synthetic`` for the session; a leftover from a previous run is dropped.
@@ -43,14 +49,20 @@ def synthetic_db() -> Iterator[str]:
     """
     url = os.environ["DATABASE_URL"]
     with psycopg.connect(url, autocommit=True, connect_timeout=5) as connection:
-        _drop_synthetic(connection)
-        statement = sql.SQL("CREATE DATABASE {}")
-        connection.execute(statement.format(sql.Identifier(SYNTHETIC_DATABASE)))
+        _create_synthetic(connection)
     try:
         yield SYNTHETIC_DATABASE
     finally:
         with psycopg.connect(url, autocommit=True, connect_timeout=5) as connection:
             _drop_synthetic(connection)
+
+
+@pytest.fixture
+def fresh_synthetic_db(synthetic_db: str) -> str:
+    """``hub_synthetic`` recreated: the round trip refuses the rows an earlier test left behind."""
+    with psycopg.connect(os.environ["DATABASE_URL"], autocommit=True, connect_timeout=5) as conn:
+        _create_synthetic(conn)
+    return synthetic_db
 
 
 @pytest.fixture

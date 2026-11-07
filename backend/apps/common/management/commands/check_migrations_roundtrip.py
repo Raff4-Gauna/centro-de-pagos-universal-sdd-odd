@@ -6,6 +6,13 @@ job ``migrations``, step 8; design.md §3.2.7 and §10, AC-PLT-17), never the de
 reverting to ``zero`` drops the tables of the checked apps and their data. Hence the explicit
 ``--allow-data-loss``: without it the command exits with 2 before opening any connection.
 
+The flag says nothing about where it points, and CI and development both name their database
+``hub``, so the name cannot tell them apart: the content does. Before the first ``migrate``, any
+table with rows other than ``django_migrations`` exits with 2 naming the database and the tables,
+never a value. Every table of the ``search_path`` and not only those of the checked apps: ``migrate
+identity zero`` also reverts what depends on ``identity``. A schema outside it is not looked at, and
+``migrate`` does not touch it either. A database with empty tables has nothing to lose.
+
 1. Apply: ``migrate`` (without labels) or ``migrate <app>`` for each given app.
 2. Revert: ``migrate <app> zero`` for each checked app, the app whose migrations come last in the
    forward plan first (reverse dependency order); afterwards none of its migrations is applied.
@@ -29,6 +36,7 @@ from argparse import ArgumentParser
 from django.core.management import call_command
 from django.core.management.base import BaseCommand, CommandError
 from django.db import DEFAULT_DB_ALIAS, connections
+from django.db.backends.base.base import BaseDatabaseWrapper
 from django.db.migrations.exceptions import IrreversibleError
 from django.db.migrations.executor import MigrationExecutor
 from django.db.migrations.recorder import MigrationRecorder
@@ -39,9 +47,32 @@ ALLOW_DATA_LOSS_REQUIRED = (
     "check_migrations_roundtrip reverts migrations to zero and drops their tables and data: run it "
     "only on a throwaway database and pass --allow-data-loss"
 )
+# Excluded from the guard: it records the migrations themselves, never business data.
+MIGRATIONS_TABLE = MigrationRecorder.Migration._meta.db_table
 
 # What Django raises when a migration cannot be reverted (see the module docstring).
 NOT_REVERSIBLE = (IrreversibleError, NotImplementedError)
+
+
+def database_label(connection: BaseDatabaseWrapper) -> str:
+    """Name and host from the settings, never the URL: it carries the password."""
+    settings = connection.settings_dict
+    return f"{settings['NAME']} on {settings['HOST'] or 'local socket'}"
+
+
+def tables_with_rows(connection: BaseDatabaseWrapper) -> list[str]:
+    """Tables holding at least one row, by a real ``EXISTS``: statistics can lag behind."""
+    with connection.cursor() as cursor:
+        names = connection.introspection.table_names(cursor)
+        found = []
+        for name in names:
+            if name == MIGRATIONS_TABLE:
+                continue
+            table = connection.ops.quote_name(name)
+            cursor.execute(f"SELECT EXISTS (SELECT 1 FROM {table})")  # noqa: S608 - quoted catalog names, no outside input
+            if cursor.fetchone()[0]:
+                found.append(name)
+    return sorted(found)
 
 
 def revert_order(executor: MigrationExecutor, labels: list[str]) -> list[str]:
@@ -77,7 +108,9 @@ class Command(BaseCommand):
         # Before anything that connects: the executor already reads the applied migrations.
         if not allow_data_loss:
             raise CommandError(ALLOW_DATA_LOSS_REQUIRED, returncode=2)
-        executor = MigrationExecutor(connections[DEFAULT_DB_ALIAS])
+        connection = connections[DEFAULT_DB_ALIAS]
+        self.stdout.write(f"Database: {database_label(connection)}")
+        executor = MigrationExecutor(connection)
         graph = executor.loader.graph
         # Nodes of the graph, not ``loader.migrated_apps``: that one also has the apps whose
         # ``migrations/`` holds only ``__init__.py`` (what ``startapp`` leaves).
@@ -87,6 +120,13 @@ class Command(BaseCommand):
             raise CommandError(f"No migrations to check in: {', '.join(sorted(app_labels))}")
         # None: the whole project (``migrate`` without labels), as CI runs it.
         scope = checked if app_labels else None
+
+        if found := tables_with_rows(connection):
+            raise CommandError(
+                f"{database_label(connection)} is not throwaway, these tables have rows: "
+                f"{', '.join(found)}",
+                returncode=2,
+            )
 
         self.apply("apply", scope, verbosity)
         for label in revert_order(executor, checked):
