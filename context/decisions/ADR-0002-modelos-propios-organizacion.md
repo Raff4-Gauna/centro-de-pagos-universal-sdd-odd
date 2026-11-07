@@ -1,6 +1,6 @@
 # ADR-0002 — Modelos propios para Organization, Membership, Invitation y Branch
 
-- **Estado:** Propuesto
+- **Estado:** Aceptado (2026-11-06)
 - **Fecha:** 2026-10-31
 - **Specs afectadas:** SPEC-02 (dueña), SPEC-01 (usuario y puerto de invitación), SPEC-04/05 (vínculos a Branch),
   SPEC-06 (Branch en cobros), SPEC-10 (eventos), SPEC-11 (lectura de Branch). Decisiones: Q-027 (modelos propios),
@@ -44,9 +44,10 @@ Opción 4. Detalle en `specs/02-tenancy-rbac/design.md` §3 y §5.
      (RN-TEN-15).
 2. **Invariantes en la BD** (red final aunque falle el servicio): único parcial `(organization_id, user_id) WHERE
    status='active'`; único parcial `(organization_id, email) WHERE status='pending'`; único parcial
-   `(organization_id, name) WHERE is_active`; coherencia de estado/fin por `CheckConstraint`; email normalizado por
-   `CheckConstraint`. Un `IntegrityError` de estas constraints se traduce al error de negocio (`invitation_pending`,
-   `already_member`, `validation_error`).
+   `(organization_id, lower(name)) WHERE is_active` (Q-226) y `(organization_id, code) WHERE is_active AND code <> ''`
+   (Q-227); coherencia de estado/fin por `CheckConstraint`; email normalizado por `CheckConstraint`. Un
+   `IntegrityError` de estas constraints se traduce al error de negocio (`invitation_pending`, `already_member`,
+   `conflict`, `validation_error`).
 3. **Concurrencia de RN-TEN-14 y de invitaciones**: toda operación que cambia memberships o invitaciones de una
    organización toma primero `SELECT … FOR NO KEY UPDATE` sobre la fila de `Organization` ("mutex de membership"),
    luego `FOR UPDATE` sobre la fila destino, y recién ahí cuenta owners y decide con `domain/role_rules.py`. Orden
@@ -71,6 +72,5 @@ Opción 4. Detalle en `specs/02-tenancy-rbac/design.md` §3 y §5.
   zona roja; el esquema es el que necesitan RLS (ADR-0001) y las FK compuestas de SPEC-04/05.
 - Se paga: mantener modelos, migraciones y el flujo de invitaciones propios; el mutex por organización serializa los
   cambios de membership (operaciones raras y cortas).
-- Pendiente: firma final del puerto de SPEC-01 y si su aceptación "atómica" es todo-o-nada o "las válidas en una
-  transacción" (el diseño implementa lo segundo); unicidad de nombre de Branch sin distinguir mayúsculas (Q-226) y
-  unicidad de `code` (Q-227); confirmar Q-222/Q-224 antes de implementar los comandos de soporte y recuperación.
+- Resuelto (2026-11-06): la firma del puerto es la de `specs/01-identity-access/design.md §6.4` y su aceptación es
+  **todo o nada** (RN-IDA-06, AC-IDA-05); Q-222, Q-224, Q-226 y Q-227 están decididas.

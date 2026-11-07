@@ -17,8 +17,8 @@ fase: cierre (Implemented pendiente)
 | Módulo | Spec | Tareas | Código | Nota |
 |---|---|---|---|---|
 | 00-platform | Approved 1.0.21 | 42 ✅ (42) | 42 de 42 tareas | Verificación **Con hallazgos**; ruleset activo |
-| 01-identity-access | Approved | sin `tasks.md` | 0 % | Depende de 00 |
-| 02-tenancy-rbac | Approved | sin `tasks.md` | 0 % | Se cierra junto con 01 (Q-108) |
+| 01-identity-access | Approved 1.0.1 | 32 ☐ (32) | 0 % | Depende de 00; diseño aprobado |
+| 02-tenancy-rbac | Approved 1.0.1 | 36 ☐ (36) | 0 % | Se cierra junto con 01 (Q-108); diseño aprobado |
 | 03-integrations-engine | Draft | — | 0 % | Falta cerrar el contrato del motor |
 | 04-integration-management | Por redactar | — | 0 % | Bloquea a 06 |
 | 05-mercadopago-adapter | Draft | — | 0 % | Depende del spike S-001 |
@@ -38,7 +38,8 @@ fase: cierre (Implemented pendiente)
 - **Dependabot:** 7 PR abiertos desde el 2026-11-03 (#25–#31), sin triaje: un grupo de parches (#25) y seis saltos de
   versión mayor (Django 6.1, redis 8, Tailwind 4, mypy 2, django-stubs-ext 6, @types/node 26). #26 (mypy) falla en
   `typecheck`. Sus checks son de cuando se abrieron: 8 jobs, sin `migrations`.
-- **01 y 02:** specs `Approved` pero **sin `tasks.md`**: no se puede implementar todavía.
+- **01 y 02:** specs y diseños aprobados, ADR-0001 y ADR-0002 aceptados, `tasks.md` creados (2026-11-06). Se pueden
+  implementar en cuanto esa rama esté en `main`.
 - **04:** sin redactar; es el bloqueo de `06-charges`.
 - **S-001 (Mercado Pago sandbox):** **sin ejecutar**. Es el mayor riesgo abierto del roadmap.
 - **Skills:** antes de esta sesión no existían; ahora están `sdd-verification` y `reviewer-verdict`.
@@ -57,19 +58,20 @@ fase: cierre (Implemented pendiente)
 1. **Verificación manual de AC-PLT-01** (`verification.md §4`). Antes, el dueño mueve las claves de spikes de su
    `.env` a `spikes/.env`.
 2. **Repetir la verificación** de 00 y marcar las filas `🧪`. Solo el dueño puede pasar la spec a `Verified`.
-3. **Crear `tasks.md` de 01 y 02** (task-planner) y empezar identidad/tenencia.
+3. **Implementar 01 y 02:** ola 0 de `specs/01-identity-access/tasks.md` (`T-IDA-00`, `T-IDA-01`) y seguir por olas.
 4. **Redactar la spec 04** (bloquea a 06).
 5. **Ejecutar S-001** antes de diseñar el adaptador de Mercado Pago.
-8. Incorporar el checklist de buenas prácticas de software escalable que el dueño va a pasar; mapearlo contra
+6. Incorporar el checklist de buenas prácticas de software escalable que el dueño va a pasar; mapearlo contra
    `context/12-solid-y-diseno.md` y los agentes existentes.
 
 **Además:** triaje de Dependabot (#25–#31), sin orden fijo: los saltos mayores tocan versiones fijadas por Q-029 y
 Q-059. Los PR que cambien `.github/workflows/` los mergea el dueño (Q-063).
 
 **Pendiente técnico:**
-- `check_migrations_roundtrip --allow-data-loss` no mira a qué BD apunta. Importa desde SPEC-01, cuando haya datos.
-- `scripts/smoke_stack.py` necesita el mecanismo de URL de ejemplo para rutas `[id]`, y resolver antes de SPEC-01
-  que un 3xx cuente como página revisada (línea 257).
+- `check_migrations_roundtrip --allow-data-loss` no mira a qué BD apunta: lo cierra `T-IDA-00`, antes de la primera
+  migración de SPEC-01.
+- `scripts/smoke_stack.py` necesita el mecanismo de URL de ejemplo para rutas `[id]` y no debe contar un 3xx como
+  página revisada (línea 257): lo cierra `T-IDA-26`, antes de la primera ruta protegida (`T-IDA-28`).
 
 ## 4. Cómo retomar en 5 minutos
 

@@ -1,14 +1,14 @@
 ---
 spec: SPEC-02
-estado: Draft            # Draft | Aprobado
-actualizado: 2026-10-31
+estado: Aprobado         # Draft | Aprobado — aprobado por el dueño el 2026-11-06
+actualizado: 2026-11-06
 ---
 # Diseño — Módulo de Organizaciones, Sucursales y Roles (tenancy + RBAC)
 
-> Parte de `spec.sdd.md` 0.3.0 (*Designed*) y de `clarifications.md` (Q-201…Q-227). No cambia reglas de negocio:
-> donde la spec delega un detalle técnico ("lo decide `design.md`") se decide acá; donde faltaba una regla se abrió
-> una `Q-225+` sin decidirla (§11). Decisiones no obvias: **ADR-0001** (multi-tenancy) y **ADR-0002** (modelos
-> propios), ambos en estado *Propuesto*.
+> Parte de `spec.sdd.md` 1.0.1 (*Approved*) y de `clarifications.md` (Q-201…Q-228). No cambia reglas de negocio:
+> donde la spec delega un detalle técnico ("lo decide `design.md`") se decide acá. Decisiones no obvias: **ADR-0001**
+> (multi-tenancy) y **ADR-0002** (modelos propios), ambos *Aceptados*. Donde el código real de SPEC-00 obliga a nombrar
+> distinto, manda `tasks.md` ("Ajustes al diseño").
 >
 > Supuestos de otras specs (ramas aparte, ya decididos): SPEC-00 — Python 3.12, Django 5.2 LTS, DRF 3.16,
 > PostgreSQL 17, Celery 5.5, structlog, errores `application/problem+json` con `code` y `request_id`, test de
@@ -17,6 +17,8 @@ actualizado: 2026-10-31
 > request, el JWT no lleva rol/organización/membership, puerto de invitación `find_valid_invitations` /
 > `accept_invitations` (aceptación atómica de todas las vigentes en el primer login), `GET /api/me` usa un selector de
 > memberships de este módulo, la sesión del BFF guarda la última organización solo como default.
+>
+> **Ajustes posteriores a la aprobación del 2026-11-06**, redactados por `task-planner` y sin `architect`: flujo de Q-124 (`GET /api/invitations/mine/`, `POST /api/invitations/{id}/accept/`), puerto todo o nada (RN-IDA-06), Q-226/Q-227 en `Branch` y `tenancy_create_org`. Requieren el OK del dueño al PR que los incorpora.
 
 ## 1. Resumen de la solución
 1. **Aislamiento en dos capas de aplicación** (más RLS como tercera, después): (a) toda tabla de negocio hereda
@@ -49,7 +51,7 @@ actualizado: 2026-10-31
 | RN-TEN-08 | Resolución sin caché en cada request · rol leído de la membership en esa consulta · re-lectura bajo lock en servicios de membership |
 | RN-TEN-09 | `apps/tenancy/domain/permissions.py::TENANCY_ACTIONS` (deny-by-default) · `role_rules.py` · `ActionPermission` · `TenantViewSet.__init_subclass__` exige `ActionSpec` por acción |
 | RN-TEN-10 | Sin ruta de creación (`OrganizationViewSet` solo `list`) · comando `tenancy_create_org` · `services/platform_org.py::create_organization` |
-| RN-TEN-11 | `services/invitation_accept.py` (token o puerto SPEC-01) · `TenancyInvitationPort` |
+| RN-TEN-11 | `services/invitation_accept.py` (token, desde la sesión o puerto SPEC-01) · `selectors/invitations.py::list_my_pending` · `TenancyInvitationPort` |
 | RN-TEN-12 | `domain/invitations.py` (normalización, vigencia, token) · constraint `invitation_one_pending_per_org_email` · `token_hash` único · `Membership.source_invitation` único · locks en aceptar/revocar/reenviar |
 | RN-TEN-13 | `domain/role_rules.py::decide_invite`, `decide_manage_invitation`, `decide_role_change`, `decide_revoke` |
 | RN-TEN-14 | `domain/role_rules.py` (conteo de owners) · `selectors/locks.py::lock_membership_mutex` (`FOR NO KEY UPDATE` sobre la organización) · excepción Q-213 en `create_organization` |
@@ -57,7 +59,7 @@ actualizado: 2026-10-31
 | RN-TEN-16 | `apps/tenancy/api/filters.py::resolve_branch_filter` (query `branch_id`, `404` si es de otra org; sin restricción por sucursal) |
 | RN-TEN-17 | `apps/common/audit/port.py::emit` · `domain/audit_events.py::TenancyAuditAction` · servicios emiten dentro de la transacción |
 | RN-TEN-18 | `Organization.status` · `ActionPermission` (rechaza `WRITE` con org `suspended`) · `apps/common/tenancy/locks.py::lock_org_for_write` (recheck transaccional) · actor `SYSTEM` exento · comando `tenancy_set_org_status` |
-| RN-TEN-19 | `Branch.is_active` + constraint `branch_unique_active_name` · `services/branches.py` (desactivar/reactivar) · `NoHardDeleteMixin` · router sin `destroy` |
+| RN-TEN-19 | `Branch.is_active` + constraints `branch_unique_active_name` y `branch_unique_active_code` · `services/branches.py` (desactivar/reactivar) · `NoHardDeleteMixin` · router sin `destroy` |
 | RN-TEN-20 | `ResolveTenant` no consulta `is_superuser`/`is_staff` · comandos `tenancy_support_access` / `tenancy_owner_recovery` (Q-222/Q-224) emiten invitaciones normales |
 | RN-TEN-21 | `Membership.status/ended_reason/ended_at` + check constraint · nunca se reactiva (no hay transición `revoked → active`) · aceptar crea fila nueva |
 | RF-TEN-01 | `ResolveTenant` + `TenantContext` + `ContextVar` (`apps/common/tenancy/current.py`) |
@@ -72,7 +74,7 @@ actualizado: 2026-10-31
 | RNF-TEN-01 | `backend/tests/cross_tenant/` (suite parametrizada + clasificación de rutas) · `backend/tests/architecture/` |
 | RNF-TEN-02 | `ResolveTenant` liga `organization_id` a structlog solo tras validar; evento `tenancy.access_denied` con `reason` |
 | RNF-TEN-03 | `domain/invitations.py::new_token` (256 bits) + `token_hash` SHA-256 · token solo en respuesta de crear/reenviar · link con fragmento `#token=` · test de logs |
-| RNF-TEN-04 | `TenancyAuditAction` (catálogo = lista de la spec + Q-225 pendiente) · test de completitud de eventos |
+| RNF-TEN-04 | `TenancyAuditAction` (catálogo = lista de la spec, con Q-223 y Q-225) · test de completitud de eventos |
 | RNF-TEN-05 | Migraciones autogeneradas reversibles, probadas en CI (`migrate` / `migrate tenancy <anterior>`) · diseño compatible con RLS (ADR-0001 §RLS) |
 | RNF-TEN-06 | `Invitation` guarda solo `email` normalizado; logs con IDs, no emails |
 | RNF-TEN-07 | Resolución = **1 consulta SQL** por request, constante respecto de la cantidad de memberships; test con `django_assert_num_queries` |
@@ -117,7 +119,6 @@ apps/tenancy/
 ├── management/commands/  tenancy_create_org.py · tenancy_set_org_status.py · tenancy_owner_invite.py
 │                         tenancy_support_access.py · tenancy_owner_recovery.py
 ├── tasks.py           expire_invitations (fan-out) · send_invitation_email (flag)
-├── admin.py           Organization solo lectura
 ├── errors.py          already_member · invitation_pending · invitation_invalid · last_owner · invalid_transition
 └── tests/             domain/ · services/ · api/ · commands/
 ```
@@ -178,8 +179,9 @@ Ningún archivo pasa de ~250 líneas estimadas; los más grandes son `role_rules
   dependiente del objeto (roles del destino, último owner) lo hace el servicio con `domain/role_rules.py`.
 - Orden de errores: `401` (SPEC-01) → `400/404` organización → `403` rol → `409` suspendida → `404` objeto → reglas.
 - Rutas sin organización activa (exentas, lista explícita `TENANT_EXEMPT_ROUTES` con justificación):
-  `GET /api/organizations/`, `POST /api/invitations/accept/`, y las de SPEC-00/01 (`/api/me`, auth, health,
-  schema). El header se ignora en ellas.
+  `GET /api/organizations/`, `POST /api/invitations/accept/`, `GET /api/invitations/mine/`,
+  `POST /api/invitations/{id}/accept/`, y las de SPEC-00/01 (`/api/me`, auth, health, schema). El header se ignora en
+  ellas.
 
 ### 3.6 Procesos sin usuario (Celery, webhooks, poller)
 - **Tarea por organización**: `class X(TenantTask)` con `organization_id` obligatorio en kwargs. `__call__` abre
@@ -204,7 +206,7 @@ Ningún archivo pasa de ~250 líneas estimadas; los más grandes son `role_rules
    después de la suspensión la ve; una que ya tenía el lock confirma antes y la suspensión espera. Satisface el caso
    límite "suspender mientras hay una escritura en curso" sin serializar escrituras entre sí (`KEY SHARE` es
    compatible consigo mismo y con la edición de datos de la org, que toma `NO KEY UPDATE`).
-3. Las acciones `REDUCE_ACCESS` (revocar membership, abandonar, revocar invitación) pasan (Q-221 default). Aceptar
+3. Las acciones `REDUCE_ACCESS` (revocar membership, abandonar, revocar invitación) pasan (Q-221). Aceptar
    invitación es `WRITE` y se rechaza (incluido el puerto de SPEC-01, que además filtra organizaciones `active` en
    `find_valid_invitations`).
 
@@ -235,7 +237,7 @@ Ningún archivo pasa de ~250 líneas estimadas; los más grandes son `role_rules
   - `decide_revoke(actor_role, target_role, active_owners)` (ajeno) y `decide_leave(role, active_owners)`.
   - `decide_invite(actor_role, invite_role)` / `decide_manage_invitation(actor_role, invitation_role)`: owner todo;
     admin todo menos `owner`.
-  - `invitations_to_auto_revoke(new_role_or_none, pending_by_inviter)` (Q-223 default).
+  - `invitations_to_auto_revoke(new_role_or_none, pending_by_inviter)` (Q-223).
 - Las otras apps declaran **sus** acciones en su `domain/permissions.py` con el mismo `ActionSpec` (06 define
   `charge.create`, etc.). La UI recibe `allowed_actions` calculadas por el backend (no duplica la matriz).
 - **Cómo se testea**: `apps/tenancy/tests/domain/test_permission_matrix.py` contiene `SPEC_MATRIX`, transcripción
@@ -253,7 +255,8 @@ Rutas (App Router, `context/07 §3`):
 | `/configuracion/sucursales` | todos (gestión owner/admin) | `BranchesTable` (nombre, código, dirección, chip activa/inactiva; filtro activas/inactivas/todas), `BranchFormDialog`, confirmación de desactivar/reactivar con `LoadingButton`; vacío: "Creá tu primera sucursal" u "Aún no hay sucursales"; espacio reservado para las cajas del módulo dueño (Q-220) |
 | `/configuracion/colaboradores` | owner/admin (entrada de menú oculta para el resto; acceso directo → estado "sin permiso") | pestañas Miembros / Invitaciones pendientes; `MembersTable` con acciones por fila desde `allowed_actions` y `assignable_roles`; `InviteDialog` (roles de `invitable_roles`); `InvitationLinkDialog` muestra `accept_url` una sola vez con "Copiar" y aviso "no se vuelve a mostrar" (estado local del componente, nunca en la caché de Query) |
 | `/invitacion` (fuera de `(dashboard)`) | autenticado | Lee `#token`, lo guarda en `sessionStorage` si hay que pasar por login (SPEC-01 vuelve a esta ruta), borra el fragmento con `history.replaceState`, hace `POST /api/invitations/accept/` y borra el token; estados: aceptada (con "Ir a la empresa"), vencida, revocada, ya usada, para otra cuenta de Google, organización suspendida, no encontrada |
-| `/sin-organizacion` | autenticado sin memberships | `EmptyState` con contacto del operador (`NEXT_PUBLIC_OPERATOR_CONTACT`) (Q-205) |
+| `/sin-organizacion` | autenticado sin memberships | `EmptyState` con contacto del operador (`NEXT_PUBLIC_OPERATOR_CONTACT`) (Q-205) + `PendingInvitationsNotice` |
+| `/inicio` (de SPEC-00) | todos | `PendingInvitationsNotice` (Q-121, Q-124): lista `GET /api/invitations/mine/` con empresa, rol y vencimiento; "Aceptar" llama a `POST /api/invitations/{id}/accept/`, refresca organizaciones y ofrece "Ir a la empresa". Sin invitaciones no se muestra |
 
 Componentes/estado (`frontend/src/modules/tenancy/`): `context/ActiveOrgProvider.tsx` (org y sucursal **por
 pestaña** en `sessionStorage`; al abrir: valor de la pestaña si sigue en `GET /api/organizations/` → default de la
@@ -315,7 +318,7 @@ sequenceDiagram
    for_update=True)` (otra org → `404`; `revoked` → `409 invalid_transition`) → re-lee la membership del actor bajo el
    mismo lock (si cambió desde la resolución, rige la nueva) → cuenta owners activos → `decide_role_change(...)`.
 3. `ALLOW` → actualiza, auto-revoca invitaciones del afectado que ya no podría emitir (Q-223), emite
-   `membership.role_changed` (+ `invitation.revoked` con `reason=inviter_lost_permission`) y confirma.
+   `membership.role_changed` (+ `invitation.auto_revoked` con motivo `inviter_lost_permission`) y confirma.
    `NOOP` → `200` sin evento. `FORBIDDEN` → `403`. `LAST_OWNER` → sale del `atomic` sin cambios, emite
    `owner_protection.rejected` en transacción propia, `409 last_owner`.
 4. Concurrencia: dos owners que se degradan/revocan mutuamente toman el **mismo** lock de fila de la organización;
@@ -351,7 +354,7 @@ sequenceDiagram
   else status ≠ pending
     API-->>U: 400 invitation_invalid (reason=revoked|used|expired)
   else now ≥ expires_at
-    API->>DB: pending→expired (se confirma; evento invitation.expired según Q-225)
+    API->>DB: pending→expired (se confirma; evento invitation.expired, Q-225)
     API-->>U: 400 invitation_invalid (reason=expired)
   else org suspended
     API-->>U: 409 organization_suspended
@@ -364,10 +367,18 @@ sequenceDiagram
 ```
 Doble aceptación en paralelo: el segundo espera el `FOR UPDATE`, ve `accepted` → `invitation_invalid (used)`; el
 único `Membership.source_invitation` y el único parcial de membership activa son la red final.
-Puerto de SPEC-01 (`TenancyInvitationPort`, `services/invitation_port.py`): `find_valid_invitations(email)` →
-`pending`, `expires_at > now`, organización `active`; `accept_invitations(user, ids)` → una transacción, locks de
-organizaciones en orden de `id`, mismas validaciones que arriba por invitación; devuelve aceptadas y rechazadas
-(las rechazadas no abortan a las demás). La firma exacta la fija SPEC-01; se registra por settings
+**Desde la sesión (Q-121, Q-124):** `GET /api/invitations/mine/` lista con `Invitation.pending_for_email(user.email)`
+las `pending`, vigentes y de organización `active` (el mismo filtro del puerto), sin token. `POST
+/api/invitations/{id}/accept/` usa el mismo servicio del diagrama, con estas diferencias: busca la invitación dentro de
+`pending_for_email(user.email)`, así que una de otro email da `invitation_invalid (not_found)` y sigue `pending`; no
+lleva token. No requiere `X-Organization-Id`. Vive en `selectors/invitations.py::list_my_pending` y
+`services/invitation_accept.py`; no hay un segundo camino de aceptación (ADR-0002 §5).
+
+Puerto de SPEC-01 (`TenancyInvitationPort`, `services/invitation_port.py`): firma de `specs/01-identity-access/design.md
+§6.4`. `find_valid_invitations(email, now=)` → `pending`, `expires_at > now`, organización `active`, con `FOR UPDATE`,
+locks de organizaciones en orden de `id`. `accept_invitations(invitations, user_id, now=)` → dentro de la transacción
+del caller, mismas validaciones que arriba por invitación; **todo o nada**: si una no se puede aceptar lanza
+`InvitationsNoLongerValid` y el caller hace rollback de todo (RN-IDA-06, AC-IDA-05). Se registra por settings
 (`IDENTITY_INVITATION_PORT`) para que `apps/identity` no importe `apps/tenancy`.
 
 ### 4.5 Comando: crear organización (AC-TEN-22)
@@ -378,13 +389,14 @@ organizaciones en orden de `id`, mismas validaciones que arriba por invitación;
    existente y **no** emite eventos ni token; misma clave + parámetros distintos → error sin efectos.
 3. `atomic`: crea `Organization(status=active)` → `tenant_scope(system_context(org, PLATFORM_COMMAND))` → crea
    `Invitation(role=owner, purpose=first_owner, invited_by_operator=…)` → eventos `organization.created`,
-   `invitation.created`. Imprime el link **una vez** en stdout (no pasa por el logger).
+   `invitation.created`. Imprime el link **una vez** en stdout (no pasa por el logger). Si el email ya tiene usuario
+   no cambia nada: se emite igual la invitación y esa persona la acepta adentro del Hub (Q-124, AC-TEN-40).
 Otros comandos: `tenancy_set_org_status --org --status suspended|active --reason --operator` (`FOR UPDATE`;
 eventos `organization.suspended/reactivated`); `tenancy_owner_invite reissue|revoke --org --operator` (solo si la
 org no tiene owner activo, Q-213); `tenancy_support_access --org --email --role viewer --reason --operator`
-(Q-222 default: emite invitación `purpose=support`, rol ≠ owner); `tenancy_owner_recovery --org --email --reason
---operator` (Q-224 default: invitación `owner`, `purpose=owner_recovery`, aviso a owners existentes cuando haya
-email; no revoca a nadie). Los dos últimos se implementan después de confirmar Q-222/Q-224.
+(Q-222: emite invitación `purpose=support`, rol ≠ owner); `tenancy_owner_recovery --org --email --reason
+--operator` (Q-224: invitación `owner`, `purpose=owner_recovery`, aviso a owners existentes cuando haya
+email; no revoca a nadie).
 
 ## 5. Datos
 Todas las PK son `UUID` (v4); fechas `timestamptz` en UTC. Enums como `varchar` + `CheckConstraint`. Django 5.2
@@ -395,13 +407,13 @@ Todas las PK son `UUID` (v4); fechas `timestamptz` en UTC. Enums como `varchar` 
 | `tenancy_organization` | `id`, `name varchar(120)`, `legal_name varchar(200) ''`, `tax_id varchar(11) ''`, `timezone varchar(64) default 'America/Argentina/Buenos_Aires'`, `status varchar(16) default 'active'`, `status_changed_at null`, `platform_creation_key varchar(64) null`, `created_by_operator varchar(254)`, `created_at`, `updated_at` | `org_status_valid` (`status IN (active, suspended)`) · `org_name_not_blank` (`name <> ''`) · `org_tax_id_digits` (`tax_id = '' OR tax_id ~ '^[0-9]{11}$'`) · único `platform_creation_key` | Raíz; **no** hereda `TenantModel` pero su manager también falla cerrado. `timezone` validada contra `zoneinfo.available_timezones()`; CUIT con dígito verificador en `domain/tax_id.py` (acepta guiones, guarda 11 dígitos) |
 | `tenancy_membership` | `id`, `organization_id` FK PROTECT, `user_id` FK `AUTH_USER_MODEL` PROTECT, `role varchar(16)`, `status varchar(16) default 'active'`, `ended_reason varchar(16) null`, `ended_at null`, `ended_by_id` FK user null, `invited_by_id` FK user null, `source_invitation_id` FK invitation null **único**, `created_at`, `updated_at` | `membership_one_active_per_org_user` único parcial `(organization_id, user_id) WHERE status='active'` · `membership_role_valid` · `membership_status_valid` · `membership_end_coherent` (`(status='active' AND ended_reason IS NULL AND ended_at IS NULL) OR (status='revoked' AND ended_reason IN ('revoked','left') AND ended_at IS NOT NULL)`) · índice parcial `membership_active_user_org (user_id, organization_id) INCLUDE (role) WHERE status='active'` | El índice parcial sirve a la resolución (1 consulta) y a "mis organizaciones". `revoked` es terminal |
 | `tenancy_invitation` | `id`, `organization_id`, `email varchar(254)`, `role varchar(16)`, `status varchar(16) default 'pending'`, `purpose varchar(16) default 'standard'`, `reason varchar(200) ''`, `token_hash char(64)`, `expires_at`, `invited_by_user_id` null, `invited_by_operator varchar(254) ''`, `accepted_by_id` null, `accepted_at` null, `revoked_at` null, `revoked_reason varchar(32) null`, `revoked_by_id` null, `replaces_id` FK self null, `created_at`, `updated_at` | `invitation_one_pending_per_org_email` único parcial `(organization_id, email) WHERE status='pending'` · único `token_hash` · `invitation_email_normalized` (`email = lower(btrim(email))`) · `invitation_status_valid` · `invitation_role_valid` · `invitation_purpose_valid` (`standard, first_owner, support, owner_recovery`) · `invitation_inviter_xor` (exactamente uno de `invited_by_user_id` / `invited_by_operator`) · `invitation_operator_reason` (`purpose IN (support, owner_recovery) ⇒ reason <> ''`) · `invitation_accepted_coherent` · `invitation_expiry_after_creation` · índices `(organization_id, status, created_at)` y parcial `(email) WHERE status='pending'` (puerto SPEC-01) | Solo email del invitado (RNF-TEN-06). `revoked_reason ∈ {revoked, resent, inviter_lost_permission, operator}` |
-| `tenancy_branch` | `id`, `organization_id`, `name varchar(120)`, `code varchar(32) ''`, `address varchar(255) ''`, `is_active bool default true`, `deactivated_at null`, `created_at`, `updated_at` | `branch_unique_active_name` único parcial `(organization_id, name) WHERE is_active` · `branch_name_not_blank` · `branch_org_id_uniq (organization_id, id)` (destino de FK compuesta de 04/05, RN-TEN-15) · índice `(organization_id, is_active, name)` | Sin borrado físico. Unicidad de nombre literal (tras recortar) hasta decidir Q-226; `code` sin unicidad hasta Q-227 |
+| `tenancy_branch` | `id`, `organization_id`, `name varchar(120)`, `code varchar(32) ''`, `address varchar(255) ''`, `is_active bool default true`, `deactivated_at null`, `created_at`, `updated_at` | `branch_unique_active_name` único parcial `(organization_id, lower(name)) WHERE is_active` (Q-226) · `branch_unique_active_code` único parcial `(organization_id, code) WHERE is_active AND code <> ''` (Q-227) · `branch_name_not_blank` · `branch_org_id_uniq (organization_id, id)` (destino de FK compuesta de 04/05, RN-TEN-15) · índice `(organization_id, is_active, name)` | Sin borrado físico. Nombre sin distinguir mayúsculas tras recortar; `code` exacto, solo si viene informado |
 
 - Normalización de texto en servicios: `strip()` de `name`, `legal_name`, `code`, `address`; email con
   `domain/invitations.py::normalize_email` (`strip` + `lower` de toda la cadena, validado con `EmailValidator`,
   máx. 254; no colapsa puntos ni `+alias`).
-- Migraciones: `0001_organization_membership`, `0002_invitation` (agrega también la FK
-  `membership.source_invitation`), `0003_branch`. Solo esquema, sin datos; autogeneradas y reversibles.
+- Migraciones: `0001_organization`, `0002_membership`, `0003_invitation` (agrega también la FK
+  `membership.source_invitation`), `0004_branch`. Solo esquema, sin datos; autogeneradas y reversibles.
 
 ## 6. Contratos de API
 Header en rutas tenant-scoped: `X-Organization-Id: <uuid>`. Errores `application/problem+json` (SPEC-00) con `code`
@@ -424,10 +436,12 @@ Serializers de entrada **estrictos**: campo desconocido o de solo lectura (`orga
 | POST | `/api/invitations/{id}/resend/` | `invitation.resend` (WRITE) | — | `201 {invitation nueva…, accept_url}` | 403, 404, 409 `invalid_transition` / `organization_suspended` |
 | POST | `/api/invitations/{id}/revoke/` | `invitation.revoke` (REDUCE) | — | `200 invitation` | 403, 404, 409 `invalid_transition` |
 | POST | `/api/invitations/accept/` | autenticado; **sin** header (exenta) | `{token}` | `200 {organization:{id, name}, role, membership_id}` | 400 `invitation_invalid` + `reason ∈ {not_found, email_mismatch, revoked, used, expired}`, 409 `organization_suspended` / `already_member` |
+| GET | `/api/invitations/mine/` | autenticado; **sin** header (exenta) | — | `200 [{id, organization:{id, name}, role, expires_at}]` (solo las del email del usuario; **nunca** token ni quién invitó) | 401 |
+| POST | `/api/invitations/{id}/accept/` | autenticado; **sin** header (exenta) | — | `200` igual a `accept/` | 400 `invitation_invalid` + `reason ∈ {not_found, revoked, used, expired}`, 409 `organization_suspended` / `already_member` |
 | GET | `/api/branches/` | `branch.read` | `?is_active=true\|false` | `200 [{id, name, code, address, is_active, deactivated_at}]` | 400/404 org |
-| POST | `/api/branches/` | `branch.create` (WRITE) | `{name, code?, address?}` | `201 branch` | 403, 409 suspended, 400 `validation_error` (nombre duplicado entre activas) |
+| POST | `/api/branches/` | `branch.create` (WRITE) | `{name, code?, address?}` | `201 branch` | 403, 409 `conflict` (nombre o `code` duplicado entre activas, AC-TEN-38), 409 suspended, 400 `validation_error` |
 | GET | `/api/branches/{id}/` | `branch.read` | — | `200 branch` | 404 `not_found` |
-| PATCH | `/api/branches/{id}/` | `branch.update` (WRITE) | `{name?, code?, address?}` | `200 branch` | 403, 404, 409, 400 |
+| PATCH | `/api/branches/{id}/` | `branch.update` (WRITE) | `{name?, code?, address?}` | `200 branch` | 403, 404, 409 `conflict`, 409 suspended, 400 |
 | POST | `/api/branches/{id}/deactivate/` | `branch.deactivate` (WRITE) | — | `200 branch` | 403, 404, 409 `invalid_transition` (ya inactiva) |
 | POST | `/api/branches/{id}/reactivate/` | `branch.reactivate` (WRITE) | — | `200 branch` | 403, 404, 400 `validation_error` (nombre ocupado), 409 `invalid_transition` |
 | DELETE | `/api/branches/{id}/` | — | — | `405` (AC-TEN-30) | — |
@@ -435,8 +449,8 @@ Serializers de entrada **estrictos**: campo desconocido o de solo lectura (`orga
 - `accept_url = {FRONTEND_BASE_URL}/invitacion#token=<token>`: el token va en el **fragmento** (el navegador no lo
   envía al servidor ni en `Referer`, no aparece en access logs).
 - Códigos HTTP fijados acá: `organization_required` 400, `organization_suspended` 409, `already_member` 409,
-  `invitation_pending` 409, `last_owner` 409, `invitation_invalid` 400, `invalid_transition` 409 (código nuevo para
-  C-05; alinear nombre con el catálogo de SPEC-00).
+  `invitation_pending` 409, `last_owner` 409, `invitation_invalid` 400, `conflict` 409 (AC-TEN-38),
+  `invalid_transition` 409 (código nuevo para C-05; alinear nombre con el catálogo de SPEC-00).
 - Interfaz interna (Python) para otros módulos: `TenantContext`, `tenant_scope`, `system_context`, `TenantModel`,
   `TenantTask`/`SystemFanoutTask`, `ensure_writable`, `ActionSpec`/`require`, `TenantViewSet`,
   `resolve_branch_filter(request, ctx)`, `selectors.branches.get_branch(ctx, id)`,
@@ -451,9 +465,8 @@ Serializers de entrada **estrictos**: campo desconocido o de solo lectura (`orga
   `save()` → test de arquitectura y suite cross-tenant; RLS como cuarta capa antes de onboardear comercios ajenos
   (ADR-0001, Q-215). Recursos de otra org por ID → `404` indistinguible de inexistente.
 - **Operador de plataforma**: sin rutas de API privilegiadas; `is_superuser`/`is_staff` no participan de la
-  resolución; Django admin solo lista `Organization` (lectura; sin alta, edición ni borrado) con
-  `unscoped(PLATFORM_ADMIN)`; Membership/Invitation/Branch **no** se registran en el admin. Acciones por comando con
-  `--operator` en lista blanca y auditadas.
+  resolución; acciones por comando con `--operator` en lista blanca y auditadas. El Django admin de solo lectura que
+  se preveía acá **no se planifica** hasta decidir Q-228.
 - **Secretos**: token `secrets.token_urlsafe(32)` (256 bits), en BD solo `sha256` hex; nunca en logs, errores,
   listados ni `repr` (`Invitation.__repr__` sin hash); el serializer de aceptar declara `token` `write_only`; los
   errores no ecoan la entrada. Email de invitación detrás del flag `TENANCY_INVITATION_EMAIL_ENABLED` (apagado hasta
@@ -478,11 +491,11 @@ Serializers de entrada **estrictos**: campo desconocido o de solo lectura (`orga
 | Unitarias (dominio) | Matriz literal `SPEC_MATRIX` vs `require()` (active y suspended); `role_rules` exhaustivo; `normalize_email`; vigencia en el borde (`T+7d−1min` acepta, `T+7d` no) con reloj inyectado; CUIT; `invitations_to_auto_revoke`; catálogo de eventos = lista de la spec | AC-TEN-15, 16, 25, 27 (decisión), 34, 35 |
 | Servicio/integración (BD real) | `TenantQuerySet` lanza en cada método terminal sin scope y no consulta la BD; `TenantModel.save()` rechaza org distinta del contexto; constraints únicos parciales; concurrencia con hilos + `transaction=True` (dos owners que se degradan mutuamente; doble aceptación; aceptar vs revocar; dos invitaciones al mismo email; suspender vs escritura); `TenantTask` de sistema procesa con org `suspended`; migraciones ida y vuelta | AC-TEN-11, 13, 14, 17, 26, 28 (s2s), 31 |
 | API | Cada AC con su `test_AC_TEN_NN_*`: rol revocado/degradado a mitad de sesión con la misma sesión; `organization_id` en el cuerpo → `400` y nada en B; mis organizaciones; flujos de invitación; Branch; abandonar y re-invitar → membership nueva; operator/viewer sin lista de miembros; tokens fuera de logs (captura de structlog) y de `GET /api/invitations/`; `allowed_actions` coherentes con la matriz; **query count** de la resolución (`django_assert_num_queries`: 1 consulta de tenancy por request) | AC-TEN-04, 05, 07, 08, 15–20, 24, 26, 27, 28, 30, 31, 34, 35 |
-| Contrato (adaptadores) | No aplica (sin proveedores). Contrato con SPEC-01: test del puerto (`find_valid_invitations` / `accept_invitations`) con la interfaz que publique SPEC-01 | AC-TEN-17 (vía puerto) |
+| Contrato (adaptadores) | No aplica (sin proveedores). Contrato con SPEC-01: test del puerto (`find_valid_invitations` / `accept_invitations`) contra la firma de `specs/01-identity-access/design.md §6.4` | AC-TEN-17 (vía puerto), AC-IDA-02, 05 |
 | Aislamiento entre organizaciones | **Suite parametrizada** (`backend/tests/cross_tenant/`): (1) recorre `get_resolver()` y clasifica cada ruta `/api/`: `tenant_scoped` → exige un `CrossTenantCase` por **(ruta, método)**; exenta → debe estar en `TENANT_EXEMPT_ROUTES` con justificación; otra cosa → falla "ruta sin clasificar". (2) Por cada caso: sin header → `400 organization_required`; header de B sin membership, UUID inexistente y superusuario sin membership → `404` con cuerpo idéntico (sin `request_id`/`instance`); objeto de B por ID con A activa → `404` y *snapshot* de las filas de B sin cambios; listados sin IDs de B; con A `suspended` toda acción `WRITE` → `409` sin efectos. Cada módulo registra sus casos en `tests/cross_tenant/cases/<app>.py`. **Arquitectura** (`backend/tests/architecture/test_tenant_queries.py`, AST): `X.objects.<attr>` con `X` modelo tenant y `attr` ∉ scopes permitidos → falla con archivo:línea; `_default_manager`/`_base_manager` prohibidos; `unscoped(` fuera de la lista blanca; `TenantContext(` construido fuera de `common/tenancy` y `tenancy/api/permissions.py`; todo modelo de negocio hereda `TenantModel` (lista de exentos: `Organization`, modelos de `identity`, auditoría). El checker se prueba contra un archivo de ejemplo con una violación (AC-TEN-10). App de prueba `tests/testapps/tenant_probe/` (modelo `Widget(TenantModel)`, vista con `resolve_branch_filter`, `TenantTask`) solo en settings de test | AC-TEN-01, 02, 03, 06, 09, 10, 12, 32, 33 |
 | Comandos | Crear org idempotente (sin memberships, invitación owner, eventos con operador; aceptar → 1 owner); reemitir/revocar primer owner; suspender/reactivar; ninguna ruta de API cambia estado | AC-TEN-21, 22, 29 |
 | Auditoría | Registro `AUDIT_TRIGGERS` (acción → función que la dispara); test parametrizado sobre `TenancyAuditAction`: cada acción tiene disparador y produce un evento con actor, acción, organización y fecha en `RecordingSink`; acción sin disparador → falla | AC-TEN-23 |
-| E2E / manual | Humo E2E (Playwright, contra backend de test): crear org por comando → aceptar invitación owner → invitar operator → aceptar en otra sesión → operator ve Sucursales en lectura. Manual: selector con dos pestañas en orgs distintas; estados de "Aceptar invitación"; banner de suspendida | AC-TEN-08, 22, 28 (UI) |
+| E2E / manual | Humo E2E por HTTP sin navegador (Playwright es dependencia nueva, C-13; ver `tasks.md`): crear org por comando → aceptar invitación owner → invitar operator → aceptar en otra sesión → operator ve Sucursales en lectura. Manual: selector con dos pestañas en orgs distintas; estados de "Aceptar invitación"; banner de suspendida | AC-TEN-08, 22, 28 (UI) |
 | Frontend (vitest + Testing Library) | `ActiveOrgProvider` (prioridad pestaña → default BFF → primera por nombre), header en cada request, limpieza de caché al cambiar de org, manejo de `404 organization_not_found` / `409 organization_suspended`, link de invitación no persistido, acciones visibles según `allowed_actions` | — (soporte a §14 de la spec) |
 
 ## 10. Migración y despliegue
@@ -506,14 +519,18 @@ Serializers de entrada **estrictos**: campo desconocido o de solo lectura (`orga
 | Lock `FOR NO KEY UPDATE` de la org serializa cambios de membership (no las escrituras de negocio) | Operaciones raras y cortas; orden de locks fijo (org → fila); `lock_timeout` de 5 s en esas transacciones |
 | SQL crudo `FOR KEY SHARE` (Django no lo expone) | Único helper en `common/tenancy/locks.py`, permitido por el test de arquitectura |
 | Auditoría no durable hasta SPEC-10 (stub con `on_commit`) | Gate de producción §10; el puerto exige llamar dentro de la transacción para que el sink real sea transaccional |
-| Firma exacta del puerto de invitación y semántica "atómica" de SPEC-01 (todo-o-nada vs aceptar las válidas) | Se implementa "una transacción, las inválidas se informan sin abortar"; confirmar en el design de SPEC-01 antes de T-TEN-12 |
+| Firma del puerto de invitación de SPEC-01 | Cerrada: la de `specs/01-identity-access/design.md §6.4`, **todo o nada** (RN-IDA-06, AC-IDA-05); la implementa `T-TEN-17` |
 | Token de invitación en broker si se habilita email | Flag apagado hasta ADR de proveedor (Q-207); `kwargsrepr` redactado |
 | Identidad del operador en comandos es declarativa (`--operator`) | Lista blanca `PLATFORM_OPERATOR_EMAILS` + usuario del SO en el evento; acceso a `manage.py` = acceso a infraestructura |
-| Catálogo de auditoría incompleto frente a C-05/C-08 | Q-225 (no bloqueante) |
-| Unicidad de nombre de Branch sensible a mayúsculas; `code` sin unicidad | Q-226, Q-227 (no bloqueantes); cambiar es una migración de un índice |
-| Q-221…Q-224 aplicados por defecto | Confirmables antes de *Approved*; Q-221 vive en una constante (`SUSPENDED_ALLOWED_KINDS`); Q-222/Q-224 en tareas separadas al final |
+| Catálogo de auditoría frente a C-05/C-08 | Q-225 decidida (2026-10-31): `invitation.expired`, `transition.rejected`, `purpose`; AC-TEN-37 |
+| Unicidad de nombre de Branch y de `code` | Q-226 y Q-227 decididas (2026-10-31): §5 y AC-TEN-38 |
+| Q-221…Q-224 | Decididas por el usuario (2026-11-06); Q-221 vive en una constante (`SUSPENDED_ALLOWED_KINDS`); Q-222/Q-224 en `T-TEN-28` |
+| Owner de organización nueva que ya tiene usuario (Q-124 de SPEC-01) | Decidida (2026-11-06): acepta adentro del Hub; `T-TEN-16` y `T-TEN-30` (AC-TEN-39, AC-TEN-40) |
+| Django admin de solo lectura (RN-TEN-10) incompatible con D-03 y con `identity.User` | Q-228 (abierta, no bloquea); no se planifica |
 
 ### 11.1 Orden preliminar de tareas (para `task-planner`; cada una ≤ ~300 líneas de diff)
+> **Reemplazado por `tasks.md`** (2026-11-06): los IDs de abajo son los preliminares, no los finales.
+
 1. **T-TEN-01** `common/tenancy`: `TenantContext`, `ContextVar`, `tenant_scope`, middleware, errores.
 2. **T-TEN-02** `common/tenancy`: `TenantQuerySet`/`TenantManager`, `TenantModel`, `NoHardDeleteMixin`, app de prueba `tenant_probe` (AC-TEN-11).
 3. **T-TEN-03** Test de arquitectura AST + lista blanca (AC-TEN-10).
@@ -536,13 +553,13 @@ Serializers de entrada **estrictos**: campo desconocido o de solo lectura (`orga
 20. **T-TEN-20** Frontend: Sucursales.
 21. **T-TEN-21** Frontend: Colaboradores (miembros, invitaciones, link de una sola vez).
 22. **T-TEN-22** Frontend: `/invitacion`.
-23. **T-TEN-23** Tareas `expire_invitations` (fan-out) y `send_invitation_email` (flag), si Q-225 se confirma.
-24. **T-TEN-24** Comandos `tenancy_support_access` y `tenancy_owner_recovery` (tras confirmar Q-222/Q-224).
+23. **T-TEN-23** Tareas `expire_invitations` (fan-out) y `send_invitation_email` (flag).
+24. **T-TEN-24** Comandos `tenancy_support_access` y `tenancy_owner_recovery`.
 Cada tarea de endpoint registra sus casos en la suite cross-tenant como parte de su DoD (si no, T-TEN-07 falla).
 
 ---
-**Hecho:** diseño completo (componentes, flujos, datos con constraints e índices, contratos, seguridad, UI, pruebas);
-cada RN/RF/RNF con destino (§2) y cada AC con nivel de prueba (§9); ADR-0001 y ADR-0002 *Propuestos*.
-**Pendiente / dudas:** Q-225, Q-226, Q-227 (nuevas, no bloqueantes); Q-221…Q-224 aplicadas por defecto,
-confirmables antes de *Approved*; firma final del puerto de SPEC-01; cambios en `context/07` (§3.10).
-**Siguiente rol sugerido:** humano (gate *Approved*) → task-planner.
+**Hecho:** diseño aprobado (componentes, flujos, datos con constraints e índices, contratos, seguridad, UI, pruebas);
+cada RN/RF/RNF con destino (§2) y cada AC con nivel de prueba (§9); ADR-0001 y ADR-0002 *Aceptados*.
+**Pendiente / dudas:** Q-228 (admin de Django); Q-220 para SPEC-04/05; cambios en `context/07` (§3.10, los aplica
+`T-TEN-29`).
+**Siguiente rol sugerido:** implementadores, según `tasks.md`.

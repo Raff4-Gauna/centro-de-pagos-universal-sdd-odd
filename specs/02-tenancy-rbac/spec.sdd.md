@@ -3,9 +3,9 @@ id: SPEC-02
 modulo: tenancy-rbac
 estado: Approved
 track: S
-version: 1.0.0
+version: 1.0.1
 depende_de: [SPEC-00, SPEC-01]
-actualizado: 2026-10-31
+actualizado: 2026-11-06
 ---
 
 # Módulo de Organizaciones, Sucursales y Roles (tenancy + RBAC)
@@ -84,6 +84,7 @@ Matriz con la organización en estado `active`:
 | Revocar / reenviar invitación pendiente admin/operator/viewer | ✔ | ✔ (Q-202) | ✘ | ✘ | ✘ | ✘ | ✘ sin membership |
 | Revocar / reenviar invitación pendiente owner | ✔ | ✘ (Q-202) | ✘ | ✘ | ✘ | ✘ | ✔ solo la del primer owner (Q-213) |
 | Aceptar invitación | el usuario autenticado cuyo email coincide (Q-206); no requiere organización activa |||||||
+| Ver mis invitaciones pendientes (las de mi email) | el usuario autenticado, tenga o no memberships (Q-121, Q-124); no requiere organización activa |||||||
 | Ver sucursales de la organización (activas e inactivas) | ✔ | ✔ | ✔ | ✔ | ✘ | ✔ lectura (Q-216) | ✘ sin membership |
 | Crear / editar / desactivar / reactivar sucursal | ✔ | ✔ | ✘ | ✘ | ✘ | ✘ | ✘ sin membership |
 | Borrar físicamente una sucursal | ✘ | ✘ | ✘ | ✘ | ✘ | ✘ | ✘ (Q-211) |
@@ -97,7 +98,7 @@ rol de esa membership, como cualquier usuario.
 Los miembros conservan **solo lectura**: todo lo marcado ✔ de lectura en §4 sigue igual. Se rechazan con
 `organization_suspended` (sin efectos): editar datos de la organización, invitar, reenviar invitación, cambiar
 roles, aceptar invitación, crear/editar/desactivar/reactivar sucursal, y cualquier escritura de negocio de otros
-módulos (p. ej. cobros nuevos). Siguen permitidas, por default de **Q-221** (pendiente de confirmar): revocar
+módulos (p. ej. cobros nuevos). Siguen permitidas, por **Q-221**: revocar
 membership, abandonar la organización y revocar invitaciones pendientes (reducen acceso), respetando Q-201/Q-202.
 Los procesos servidor-a-servidor sobre cobros `pending` (webhooks, poller) **no** se bloquean por la suspensión.
 
@@ -145,6 +146,8 @@ no listada → denegada (RN-TEN-09).
   email y se emite una invitación con rol `owner` a ese email (Q-213).
 - **RN-TEN-11** Los usuarios se suman a una organización solo aceptando una invitación por email (Q-012); la
   aceptación exige estar autenticado con Google (SPEC-01). `Invitation` implementa el puerto de invitación de SPEC-01.
+  Quien ya tiene usuario la acepta adentro del Hub: ve sus invitaciones pendientes en la sesión o entra por el link
+  (Q-121, Q-124); el login no la acepta.
 - **RN-TEN-12** Una invitación (Q-206):
   - vence a los **7 días** de emitida (vigente mientras `ahora < expires_at`, en UTC);
   - se acepta **una sola vez**, solo por el usuario autenticado cuyo email de Google coincide con el invitado sin
@@ -190,11 +193,12 @@ no listada → denegada (RN-TEN-09).
   (CUIT), `timezone` (default `America/Argentina/Buenos_Aires`) (Q-209). (§4)
 - **RF-TEN-04** Gestionar memberships: listar, cambiar rol, revocar, abandonar. (RN-TEN-07, 09, 13, 14, 21)
 - **RF-TEN-05** Invitaciones: crear (link copiable visible una sola vez + email cuando haya proveedor, Q-207),
-  listar pendientes, revocar, reenviar, aceptar. (RN-TEN-11…13)
+  listar pendientes, revocar, reenviar, aceptar con el token del link o desde la sesión; listar las pendientes del
+  propio email (Q-124). (RN-TEN-11…13)
 - **RF-TEN-06** Sucursales: crear, listar, ver, editar, desactivar, reactivar (Q-210, Q-211). (RN-TEN-15, 16, 19)
 - **RF-TEN-07** Comando de gestión del operador de la plataforma: crear organización con email del primer owner
   (emite la invitación `owner`), reemitir/revocar esa invitación mientras no haya owner, suspender/reactivar.
-  (RN-TEN-10, 14, 18, 20; Q-212, Q-213; Q-222/Q-224 por default)
+  (RN-TEN-10, 14, 18, 20; Q-212, Q-213, Q-222, Q-224)
 - **RF-TEN-08** Proveer managers/selectors tenant-aware y la verificación de permisos por rol para que los demás
   módulos (04, 06, 07, 08, 09, 11) los reutilicen, incluido el rechazo de escrituras en organizaciones `suspended`.
   (RN-TEN-01, 02, 09, 18)
@@ -262,7 +266,9 @@ auditada (`C-05`). Una invitación vencida se rechaza al aceptar aunque todavía
 - `GET /api/memberships/` · `PATCH /api/memberships/{id}/` (rol) · `DELETE /api/memberships/{id}/` (revocar:
   marca `revoked`, no borra) · `POST /api/memberships/me/leave/`.
 - `POST/GET /api/invitations/` · `POST /api/invitations/{id}/revoke/` · `POST /api/invitations/{id}/resend/` ·
-  `POST /api/invitations/accept/` (con token; no requiere organización activa).
+  `POST /api/invitations/accept/` (con token; no requiere organización activa) ·
+  `GET /api/invitations/mine/` y `POST /api/invitations/{id}/accept/` (desde la sesión, sin token; tampoco requieren
+  organización activa; Q-124).
 - `GET/POST /api/branches/` · `GET/PATCH /api/branches/{id}/` · desactivar / reactivar (ruta en `design.md`);
   **sin** `DELETE` físico (Q-211).
 - Alta, suspensión y reactivación de organización: **comando de gestión**, sin endpoint de API (Q-212).
@@ -284,10 +290,11 @@ auditada (`C-05`). Una invitación vencida se rechaza al aceptar aunque todavía
   `pending`; a lo sumo una membership (RN-TEN-07/12).
 - Dos invitaciones simultáneas al mismo (organización, email): queda una sola `pending` (RN-TEN-12).
 - Invitado que ya es miembro, o invitado desde dos organizaciones: cada organización es independiente.
-- Quien emitió una invitación pierde el permiso antes de que se acepte: Q-223 (default: se revoca automáticamente).
+- Quien emitió una invitación pierde el permiso antes de que se acepte: Q-223 (se revoca automáticamente).
 - Organización recién creada sin owner: nadie opera en ella hasta que se acepta la invitación del primer owner; si
-  vence, el operador la reemite (Q-213).
-- El único owner pierde su cuenta de Google: recuperación por comando del operador, Q-224 (default).
+  vence, el operador la reemite (Q-213). Si ese owner ya tiene usuario, el login no la acepta: la ve en su sesión y la
+  acepta adentro del Hub, igual que cualquier invitación (Q-121, Q-124).
+- El único owner pierde su cuenta de Google: recuperación por comando del operador, Q-224.
 - Branch desactivada con cobros `pending` o vínculos a Store: los `pending` siguen su curso y los vínculos se
   conservan; no se crean cobros nuevos con esa Branch (RN-TEN-19; 06 §12).
 - Organización suspendida con cobros `pending`: se siguen procesando servidor-a-servidor; usuarios en solo lectura
@@ -395,6 +402,14 @@ auditada (`C-05`). Una invitación vencida se rechaza al aceptar aunque todavía
 - **AC-TEN-38** (Q-226, Q-227) **Dado** una Branch activa `Centro` con `code` `C01` en A **cuando** se crea otra Branch
   activa `centro` o con `code` `C01` en A **entonces** `409 conflict`; **dado** que la primera está desactivada
   **entonces** la creación se acepta; en otra organización ambos valores se aceptan siempre.
+- **AC-TEN-39** (RN-TEN-11, Q-121, Q-124) **Dado** un usuario autenticado y una invitación `pending` y vigente de B
+  para su email **cuando** pide `GET /api/invitations/mine/` **entonces** recibe esa invitación con organización, rol y
+  vencimiento, sin token y sin invitaciones de otro email; **cuando** la acepta desde la sesión **entonces** existe una
+  membership `active` con ese rol y la invitación queda `accepted`; **y** aceptar por ID una invitación de otro email
+  da `invitation_invalid`, sin membership, y esa invitación sigue `pending`.
+- **AC-TEN-40** (RN-TEN-10, RN-TEN-11, Q-124) **Dado** un usuario con membership en A **cuando** el operador crea B
+  indicando el email de ese usuario **entonces** existe la invitación `owner` y ninguna membership en B, y su siguiente
+  login no la acepta; **cuando** la acepta desde la sesión **entonces** B tiene exactamente un owner.
 
 ## 14. Interfaz de usuario
 - **Selector empresa/sucursal** (shell en SPEC-00, `context/07 §5.1`): se alimenta de RF-TEN-02 y RF-TEN-06 (solo
@@ -408,6 +423,8 @@ auditada (`C-05`). Una invitación vencida se rechaza al aceptar aunque todavía
   owner/admin; lectura para operator/viewer. Las cajas de esa pantalla las aporta el módulo dueño de la Caja (Q-220).
 - **Aceptar invitación**: tras login; estados válida / vencida / revocada / ya usada / email no coincide /
   organización suspendida.
+- **Invitaciones pendientes en la sesión** (Q-121, Q-124): aviso en "Inicio" y en la pantalla "sin organización" con
+  empresa, rol y vencimiento de cada una y "Aceptar".
 - Estados de cada pantalla: cargando, vacío, error, sin permiso, "sin organización" con contacto del operador
   (Q-205), "organización suspendida (solo lectura)" (Q-208).
 
@@ -433,15 +450,15 @@ auditada (`C-05`). Una invitación vencida se rechaza al aceptar aunque todavía
 
 ## 16. Preguntas abiertas
 Ver `specs/02-tenancy-rbac/clarifications.md`. **Bloqueantes abiertas: ninguna** (Q-201, Q-202, Q-204, Q-206,
-Q-208, Q-211, Q-212, Q-213 decididas el 2026-10-31). Decididas por defecto (confirmables antes de *Approved*): Q-221
-(escrituras durante suspensión), Q-222 (mecanismo de la membership de soporte), Q-223 (invitaciones de quien pierde
-permiso), Q-224 (recuperación de owner). Nuevas del diseño, no bloqueantes: Q-225 (catálogo de auditoría vs
-C-05/C-08), Q-226 (nombre de Branch sin distinguir mayúsculas), Q-227 (unicidad de `code` de Branch). Dirigida a
-otro módulo: Q-220 (dueño de la Caja, SPEC-04/05). Decididas transversales que aplican: Q-001, Q-006, Q-010, Q-012,
+Q-208, Q-211, Q-212, Q-213 decididas el 2026-10-31). Decididas el 2026-11-06: Q-221 (escrituras durante suspensión),
+Q-222 (mecanismo de la membership de soporte), Q-223 (invitaciones de quien pierde permiso), Q-224 (recuperación de
+owner). Decididas en el gate *Approved*: Q-225 (catálogo de auditoría vs C-05/C-08), Q-226 (nombre de Branch sin
+distinguir mayúsculas), Q-227 (unicidad de `code` de Branch). Abiertas: Q-220 (dueño de la Caja, dirigida a
+SPEC-04/05) y Q-228 (admin de Django, no bloquea). Decididas transversales que aplican: Q-001, Q-006, Q-010, Q-012,
 Q-027 (`specs/00-platform/clarifications.md`).
 
 ## 17. Trazabilidad
-Se completa al generar `tasks.md`.
+La tabla AC → tareas está en `tasks.md` ("Cobertura AC → tareas"); la matriz AC → test, en `verification.md`.
 
 ## 18. Historial de cambios
 | Versión | Fecha | Cambio | Motivo |
@@ -450,11 +467,11 @@ Se completa al generar `tasks.md`.
 | 0.2.0 | 2026-10-31 | Estado → *Clarified*. Se incorporan las decisiones Q-201…Q-219 a §3/§4/§5/§6/§7/§9/§10/§11/§12/§14; matriz completa con columnas "sin membership" y operador, más §4.1 (organización suspendida); nuevas RN-TEN-18…21; nuevas AC-TEN-25…35; organización activa por header y JWT sin rol/organización (acuerdo con SPEC-01); Invitation implementa el puerto de SPEC-01; Q-012/Q-027 tratadas como decididas; nuevas Q-220 (dirigida a 04/05) y Q-221…Q-224 (no bloqueantes); insumos para ADR-0001/0002 en §15 | Decisiones del usuario del 2026-10-31 (clarify) |
 | 0.3.0 | 2026-10-31 | Estado → *Designed*. Se agrega `design.md` (header `X-Organization-Id`, resolución en permiso DRF con 1 consulta, `TenantQuerySet` que falla cerrado, matriz como código, locks sobre `Organization`, contratos, UI, pruebas) y ADR-0001 / ADR-0002 (*Propuestos*). Q-221…Q-224 registradas como decididas por defecto (confirmables antes de *Approved*); nuevas Q-225…Q-227 (no bloqueantes). Sin cambios en RN/RF/AC | Paso 3 SDD (architect) |
 | 1.0.0 | 2026-10-31 | Estado → **Approved** por el dueño. Confirmadas Q-221…Q-224 (defaults) y decididas Q-225…Q-227 con su recomendación: RNF-TEN-04 suma `invitation.expired`, `invitation.auto_revoked`, `transition.rejected` y `purpose`; nuevos AC-TEN-36 (Q-223), AC-TEN-37 (Q-225), AC-TEN-38 (Q-226/227) | Gate humano *Approved* (2026-10-31) |
+| 1.0.1 | 2026-11-06 | Q-221…Q-224 pasan a decididas por el usuario. **Q-124 de SPEC-01:** quien ya tiene usuario ve sus invitaciones pendientes en la sesión y las acepta adentro del Hub; RN-TEN-11, RF-TEN-05, §4, §11, §12 y §14 lo incorporan, con `GET /api/invitations/mine/`, `POST /api/invitations/{id}/accept/` y nuevos AC-TEN-39 y AC-TEN-40. Nueva Q-228 (admin de Django, abierta). §17 apunta a `tasks.md` | Decisiones del dueño del 2026-11-06, que reemplazan la de Q-124 del 2026-10-31 |
 
 ---
-**Hecho:** spec *Designed*: 21 RN, 9 RF, 7 RNF y 35 AC con destino en `design.md` (§2 y §9); ADR-0001 y ADR-0002
-*Propuestos*.
-**Pendiente:** confirmar Q-221…Q-224 (default aplicado) y decidir Q-225…Q-227 antes de *Approved* (si Q-223 o Q-225
-se confirman, agregar sus AC y ajustar RNF-TEN-04); Q-220 para SPEC-04/05; ajustar `context/07 §5.1` según
-`design.md §3.10`; firma final del puerto de invitación con SPEC-01.
-**Siguiente rol:** humano (gate *Approved*) → task-planner.
+**Hecho:** spec Approved 1.0.1: 21 RN, 9 RF, 7 RNF y 40 AC; `design.md` aprobado; ADR-0001 y ADR-0002 aceptados;
+`tasks.md` creado.
+**Pendiente:** Q-220 para SPEC-04/05; Q-228 (admin de Django); ajustar `context/07 §5.1` según `design.md §3.10`
+(lo hace `T-TEN-29`).
+**Siguiente rol:** implementadores, según `tasks.md`.

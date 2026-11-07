@@ -5,8 +5,8 @@ Plantilla: `specs/_templates/adr.md`. Una decisión por archivo: `ADR-NNNN-slug.
 ## ADR a escribir (candidatos)
 | ID | Decisión | Se necesita antes de |
 |---|---|---|
-| ADR-0001 | Multi-tenancy: esquema compartido + `organization_id`, managers tenant-aware; RLS de PostgreSQL como segunda barrera (cuándo) | Spec 02 |
-| ADR-0002 | Organizaciones/Membership **propios** vs `django-organizations` / `django-saas` (la propuesta menciona ambos; ver Q-027) | Spec 02 |
+| ADR-0001 | Multi-tenancy: esquema compartido + `organization_id`, managers tenant-aware; RLS de PostgreSQL como segunda barrera (cuándo) — **Aceptado** 2026-11-06 | Spec 02 |
+| ADR-0002 | Organizaciones/Membership **propios** vs `django-organizations` / `django-saas` (la propuesta menciona ambos; ver Q-027) — **Aceptado** 2026-11-06 | Spec 02 |
 | ADR-0003 | Almacenamiento y cifrado de credenciales (Fernet/KMS, rotación de clave, refresh de OAuth) | Spec 04 |
 | ADR-0004 | Dónde vive el JWT en el navegador (cookie httpOnly vía capa servidor de Next.js vs localStorage) | Spec 01 |
 | ADR-0005 | Contrato primero: OpenAPI generado (drf-spectacular) versionado en `specs/_contracts/` y tipos del frontend generados desde ahí | Spec 00 |
