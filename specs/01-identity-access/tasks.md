@@ -86,7 +86,7 @@ El diseño se escribió antes de que existiera el código de SPEC-00. Donde difi
 | T-IDA-23 | BFF: CSRF y refresh con coalescencia | AC-IDA-19 (CSRF), AC-IDA-28 (BFF) | BFF | `src/lib/server/{csrf,refresh}.ts` | T-IDA-14, T-IDA-22 | frontend-dev | M | Sí | ☐ | |
 | T-IDA-24 | Route Handlers de inicio y callback | AC-IDA-01 (cookies), AC-IDA-18, AC-IDA-19 | BFF | `app/api/auth/google/{start,callback}/route.ts` | T-IDA-13, T-IDA-22 | frontend-dev | M | Sí | ☐ | |
 | T-IDA-25 | Route Handlers de logout y organización activa | AC-IDA-17 (cookies) | BFF | `app/api/auth/logout/route.ts`, `app/api/session/active-organization/route.ts` | T-IDA-16, T-IDA-23 | frontend-dev | M | Sí | ☐ | |
-| T-IDA-26 | Smoke: 3xx y URL de ejemplo (deuda de 00) | AC-PLT-29 (regresión) | CI | `scripts/smoke_stack.py`, `scripts/smoke_pages.py` | — | backend-dev | M | Sí | ☐ | |
+| T-IDA-26 | Smoke: 3xx y URL de ejemplo (deuda de 00) | AC-PLT-29 (regresión) | CI | `scripts/smoke_stack.py`, `scripts/smoke_pages.py`, `scripts/tests/test_smoke_stack_wiring.py`, `scripts/tests/test_smoke_client_bundle.py` | — | backend-dev | M | Sí | 🟡 | PR abierto |
 | T-IDA-27 | Proxy con sesión: Bearer, CSRF y refresh transparente | AC-IDA-18, AC-IDA-26 (UX), AC-IDA-28 | BFF | `src/lib/server/session-proxy.ts`, `src/lib/api-client.ts`, `context/07-frontend-ui-guidelines.md` | T-IDA-23 | frontend-dev | L | Sí | ☐ | |
 | T-IDA-28 | Pantalla "Ingresar" y protección de rutas | AC-IDA-19 (UI) | UI | `src/proxy.ts`, `app/(auth)/login/page.tsx`, `src/modules/identity/lib/login-errors.ts` | T-IDA-24, T-IDA-26, T-IDA-27 | frontend-dev | M | Sí | ☐ | |
 | T-IDA-29 | Mi perfil, menú de usuario y "sin empresas" | AC-IDA-30 (UI) | UI | `src/modules/identity/components/{ProfileCard,UserMenu,NoOrganizationState}.tsx` | T-IDA-07, T-IDA-25, T-IDA-28 | frontend-dev | M | No | ☐ | |
@@ -439,10 +439,12 @@ módulos se aprueba en la misma pasada, después de `T-TEN-36`.
 ### T-IDA-26 — Smoke: 3xx y URL de ejemplo (deuda de 00)
 - **AC:** AC-PLT-29 (regresión). **Zona roja:** sí (`scripts/**`).
 - **Archivos:** `scripts/smoke_stack.py`, `scripts/smoke_pages.py` (nuevo), `scripts/tests/test_smoke_stack.py`,
-  `scripts/tests/test_smoke_pages.py`.
+  `scripts/tests/test_smoke_pages.py`, `scripts/tests/test_smoke_stack_wiring.py`, `scripts/tests/test_smoke_client_bundle.py`.
+  Los dos últimos se sumaron al implementar: la división de `C-14` mueve `page_paths` y `check_client_bundle`, y esos
+  tests los fijan (allowlist de imports y parches sobre `smoke_stack`).
 - **División (`C-14`), obligatoria:** `smoke_stack.py` tiene 371 líneas; `page_paths`, `check_client_bundle` y lo nuevo se
   mueven a `smoke_pages.py` para que ninguno pase de ~400.
-- **Cambios:** hoy `200 <= status < 400` cuenta un 3xx como página revisada (línea 257), y con `T-IDA-28` todas las
+- **Cambios:** `200 <= status < 400` contaba un 3xx como página revisada, y con `T-IDA-28` todas las
   páginas protegidas responden 302. El smoke separa `revisadas` (2xx) de `redirigidas`: una redirección esperada (lista
   explícita: `/` y las protegidas → `/login`) se sigue una vez dentro del mismo origen y se revisa el destino; una no
   listada falla; una protegida que responde 200 sin sesión también falla. `0` revisadas falla. Agrega `SAMPLE_URLS` para

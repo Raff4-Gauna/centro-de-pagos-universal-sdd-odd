@@ -2,8 +2,8 @@
 
 The two real I/O helpers (a local HTTP server, a fake ``subprocess.run``), the CI step, the values
 of the override the smoke relies on, and the constants copied from other files, compared against
-their source so that they cannot drift apart. The checks: ``test_smoke_stack.py`` and
-``test_smoke_client_bundle.py``.
+their source so that they cannot drift apart. The checks: ``test_smoke_stack.py``,
+``test_smoke_client_bundle.py`` and ``test_smoke_pages.py``.
 """
 
 from __future__ import annotations
@@ -142,7 +142,9 @@ def test_AC_PLT_01_smoke_is_the_last_step_of_the_build_job() -> None:
     assert "if" not in step
 
 
-@pytest.mark.parametrize("script", ["smoke_stack.py", "smoke_http.py", "smoke_leaks.py"])
+@pytest.mark.parametrize(
+    "script", ["smoke_stack.py", "smoke_http.py", "smoke_leaks.py", "smoke_pages.py"]
+)
 def test_AC_PLT_01_smoke_uses_only_the_standard_library(script: str) -> None:
     # The `build` job installs no Python environment: it runs on the runner's python3.
     source = (REPO_ROOT / "scripts" / script).read_text(encoding="utf-8")
@@ -159,6 +161,7 @@ def test_AC_PLT_01_smoke_uses_only_the_standard_library(script: str) -> None:
         "re",
         "smoke_http",
         "smoke_leaks",
+        "smoke_pages",
         "subprocess",
         "sys",
         "time",

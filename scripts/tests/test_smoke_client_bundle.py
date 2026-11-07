@@ -1,7 +1,8 @@
 """AC-PLT-29 in the running stack (T-PLT-38): what the browser gets carries nothing server-only.
 
-``smoke_stack.check_client_bundle`` and the pages it takes from the image, over a fake frontend;
-the rules are compared against the frontend files they mirror.
+``smoke_pages.check_client_bundle`` and the pages it takes from the image, over a fake frontend;
+the rules are compared against the frontend files they mirror. What counts as a reviewed page:
+``test_smoke_pages.py``.
 """
 
 from __future__ import annotations
@@ -13,6 +14,7 @@ from pathlib import Path
 
 import pytest
 import smoke_leaks
+import smoke_pages
 import smoke_stack
 from smoke_http import HttpResponse, SmokeError
 
@@ -25,7 +27,7 @@ PAGE = f'<html><script src="{CHUNK}"></script></html>'
 
 
 class FakeFrontend:
-    """The pages and one chunk; ``smoke_stack.check_client_bundle`` needs nothing else."""
+    """The pages and one chunk; ``smoke_pages.check_client_bundle`` needs nothing else."""
 
     def __init__(self) -> None:
         self.responses = {
@@ -42,19 +44,19 @@ class FakeFrontend:
 @pytest.fixture
 def frontend(monkeypatch: pytest.MonkeyPatch) -> FakeFrontend:
     fake = FakeFrontend()
-    monkeypatch.setattr(smoke_stack, "http_get", fake.get)
+    monkeypatch.setattr(smoke_pages, "http_get", fake.get)
     return fake
 
 
 def bundle_error() -> SmokeError:
     with pytest.raises(SmokeError) as caught:
-        smoke_stack.check_client_bundle(FRONTEND, PAGES)
+        smoke_pages.check_client_bundle(FRONTEND, PAGES)
     assert caught.value.check == "client-bundle"
     return caught.value
 
 
 def test_AC_PLT_29_clean_pages_and_chunks_pass(frontend: FakeFrontend) -> None:
-    smoke_stack.check_client_bundle(FRONTEND, PAGES)
+    smoke_pages.check_client_bundle(FRONTEND, PAGES)
 
 
 @pytest.mark.parametrize(
@@ -96,7 +98,7 @@ def test_AC_PLT_29_smoke_rejects_url_hostname_and_name_in_a_dynamic_page(
     url = f"{FRONTEND}/dinamica"
     frontend.responses[url] = HttpResponse(200, {}, PAGE + leak)
     with pytest.raises(SmokeError) as caught:
-        smoke_stack.check_client_bundle(FRONTEND, [*PAGES, "/dinamica"])
+        smoke_pages.check_client_bundle(FRONTEND, [*PAGES, "/dinamica"])
     assert "/dinamica carries" in caught.value.detail
 
 
@@ -106,9 +108,10 @@ def test_AC_PLT_29_clean_dynamic_page_passes_and_is_counted(
     prerendered = HttpResponse(200, {"x-nextjs-prerender": "1"}, PAGE)
     frontend.responses[f"{FRONTEND}/inicio"] = prerendered
     frontend.responses[f"{FRONTEND}/configuracion"] = prerendered
-    frontend.responses[f"{FRONTEND}/"] = HttpResponse(307, {"x-nextjs-prerender": "1"}, "")
+    redirect = {"x-nextjs-prerender": "1", "location": "/inicio"}
+    frontend.responses[f"{FRONTEND}/"] = HttpResponse(307, redirect, "")
     frontend.responses[f"{FRONTEND}/dinamica"] = HttpResponse(200, {}, PAGE + "<p>Hola</p>")
-    smoke_stack.check_client_bundle(FRONTEND, [*PAGES, "/dinamica"])
+    smoke_pages.check_client_bundle(FRONTEND, [*PAGES, "/dinamica"])
     assert "(1 rendered on request)" in capsys.readouterr().out
 
 
@@ -152,7 +155,7 @@ def test_AC_PLT_29_manifest_that_lists_no_renderable_page_fails_closed(
     monkeypatch.setattr(smoke_stack, "run_command", run)
     config = smoke_stack.Config(SHA, "http://b", FRONTEND, ())
     with pytest.raises(SmokeError) as caught:
-        smoke_stack.page_paths(config)
+        smoke_pages.page_paths(smoke_stack.read_manifest(config))
     assert detail in caught.value.detail
 
 
@@ -173,7 +176,7 @@ def test_AC_PLT_29_finding_names_the_rule_not_the_variable_value(frontend: FakeF
 )
 def test_AC_PLT_29_public_names_pass(text: str, frontend: FakeFrontend) -> None:
     frontend.responses[f"{FRONTEND}{CHUNK}"] = HttpResponse(200, {}, text)
-    smoke_stack.check_client_bundle(FRONTEND, PAGES)
+    smoke_pages.check_client_bundle(FRONTEND, PAGES)
 
 
 def test_AC_PLT_29_page_without_chunks_proves_nothing(frontend: FakeFrontend) -> None:
