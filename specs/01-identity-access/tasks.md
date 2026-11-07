@@ -61,7 +61,7 @@ El diseño se escribió antes de que existiera el código de SPEC-00. Donde difi
 | ID | Título | AC | Capa | Archivos esperados (ver detalle) | Depende de | Agente | Tamaño | Zona roja | Estado | Evidencia |
 |---|---|---|---|---|---|---|---|---|---|---|
 | T-IDA-00 | Guarda de `check_migrations_roundtrip` (deuda de 00) | AC-PLT-17 (regresión) | Migraciones | `check_migrations_roundtrip.py` | — | backend-dev | M | Sí | ✅ | #63 · c57db14 |
-| T-IDA-01 | `User` + `AUTH_USER_MODEL` + migración 0001 | AC-IDA-31 (normalización) | DB | `apps/identity/models/user.py`, `domain/emails.py`, `domain/profile.py` | T-IDA-00 | backend-dev | L | Sí | 🟡 | PR abierto |
+| T-IDA-01 | `User` + `AUTH_USER_MODEL` + migración 0001 | AC-IDA-31 (normalización) | DB | `apps/identity/models/user.py`, `domain/emails.py`, `domain/profile.py` | T-IDA-00 | backend-dev | L | Sí | ✅ | #65 · c5c3136 |
 | T-IDA-02 | Reglas puras de sesión y formato de secretos | AC-IDA-15, AC-IDA-16, AC-IDA-28 (decisión) | Dominio | `domain/session_policy.py`, `domain/secrets_format.py`, `domain/errors.py` | T-IDA-01 | backend-dev | M | Sí | ☐ | |
 | T-IDA-03 | `AuthSession`, `RefreshToken` + migración 0002 | AC-IDA-14 (solo hash), AC-IDA-16 (constraints) | DB | `models/auth_session.py`, `models/refresh_token.py`, `services/session_lifecycle.py` | T-IDA-02 | backend-dev | L | Sí | ☐ | |
 | T-IDA-04 | JWT del Hub: claves, emisión y verificación | AC-IDA-10, AC-IDA-11, AC-IDA-12, AC-IDA-13, AC-IDA-34 | Dominio | `tokens/keys.py`, `tokens/access_token.py`, `backend/pyproject.toml` | T-IDA-01 | backend-dev | L | Sí | ☐ | |
@@ -308,6 +308,7 @@ módulos se aprueba en la misma pasada, después de `T-TEN-36`.
 - **Pruebas:** `test_AC_IDA_29_email_change_free`, `test_AC_IDA_29_new_sub_with_taken_email_is_conflict`,
   `test_AC_IDA_29_collision_keeps_old_email`, `test_AC_IDA_09_inactive_user_rejected`,
   `test_AC_IDA_30_no_memberships_still_logs_in`, `test_Q_121_case_a_never_touches_invitations`.
+- **Notas del reviewer de #65:** los `CHECK` de `users` dejan pasar tabuladores, NBSP, U+3000 y `""`, así que el callback valida el email con la normalización de Python. El texto de `IntegrityError` trae email y `sub`: esta tarea y `T-IDA-12` no usan `logger.exception` ni `str(exc)` con ese error. `AC-IDA-31` queda ⚠ en `verification.md` hasta `T-IDA-12` y `T-TEN-17`.
 
 ### T-IDA-12 — Usuario nuevo por invitación y carrera de callbacks
 - **AC:** AC-IDA-02, 03, 04, 05, 31. RN-IDA-05 caso (b), RN-IDA-06. **Zona roja:** sí.

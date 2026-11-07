@@ -189,6 +189,33 @@ def git_commits(root: Path) -> dict[str, Commit]:
     return commits
 
 
+def squashed_without_id(root: Path, baseline: dict[str, object]) -> dict[str, Commit]:
+    """Tasks whose squash lost the ID, ``{"T-XX-NN": "<sha>"}``: main is not rewritten.
+
+    The SHA has to exist in the repo and name its PR, or the entry is an error.
+    """
+    raw = baseline.get("squashed_without_id", {})
+    if not isinstance(raw, dict):
+        raise StateError("baseline: squashed_without_id debe ser un objeto")
+    command = ["git", "-C", str(root), "log", "-1", "--format=%H%x1f%s", "--end-of-options"]
+    commits: dict[str, Commit] = {}
+    for task_id, sha in raw.items():
+        completed = subprocess.run(  # noqa: S603 - fixed argv, the SHA after --end-of-options
+            [*command, str(sha)],
+            check=False,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+        full, _, subject = completed.stdout.strip().partition("\x1f")
+        pr_match = PR_RE.search(subject)
+        if completed.returncode != 0 or not pr_match:
+            raise StateError(f"baseline {task_id}: {sha} no es un merge con PR en este repo")
+        commits[task_id] = Commit(sha=full, pr=pr_match.group(1), subject=subject)
+    return commits
+
+
 def test_corpus(root: Path) -> list[tuple[str, str]]:
     paths: set[Path] = set()
     for pattern in TEST_PATTERNS:

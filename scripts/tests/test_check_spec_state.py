@@ -145,6 +145,46 @@ def test_baseline_allows_known_missing_ac(git_repo: GitRepo, tmp_path: Path) -> 
     assert run(git_repo, baseline(tmp_path, data)) == 0
 
 
+def squash_without_id(repo: GitRepo) -> str:
+    """A merged task whose squash names only the PR; return its SHA."""
+    build(repo, evidence="#7 · 0000000", commit_task=False)
+    repo.write_bytes("feature.txt", b"demo\n")
+    sha = gl.commit(repo, "feat: demo (#7)")
+    tasks = TASKS.format(rows=row("✅", f"#7 · {sha[:7]}"))
+    repo.write_bytes("specs/00-demo/tasks.md", tasks.encode())
+    gl.commit(repo, "docs: tasks")
+    return sha
+
+
+def test_squash_without_id_fails_without_a_baseline_entry(
+    git_repo: GitRepo, tmp_path: Path, capsys
+) -> None:
+    squash_without_id(git_repo)
+    assert run(git_repo, baseline(tmp_path)) == 1
+    assert "no hay commit que la nombre" in capsys.readouterr().out
+
+
+def test_squash_without_id_is_linked_by_the_baseline(git_repo: GitRepo, tmp_path: Path) -> None:
+    sha = squash_without_id(git_repo)
+    data: dict[str, object] = {"squashed_without_id": {"T-DEMO-01": sha}}
+    assert run(git_repo, baseline(tmp_path, data)) == 0
+
+
+def test_squash_entry_with_an_unknown_sha_is_an_error(
+    git_repo: GitRepo, tmp_path: Path, capsys
+) -> None:
+    squash_without_id(git_repo)
+    data: dict[str, object] = {"squashed_without_id": {"T-DEMO-01": "0" * 40}}
+    assert run(git_repo, baseline(tmp_path, data)) == 2
+    assert "no es un merge con PR" in capsys.readouterr().err
+
+
+def test_squash_entry_on_a_commit_without_pr_is_an_error(git_repo: GitRepo, tmp_path: Path) -> None:
+    squash_without_id(git_repo)
+    data: dict[str, object] = {"squashed_without_id": {"T-DEMO-01": "HEAD"}}
+    assert run(git_repo, baseline(tmp_path, data)) == 2
+
+
 def test_implemented_without_verification_fails(git_repo: GitRepo, tmp_path: Path, capsys) -> None:
     build(
         git_repo,
