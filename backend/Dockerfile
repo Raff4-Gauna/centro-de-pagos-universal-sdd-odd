@@ -9,7 +9,7 @@
 
 FROM ghcr.io/astral-sh/uv:0.13.6@sha256:af22a52f5eafef3d78e551599d405c02df61919d18028f0cea8eda93bc9986d0 AS uv
 
-FROM python:3.12.16-slim-trixie@sha256:e695ab189fa2d082b1c61c69a6b888a5adeca61ceeccad107b1ed2a125721a9e AS builder
+FROM python:3.15.0-slim-trixie@sha256:f5b92f2a669a4c347044f29367f31983280b648250ca94dea66f98c53bc87e58 AS builder
 COPY --from=uv /uv /uvx /usr/local/bin/
 # Bytecode compiled at install; real copies, not hard links from the cache; the image's Python only.
 ENV UV_COMPILE_BYTECODE=1 \
@@ -35,7 +35,7 @@ COPY . .
 EXPOSE 8000
 CMD ["gunicorn", "-c", "config/gunicorn.conf.py", "--reload", "--reload-engine", "poll", "config.wsgi"]
 
-FROM python:3.12.16-slim-trixie@sha256:e695ab189fa2d082b1c61c69a6b888a5adeca61ceeccad107b1ed2a125721a9e AS runtime
+FROM python:3.15.0-slim-trixie@sha256:f5b92f2a669a4c347044f29367f31983280b648250ca94dea66f98c53bc87e58 AS runtime
 RUN groupadd --system --gid 10001 app \
     && useradd --system --uid 10001 --gid app --no-create-home --shell /usr/sbin/nologin app
 # manage.py inside the container uses prod, like wsgi.py and celery.py (T-PLT-08 review N-5).
