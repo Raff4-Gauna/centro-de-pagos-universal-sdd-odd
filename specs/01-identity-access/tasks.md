@@ -65,7 +65,7 @@ El diseño se escribió antes de que existiera el código de SPEC-00. Donde difi
 | T-IDA-02 | Reglas puras de sesión y formato de secretos | AC-IDA-15, AC-IDA-16, AC-IDA-28 (decisión) | Dominio | `domain/session_policy.py`, `domain/secrets_format.py`, `domain/errors.py` | T-IDA-01 | backend-dev | M | Sí | ☐ | |
 | T-IDA-03 | `AuthSession`, `RefreshToken` + migración 0002 | AC-IDA-14 (solo hash), AC-IDA-16 (constraints) | DB | `models/auth_session.py`, `models/refresh_token.py`, `services/session_lifecycle.py` | T-IDA-02 | backend-dev | L | Sí | ☐ | |
 | T-IDA-04 | JWT del Hub: claves, emisión y verificación | AC-IDA-10, AC-IDA-11, AC-IDA-12, AC-IDA-13, AC-IDA-34 | Dominio | `tokens/keys.py`, `tokens/access_token.py`, `backend/pyproject.toml` | T-IDA-01 | backend-dev | L | Sí | ☐ | |
-| T-IDA-05 | Puertos, stubs, registro y catálogo de auditoría | AC-IDA-24 (catálogo) | Puertos | `ports/*`, `domain/audit_events.py` | T-IDA-01 | backend-dev | M | Sí | ☐ | |
+| T-IDA-05 | Puertos, stubs, registro y catálogo de auditoría | AC-IDA-24 (catálogo) | Puertos | `ports/*`, `domain/audit_events.py` | T-IDA-01 | backend-dev | M | Sí | 🟡 | PR abierto |
 | T-IDA-06 | `HubJWTAuthentication` y deny-by-default | AC-IDA-10, AC-IDA-11, AC-IDA-12, AC-IDA-22, AC-IDA-26, AC-IDA-34 | API | `api/authentication.py`, `selectors/auth_sessions.py`, `config/settings/base.py` | T-IDA-03, T-IDA-04 | backend-dev | L | Sí | ☐ | |
 | T-IDA-07 | `GET /api/me` | AC-IDA-21, AC-IDA-22, AC-IDA-30 (API) | API | `api/views_me.py`, `api/urls.py`, `api/serializers.py` | T-IDA-05, T-IDA-06 | backend-dev | M | Sí | ☐ | |
 | T-IDA-08 | Gateway de Google + validación del ID token | AC-IDA-07, AC-IDA-08 (`nonce`), AC-IDA-36 | Integración | `oidc/google_gateway.py`, `oidc/id_token.py`, `tests/fakes/google.py` | T-IDA-04 | backend-dev | L | Sí | ☐ | |
@@ -405,6 +405,7 @@ módulos se aprueba en la misma pasada, después de `T-TEN-36`.
 - **Cambios:** claves de `design.md §7.5`; eventos `auth.*` con `outcome`/`reason` y `alert=true`.
 - **Pruebas:** `test_AC_IDA_23_no_secret_in_logs_or_errors` (login, refresh, logout, rechazo),
   `test_AC_IDA_24_every_event_is_emitted`, `test_AC_IDA_24_429_is_not_audited`.
+- **Aviso de `T-IDA-05`:** el logger `audit` hereda el nivel del root, así que con `LOG_LEVEL=WARNING` se pierden los eventos `info`: darle nivel propio en `apps/common/logging/setup.py` (sumarlo a los archivos). Una clave de `metadata` con `session` o `token` sale `[REDACTED]` en ese canal.
 
 ### T-IDA-22 — BFF: cookies, IP, retorno y cliente a Django
 - **AC:** AC-IDA-18, AC-IDA-19, AC-IDA-37 (BFF). RN-IDA-12, RN-IDA-13. **Zona roja:** sí.
