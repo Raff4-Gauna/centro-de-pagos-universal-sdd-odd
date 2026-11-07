@@ -128,7 +128,7 @@
 | Publicar un veredicto que **cuenta** para el check de zona roja | ✘ | ✘ | ✔ (lo publica con la cuenta del dueño, citando el SHA) | ✔ | ✘ (el check lo ignora: no tiene permiso de escritura) |
 | Poner el label `zona-roja` | ✔ (con la cuenta del dueño) | ✘ (el check solo verifica) | ✘ | ✔ | ✘ |
 | Mergear un PR (squash, checks en verde) | ✔ solo con certeza total (Q-057: pipeline completo en verde en el último commit, veredicto del reviewer sin bloqueantes —obligatorio en zona roja—, DoD completo, squash); ante cualquier duda, no | ✘ | ✘ | ✔ | ✘ |
-| Cambiar el ruleset, la visibilidad o los ajustes de seguridad del repo | ✘ | ✘ (el script de verificación solo lee) | ✘ | ✔ (el script de RF-PLT-13 detecta cualquier diferencia con lo esperado) | ✘ |
+| Cambiar el ruleset, la visibilidad o los ajustes de seguridad del repo (excepción puntual: el dueño autorizó a Claude a aplicar el ruleset y los ajustes una vez, el 2026-11-06) | ✘ | ✘ (el script de verificación solo lee) | ✘ | ✔ (el script de RF-PLT-13 detecta cualquier diferencia con lo esperado) | ✘ |
 | Leer secretos de Actions | n/a (00 no define ninguno) | n/a | n/a | n/a | ✘ |
 
 ## I. Casos límite — SPEC-00 (checklist de la plantilla)

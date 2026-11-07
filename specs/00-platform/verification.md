@@ -3,7 +3,7 @@ spec: SPEC-00
 fecha: 2026-11-06
 resultado: Con hallazgos     # Aprobada | Con hallazgos | Rechazada
 verificado_por: project-steward (cobertura) + qa-verifier (ejecución pendiente)
-version_spec: 1.0.20
+version_spec: 1.0.21
 ---
 
 # Verificación — Módulo de Plataforma (SPEC-00)
@@ -42,11 +42,11 @@ version_spec: 1.0.20
 | AC-PLT-17 | `backend/tests/migrations/test_AC_PLT_17_reversibility.py`, `scripts/tests/test_AC_PLT_20_pipeline_chain.py` (`test_AC_PLT_17_migrations_job_runs_roundtrip_last`) | ✔ (reglas de `RunPython`/`RunSQL`, ida y vuelta en BD descartable y paso `check_migrations_roundtrip` del job `migrations`) |
 | AC-PLT-18 | `backend/tests/migrations/test_AC_PLT_18_names_and_mixing.py` | ✔ |
 | AC-PLT-19 | `scripts/tests/test_AC_PLT_19_gitleaks.py`, `…_gitleaks_evasions.py`, `…_secrets_job.py` | ✔ |
-| AC-PLT-20 | `scripts/tests/test_AC_PLT_20_pipeline_chain.py` (`test_AC_PLT_20_build_is_last_and_needs_migrations`, `test_AC_PLT_20_ruleset_checks_equal_pipeline_jobs_plus_zona_roja`) | ⚠ parcial: forma de la cadena probada y `build`, con el smoke, corre último en CI (`needs: migrations`). Ningún run real mostró un lint rojo con `build` sin ejecutar: el último `ci` en rojo es del 2026-11-03, anterior a `build`. **Falta:** PR de prueba con lint rojo → `lint` rojo y `build` sin ejecutar, con el ruleset ya aplicado |
+| AC-PLT-20 | `scripts/tests/test_AC_PLT_20_pipeline_chain.py` (`test_AC_PLT_20_build_is_last_and_needs_migrations`, `test_AC_PLT_20_ruleset_checks_equal_pipeline_jobs_plus_zona_roja`) | ✔ PR de prueba #58 (cerrado sin mergear), con el ruleset aplicado: run `42307806639`, `lint` en `failure`, los otros 9 jobs `skipped`, `build` incluido, y `mergeStateStatus: BLOCKED` |
 | AC-PLT-21 | `backend/tests/typing/test_AC_PLT_21_mypy_strict.py`, `scripts/tests/test_AC_PLT_21_tsconfig_strict.py` | ✔ |
 | AC-PLT-22 | `scripts/tests/test_AC_PLT_22_check_coverage.py` | ✔ |
 | AC-PLT-23 | `backend/tests/contract/test_AC_PLT_23_openapi_up_to_date.py`, `frontend/src/lib/problem.test.ts` | ✔ |
-| AC-PLT-24 | `scripts/tests/test_AC_PLT_24_verify_repo_protection.py`, `scripts/tests/test_AC_PLT_24_verify_repo_protection_failures.py` | ✘ el verificador y sus tests existen, pero el AC habla del repo real y **`main` no está protegida**: el ruleset está versionado en `.github/rulesets/main.json` y sin aplicar (`GET /rulesets` → `[]`, 2026-11-06). **Falta:** que el dueño aplique ruleset y ajustes (`infra/README.md`), `verify_repo_protection.py` con `GH_TOKEN` de admin → exit 0, y PR de prueba con check rojo que figure no mergeable |
+| AC-PLT-24 | `scripts/tests/test_AC_PLT_24_verify_repo_protection.py`, `scripts/tests/test_AC_PLT_24_verify_repo_protection_failures.py` | ✔ ruleset `26732747` activo y ajustes aplicados el 2026-11-06 con autorización puntual del dueño. `verify_repo_protection.py` da `OK`, exit 0, con el `main.json` de esta rama. #58 con un check rojo quedó `BLOCKED` |
 | AC-PLT-25 | `scripts/tests/test_AC_PLT_25_dockerfiles.py`, `scripts/tests/test_AC_PLT_25_build_job.py` | ✔ (job `build` real en `main`, run `42231351569` sobre `2d53815`: `uv sync --frozen` y `pnpm install --frozen-lockfile`, imágenes `hub-*:<sha>` con label `revision` = SHA, uid 10001 y 1000) |
 | AC-PLT-26 | `scripts/tests/test_AC_PLT_26_audit_deps.py`, `…_pnpm_audit_isolation.py` | ✔ |
 | AC-PLT-27 | `scripts/tests/test_AC_PLT_27_line_endings.py` | ✔ |
@@ -54,11 +54,11 @@ version_spec: 1.0.20
 | AC-PLT-29 | `frontend/scripts/check-client-bundle.test.ts`, `scripts/tests/test_AC_PLT_25_dockerfiles.py` (`test_AC_PLT_29_builder_checks_the_bundle_built_with_sentinels`), `scripts/tests/test_smoke_client_bundle.py` | ✔ (`builder` con centinela sobre el build real: `client bundle clean: 52 files checked`, run `42231351569`; smoke sobre lo servido: `client bundle clean over HTTP: 3 pages (0 rendered on request), 18 assets`, run `42234984567`). `0 rendered` no deja el chequeo vacío: las 3 páginas son prerenderizadas y se revisan igual. Límite en §6, hallazgo 12 |
 | AC-PLT-30 | `backend/tests/api/test_AC_PLT_30_throttle_429.py` | ✔ |
 | AC-PLT-31 | `backend/tests/architecture/test_AC_PLT_31_no_float_money.py` | ✔ |
-| AC-PLT-32 | `scripts/tests/test_AC_PLT_32_zona_roja_rules.py`, `scripts/tests/test_AC_PLT_32_zona_roja_cli.py` | ⚠ parcial: los unitarios cubren el criterio con un cliente HTTP falso. En vivo se vio rojo sin veredicto y verde tras publicarlo y re-ejecutar (#50, run `42228562758`; #51, run `42229918324`; #53, run `42234984164`). **Falta:** probar en vivo "rutas rojas sin label → rojo" y "push nuevo sobre un veredicto válido → rojo" (ficha de T-PLT-07; §6, hallazgo 11) |
+| AC-PLT-32 | `scripts/tests/test_AC_PLT_32_zona_roja_rules.py`, `scripts/tests/test_AC_PLT_32_zona_roja_cli.py` | ✔ en vivo además de los unitarios: #59 sin label dio `FAILED: 1 red-zone path(s) touched and the PR lacks the 'zona-roja' label` (run `42307817410`); con label y veredicto, verde tras re-ejecutar; push nuevo `c4e6ef7` dio `FAILED: no reviewer verdict ... citing SHA` (run `42308179697`). #59 se cerró sin mergear |
 | AC-PLT-33 | `scripts/tests/test_AC_PLT_33_check_workflows.py`, `scripts/tests/test_AC_PLT_33_check_workflows_refs.py` | ✔ (incluye `test_AC_PLT_33_lint_job_runs_check_workflows`: el job `lint` lo ejecuta) |
 | AC-PLT-34 | `backend/tests/api/test_AC_PLT_34_problem_json.py`, `…_problems_domain.py` | ✔ |
 
-**Resumen:** 30 ✔ · 3 ⚠ · 1 ✘ · 34 AC.
+**Resumen:** 33 ✔ · 1 ⚠ · 0 ✘ · 34 AC.
 
 ## 2. Ejecución de la suite
 
@@ -102,7 +102,7 @@ version_spec: 1.0.20
 8. `DC exec backend python manage.py export_openapi --check` → sin diff.
 9. `pre-commit run --all-files` → verde (hasta hoy solo hay evidencia con `SKIP=gitleaks`, ver §2).
 10. Aplicar ruleset y ajustes con los pasos de `infra/README.md`.
-11. `python scripts/verify_repo_protection.py` con `GH_TOKEN` de admin → exit 0. Hoy no puede dar 0: no hay ruleset.
+11. `python scripts/verify_repo_protection.py` con `GH_TOKEN` de admin → exit 0. Hecho el 2026-11-06, ver AC-PLT-24.
 12. PR de prueba con un error de lint → `lint` rojo, `build` no corre y el PR figura no mergeable.
 
 ## 5. Revisión de código (reviewer)
@@ -122,8 +122,8 @@ La revisión por tarea no quedó registrada igual en todos los PR. #4 a #40 no t
 3. `README.md` y `AGENTS.md` decían que no había código.
 4. Faltaba el archivo de ejemplo de entorno (Q-048, cerrada: `env.example` entró con T-PLT-39, #45). `.vscode/` sigue
    sin política.
-5. El pipeline está completo, con el smoke como último paso de `build`: 10 jobs de `ci.yml` + `zona-roja`. Nada los
-   exige todavía: el ruleset está versionado y sin aplicar.
+5. El pipeline está completo, con el smoke como último paso de `build`: 10 jobs de `ci.yml` + `zona-roja`. El ruleset los
+   exige desde el 2026-11-06.
 6. No había ningún mecanismo que detectara el drift: se agrega `scripts/check_spec_state.py`.
 7. Cinco tareas mergeadas (#42, #43, #45, #46, #47) quedaron `🟡` en `tasks.md`: sus PR no llevaron la fila a `✅`
    (regla 1 de estados). Conciliado el 2026-11-06.
@@ -147,8 +147,8 @@ La revisión por tarea no quedó registrada igual en todos los PR. #4 a #40 no t
     cada PR, y solo para esos PR. #55 solo agrega archivos: no aplicó nada en GitHub.
 15. T-PLT-29, T-PLT-40 y T-PLT-41 quedaron sin `✅` tras mergearse (#52, #55, #56). Conciliado el 2026-11-06. Tercera
     vez que pasa: `check_spec_state.py` sigue sin correr en CI.
-16. `✅` no significa aplicado: todas las tareas están mergeadas y `main` sigue sin protección. Por eso AC-PLT-24 queda
-    `✘` aunque tenga tests.
+16. `✅` no significó aplicado: con todas las tareas mergeadas, `main` siguió sin protección hasta el 2026-11-06. Resuelto
+    al aplicar el ruleset; AC-PLT-24 pasó a `✔` con esa evidencia.
 
 ## 7. Decisión
 
@@ -158,9 +158,6 @@ Bloqueantes para cerrar 00-platform:
 
 | Acción | AC que desbloquea |
 |---|---|
-| Dueño: aplicar ruleset y ajustes (§4, pasos 10 y 11) | AC-PLT-24 |
-| Dueño: PR de prueba con lint rojo (§4, paso 12) | AC-PLT-20 y el último punto de AC-PLT-24 |
-| Verificación manual de la ficha de T-PLT-07 | AC-PLT-32: rutas rojas sin label → rojo; push nuevo sobre un veredicto válido → rojo |
 | Dueño: clon limpio (§4, pasos 1 a 3) | AC-PLT-01 |
 | Revisión del diff acumulado (§5) | Cierre del módulo |
 

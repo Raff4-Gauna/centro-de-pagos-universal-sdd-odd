@@ -172,6 +172,18 @@ def test_RF_PLT_12_windows_refuses_what_quotes_cannot_protect(
     assert path.removeprefix("frontend/") in capsys.readouterr().err
 
 
+@pytest.mark.parametrize("path", ["frontend/src/a\nb.ts", "frontend/src/a\rb.ts"])
+def test_RF_PLT_12_windows_refuses_a_line_break_in_a_path(
+    monkeypatch: pytest.MonkeyPatch, calls: list[list[str]], path: str
+) -> None:
+    """cmd.exe cuts the command line at a line break: the files after it would go unchecked."""
+    monkeypatch.setattr(pf.os, "name", "nt")
+
+    assert pf.main(["eslint", path, "frontend/src/ok.ts"]) == 2
+
+    assert calls == []
+
+
 def test_RF_PLT_12_windows_runs_the_quoted_line(
     monkeypatch: pytest.MonkeyPatch, calls: list[list[str]]
 ) -> None:

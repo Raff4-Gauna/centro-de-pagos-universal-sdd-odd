@@ -29,7 +29,7 @@ allowed-tools: Read, Grep, Glob, Bash, Edit, Write
 4. **Ejecutar de verdad** y pegar la salida o el enlace al run:
    - `pytest -c scripts/pytest.ini scripts/tests`
    - `DC exec -e DJANGO_SETTINGS_MODULE=config.settings.test backend pytest`
-   - `pnpm --dir frontend test` y `pnpm --dir frontend typecheck`
+   - `pnpm test` y `pnpm typecheck`, desde `frontend/`
    - `pre-commit run --all-files`
    Si no se ejecutó, escribir **“pendiente”**. Nunca “debería pasar”.
 5. **Pruebas transversales:** aislamiento por organización, idempotencia, permisos por rol, secretos/PII,

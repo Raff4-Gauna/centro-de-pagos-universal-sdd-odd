@@ -16,7 +16,7 @@ fase: cierre (Implemented pendiente)
 
 | Módulo | Spec | Tareas | Código | Nota |
 |---|---|---|---|---|
-| 00-platform | Approved 1.0.20 | 42 ✅ (42) | 42 de 42 tareas | Verificación **Con hallazgos**; ruleset sin aplicar |
+| 00-platform | Approved 1.0.21 | 42 ✅ (42) | 42 de 42 tareas | Verificación **Con hallazgos**; ruleset activo |
 | 01-identity-access | Approved | sin `tasks.md` | 0 % | Depende de 00 |
 | 02-tenancy-rbac | Approved | sin `tasks.md` | 0 % | Se cierra junto con 01 (Q-108) |
 | 03-integrations-engine | Draft | — | 0 % | Falta cerrar el contrato del motor |
@@ -27,10 +27,9 @@ fase: cierre (Implemented pendiente)
 
 - **00-platform:** las 42 tareas mergeadas (PR #4–#56). El pipeline está completo: 10 jobs de `ci.yml`, con el smoke
   como último paso de `build`, en verde sobre `82cd31c` (run `42271234974`), más `zona-roja`, que solo corre en PR.
-- **`main` NO está protegida:** el ruleset está versionado en `.github/rulesets/main.json`, pero sin aplicar
-  (`GET /rulesets` → `[]`). Ningún check es requerido todavía. Aplicarlo es solo del dueño.
-- **Verificación:** `specs/00-platform/verification.md` da **Con hallazgos**: 30 AC ✔, 3 ⚠ (`AC-PLT-01`, `20`, `32`),
-  1 ✘ (`AC-PLT-24`). Ningún AC se marcó ✔ sin test. Lo que falta para cada uno está en §7 de ese documento.
+- **`main` está protegida:** ruleset `26732747` activo desde el 2026-11-06, aplicado por Claude con autorización puntual
+  del dueño; cambiar ruleset y ajustes sigue siendo solo suyo. `verify_repo_protection.py` da `OK`.
+- **Verificación:** `specs/00-platform/verification.md` da **Con hallazgos**: 33 AC ✔, 1 ⚠ (`AC-PLT-01`). Ningún AC se marcó ✔ sin test. Lo que falta para cada uno está en §7 de ese documento.
 - **Requisito vigente para hosting (Q-065):** el puerto del backend no se expone a internet y el HTTPS queda a cargo
   del frente. **Webhooks:** ruta de entrada sin definir; abrir un `Q-xxx` al redactar ese módulo.
 - **Q-063, ampliada por el dueño:** todo PR que agregue o cambie un archivo de `.github/workflows/` lo mergea él, no
@@ -55,16 +54,12 @@ fase: cierre (Implemented pendiente)
 
 ## 3. Qué sigue, en orden
 
-1. **Dueño: aplicar el ruleset y los ajustes** con los pasos de `infra/README.md`, comprobar con
-   `verify_repo_protection.py` y abrir un PR de prueba con lint rojo → AC-PLT-24 y AC-PLT-20. Esos comandos nunca se
-   corrieron contra GitHub. Hasta entonces, nada figura como protegido.
-2. **Probar "sin label → rojo" y "push nuevo → rojo"** → AC-PLT-32, según la ficha de T-PLT-07.
-3. **Verificación manual de AC-PLT-01** (`verification.md §4`). Antes, el dueño mueve las claves de spikes de su
+1. **Verificación manual de AC-PLT-01** (`verification.md §4`). Antes, el dueño mueve las claves de spikes de su
    `.env` a `spikes/.env`.
-4. **Repetir la verificación** de 00 y marcar las filas `🧪`. Solo el dueño puede pasar la spec a `Verified`.
-5. **Crear `tasks.md` de 01 y 02** (task-planner) y empezar identidad/tenencia.
-6. **Redactar la spec 04** (bloquea a 06).
-7. **Ejecutar S-001** antes de diseñar el adaptador de Mercado Pago.
+2. **Repetir la verificación** de 00 y marcar las filas `🧪`. Solo el dueño puede pasar la spec a `Verified`.
+3. **Crear `tasks.md` de 01 y 02** (task-planner) y empezar identidad/tenencia.
+4. **Redactar la spec 04** (bloquea a 06).
+5. **Ejecutar S-001** antes de diseñar el adaptador de Mercado Pago.
 8. Incorporar el checklist de buenas prácticas de software escalable que el dueño va a pasar; mapearlo contra
    `context/12-solid-y-diseno.md` y los agentes existentes.
 
@@ -73,7 +68,6 @@ Q-059. Los PR que cambien `.github/workflows/` los mergea el dueño (Q-063).
 
 **Pendiente técnico:**
 - `check_migrations_roundtrip --allow-data-loss` no mira a qué BD apunta. Importa desde SPEC-01, cuando haya datos.
-- `CMD_UNSAFE` de `scripts/precommit_frontend.py` no incluye `\r` ni `\n`.
 - `scripts/smoke_stack.py` necesita el mecanismo de URL de ejemplo para rutas `[id]`, y resolver antes de SPEC-01
   que un 3xx cuente como página revisada (línea 257).
 
@@ -98,7 +92,7 @@ Q-059. Los PR que cambien `.github/workflows/` los mergea el dueño (Q-063).
 
 ## 6. Pie de la última sesión
 
-- **Hecho:** reconciliación final de 00 con git sobre `82cd31c` (42 ✅) y `verification.md` al día (30 ✔ / 3 ⚠ / 1 ✘).
+- **Hecho:** reconciliación final de 00 con git sobre `82cd31c` (42 ✅) y `verification.md` al día (33 ✔ / 1 ⚠). Ruleset aplicado y probado en vivo (#58, #59).
 - **Merges de la sesión:** #48, #50 a #56. Worklog: `context/worklog/2026-11-06-reconcile-00c.md`.
-- **Pendiente / dudas:** ruleset sin aplicar, Q-028 (SPEC-12), S-001 sin ejecutar, triaje de Dependabot.
-- **Siguiente rol sugerido:** el dueño aplica el ruleset; después `qa-verifier` repite la verificación de 00.
+- **Pendiente / dudas:** Q-028 (SPEC-12), S-001 sin ejecutar, triaje de Dependabot.
+- **Siguiente rol sugerido:** el dueño corre AC-PLT-01; después `qa-verifier` repite la verificación de 00.

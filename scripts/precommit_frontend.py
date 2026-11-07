@@ -33,7 +33,7 @@ from pathlib import Path
 FRONTEND_DIR = Path(__file__).resolve().parents[1] / "frontend"
 FRONTEND_PREFIX = "frontend/"
 GENERATED_PREFIX = "src/types/"
-CMD_UNSAFE = frozenset('"%')
+CMD_UNSAFE = frozenset('"%\r\n')
 
 # The flags of frontend/package.json; `--no-warn-ignored` because `eslint .` never reports a file
 # of its globalIgnores, while one named on the command line is a warning and --max-warnings 0 fails.

@@ -504,7 +504,7 @@ del host y del contenedor están separados (volumen), así que los binarios nati
    quita el prefijo, excluye `src/types/`, llama a `pnpm exec` con `frontend/` como directorio de trabajo: con
    corepack, `pnpm --dir frontend` desde la raíz arranca la versión por defecto de corepack y pnpm la rechaza con
    `ERR_PNPM_BAD_PM_VERSION`, porque la raíz no tiene `package.json`). En Windows pnpm es un shim `.cmd`: cada
-   argumento va entre comillas y un argumento con `"` o `%` da exit 2. Riesgo conocido: cmd.exe rechaza más de 8191
+   argumento va entre comillas y un argumento con `"`, `%` o un salto de línea da exit 2. Riesgo conocido: cmd.exe rechaza más de 8191
    caracteres y el hook falla (nunca da verde) cuando las rutas de `--all-files` superen ese largo.
 5. `gitleaks` v8.30.1 (staged, `--redact`, `--ignore-gitleaks-allow`).
 
@@ -594,8 +594,8 @@ documenta los prefijos (`context/03`, `context/09`). No toca el placeholder ni u
   `<!-- reviewer-verdict -->`, `Veredicto del reviewer: APROBADO|RECHAZADO` y `SHA: <40 hex>`; descarta autores sin
   permiso `write/maintain/admin` (`/collaborators/{u}/permission`) y los que no citan `head.sha`; el último (por
   `updated_at`) tiene que ser `APROBADO`. Error de API → falla ("no verificado"). Resumen en `$GITHUB_STEP_SUMMARY`.
-- Flujo: el reviewer publica el veredicto con la cuenta del dueño y se re-ejecuta el check (`gh run rerun` o
-  quitar/poner el label). Sin `issue_comment` (D-08). Push nuevo → el veredicto deja de citar `head.sha` → rojo.
+- Flujo: el reviewer publica el veredicto con la cuenta del dueño y se re-ejecutan todas las corridas del
+  check en el head (`gh run rerun`): quitar y poner el label deja las rojas viejas. Sin `issue_comment` (D-08). Push nuevo → el veredicto deja de citar `head.sha` → rojo.
 - Cada evento del PR abre su propia corrida, en su propio check suite, y `zona-roja` queda varias veces en el mismo
   head (`opened` + `labeled`, y `edited`). Si todas terminan igual no molesta. GitHub no documenta qué cuenta para
   un check requerido cuando conviven rojo y verde con el mismo nombre: tras un veredicto se re-ejecutan **todas**

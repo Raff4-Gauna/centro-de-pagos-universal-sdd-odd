@@ -14,6 +14,7 @@ Cerrá la sesión sin tocar código de producción. Si hay una nota ($ARGUMENTS)
    Pendiente / dudas (Q-xxx): …
    Siguiente rol sugerido: …
    ```
-5. Si hubo cambios de documentos, commit `docs(platform): session handoff <fecha>`.
+5. Si hubo cambios de documentos, commit `docs(platform): session handoff <fecha>` en una rama `log/YYYY-MM-DD-handoff`
+   y PR: el ruleset rechaza el push directo a `main`.
 
 Si quedó trabajo a medias sin commit, decilo explícitamente: es la información que git no puede reconstruir.
