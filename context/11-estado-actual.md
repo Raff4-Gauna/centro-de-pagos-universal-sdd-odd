@@ -1,7 +1,7 @@
 ---
 actualizado: 2026-11-07
-ultimo_commit: c57db14
-ultimo_pr: "#63"
+ultimo_commit: c5c3136
+ultimo_pr: "#65"
 modulo_activo: 01-identity-access
 fase: implementación (00 en cierre, Implemented pendiente)
 ---
@@ -17,7 +17,7 @@ fase: implementación (00 en cierre, Implemented pendiente)
 | Módulo | Spec | Tareas | Código | Nota |
 |---|---|---|---|---|
 | 00-platform | Approved 1.0.22 | 42 ✅ (42) | 42 de 42 tareas | Verificación **Con hallazgos**; ruleset activo |
-| 01-identity-access | Approved 1.0.2 | 1 ✅ · 31 ☐ (32) | 3 % | Depende de 00; diseño aprobado |
+| 01-identity-access | Approved 1.0.2 | 2 ✅ · 30 ☐ (32) | 6 % | Depende de 00; diseño aprobado |
 | 02-tenancy-rbac | Approved 1.0.2 | 36 ☐ (36) | 0 % | Se cierra junto con 01 (Q-108); diseño aprobado |
 | 03-integrations-engine | Draft | — | 0 % | Falta cerrar el contrato del motor |
 | 04-integration-management | Por redactar | — | 0 % | Bloquea a 06 |
@@ -58,7 +58,7 @@ fase: implementación (00 en cierre, Implemented pendiente)
 1. **Verificación manual de AC-PLT-01** (`verification.md §4`). Antes, el dueño mueve las claves de spikes de su
    `.env` a `spikes/.env`.
 2. **Repetir la verificación** de 00 y marcar las filas `🧪`. Solo el dueño puede pasar la spec a `Verified`.
-3. **Implementar 01 y 02:** `T-IDA-01` (PR #65) y `T-IDA-26`, y seguir por olas en `specs/01-identity-access/tasks.md`.
+3. **Implementar 01 y 02:** la ola 1 y `T-IDA-26`, y seguir por olas en `specs/01-identity-access/tasks.md`.
 4. **Redactar la spec 04** (bloquea a 06).
 5. **Ejecutar S-001** antes de diseñar el adaptador de Mercado Pago.
 6. Incorporar el checklist de buenas prácticas de software escalable que el dueño va a pasar; mapearlo contra

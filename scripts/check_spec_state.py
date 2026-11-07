@@ -8,7 +8,8 @@ Usage (from the repo root):
 Checks, per spec:
 1. A commit whose subject names ``T-XX-NN`` must have that row in ``✅``/``🧪`` (not
    pending/review).
-2. A ``✅``/``🧪`` row must cite a PR **and** a merge SHA, and they must match ``git log``.
+2. A ``✅``/``🧪`` row must cite a PR **and** a merge SHA, and they must match ``git log``. A squash
+   that lost the task ID is linked by ``squashed_without_id`` in the baseline.
 3. A ``🧪`` row must have its AC in ``verification.md``.
 4. Every AC of the spec must be referenced by a test file (``test_*``/``*.test.*``), unless the
    baseline lists it under ``allow_missing_tests``.
@@ -37,6 +38,7 @@ from spec_state import (
     discover_specs,
     git_commits,
     load_baseline,
+    squashed_without_id,
     summarize,
     test_corpus,
     write_conciliation,
@@ -60,7 +62,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         discovered = discover_specs(root, args.spec)
         specs = [path for path in discovered if (path / "tasks.md").is_file()]
         skipped = [path.name for path in discovered if path not in specs]
-        commits = git_commits(root)
+        linked = squashed_without_id(root, baseline)
+        found = git_commits(root)
+        # A commit naming the task wins, unless it has no PR and the baseline links a real merge.
+        commits = {**linked, **{k: v for k, v in found.items() if v.pr or k not in linked}}
         corpus = test_corpus(root)
         results = [check_spec(spec, commits, corpus, baseline) for spec in specs]
         if args.write:

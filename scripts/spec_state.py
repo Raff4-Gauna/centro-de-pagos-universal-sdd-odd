@@ -34,6 +34,7 @@ TEST_PATTERNS = (
     "frontend/src/**/*.test.tsx",
 )
 DEFAULT_BASELINE = Path(__file__).with_name("spec_state_baseline.json")
+FULL_SHA_RE = re.compile(r"[0-9a-f]{40}")
 
 
 class StateError(Exception):
@@ -187,6 +188,46 @@ def git_commits(root: Path) -> dict[str, Commit]:
             if current is None or (not current.pr and pr):
                 commits[task_id] = Commit(sha=sha, pr=pr, subject=subject)
     return commits
+
+
+def squashed_without_id(root: Path, baseline: dict[str, object]) -> dict[str, Commit]:
+    """Tasks whose squash lost the ID, ``{"T-XX-NN": "<sha>"}``: main is not rewritten.
+
+    The value has to be a full 40-hex SHA of a commit in the history of ``HEAD`` naming its PR, or
+    the entry is an error: a ref, a short SHA or a commit of an unmerged branch is never accepted.
+    """
+    raw = baseline.get("squashed_without_id", {})
+    if not isinstance(raw, dict):
+        raise StateError("baseline: squashed_without_id debe ser un objeto")
+    commits: dict[str, Commit] = {}
+    for task_id, sha in raw.items():
+        if not isinstance(sha, str) or not FULL_SHA_RE.fullmatch(sha):
+            raise StateError(f"baseline {task_id}: {sha!r} no es un SHA completo de 40 hex")
+        subject = merged_subject(root, sha)
+        pr_match = PR_RE.search(subject) if subject is not None else None
+        if pr_match is None:
+            raise StateError(f"baseline {task_id}: {sha} no es un merge con PR en main")
+        commits[task_id] = Commit(sha=sha, pr=pr_match.group(1), subject=subject or "")
+    return commits
+
+
+def merged_subject(root: Path, sha: str) -> str | None:
+    """Subject of ``sha`` if it is in the history of ``HEAD``; None otherwise."""
+
+    def git(*args: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(  # noqa: S603 - fixed argv; sha already checked as 40 hex
+            ["git", "-C", str(root), *args],  # noqa: S607 - git from PATH
+            check=False,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+
+    if git("merge-base", "--is-ancestor", sha, "HEAD").returncode != 0:
+        return None
+    shown = git("log", "-1", "--format=%s", sha)
+    return shown.stdout.strip() if shown.returncode == 0 else None
 
 
 def test_corpus(root: Path) -> list[tuple[str, str]]:

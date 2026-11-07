@@ -1,4 +1,7 @@
 {
+  "squashed_without_id": {
+    "T-IDA-01": "c5c3136e6a564b976dbbff842c654d3225d01b09"
+  },
   "00-platform": {
     "note": "AC sin test con ID a 2026-11-06. Cada uno tiene una tarea pendiente o bloqueada; no ocultar uno nuevo.",
     "allow_missing_tests": []
