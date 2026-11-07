@@ -2,7 +2,9 @@
 
 Only static values live here. The values that come from the environment are set by each of
 ``dev``/``test``/``prod``, which validate it with their own env class (``ProdEnv`` in prod is
-stricter) through ``config.settings.env.load_env``: this module never reads the environment.
+stricter) through ``config.settings.env.load_env``. The one exception is
+``IDENTITY_BFF_CREDENTIALS``, the same in every environment, which ``config.settings.env`` reads for
+this module: the module itself never touches the environment.
 
 No ``django.contrib.*`` app (D-03): no admin, static files, Django sessions or ``auth_*`` tables.
 The user is ``apps.identity``'s own; ``AbstractBaseUser`` does not need ``django.contrib.auth``
@@ -15,6 +17,7 @@ from pathlib import Path
 
 from apps.common.api.schema import spectacular_settings
 from apps.common.logging.setup import logging_config
+from config.settings.env import load_bff_credentials
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 
@@ -32,6 +35,10 @@ AUTH_USER_MODEL = "identity.User"
 IDENTITY_INVITATION_PORT = "apps.identity.ports.stubs.NullInvitationPort"
 IDENTITY_MEMBERSHIP_SELECTOR = "apps.identity.ports.stubs.EmptyMembershipSelector"
 IDENTITY_AUDIT_PORT = "apps.identity.ports.stubs.LogAuditPort"
+
+# The BFF's credential (ADR-0004 §9), masked because error reports render settings and this name
+# does not match their filter (C-06).
+IDENTITY_BFF_CREDENTIALS = load_bff_credentials()
 
 # RequestId first (T-PLT-12): every log event of the request carries its id. AccessLog (T-PLT-13)
 # right after Security, so it times and logs everything the rest of the chain answers.
