@@ -69,7 +69,7 @@ Donde el diseño y el código de SPEC-00, o el orden real, difieren, manda esta 
 | T-TEN-13 | Datos de la organización activa | AC-TEN-29 (API) | API | `apps/tenancy/api/organizations.py`, `services/organizations.py`, `domain/tax_id.py` | T-TEN-10, T-TEN-11, T-TEN-12 | backend-dev | L | Sí | ☐ | |
 | T-TEN-14 | `Invitation` + migración 0003 + reglas puras | AC-TEN-25, AC-TEN-35 (unidad) | DB | `apps/tenancy/models/invitation.py`, `domain/invitations.py` | T-TEN-05 | backend-dev | L | Sí | ☐ | |
 | T-TEN-15 | Aceptar invitación con token | AC-TEN-17, AC-TEN-18, AC-TEN-19, AC-TEN-25, AC-TEN-35 | Servicio/API | `services/invitation_accept.py`, `api/invitations.py` | T-TEN-10, T-TEN-11, T-TEN-14 | backend-dev | L | Sí | ☐ | |
-| T-TEN-16 | Mis invitaciones y aceptar desde la sesión (Q-124) | AC-TEN-39 | Servicio/API | `selectors/invitations.py`, `api/invitations.py`, `services/invitation_accept.py` | T-TEN-15 | backend-dev | M | Sí | ☐ | |
+| T-TEN-16 | Mis invitaciones y aceptar desde la sesión (Q-124) | AC-TEN-39, AC-TEN-28 | Servicio/API | `selectors/invitations.py`, `api/invitations.py`, `services/invitation_accept.py` | T-TEN-15 | backend-dev | M | Sí | ☐ | |
 | T-TEN-17 | `TenancyInvitationPort` (puerto de SPEC-01) | AC-TEN-17 (vía puerto), AC-IDA-02, AC-IDA-04, AC-IDA-05, AC-IDA-31 | Servicio | `services/invitation_port.py`, `config/settings/base.py` | T-TEN-15, T-IDA-13 | backend-dev | M | Sí | ☐ | |
 | T-TEN-18 | Comando `tenancy_create_org` | AC-TEN-22, AC-TEN-40, AC-IDA-32 | Comandos | `services/platform_org.py`, `management/commands/tenancy_create_org.py` | T-TEN-16, T-TEN-17 | backend-dev | L | Sí | ☐ | |
 | T-TEN-19 | Comandos de suspensión y primer owner | AC-TEN-28, AC-TEN-29 | Comandos | `management/commands/{tenancy_set_org_status,tenancy_owner_invite}.py` | T-TEN-18 | backend-dev | M | Sí | ☐ | |
@@ -121,7 +121,7 @@ Donde el diseño y el código de SPEC-00, o el orden real, difieren, manda esta 
 | AC-TEN-25 | T-TEN-14, T-TEN-15 |
 | AC-TEN-26 | T-TEN-20, T-TEN-21 |
 | AC-TEN-27 | T-TEN-07, T-TEN-22 |
-| AC-TEN-28 | T-TEN-11, T-TEN-19, T-TEN-27 |
+| AC-TEN-28 | T-TEN-11, T-TEN-16, T-TEN-19, T-TEN-27 |
 | AC-TEN-29 | T-TEN-13, T-TEN-19 |
 | AC-TEN-30 | T-TEN-24, T-TEN-25 |
 | AC-TEN-31 | T-TEN-23 |
@@ -294,8 +294,9 @@ T-TEN-30 · suspendida → T-TEN-29.
   `test_AC_TEN_35_case_and_alias`.
 
 ### T-TEN-16 — Mis invitaciones y aceptar desde la sesión (Q-124)
-- **AC:** AC-TEN-39. RF-TEN-05, RN-TEN-11, Q-121, Q-124. **Zona roja:** sí.
-- **Archivos:** `selectors/invitations.py`, `services/invitation_accept.py`, `api/invitations.py`, `api/urls.py`,
+- **AC:** AC-TEN-39, AC-TEN-28 (ruta exenta). RF-TEN-05, RN-TEN-11, Q-121, Q-124. **Zona roja:** sí.
+- **Archivos:** `models/invitation.py` (scope `for_session_accept`), `backend/tests/architecture/allowlists.py`,
+  `selectors/invitations.py`, `services/invitation_accept.py`, `api/invitations.py`, `api/urls.py`,
   `backend/tests/cross_tenant/cases/tenancy.py`, `openapi.yaml`, `api.d.ts`, tests.
 - **Cambios:** `GET /api/invitations/mine/` y `POST /api/invitations/{id}/accept/` (`design.md §4.4`, con su orden de
   tres pasos); exentas de organización activa. Sin token en ninguna respuesta.
@@ -303,8 +304,9 @@ T-TEN-30 · suspendida → T-TEN-29.
 - **Pruebas:** `test_AC_TEN_39_lists_only_my_email`, `test_AC_TEN_39_response_has_no_token`,
   `test_AC_TEN_39_accept_from_session`, `test_AC_TEN_39_other_email_is_invalid_and_stays_pending`,
   `test_AC_TEN_39_expired_and_suspended_are_not_listed`, `test_AC_TEN_39_foreign_and_missing_same_body`,
-  `test_AC_TEN_39_foreign_attempt_is_audited`, `test_AC_TEN_28_accept_from_session_is_409`,
-  `test_AC_TEN_39_double_accept_one_membership`.
+  `test_AC_TEN_39_foreign_attempt_is_audited` (`transaction=True`: el evento debe quedar confirmado),
+  `test_AC_TEN_28_accept_from_session_is_409`, `test_AC_TEN_39_double_accept_one_membership`,
+  `test_AC_TEN_39_accept_vs_revoke_in_parallel` (hilos).
 
 ### T-TEN-17 — `TenancyInvitationPort` (puerto de SPEC-01)
 - **AC:** AC-TEN-17 (vía puerto); AC-IDA-02, 04, 05, 31 con puerto real. RN-TEN-11, RN-IDA-06, Q-108, Q-120. **Zona roja:** sí.
@@ -418,11 +420,11 @@ T-TEN-30 · suspendida → T-TEN-29.
 - **AC:** AC-TEN-39 (UI). Q-121, Q-124, Q-205. **Zona roja:** sí (acepta una invitación desde la sesión).
 - **Archivos:** `src/app/(dashboard)/sin-organizacion/page.tsx`, `src/modules/tenancy/components/PendingInvitationsNotice.tsx`,
   `src/modules/tenancy/hooks/useMyInvitations.ts`, `src/app/(dashboard)/inicio/page.tsx`, `src/modules/identity/components/NoOrganizationState.tsx`,
-  `env.example`, `backend/tests/config/test_AC_PLT_05_env_example_parity.py`, tests.
+  `src/lib/server/env.ts`, `env.example`, `infra/docker-compose.yml`, `backend/tests/config/test_AC_PLT_05_env_example_parity.py`, tests.
 - **Cambios:** aviso en "Inicio" y en "sin organización": una persona sin memberships también puede tener invitaciones
-  (AC-TEN-31). Sin invitaciones, el aviso no se muestra. `NEXT_PUBLIC_OPERATOR_CONTACT` se declara en `env.example` y en
-  `FRONTEND_SERVER_VARS` del test: `test_AC_PLT_05_frontend_server_vars_match_what_the_bff_reads` falla ante un
-  `process.env` sin declarar.
+  (AC-TEN-31). Sin invitaciones, el aviso no se muestra. El contacto es la variable de servidor `OPERATOR_CONTACT`,
+  nunca `NEXT_PUBLIC_` (Q-050): se lee en `lib/server/env.ts`, la página la pasa por prop, y se declara en `env.example`,
+  en el Compose y en `FRONTEND_SERVER_VARS`. Sin valor, la página no muestra contacto.
 - **Pruebas:** `test_AC_TEN_39` en `PendingInvitationsNotice.test.tsx` (lista, acepta, refresca organizaciones, errores).
 
 ### T-TEN-31 — Pantalla `/invitacion`

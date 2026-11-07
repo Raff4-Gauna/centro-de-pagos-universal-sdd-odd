@@ -170,12 +170,14 @@ módulos se aprueba en la misma pasada, después de `T-TEN-36`.
 ### T-IDA-00 — Guarda de `check_migrations_roundtrip` (deuda de 00)
 - **AC:** AC-PLT-17 (regresión). C-17. **Zona roja:** sí.
 - **Archivos:** `backend/apps/common/management/commands/check_migrations_roundtrip.py`,
-  `backend/tests/migrations/test_AC_PLT_17_roundtrip_guard.py`.
+  `backend/tests/migrations/test_AC_PLT_17_roundtrip_guard.py`, `backend/tests/migrations/conftest.py`,
+  `backend/tests/migrations/test_AC_PLT_17_reversibility.py`.
 - **Cambios:** `--allow-data-loss` no mira a qué BD apunta y la de CI se llama `hub`, igual que la de desarrollo: un
   chequeo por nombre obligaría a cambiar `ci.yml` (Q-063). Por eso se mira el contenido: antes del primer `migrate`,
   si cualquier tabla de la BD salvo `django_migrations` tiene filas (`EXISTS` real, no estadísticas), sale con 2
   nombrando BD y tabla, sin ningún valor. Son todas y no solo las de las apps pedidas: `migrate identity zero` también
-  revierte lo que depende de `identity`.
+  revierte lo que depende de `identity`. `hub_synthetic` se comparte y `test_AC_PLT_17_runpython_without_reverse_fails`
+  deja una fila de `0004_seed_items`: los roundtrips de la suite tienen que partir de una BD vacía, o saldrían con 2.
   Imprime siempre a qué BD apunta (nombre y host, nunca la URL).
 - **Fuera:** cambiar el job `migrations`; `AGENTS.md` sigue válido.
 - **Pruebas:** `test_AC_PLT_17_refuses_database_with_rows`, `test_AC_PLT_17_empty_tables_pass`,

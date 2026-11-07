@@ -132,4 +132,4 @@ Decisiones del dueño, transmitidas por la sesión principal al task-planner y r
   módulo la lista de invitaciones propias y la aceptación desde la sesión (spec 1.0.1, `AC-TEN-39`, `AC-TEN-40`).
 - `design.md` pasa a `Aprobado`; ADR-0001 y ADR-0002 pasan a Aceptado.
 - El dueño decidió el flujo de Q-124, no el texto del contrato: endpoints y AC los redactó `task-planner` y recibieron
-  su OK en el PR #61.
+  su OK en el PR #61, anterior a los ajustes de `AC-TEN-39` que pidió el reviewer.

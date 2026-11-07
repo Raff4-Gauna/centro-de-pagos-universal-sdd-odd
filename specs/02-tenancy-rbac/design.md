@@ -147,7 +147,8 @@ Ningún archivo pasa de ~250 líneas estimadas; los más grandes son `role_rules
 - *Scopes* válidos: `for_tenant(ctx: TenantContext)` (exige instancia de `TenantContext`, filtra
   `organization_id=ctx.organization_id`; si hay un `ContextVar` activo, debe coincidir), y en modelos que lo
   declaran: `Membership.for_user(user_id)`, `Invitation.by_token_hash(h)`, `Invitation.pending_for_email(email)`
-  (puerto SPEC-01). `unscoped(reason: UnscopedReason)` marca el queryset como deliberadamente global.
+  (puerto SPEC-01), `Invitation.for_session_accept(id)` (aceptar desde la sesión, §4.4: la lectura cruza organizaciones
+  y el servicio decide por email antes de devolver nada). `unscoped(reason: UnscopedReason)` marca el queryset como deliberadamente global.
 - Todo método que **ejecuta** SQL (`_fetch_all`/iteración, `count`, `exists`, `aggregate`, `iterator`, `update`,
   `delete`, `get`, `create`, `bulk_create`, `bulk_update`, `in_bulk`, `get_or_create`, `update_or_create`,
   `explain`, `contains`) verifica la marca y si falta lanza `TenantScopeError` **antes** de ir a la BD (AC-TEN-11).
@@ -259,7 +260,7 @@ Rutas (App Router, `context/07 §3`):
 | `/configuracion/sucursales` | todos (gestión owner/admin) | `BranchesTable` (nombre, código, dirección, chip activa/inactiva; filtro activas/inactivas/todas), `BranchFormDialog`, confirmación de desactivar/reactivar con `LoadingButton`; vacío: "Creá tu primera sucursal" u "Aún no hay sucursales"; espacio reservado para las cajas del módulo dueño (Q-220) |
 | `/configuracion/colaboradores` | owner/admin (entrada de menú oculta para el resto; acceso directo → estado "sin permiso") | pestañas Miembros / Invitaciones pendientes; `MembersTable` con acciones por fila desde `allowed_actions` y `assignable_roles`; `InviteDialog` (roles de `invitable_roles`); `InvitationLinkDialog` muestra `accept_url` una sola vez con "Copiar" y aviso "no se vuelve a mostrar" (estado local del componente, nunca en la caché de Query) |
 | `/invitacion` (fuera de `(dashboard)`) | autenticado | Lee `#token`, lo guarda en `sessionStorage` si hay que pasar por login (SPEC-01 vuelve a esta ruta), borra el fragmento con `history.replaceState`, hace `POST /api/invitations/accept/` y borra el token; estados: aceptada (con "Ir a la empresa"), vencida, revocada, ya usada, para otra cuenta de Google, organización suspendida, no encontrada |
-| `/sin-organizacion` | autenticado sin memberships | `EmptyState` con contacto del operador (`NEXT_PUBLIC_OPERATOR_CONTACT`) (Q-205) + `PendingInvitationsNotice` |
+| `/sin-organizacion` | autenticado sin memberships | `EmptyState` con contacto del operador (variable de servidor `OPERATOR_CONTACT`, leída en `lib/server/env.ts` y pasada por prop desde la página) (Q-205) + `PendingInvitationsNotice` |
 | `/inicio` (de SPEC-00) | todos | `PendingInvitationsNotice` (Q-121, Q-124): lista `GET /api/invitations/mine/` con empresa, rol y vencimiento; "Aceptar" llama a `POST /api/invitations/{id}/accept/`, refresca organizaciones y ofrece "Ir a la empresa". Sin invitaciones no se muestra |
 
 Componentes/estado (`frontend/src/modules/tenancy/`): `context/ActiveOrgProvider.tsx` (org y sucursal **por
@@ -375,12 +376,15 @@ Doble aceptación en paralelo: el segundo espera el `FOR UPDATE`, ve `accepted` 
 las `pending`, vigentes y de organización `active` (el mismo filtro del puerto), sin token. `POST
 /api/invitations/{id}/accept/` usa el mismo servicio del diagrama, sin token y sin `X-Organization-Id`, y **no** busca
 dentro de esa lista, porque perdería los estados de abajo. El orden es:
-1. Lee la invitación por `id` con `FOR UPDATE`.
+1. Lee con `Invitation.for_session_accept(id)` (§3.4), sin transacción y sin lock: igual que `by_token_hash` en el
+   diagrama. Un intento ajeno no toma ningún lock.
 2. Si no existe, o existe y es de otro email, responde `400 invitation_invalid (reason=not_found)` con **el mismo
-   cuerpo** en los dos casos, sin revelar que existe. Si la fila existe, sigue `pending`, sin membership, y se confirma
-   `invitation.rejected` (motivo `email_mismatch`, actor el usuario, sin el email de nadie), RNF-TEN-04.
-3. Para el titular sigue igual al diagrama desde `status`: `revoked`, `used` y `expired` dan su `reason`, la organización
-   suspendida da `409 organization_suspended` (AC-TEN-28) y ya ser miembro da `409 already_member`.
+   cuerpo** en los dos casos, sin revelar que existe y sin `atomic`. Si la fila existe, sigue `pending`, sin membership,
+   y `invitation.rejected` (motivo `email_mismatch`, actor el usuario, sin el email de nadie) va en su propia escritura
+   antes de lanzar el error (§3.3, RNF-TEN-04).
+3. Para el titular sigue el diagrama desde `atomic`: organización `FOR NO KEY UPDATE`, invitación `FOR UPDATE` (orden
+   fijo de ADR-0002 §3), relee email y `status`. `revoked`, `used` y `expired` dan su `reason`, la organización suspendida
+   da `409 organization_suspended` (AC-TEN-28) y ya ser miembro da `409 already_member`.
 
 Vive en `selectors/invitations.py::list_my_pending` y `services/invitation_accept.py`; no hay un segundo camino de
 aceptación (ADR-0002 §5). Riesgos conocidos: este camino no prueba el buzón con el token y depende de `user.email`, que
