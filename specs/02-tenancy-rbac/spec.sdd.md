@@ -3,9 +3,9 @@ id: SPEC-02
 modulo: tenancy-rbac
 estado: Approved
 track: S
-version: 1.0.1
+version: 1.0.2
 depende_de: [SPEC-00, SPEC-01]
-actualizado: 2026-11-06
+actualizado: 2026-11-07
 ---
 
 # Módulo de Organizaciones, Sucursales y Roles (tenancy + RBAC)
@@ -141,8 +141,7 @@ no listada → denegada (RN-TEN-09).
   de rol o una revocación rige desde la request siguiente, aunque la sesión/JWT del usuario siga vigente.
 - **RN-TEN-09** La matriz §4/§4.1 es la única fuente de permisos de este módulo; toda acción no listada para un rol
   se deniega (`403 forbidden`). Ningún usuario puede elevar su propio rol.
-- **RN-TEN-10** Solo el operador de la plataforma crea organizaciones, mediante **comando de gestión** (y Django
-  admin restringido); no existe registro público ni endpoint de API de autoalta (Q-001, Q-212). Al crearla indica un
+- **RN-TEN-10** Solo el operador de la plataforma crea organizaciones, mediante **comando de gestión**; no existe registro público ni endpoint de API de autoalta (Q-001, Q-212). Al crearla indica un
   email y se emite una invitación con rol `owner` a ese email (Q-213).
 - **RN-TEN-11** Los usuarios se suman a una organización solo aceptando una invitación por email (Q-012); la
   aceptación exige estar autenticado con Google (SPEC-01). `Invitation` implementa el puerto de invitación de SPEC-01.
@@ -455,7 +454,7 @@ Q-208, Q-211, Q-212, Q-213 decididas el 2026-10-31). Decididas el 2026-11-06: Q-
 Q-222 (mecanismo de la membership de soporte), Q-223 (invitaciones de quien pierde permiso), Q-224 (recuperación de
 owner). Decididas en el gate *Approved*: Q-225 (catálogo de auditoría vs C-05/C-08), Q-226 (nombre de Branch sin
 distinguir mayúsculas), Q-227 (unicidad de `code` de Branch). Abiertas: Q-220 (dueño de la Caja, dirigida a
-SPEC-04/05) y Q-228 (admin de Django, no bloquea). Decididas transversales que aplican: Q-001, Q-006, Q-010, Q-012,
+SPEC-04/05). Q-228 decidida el 2026-11-07: sin admin de Django en el MVP. Decididas transversales que aplican: Q-001, Q-006, Q-010, Q-012,
 Q-027 (`specs/00-platform/clarifications.md`).
 
 ## 17. Trazabilidad
@@ -469,10 +468,11 @@ La tabla AC → tareas está en `tasks.md` ("Cobertura AC → tareas"); la matri
 | 0.3.0 | 2026-10-31 | Estado → *Designed*. Se agrega `design.md` (header `X-Organization-Id`, resolución en permiso DRF con 1 consulta, `TenantQuerySet` que falla cerrado, matriz como código, locks sobre `Organization`, contratos, UI, pruebas) y ADR-0001 / ADR-0002 (*Propuestos*). Q-221…Q-224 registradas como decididas por defecto (confirmables antes de *Approved*); nuevas Q-225…Q-227 (no bloqueantes). Sin cambios en RN/RF/AC | Paso 3 SDD (architect) |
 | 1.0.0 | 2026-10-31 | Estado → **Approved** por el dueño. Confirmadas Q-221…Q-224 (defaults) y decididas Q-225…Q-227 con su recomendación: RNF-TEN-04 suma `invitation.expired`, `invitation.auto_revoked`, `transition.rejected` y `purpose`; nuevos AC-TEN-36 (Q-223), AC-TEN-37 (Q-225), AC-TEN-38 (Q-226/227) | Gate humano *Approved* (2026-10-31) |
 | 1.0.1 | 2026-11-06 | Q-221…Q-224 pasan a decididas por el usuario. **Q-124 de SPEC-01:** quien ya tiene usuario ve sus invitaciones pendientes en la sesión y las acepta adentro del Hub; RN-TEN-11, RF-TEN-05, §4, §11, §12 y §14 lo incorporan, con `GET /api/invitations/mine/`, `POST /api/invitations/{id}/accept/` y nuevos AC-TEN-39 y AC-TEN-40. Nueva Q-228 (admin de Django, abierta). §17 apunta a `tasks.md` | Decisiones del dueño del 2026-11-06, que reemplazan la de Q-124 del 2026-10-31. El dueño decidió el flujo; el contrato lo redactó `task-planner` y recibió su OK en el PR #61, anterior a los ajustes de AC-TEN-39 que pidió el reviewer |
+| 1.0.2 | 2026-11-07 | Q-228 decidida: sin admin de Django en el MVP. RN-TEN-10 deja de nombrarlo; no cambia ningún RF ni AC | Decisión del dueño del 2026-11-07 |
 
 ---
-**Hecho:** spec Approved 1.0.1: 21 RN, 9 RF, 7 RNF y 40 AC; `design.md` aprobado; ADR-0001 y ADR-0002 aceptados;
+**Hecho:** spec Approved 1.0.2: 21 RN, 9 RF, 7 RNF y 40 AC; `design.md` aprobado; ADR-0001 y ADR-0002 aceptados;
 `tasks.md` creado.
-**Pendiente:** Q-220 para SPEC-04/05; Q-228 (admin de Django); ajustar `context/07 §5.1` según `design.md §3.10`
+**Pendiente:** Q-220 para SPEC-04/05; ajustar `context/07 §5.1` según `design.md §3.10`
 (lo hace `T-TEN-29`).
 **Siguiente rol:** implementadores, según `tasks.md`.

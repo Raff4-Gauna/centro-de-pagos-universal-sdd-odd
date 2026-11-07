@@ -1,7 +1,7 @@
 ---
 actualizado: 2026-11-06
-ultimo_commit: 7329a7a
-ultimo_pr: "#60"
+ultimo_commit: 803784c
+ultimo_pr: "#62"
 modulo_activo: 01-identity-access
 fase: implementación (00 en cierre, Implemented pendiente)
 ---
@@ -16,9 +16,9 @@ fase: implementación (00 en cierre, Implemented pendiente)
 
 | Módulo | Spec | Tareas | Código | Nota |
 |---|---|---|---|---|
-| 00-platform | Approved 1.0.21 | 42 ✅ (42) | 42 de 42 tareas | Verificación **Con hallazgos**; ruleset activo |
-| 01-identity-access | Approved 1.0.1 | 32 ☐ (32) | 0 % | Depende de 00; diseño aprobado |
-| 02-tenancy-rbac | Approved 1.0.1 | 36 ☐ (36) | 0 % | Se cierra junto con 01 (Q-108); diseño aprobado |
+| 00-platform | Approved 1.0.22 | 42 ✅ (42) | 42 de 42 tareas | Verificación **Con hallazgos**; ruleset activo |
+| 01-identity-access | Approved 1.0.2 | 32 ☐ (32) | 0 % | Depende de 00; diseño aprobado |
+| 02-tenancy-rbac | Approved 1.0.2 | 36 ☐ (36) | 0 % | Se cierra junto con 01 (Q-108); diseño aprobado |
 | 03-integrations-engine | Draft | — | 0 % | Falta cerrar el contrato del motor |
 | 04-integration-management | Por redactar | — | 0 % | Bloquea a 06 |
 | 05-mercadopago-adapter | Draft | — | 0 % | Depende del spike S-001 |
@@ -35,11 +35,11 @@ fase: implementación (00 en cierre, Implemented pendiente)
 - **Q-063, ampliada por el dueño:** todo PR que agregue o cambie un archivo de `.github/workflows/` lo mergea él, no
   solo los de `zona-roja.yml`. #48 (Q-063), #52 (scope drift) y #55 (Q-057) los mergeó Claude con autorización
   puntual del dueño, citada en cada PR.
-- **Dependabot:** #62 reemplaza a #25 (parches de DRF y psycopg). Seis saltos de versión mayor sin triaje, #26 a #31
-  (Django 6.1, redis 8, Tailwind 4, mypy 2, django-stubs-ext 6, @types/node 26). #26 (mypy) falla en `typecheck`.
+- **Dependabot:** #62 mergeado (DRF 3.18.3, psycopg 3.3.7). #26 a #31 cerrados por decisión del dueño (2026-11-07): los
+  saltos mayores se ignoran y cada uno se decide por spec. psycopg 3.3.8 revierte un cambio de TLS de 3.3.7: tomarlo
+  antes de apuntar a una base con TLS.
 - **01 y 02:** specs y diseños aprobados, con los ajustes que indica la cabecera del diseño de 02; ADR-0001 y ADR-0002
-  aceptados; `tasks.md` creados (2026-11-06). Se pueden implementar en cuanto esa rama esté en `main`, salvo `T-IDA-04`
-  y `T-IDA-08`, que esperan que el dueño acepte ADR-0004.
+  aceptados; `tasks.md` creados (2026-11-06). Sin bloqueos: ADR-0004 y ADR-0011 aceptados y Q-228 decidida el 2026-11-07.
 - **04:** sin redactar; es el bloqueo de `06-charges`.
 - **S-001 (Mercado Pago sandbox):** **sin ejecutar**. Es el mayor riesgo abierto del roadmap.
 - **Skills:** antes de esta sesión no existían; ahora están `sdd-verification` y `reviewer-verdict`.
@@ -64,8 +64,7 @@ fase: implementación (00 en cierre, Implemented pendiente)
 6. Incorporar el checklist de buenas prácticas de software escalable que el dueño va a pasar; mapearlo contra
    `context/12-solid-y-diseno.md` y los agentes existentes.
 
-**Además:** triaje de Dependabot (#25–#31), sin orden fijo: los saltos mayores tocan versiones fijadas por Q-029 y
-Q-059. Los PR que cambien `.github/workflows/` los mergea el dueño (Q-063).
+**Además:** los PR que cambien `.github/workflows/` los mergea el dueño (Q-063).
 
 **Pendiente técnico:**
 - `check_migrations_roundtrip --allow-data-loss` no mira a qué BD apunta: lo cierra `T-IDA-00`, antes de la primera
@@ -96,5 +95,5 @@ Q-059. Los PR que cambien `.github/workflows/` los mergea el dueño (Q-063).
 
 - **Hecho:** reconciliación final de 00 con git sobre `82cd31c` (42 ✅) y `verification.md` al día (33 ✔ / 1 ⚠). Ruleset aplicado y probado en vivo (#58, #59).
 - **Merges de la sesión:** #48, #50 a #56. Worklog: `context/worklog/2026-11-06-reconcile-00c.md`.
-- **Pendiente / dudas:** Q-028 (SPEC-12), S-001 sin ejecutar, triaje de Dependabot.
+- **Pendiente / dudas:** Q-028 (SPEC-12), S-001 sin ejecutar.
 - **Siguiente rol sugerido:** el dueño corre AC-PLT-01; después `qa-verifier` repite la verificación de 00.

@@ -6,8 +6,8 @@ actualizado: 2026-11-06
 
 Reglas: rebanada vertical · ≤ ~300 líneas de diff · mergeable sola · cita AC · lista archivos esperados · incluye su plan de pruebas.
 
-> Entradas: `spec.sdd.md` **Approved 1.0.1**, `design.md` **Aprobado**, `clarifications.md` (incluida "Confirmación
-> (2026-11-06)"), ADR-0004 (Propuesto: `T-IDA-04` y `T-IDA-08` no arrancan hasta que el dueño lo acepte),
+> Entradas: `spec.sdd.md` **Approved 1.0.2**, `design.md` **Aprobado**, `clarifications.md` (incluida "Confirmación
+> (2026-11-06)"), ADR-0004 (**Aceptado** 2026-11-07),
 > `context/08-control-de-versiones-ci-cd.md`.
 > **Se cierra junto con SPEC-02 (Q-108):** ninguno de los dos pasa a `Verified` sin el otro.
 > `specs/02-tenancy-rbac/tasks.md` depende de `T-IDA-01`, `T-IDA-06`, `T-IDA-07`, `T-IDA-13`, `T-IDA-27` y `T-IDA-29`.
@@ -376,7 +376,7 @@ módulos se aprueba en la misma pasada, después de `T-TEN-36`.
 - **Archivos:** `services/user_status.py`, `management/commands/{deactivate_user,reactivate_user}.py`,
   `backend/tests/identity/test_AC_IDA_27_deactivate.py`, `backend/tests/identity/test_AC_IDA_32_no_endpoints.py`.
 - **Cambios:** `design.md §6.5`; actor `platform_operator` con `--operator` y usuario del SO.
-- **Fuera:** comando de bootstrap (`T-TEN-18`). No hay admin que apagar: D-03 sigue en pie y Q-228 está abierta.
+- **Fuera:** comando de bootstrap (`T-TEN-18`). No hay admin que apagar: D-03 sigue en pie y Q-228 decidió que no hay admin en el MVP.
 - **Pruebas:** `test_AC_IDA_27_two_sessions_revoked_and_next_request_401`,
   `test_AC_IDA_27_reactivate_does_not_revive`, `test_AC_IDA_32_schema_has_no_provisioning_endpoints`,
   `test_AC_IDA_32_admin_does_not_answer`.
@@ -494,5 +494,5 @@ módulos se aprueba en la misma pasada, después de `T-TEN-36`.
 
 ---
 **Hecho:** 32 tareas, 38 AC y 10 RF cubiertos, olas y división de archivos.
-**Pendiente / dudas:** ADR-0004 sigue Propuesto; `scripts/spec_state_baseline.json` necesita estos AC (`scripts/**`).
+**Pendiente / dudas:** ninguna de 01.
 **Siguiente rol sugerido:** `backend-dev` en `T-IDA-00`, después `reviewer`.

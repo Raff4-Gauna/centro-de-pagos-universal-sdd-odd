@@ -3,15 +3,15 @@ spec: SPEC-00
 fecha: 2026-11-06
 resultado: Con hallazgos     # Aprobada | Con hallazgos | Rechazada
 verificado_por: project-steward (cobertura) + qa-verifier (ejecución pendiente)
-version_spec: 1.0.21
+version_spec: 1.0.22
 ---
 
 # Verificación — Módulo de Plataforma (SPEC-00)
 
 ## 0. Alcance y método
 
-- Spec verificada: `specs/00-platform/spec.sdd.md` v1.0.21 (`Approved`), la de `main` en `7329a7a`. Las
-  versiones 1.0.17 a 1.0.21 no cambian AC.
+- Spec verificada: `specs/00-platform/spec.sdd.md` v1.0.22 (`Approved`). Las versiones 1.0.17 a
+  1.0.22 no cambian AC; esta fila la actualiza el PR que incorpora la 1.0.22.
 - Tareas: `specs/00-platform/tasks.md` (estado conciliado con git el 2026-11-06).
 - Método: matriz AC→test sobre el árbol real, revisión de la cadena de CI y checklist manual.
 - **Leyenda de la columna “Cobertura”:** `✔` el AC tiene al menos un test con su ID y cubre el criterio completo;

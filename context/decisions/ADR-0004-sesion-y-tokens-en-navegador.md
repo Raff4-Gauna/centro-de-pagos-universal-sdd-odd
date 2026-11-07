@@ -1,6 +1,6 @@
 # ADR-0004 — Sesión y tokens en el navegador: BFF de Next.js con cookies `httpOnly`, sesión revocable en servidor y JWT propio
 
-- **Estado:** Propuesto
+- **Estado:** Aceptado (dueño, 2026-11-07)
 - **Fecha:** 2026-10-31
 - **Specs afectadas:** SPEC-01 (principal), SPEC-02 (header de organización activa, puertos, bootstrap), SPEC-00
   (settings, throttling, logging, test de arquitectura), SPEC-10 (puerto de auditoría), SPEC-11 (separación de la API
@@ -15,7 +15,7 @@
 - Django está expuesto a internet de todos modos (webhooks de proveedores, ERP con API key), así que "solo el BFF"
   no se puede garantizar solo con la topología de red.
 - El usuario pidió simplicidad (07 §3): nada de infraestructura que no haga falta en un MVP de pocas organizaciones.
-- La spec §15 deja 15 puntos para este ADR. Valores por defecto tomados (confirmables antes de Approved): Q-119 b),
+- La spec §15 deja 15 puntos para este ADR. Valores por defecto, confirmados por el dueño el 2026-11-06: Q-119 b),
   Q-120 a), Q-121 b), Q-122 b), Q-123 (el comando crea toda organización nueva, idempotente y auditado; dueña SPEC-02).
 
 ## Opciones (las de fondo; los detalles se deciden punto por punto abajo)
@@ -93,7 +93,7 @@ en el BFF; mutaciones solo por Route Handlers (no Server Actions). Django no apl
 cookie (`SessionAuthentication` fuera de DRF).
 
 ### 7. Header de organización activa
-Nombre propuesto **`X-Organization-Id`** (UUID), a confirmar con SPEC-02. Q-119 por defecto **b)**: cada pestaña manda
+Nombre **`X-Organization-Id`** (UUID), confirmado por `specs/02-tenancy-rbac/design.md`. Q-119 por defecto **b)**: cada pestaña manda
 la empresa que muestra desde su propio estado; el BFF la reenvía validando el formato y **nunca** la inyecta. La
 "persistencia en la sesión del servidor del BFF" (Q-112) es la cookie `HttpOnly` `__Host-cpu_org`, que solo el
 servidor lee y escribe (`PUT /api/session/active-organization`), y que sirve como valor inicial de pestañas nuevas y
@@ -140,7 +140,7 @@ de una sola `transaction.atomic()`: insertar usuario → buscar y bloquear invit
 auditar. Insertar primero hace que un segundo callback concurrente espere el índice único de `google_sub`, reciba
 `IntegrityError`, reintente una vez y entre por el caso (a) (AC-IDA-02). `MembershipSelectorPort.list_active_memberships(user_id)`
 para `/api/me`. Stubs por settings (`NullInvitationPort`, `EmptyMembershipSelector`, `LogAuditPort`) hasta que existan
-SPEC-02/SPEC-10; identity no importa `tenancy` (resolución por dotted path). El comando **`bootstrap_organization`
+SPEC-02/SPEC-10; identity no importa `tenancy` (resolución por dotted path). El comando **`tenancy_create_org`
 vive en `apps/tenancy`** (SPEC-02 es dueña de crear organizaciones e invitaciones; Q-123 por defecto: sirve para toda
 organización nueva, idempotente, auditado). Los comandos `deactivate_user`/`reactivate_user` viven en `apps/identity`.
 
@@ -185,7 +185,6 @@ audita: no es un rechazo del Hub). Respuestas de auth con `Cache-Control: no-sto
   superficie acotada; el BFF deja de ser un *pass-through* puro (más código en `lib/bff/`, todo testeable sin red).
 - **Riesgo residual:** si se pierde la respuesta del refresh que rotó y llega solo la de gracia, el navegador queda con
   un refresh usado y el próximo refresh se toma como reuso (re-login). Raro; se mide.
-- **Pendiente:** confirmar con SPEC-02 el nombre `X-Organization-Id`, la forma de `MembershipSummary` y el comando de
-  bootstrap; con SPEC-00, la lista de modelos globales exentos del test C-01, los throttles generales por usuario y que
-  el access log del borde no registre la query del callback; aplicar el texto de `07 §3.2` (design §13); Q-124 y
-  Q-125 (spec 01). Pasa a **Aceptado** cuando la spec 01 pase a Approved.
+- **Pendiente, sin bloquear la aceptación:** con SPEC-00, la lista de modelos globales exentos del test C-01, los throttles generales por usuario y que
+  el access log del borde no registre la query del callback; aplicar el texto de `07 §3.2` (design §13). Q-124 y Q-125
+  quedaron decididas el 2026-11-06 (`specs/01-identity-access/clarifications.md`).

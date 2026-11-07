@@ -1,7 +1,7 @@
 # Dependabot (RN-PLT-14, Q-037, design.md §3.5): weekly, one entry per ecosystem.
-# Patches are grouped into one PR per ecosystem; minors and majors come one PR each, so a major
-# (Q-029) is always reviewed on its own. Every PR goes through the full CI chain, deps-audit
-# included. pre-commit hooks are not covered here: `pre-commit autoupdate` by hand, monthly.
+# Patches are grouped into one PR per ecosystem; minors come one PR each. Majors are ignored: they
+# touch versions pinned by C-13 and Q-029, so each one is decided by spec. Every PR goes through the
+# full CI chain, deps-audit included. pre-commit hooks are not covered here: `pre-commit autoupdate` by hand, monthly.
 # Checked by scripts/tests/test_AC_PLT_26_audit_deps.py.
 version: 2
 
@@ -14,6 +14,10 @@ updates:
     groups:
       uv-patches:
         update-types: [patch]
+    ignore:
+      # Majors are decided by spec, not by Dependabot (owner, 2026-11-07; C-13, Q-029).
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
 
   # frontend/package.json + pnpm-lock.yaml: the npm ecosystem also handles pnpm lockfiles.
   - package-ecosystem: npm
@@ -24,6 +28,9 @@ updates:
       npm-patches:
         update-types: [patch]
     ignore:
+      # Majors are decided by spec, not by Dependabot (owner, 2026-11-07; C-13, Q-029).
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
       # eslint 9.x is in maintenance (deprecated in favour of 10.x), but plugins pulled by
       # eslint-config-next 16.4.3 (eslint-plugin-import 2.32.0, eslint-plugin-jsx-a11y 6.10.2,
       # eslint-plugin-react 7.37.5) cap their eslint peer at ^9, so major 10 is ignored.
@@ -40,6 +47,10 @@ updates:
     groups:
       docker-patches:
         update-types: [patch]
+    ignore:
+      # Majors are decided by spec, not by Dependabot (owner, 2026-11-07; C-13, Q-029).
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
 
   # Actions pinned by full SHA in .github/workflows/ and the composite .github/actions/*.
   - package-ecosystem: github-actions
@@ -49,3 +60,7 @@ updates:
     groups:
       actions-patches:
         update-types: [patch]
+    ignore:
+      # Majors are decided by spec, not by Dependabot (owner, 2026-11-07; C-13, Q-029).
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]

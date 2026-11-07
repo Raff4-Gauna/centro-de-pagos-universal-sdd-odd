@@ -5,7 +5,7 @@ actualizado: 2026-11-06
 ---
 # Diseño — Módulo de Organizaciones, Sucursales y Roles (tenancy + RBAC)
 
-> Parte de `spec.sdd.md` 1.0.1 (*Approved*) y de `clarifications.md` (Q-201…Q-228). No cambia reglas de negocio:
+> Parte de `spec.sdd.md` 1.0.2 (*Approved*) y de `clarifications.md` (Q-201…Q-228). No cambia reglas de negocio:
 > donde la spec delega un detalle técnico ("lo decide `design.md`") se decide acá. Decisiones no obvias: **ADR-0001**
 > (multi-tenancy) y **ADR-0002** (modelos propios), ambos *Aceptados*. Donde el código real de SPEC-00 obliga a nombrar
 > distinto, manda `tasks.md` ("Ajustes al diseño").
@@ -383,7 +383,8 @@ dentro de esa lista, porque perdería los estados de abajo. El orden es:
    y `invitation.rejected` (motivo `email_mismatch`, actor el usuario, sin el email de nadie) va en su propia escritura
    antes de lanzar el error (§3.3, RNF-TEN-04).
 3. Para el titular sigue el diagrama desde `atomic`: organización `FOR NO KEY UPDATE`, invitación `FOR UPDATE` (orden
-   fijo de ADR-0002 §3), relee email y `status`. `revoked`, `used` y `expired` dan su `reason`, la organización suspendida
+   fijo de ADR-0002 §3), relee email y `status`. Si el email ya no coincide responde como el paso 2 (`not_found`, sin
+   membership, con `invitation.rejected` fuera del `atomic`): este contrato no admite `email_mismatch`. `revoked`, `used` y `expired` dan su `reason`, la organización suspendida
    da `409 organization_suspended` (AC-TEN-28) y ya ser miembro da `409 already_member`.
 
 Vive en `selectors/invitations.py::list_my_pending` y `services/invitation_accept.py`; no hay un segundo camino de
@@ -482,8 +483,7 @@ Serializers de entrada **estrictos**: campo desconocido o de solo lectura (`orga
   `save()` → test de arquitectura y suite cross-tenant; RLS como cuarta capa antes de onboardear comercios ajenos
   (ADR-0001, Q-215). Recursos de otra org por ID → `404` indistinguible de inexistente.
 - **Operador de plataforma**: sin rutas de API privilegiadas; `is_superuser`/`is_staff` no participan de la
-  resolución; acciones por comando con `--operator` en lista blanca y auditadas. El Django admin de solo lectura que
-  se preveía acá **no se planifica** hasta decidir Q-228.
+  resolución; acciones por comando con `--operator` en lista blanca y auditadas. No hay Django admin en el MVP (Q-228).
 - **Secretos**: token `secrets.token_urlsafe(32)` (256 bits), en BD solo `sha256` hex; nunca en logs, errores,
   listados ni `repr` (`Invitation.__repr__` sin hash); el serializer de aceptar declara `token` `write_only`; los
   errores no ecoan la entrada. Email de invitación detrás del flag `TENANCY_INVITATION_EMAIL_ENABLED` (apagado hasta
@@ -543,7 +543,7 @@ Serializers de entrada **estrictos**: campo desconocido o de solo lectura (`orga
 | Unicidad de nombre de Branch y de `code` | Q-226 y Q-227 decididas (2026-10-31): §5 y AC-TEN-38 |
 | Q-221…Q-224 | Decididas por el usuario (2026-11-06); Q-221 vive en una constante (`SUSPENDED_ALLOWED_KINDS`); Q-222/Q-224 en `T-TEN-28` |
 | Owner de organización nueva que ya tiene usuario (Q-124 de SPEC-01) | Decidida (2026-11-06): acepta adentro del Hub; `T-TEN-16` y `T-TEN-30` (AC-TEN-39, AC-TEN-40) |
-| Django admin de solo lectura (RN-TEN-10) incompatible con D-03 y con `identity.User` | Q-228 (abierta, no bloquea); no se planifica |
+| Django admin de solo lectura incompatible con D-03 y con `identity.User` | Decidida (2026-11-07, Q-228): sin admin en el MVP; todo por comandos |
 
 ### 11.1 Orden preliminar de tareas (para `task-planner`; cada una ≤ ~300 líneas de diff)
 > **Reemplazado por `tasks.md`** (2026-11-06): los IDs de abajo son los preliminares, no los finales.
@@ -577,6 +577,6 @@ Cada tarea de endpoint registra sus casos en la suite cross-tenant como parte de
 ---
 **Hecho:** diseño aprobado (componentes, flujos, datos con constraints e índices, contratos, seguridad, UI, pruebas);
 cada RN/RF/RNF con destino (§2) y cada AC con nivel de prueba (§9); ADR-0001 y ADR-0002 *Aceptados*.
-**Pendiente / dudas:** Q-228 (admin de Django); Q-220 para SPEC-04/05; cambios en `context/07` (§3.10, los aplica
+**Pendiente / dudas:** Q-220 para SPEC-04/05; cambios en `context/07` (§3.10, los aplica
 `T-TEN-29`).
 **Siguiente rol sugerido:** implementadores, según `tasks.md`.

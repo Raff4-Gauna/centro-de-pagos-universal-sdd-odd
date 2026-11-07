@@ -3,7 +3,7 @@ id: SPEC-01
 modulo: identity-access
 estado: Approved
 track: S
-version: 1.0.1
+version: 1.0.2
 depende_de: [SPEC-00]
 actualizado: 2026-11-06
 ---
@@ -12,7 +12,7 @@ actualizado: 2026-11-06
 
 > **Zona roja (auth).** Todo cambio pasa por Carril S y `reviewer`. Preguntas en
 > `specs/01-identity-access/clarifications.md` (rango Q-101…Q-199): **ninguna abierta**; Q-119…Q-125 quedaron
-> decididas por el usuario el 2026-11-06. Diseño aprobado: `design.md` + ADR-0004 (Propuesto).
+> decididas por el usuario el 2026-11-06. Diseño aprobado: `design.md` + ADR-0004 (Aceptado).
 > SPEC-01 y SPEC-02 se cierran juntas en H1 (Q-108).
 
 ## 1. Contexto y problema
@@ -292,8 +292,9 @@ La tabla AC → tareas está en `tasks.md` ("Cobertura AC → tareas"); la matri
 | 0.3.0 | 2026-10-31 | Estado → Designed. Se agregan `design.md` y ADR-0004 (Propuesto) que resuelve los 15 puntos de §15. Q-119…Q-123 pasan de "abiertas, provisional" a "decididas por defecto, confirmables antes de Approved" con **el mismo valor** que ya usaban las RN (sin cambio de reglas); notas de estado en RN-IDA-01/05/06/09/23, §11 (contratos finales en `design.md §6`), §12, §15, §16. Nuevas Q-124 y Q-125 (no bloqueantes, abiertas) | Paso 3 SDD (architect) |
 | 1.0.0 | 2026-10-31 | Estado → **Approved** por el dueño. Confirmadas Q-119…Q-123 (defaults); decididas Q-124 (si el owner indicado al crear la organización ya tiene usuario, el comando de bootstrap crea la membership `owner` directamente, auditada; si no, invitación) y Q-125 (el evento de login rechazado no guarda email ni `sub`) | Gate humano *Approved* (2026-10-31) |
 | 1.0.1 | 2026-11-06 | Q-119…Q-125 pasan a decididas por el usuario. **Q-124 cambia:** el owner que ya tiene usuario acepta adentro del Hub, igual que cualquier invitación (Q-121); el comando siempre emite invitación y nunca crea la membership. Se limpian las citas "por defecto" y "abierta" en RN-IDA-01/05/06/09/23, §11, §12 y §16; §17 apunta a `tasks.md`. Sin cambios en RF ni AC: RN-IDA-05 y el login no cambian; el flujo nuevo vive en SPEC-02 | Decisiones del dueño del 2026-11-06 |
+| 1.0.2 | 2026-11-07 | ADR-0004 pasa a Aceptado; no cambia ningún RF ni AC | Decisión del dueño del 2026-11-07 |
 
 ---
-**Hecho:** spec Approved 1.0.1 (25 RN, 10 RF, 7 RNF, 38 AC); `design.md` aprobado; `tasks.md` creado; ADR-0004 Propuesto.
+**Hecho:** spec Approved 1.0.2 (25 RN, 10 RF, 7 RNF, 38 AC); `design.md` aprobado; `tasks.md` creado; ADR-0004 Propuesto.
 **Pendiente:** aplicar `07 §3.2` (lo hace `T-IDA-27`).
 **Siguiente rol:** implementadores, según `tasks.md`.
