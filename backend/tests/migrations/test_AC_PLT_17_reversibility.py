@@ -180,6 +180,7 @@ def recorded_migrations() -> list[tuple[Any, ...]] | None:
 
 
 @pytest.mark.integration
+@pytest.mark.usefixtures("fresh_synthetic_db")
 def test_AC_PLT_17_runpython_without_reverse_fails(run_manage: RunDjango) -> None:
     lint = run_manage("lint_migrations", "bad_irreversible")
     assert lint.returncode == 1, output(lint)

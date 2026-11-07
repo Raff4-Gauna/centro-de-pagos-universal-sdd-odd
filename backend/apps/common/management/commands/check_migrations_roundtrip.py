@@ -9,8 +9,9 @@ reverting to ``zero`` drops the tables of the checked apps and their data. Hence
 The flag says nothing about where it points, and CI and development both name their database
 ``hub``, so the name cannot tell them apart: the content does. Before the first ``migrate``, any
 table with rows other than ``django_migrations`` exits with 2 naming the database and the tables,
-never a value. Every table and not only those of the checked apps: ``migrate identity zero`` also
-reverts what depends on ``identity``. A database with empty tables has nothing to lose.
+never a value. Every table of the ``search_path`` and not only those of the checked apps: ``migrate
+identity zero`` also reverts what depends on ``identity``. A schema outside it is not looked at, and
+``migrate`` does not touch it either. A database with empty tables has nothing to lose.
 
 1. Apply: ``migrate`` (without labels) or ``migrate <app>`` for each given app.
 2. Revert: ``migrate <app> zero`` for each checked app, the app whose migrations come last in the
@@ -68,7 +69,7 @@ def tables_with_rows(connection: BaseDatabaseWrapper) -> list[str]:
             if name == MIGRATIONS_TABLE:
                 continue
             table = connection.ops.quote_name(name)
-            cursor.execute(f"SELECT EXISTS (SELECT 1 FROM {table})")  # noqa: S608
+            cursor.execute(f"SELECT EXISTS (SELECT 1 FROM {table})")  # noqa: S608 - quoted catalog names, no outside input
             if cursor.fetchone()[0]:
                 found.append(name)
     return sorted(found)

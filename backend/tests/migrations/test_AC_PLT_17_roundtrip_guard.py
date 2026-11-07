@@ -109,6 +109,7 @@ def test_AC_PLT_17_refusal_shows_no_values(roundtrip: Roundtrip) -> None:
 
     result = roundtrip()
 
+    assert result.returncode == 2, output(result)
     assert ROW_VALUE not in output(result)
 
 
