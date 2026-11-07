@@ -1,7 +1,7 @@
 ---
 actualizado: 2026-11-06
-ultimo_commit: 803784c
-ultimo_pr: "#62"
+ultimo_commit: c57db14
+ultimo_pr: "#63"
 modulo_activo: 01-identity-access
 fase: implementación (00 en cierre, Implemented pendiente)
 ---
@@ -17,7 +17,7 @@ fase: implementación (00 en cierre, Implemented pendiente)
 | Módulo | Spec | Tareas | Código | Nota |
 |---|---|---|---|---|
 | 00-platform | Approved 1.0.22 | 42 ✅ (42) | 42 de 42 tareas | Verificación **Con hallazgos**; ruleset activo |
-| 01-identity-access | Approved 1.0.2 | 32 ☐ (32) | 0 % | Depende de 00; diseño aprobado |
+| 01-identity-access | Approved 1.0.2 | 1 ✅ · 31 ☐ (32) | 3 % | Depende de 00; diseño aprobado |
 | 02-tenancy-rbac | Approved 1.0.2 | 36 ☐ (36) | 0 % | Se cierra junto con 01 (Q-108); diseño aprobado |
 | 03-integrations-engine | Draft | — | 0 % | Falta cerrar el contrato del motor |
 | 04-integration-management | Por redactar | — | 0 % | Bloquea a 06 |
@@ -67,8 +67,6 @@ fase: implementación (00 en cierre, Implemented pendiente)
 **Además:** los PR que cambien `.github/workflows/` los mergea el dueño (Q-063).
 
 **Pendiente técnico:**
-- `check_migrations_roundtrip --allow-data-loss` no mira a qué BD apunta: lo cierra `T-IDA-00`, antes de la primera
-  migración de SPEC-01.
 - `scripts/smoke_stack.py` necesita el mecanismo de URL de ejemplo para rutas `[id]` y no debe contar un 3xx como
   página revisada (línea 257): lo cierra `T-IDA-26`, antes de la primera ruta protegida (`T-IDA-28`).
 

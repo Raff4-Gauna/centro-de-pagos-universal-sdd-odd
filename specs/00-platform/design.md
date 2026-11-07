@@ -277,7 +277,8 @@ no-store`, sin auth ni throttle.
   `reverse_sql`, recorriendo `SeparateDatabaseAndState`: Django solo mira el nivel superior); `RunPython` junto a
   cualquier operación que no sea `RunPython` → error (varios `RunPython` juntos se aceptan: son una sola migración de
   datos). Los reversos `RunPython.noop` y `RunSQL.noop` se aceptan.
-- `check_migrations_roundtrip`: `migrate` → `migrate <app> zero` por app propia con migraciones en orden inverso de
+- `check_migrations_roundtrip`: antes de nada sale con 2 si alguna tabla del `search_path` salvo `django_migrations` tiene
+  filas, nombrando BD y tablas sin ningún valor (`T-IDA-00`). Después, `migrate` → `migrate <app> zero` por app propia con migraciones en orden inverso de
   dependencias (la app cuya última migración va más tarde en el plan, primero) → `migrate`; tras cada `zero` no queda
   ninguna migración de la app aplicada y al final todas sus hojas lo están. Con etiquetas, aplica y revierte solo
   esas apps (`migrate <app>`), así los casos sintéticos no se mezclan. Una app sin migraciones (`migrations/` solo con

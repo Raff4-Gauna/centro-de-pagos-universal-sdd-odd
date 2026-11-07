@@ -39,7 +39,7 @@ version_spec: 1.0.22
 | AC-PLT-14 | `backend/tests/architecture/test_AC_PLT_14_adapter_boundary.py` | ✔ |
 | AC-PLT-15 | `backend/tests/architecture/test_AC_PLT_15_no_raw_objects_in_services.py` | ✔ |
 | AC-PLT-16 | `backend/tests/migrations/test_AC_PLT_16_missing_migration.py` | ✔ |
-| AC-PLT-17 | `backend/tests/migrations/test_AC_PLT_17_reversibility.py`, `scripts/tests/test_AC_PLT_20_pipeline_chain.py` (`test_AC_PLT_17_migrations_job_runs_roundtrip_last`) | ✔ (reglas de `RunPython`/`RunSQL`, ida y vuelta en BD descartable y paso `check_migrations_roundtrip` del job `migrations`) |
+| AC-PLT-17 | `backend/tests/migrations/test_AC_PLT_17_reversibility.py`, `backend/tests/migrations/test_AC_PLT_17_roundtrip_guard.py`, `scripts/tests/test_AC_PLT_20_pipeline_chain.py` (`test_AC_PLT_17_migrations_job_runs_roundtrip_last`) | ✔ (reglas de `RunPython`/`RunSQL`, ida y vuelta en BD descartable y paso `check_migrations_roundtrip` del job `migrations`) |
 | AC-PLT-18 | `backend/tests/migrations/test_AC_PLT_18_names_and_mixing.py` | ✔ |
 | AC-PLT-19 | `scripts/tests/test_AC_PLT_19_gitleaks.py`, `…_gitleaks_evasions.py`, `…_secrets_job.py` | ✔ |
 | AC-PLT-20 | `scripts/tests/test_AC_PLT_20_pipeline_chain.py` (`test_AC_PLT_20_build_is_last_and_needs_migrations`, `test_AC_PLT_20_ruleset_checks_equal_pipeline_jobs_plus_zona_roja`) | ✔ PR de prueba #58 (cerrado sin mergear), con el ruleset aplicado: run `42307806639`, `lint` en `failure`, los otros 9 jobs `skipped`, `build` incluido, y `mergeStateStatus: BLOCKED` |
