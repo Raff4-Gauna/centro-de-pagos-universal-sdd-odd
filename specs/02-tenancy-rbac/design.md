@@ -18,7 +18,11 @@ actualizado: 2026-11-06
 > `accept_invitations` (aceptación atómica de todas las vigentes en el primer login), `GET /api/me` usa un selector de
 > memberships de este módulo, la sesión del BFF guarda la última organización solo como default.
 >
-> **Ajustes posteriores a la aprobación del 2026-11-06**, redactados por `task-planner` y sin `architect`: flujo de Q-124 (`GET /api/invitations/mine/`, `POST /api/invitations/{id}/accept/`), puerto todo o nada (RN-IDA-06), Q-226/Q-227 en `Branch` y `tenancy_create_org`. Requieren el OK del dueño al PR que los incorpora.
+> **Ajustes posteriores a la aprobación del 2026-11-06**, redactados por `task-planner` y sin `architect`. El dueño dio
+> su OK en el PR #61 a: flujo de Q-124 (`GET /api/invitations/mine/`, `POST /api/invitations/{id}/accept/`), puerto todo
+> o nada (RN-IDA-06), Q-226/Q-227 en `Branch` con `409 conflict`, 4 migraciones y `tenancy_create_org`. Ese OK es
+> anterior al orden de §4.4 que pidió el reviewer, y no nombraba quitar `admin.py`, reemplazar Playwright por script HTTP
+> ni las rutas exentas nuevas; esos cambios constan en la descripción del PR.
 
 ## 1. Resumen de la solución
 1. **Aislamiento en dos capas de aplicación** (más RLS como tercera, después): (a) toda tabla de negocio hereda
@@ -369,10 +373,19 @@ Doble aceptación en paralelo: el segundo espera el `FOR UPDATE`, ve `accepted` 
 único `Membership.source_invitation` y el único parcial de membership activa son la red final.
 **Desde la sesión (Q-121, Q-124):** `GET /api/invitations/mine/` lista con `Invitation.pending_for_email(user.email)`
 las `pending`, vigentes y de organización `active` (el mismo filtro del puerto), sin token. `POST
-/api/invitations/{id}/accept/` usa el mismo servicio del diagrama, con estas diferencias: busca la invitación dentro de
-`pending_for_email(user.email)`, así que una de otro email da `invitation_invalid (not_found)` y sigue `pending`; no
-lleva token. No requiere `X-Organization-Id`. Vive en `selectors/invitations.py::list_my_pending` y
-`services/invitation_accept.py`; no hay un segundo camino de aceptación (ADR-0002 §5).
+/api/invitations/{id}/accept/` usa el mismo servicio del diagrama, sin token y sin `X-Organization-Id`, y **no** busca
+dentro de esa lista, porque perdería los estados de abajo. El orden es:
+1. Lee la invitación por `id` con `FOR UPDATE`.
+2. Si no existe, o existe y es de otro email, responde `400 invitation_invalid (reason=not_found)` con **el mismo
+   cuerpo** en los dos casos, sin revelar que existe. Si la fila existe, sigue `pending`, sin membership, y se confirma
+   `invitation.rejected` (motivo `email_mismatch`, actor el usuario, sin el email de nadie), RNF-TEN-04.
+3. Para el titular sigue igual al diagrama desde `status`: `revoked`, `used` y `expired` dan su `reason`, la organización
+   suspendida da `409 organization_suspended` (AC-TEN-28) y ya ser miembro da `409 already_member`.
+
+Vive en `selectors/invitations.py::list_my_pending` y `services/invitation_accept.py`; no hay un segundo camino de
+aceptación (ADR-0002 §5). Riesgos conocidos: este camino no prueba el buzón con el token y depende de `user.email`, que
+se actualiza al loguear, así que quien perdió esa cuenta de Google puede aceptar mientras dure su sesión (hasta 30 días).
+Las rutas no tienen límite propio para autenticados: los ID son UUIDv4 y el alcance es el propio email.
 
 Puerto de SPEC-01 (`TenancyInvitationPort`, `services/invitation_port.py`): firma de `specs/01-identity-access/design.md
 §6.4`. `find_valid_invitations(email, now=)` → `pending`, `expires_at > now`, organización `active`, con `FOR UPDATE`,

@@ -6,8 +6,8 @@ actualizado: 2026-11-06
 
 Reglas: rebanada vertical · ≤ ~300 líneas de diff · mergeable sola · cita AC · lista archivos esperados · incluye su plan de pruebas.
 
-> Entradas: `spec.sdd.md` **Approved 1.0.1**, `design.md` **Aprobado**, `clarifications.md` (incluida "Confirmación
-> (2026-11-06)"), ADR-0001 y ADR-0002 **Aceptados**, `context/08-control-de-versiones-ci-cd.md`.
+> Entradas: `spec.sdd.md` **Approved 1.0.1**, `design.md` **Aprobado** (con los ajustes que indica su cabecera),
+> `clarifications.md` (incluida "Confirmación (2026-11-06)"), ADR-0001 y ADR-0002 **Aceptados**, `context/08-control-de-versiones-ci-cd.md`.
 > **Se cierra junto con SPEC-01 (Q-108):** ninguno de los dos pasa a `Verified` sin el otro. `Invitation` vive acá, y
 > acá se implementan los dos puertos que define SPEC-01: `T-TEN-12` (memberships) y `T-TEN-17` (invitaciones). Esta
 > lista depende de `T-IDA-01`, `T-IDA-06`, `T-IDA-07`, `T-IDA-13`, `T-IDA-27` y `T-IDA-29`.
@@ -297,12 +297,14 @@ T-TEN-30 · suspendida → T-TEN-29.
 - **AC:** AC-TEN-39. RF-TEN-05, RN-TEN-11, Q-121, Q-124. **Zona roja:** sí.
 - **Archivos:** `selectors/invitations.py`, `services/invitation_accept.py`, `api/invitations.py`, `api/urls.py`,
   `backend/tests/cross_tenant/cases/tenancy.py`, `openapi.yaml`, `api.d.ts`, tests.
-- **Cambios:** `GET /api/invitations/mine/` y `POST /api/invitations/{id}/accept/` (`design.md §4.4`); exentas de
-  organización activa. Sin token en ninguna respuesta.
+- **Cambios:** `GET /api/invitations/mine/` y `POST /api/invitations/{id}/accept/` (`design.md §4.4`, con su orden de
+  tres pasos); exentas de organización activa. Sin token en ninguna respuesta.
 - **Fuera:** UI (`T-TEN-30`).
 - **Pruebas:** `test_AC_TEN_39_lists_only_my_email`, `test_AC_TEN_39_response_has_no_token`,
   `test_AC_TEN_39_accept_from_session`, `test_AC_TEN_39_other_email_is_invalid_and_stays_pending`,
-  `test_AC_TEN_39_expired_and_suspended_are_not_listed`.
+  `test_AC_TEN_39_expired_and_suspended_are_not_listed`, `test_AC_TEN_39_foreign_and_missing_same_body`,
+  `test_AC_TEN_39_foreign_attempt_is_audited`, `test_AC_TEN_28_accept_from_session_is_409`,
+  `test_AC_TEN_39_double_accept_one_membership`.
 
 ### T-TEN-17 — `TenancyInvitationPort` (puerto de SPEC-01)
 - **AC:** AC-TEN-17 (vía puerto); AC-IDA-02, 04, 05, 31 con puerto real. RN-TEN-11, RN-IDA-06, Q-108, Q-120. **Zona roja:** sí.
@@ -415,9 +417,12 @@ T-TEN-30 · suspendida → T-TEN-29.
 ### T-TEN-30 — Sin organización y aviso de invitaciones (Q-124)
 - **AC:** AC-TEN-39 (UI). Q-121, Q-124, Q-205. **Zona roja:** sí (acepta una invitación desde la sesión).
 - **Archivos:** `src/app/(dashboard)/sin-organizacion/page.tsx`, `src/modules/tenancy/components/PendingInvitationsNotice.tsx`,
-  `src/modules/tenancy/hooks/useMyInvitations.ts`, `src/app/(dashboard)/inicio/page.tsx`, `src/modules/identity/components/NoOrganizationState.tsx`, tests.
+  `src/modules/tenancy/hooks/useMyInvitations.ts`, `src/app/(dashboard)/inicio/page.tsx`, `src/modules/identity/components/NoOrganizationState.tsx`,
+  `env.example`, `backend/tests/config/test_AC_PLT_05_env_example_parity.py`, tests.
 - **Cambios:** aviso en "Inicio" y en "sin organización": una persona sin memberships también puede tener invitaciones
-  (AC-TEN-31). Sin invitaciones, el aviso no se muestra.
+  (AC-TEN-31). Sin invitaciones, el aviso no se muestra. `NEXT_PUBLIC_OPERATOR_CONTACT` se declara en `env.example` y en
+  `FRONTEND_SERVER_VARS` del test: `test_AC_PLT_05_frontend_server_vars_match_what_the_bff_reads` falla ante un
+  `process.env` sin declarar.
 - **Pruebas:** `test_AC_TEN_39` en `PendingInvitationsNotice.test.tsx` (lista, acepta, refresca organizaciones, errores).
 
 ### T-TEN-31 — Pantalla `/invitacion`

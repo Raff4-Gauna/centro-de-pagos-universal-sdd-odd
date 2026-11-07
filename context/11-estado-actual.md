@@ -1,9 +1,9 @@
 ---
 actualizado: 2026-11-06
-ultimo_commit: 82cd31c
-ultimo_pr: "#56"
-modulo_activo: 00-platform
-fase: cierre (Implemented pendiente)
+ultimo_commit: 7329a7a
+ultimo_pr: "#60"
+modulo_activo: 01-identity-access
+fase: implementación (00 en cierre, Implemented pendiente)
 ---
 
 # Estado actual del proyecto
@@ -35,11 +35,11 @@ fase: cierre (Implemented pendiente)
 - **Q-063, ampliada por el dueño:** todo PR que agregue o cambie un archivo de `.github/workflows/` lo mergea él, no
   solo los de `zona-roja.yml`. #48 (Q-063), #52 (scope drift) y #55 (Q-057) los mergeó Claude con autorización
   puntual del dueño, citada en cada PR.
-- **Dependabot:** 7 PR abiertos desde el 2026-11-03 (#25–#31), sin triaje: un grupo de parches (#25) y seis saltos de
-  versión mayor (Django 6.1, redis 8, Tailwind 4, mypy 2, django-stubs-ext 6, @types/node 26). #26 (mypy) falla en
-  `typecheck`. Sus checks son de cuando se abrieron: 8 jobs, sin `migrations`.
-- **01 y 02:** specs y diseños aprobados, ADR-0001 y ADR-0002 aceptados, `tasks.md` creados (2026-11-06). Se pueden
-  implementar en cuanto esa rama esté en `main`.
+- **Dependabot:** #62 reemplaza a #25 (parches de DRF y psycopg). Seis saltos de versión mayor sin triaje, #26 a #31
+  (Django 6.1, redis 8, Tailwind 4, mypy 2, django-stubs-ext 6, @types/node 26). #26 (mypy) falla en `typecheck`.
+- **01 y 02:** specs y diseños aprobados, con los ajustes que indica la cabecera del diseño de 02; ADR-0001 y ADR-0002
+  aceptados; `tasks.md` creados (2026-11-06). Se pueden implementar en cuanto esa rama esté en `main`, salvo `T-IDA-04`
+  y `T-IDA-08`, que esperan que el dueño acepte ADR-0004.
 - **04:** sin redactar; es el bloqueo de `06-charges`.
 - **S-001 (Mercado Pago sandbox):** **sin ejecutar**. Es el mayor riesgo abierto del roadmap.
 - **Skills:** antes de esta sesión no existían; ahora están `sdd-verification` y `reviewer-verdict`.

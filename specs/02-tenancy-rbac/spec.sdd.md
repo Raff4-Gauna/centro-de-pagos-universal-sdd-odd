@@ -404,9 +404,10 @@ auditada (`C-05`). Una invitación vencida se rechaza al aceptar aunque todavía
   **entonces** la creación se acepta; en otra organización ambos valores se aceptan siempre.
 - **AC-TEN-39** (RN-TEN-11, Q-121, Q-124) **Dado** un usuario autenticado y una invitación `pending` y vigente de B
   para su email **cuando** pide `GET /api/invitations/mine/` **entonces** recibe esa invitación con organización, rol y
-  vencimiento, sin token y sin invitaciones de otro email; **cuando** la acepta desde la sesión **entonces** existe una
-  membership `active` con ese rol y la invitación queda `accepted`; **y** aceptar por ID una invitación de otro email
-  da `invitation_invalid`, sin membership, y esa invitación sigue `pending`.
+  vencimiento, sin token, sin invitaciones de otro email y sin las de una organización `suspended`; **cuando** la acepta
+  desde la sesión **entonces** existe una membership `active` con ese rol y la invitación queda `accepted`; **y** aceptar
+  por ID una invitación de otro email da `invitation_invalid` con el mismo cuerpo que un ID inexistente, sin membership,
+  esa invitación sigue `pending` y queda `invitation.rejected`.
 - **AC-TEN-40** (RN-TEN-10, RN-TEN-11, Q-124) **Dado** un usuario con membership en A **cuando** el operador crea B
   indicando el email de ese usuario **entonces** existe la invitación `owner` y ninguna membership en B, y su siguiente
   login no la acepta; **cuando** la acepta desde la sesión **entonces** B tiene exactamente un owner.
@@ -467,7 +468,7 @@ La tabla AC → tareas está en `tasks.md` ("Cobertura AC → tareas"); la matri
 | 0.2.0 | 2026-10-31 | Estado → *Clarified*. Se incorporan las decisiones Q-201…Q-219 a §3/§4/§5/§6/§7/§9/§10/§11/§12/§14; matriz completa con columnas "sin membership" y operador, más §4.1 (organización suspendida); nuevas RN-TEN-18…21; nuevas AC-TEN-25…35; organización activa por header y JWT sin rol/organización (acuerdo con SPEC-01); Invitation implementa el puerto de SPEC-01; Q-012/Q-027 tratadas como decididas; nuevas Q-220 (dirigida a 04/05) y Q-221…Q-224 (no bloqueantes); insumos para ADR-0001/0002 en §15 | Decisiones del usuario del 2026-10-31 (clarify) |
 | 0.3.0 | 2026-10-31 | Estado → *Designed*. Se agrega `design.md` (header `X-Organization-Id`, resolución en permiso DRF con 1 consulta, `TenantQuerySet` que falla cerrado, matriz como código, locks sobre `Organization`, contratos, UI, pruebas) y ADR-0001 / ADR-0002 (*Propuestos*). Q-221…Q-224 registradas como decididas por defecto (confirmables antes de *Approved*); nuevas Q-225…Q-227 (no bloqueantes). Sin cambios en RN/RF/AC | Paso 3 SDD (architect) |
 | 1.0.0 | 2026-10-31 | Estado → **Approved** por el dueño. Confirmadas Q-221…Q-224 (defaults) y decididas Q-225…Q-227 con su recomendación: RNF-TEN-04 suma `invitation.expired`, `invitation.auto_revoked`, `transition.rejected` y `purpose`; nuevos AC-TEN-36 (Q-223), AC-TEN-37 (Q-225), AC-TEN-38 (Q-226/227) | Gate humano *Approved* (2026-10-31) |
-| 1.0.1 | 2026-11-06 | Q-221…Q-224 pasan a decididas por el usuario. **Q-124 de SPEC-01:** quien ya tiene usuario ve sus invitaciones pendientes en la sesión y las acepta adentro del Hub; RN-TEN-11, RF-TEN-05, §4, §11, §12 y §14 lo incorporan, con `GET /api/invitations/mine/`, `POST /api/invitations/{id}/accept/` y nuevos AC-TEN-39 y AC-TEN-40. Nueva Q-228 (admin de Django, abierta). §17 apunta a `tasks.md` | Decisiones del dueño del 2026-11-06, que reemplazan la de Q-124 del 2026-10-31 |
+| 1.0.1 | 2026-11-06 | Q-221…Q-224 pasan a decididas por el usuario. **Q-124 de SPEC-01:** quien ya tiene usuario ve sus invitaciones pendientes en la sesión y las acepta adentro del Hub; RN-TEN-11, RF-TEN-05, §4, §11, §12 y §14 lo incorporan, con `GET /api/invitations/mine/`, `POST /api/invitations/{id}/accept/` y nuevos AC-TEN-39 y AC-TEN-40. Nueva Q-228 (admin de Django, abierta). §17 apunta a `tasks.md` | Decisiones del dueño del 2026-11-06, que reemplazan la de Q-124 del 2026-10-31. El dueño decidió el flujo; el contrato lo redactó `task-planner` y recibió su OK en el PR #61 |
 
 ---
 **Hecho:** spec Approved 1.0.1: 21 RN, 9 RF, 7 RNF y 40 AC; `design.md` aprobado; ADR-0001 y ADR-0002 aceptados;

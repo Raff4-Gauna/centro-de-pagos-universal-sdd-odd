@@ -7,7 +7,8 @@ actualizado: 2026-11-06
 Reglas: rebanada vertical · ≤ ~300 líneas de diff · mergeable sola · cita AC · lista archivos esperados · incluye su plan de pruebas.
 
 > Entradas: `spec.sdd.md` **Approved 1.0.1**, `design.md` **Aprobado**, `clarifications.md` (incluida "Confirmación
-> (2026-11-06)"), ADR-0004 (Propuesto), `context/08-control-de-versiones-ci-cd.md`.
+> (2026-11-06)"), ADR-0004 (Propuesto: `T-IDA-04` y `T-IDA-08` no arrancan hasta que el dueño lo acepte),
+> `context/08-control-de-versiones-ci-cd.md`.
 > **Se cierra junto con SPEC-02 (Q-108):** ninguno de los dos pasa a `Verified` sin el otro.
 > `specs/02-tenancy-rbac/tasks.md` depende de `T-IDA-01`, `T-IDA-06`, `T-IDA-07`, `T-IDA-13`, `T-IDA-27` y `T-IDA-29`.
 > Lo que cruza de vuelta: `T-TEN-12`, `T-TEN-17` y `T-TEN-18` cierran AC de este módulo con los puertos reales.
@@ -73,7 +74,7 @@ El diseño se escribió antes de que existiera el código de SPEC-00. Donde difi
 | T-IDA-11 | Reglas del callback y usuario existente | AC-IDA-09 (callback), AC-IDA-29, AC-IDA-30 | Servicio | `domain/login_rules.py`, `services/user_provisioning.py` | T-IDA-03, T-IDA-05 | backend-dev | L | Sí | ☐ | |
 | T-IDA-12 | Usuario nuevo por invitación y carrera de callbacks | AC-IDA-02, AC-IDA-03, AC-IDA-04, AC-IDA-05, AC-IDA-31 | Servicio | `services/user_provisioning.py` | T-IDA-11 | backend-dev | L | Sí | ☐ | |
 | T-IDA-13 | Completar login: orquestación y vista | AC-IDA-01, AC-IDA-03, AC-IDA-06, AC-IDA-08, AC-IDA-09, AC-IDA-20, AC-IDA-24 (login) | Servicio/API | `services/login_complete.py`, `api/views_bff.py` | T-IDA-10, T-IDA-12 | backend-dev | L | Sí | ☐ | |
-| T-IDA-14 | Refresh: rotación y vencimientos | AC-IDA-09 (refresh), AC-IDA-14, AC-IDA-16 | Servicio/API | `services/refresh.py`, `api/views_bff.py` | T-IDA-06, T-IDA-09 | backend-dev | L | Sí | ☐ | |
+| T-IDA-14 | Refresh: rotación y vencimientos | AC-IDA-09 (refresh), AC-IDA-14, AC-IDA-16, AC-IDA-22 | Servicio/API | `services/refresh.py`, `api/views_bff.py` | T-IDA-06, T-IDA-09 | backend-dev | L | Sí | ☐ | |
 | T-IDA-15 | Refresh: gracia, reuso y concurrencia | AC-IDA-15, AC-IDA-20 (refresh), AC-IDA-28 | Servicio | `services/refresh.py` | T-IDA-14 | backend-dev | M | Sí | ☐ | |
 | T-IDA-16 | Logout | AC-IDA-17 (backend), AC-IDA-35 | Servicio/API | `services/logout.py`, `api/views_bff.py` | T-IDA-14 | backend-dev | M | Sí | ☐ | |
 | T-IDA-17 | Sesiones propias: listar y revocar | AC-IDA-25, AC-IDA-26, AC-IDA-33 (API) | Servicio/API | `services/sessions.py`, `api/views_sessions.py`, `domain/client_hint.py` | T-IDA-06, T-IDA-13 | backend-dev | L | Sí | ☐ | |
@@ -172,17 +173,20 @@ módulos se aprueba en la misma pasada, después de `T-TEN-36`.
   `backend/tests/migrations/test_AC_PLT_17_roundtrip_guard.py`.
 - **Cambios:** `--allow-data-loss` no mira a qué BD apunta y la de CI se llama `hub`, igual que la de desarrollo: un
   chequeo por nombre obligaría a cambiar `ci.yml` (Q-063). Por eso se mira el contenido: antes del primer `migrate`,
-  si alguna tabla de las apps verificadas ya existe y tiene filas, sale con 2 nombrando BD y tabla, sin ningún valor.
+  si cualquier tabla de la BD salvo `django_migrations` tiene filas (`EXISTS` real, no estadísticas), sale con 2
+  nombrando BD y tabla, sin ningún valor. Son todas y no solo las de las apps pedidas: `migrate identity zero` también
+  revierte lo que depende de `identity`.
   Imprime siempre a qué BD apunta (nombre y host, nunca la URL).
 - **Fuera:** cambiar el job `migrations`; `AGENTS.md` sigue válido.
 - **Pruebas:** `test_AC_PLT_17_refuses_database_with_rows`, `test_AC_PLT_17_empty_tables_pass`,
-  `test_AC_PLT_17_refusal_shows_no_values`, sobre la BD sintética de `tests/migrations/conftest.py`.
+  `test_AC_PLT_17_refusal_shows_no_values`, `test_AC_PLT_17_labels_still_check_dependent_tables`, sobre la BD sintética de `tests/migrations/conftest.py`.
 
 ### T-IDA-01 — `User` + `AUTH_USER_MODEL` + migración 0001
 - **AC:** AC-IDA-31 (normalización). RN-IDA-04, RNF-IDA-05, RNF-IDA-06. **Zona roja:** sí.
 - **Archivos:** `backend/apps/identity/{__init__,apps}.py`, `models/{__init__,user}.py`, `domain/{__init__,emails,profile}.py`,
   `migrations/0001_users.py`, `backend/config/settings/base.py`, `backend/tests/identity/test_AC_IDA_31_normalization.py`,
-  `test_user_constraints.py`.
+  `test_user_constraints.py`, `backend/tests/migrations/test_AC_PLT_17_reversibility.py` (afirma "Round trip passed for
+  0 app(s)": deja de ser cierto con la primera app migrada).
 - **Cambios:** tabla `users` de `design.md §5`, con `CHECK` de email normalizado y `CHECK is_active = (deactivated_at IS
   NULL)`; `USERNAME_FIELD = "google_sub"`; manager sin `create_superuser`; contraseña inutilizable. **D-03 se mantiene:**
   sin ningún `django.contrib.*` instalado; `AbstractBaseUser` se importa de `base_user`. Si algo lo exigiera, es scope

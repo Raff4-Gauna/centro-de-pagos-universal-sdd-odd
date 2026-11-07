@@ -10,7 +10,7 @@ version_spec: 1.0.21
 
 ## 0. Alcance y método
 
-- Spec verificada: `specs/00-platform/spec.sdd.md` v1.0.21 (`Approved`), la de `main` en `82cd31c`. Las
+- Spec verificada: `specs/00-platform/spec.sdd.md` v1.0.21 (`Approved`), la de `main` en `7329a7a`. Las
   versiones 1.0.17 a 1.0.21 no cambian AC.
 - Tareas: `specs/00-platform/tasks.md` (estado conciliado con git el 2026-11-06).
 - Método: matriz AC→test sobre el árbol real, revisión de la cadena de CI y checklist manual.
