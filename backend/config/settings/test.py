@@ -60,5 +60,8 @@ IDENTITY_JWT_VERIFICATION_KEYS = {
 }
 del _jwt_key
 
+# Every audit event of the suite stays in memory, where the tests read it (design.md §9).
+AUDIT_SINK = "apps.common.audit.sinks.RecordingSink"
+
 # Drop the env object: it must not outlive the settings it fed (C-06).
 del _env

@@ -36,6 +36,10 @@ IDENTITY_INVITATION_PORT = "apps.identity.ports.stubs.NullInvitationPort"
 IDENTITY_MEMBERSHIP_SELECTOR = "apps.identity.ports.stubs.EmptyMembershipSelector"
 IDENTITY_AUDIT_PORT = "apps.identity.ports.stubs.LogAuditPort"
 
+# Sink of apps.common.audit (SPEC-02 design.md §3.1): a stub until SPEC-10 brings the transactional
+# one, which is the production gate of design.md §10. A fixed dotted path, not from the environment.
+AUDIT_SINK = "apps.common.audit.sinks.StructlogAuditSink"
+
 # The BFF's credential (ADR-0004 §9), masked because error reports render settings and this name
 # does not match their filter (C-06).
 IDENTITY_BFF_CREDENTIALS = load_bff_credentials()

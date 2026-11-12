@@ -50,7 +50,7 @@ Donde el diseño y el código de SPEC-00, o el orden real, difieren, manda esta 
 
 ## Resumen
 
-> T-TEN-01 en revisión; las demás sin empezar. La columna **Evidencia** es obligatoria para `✅` y la verifica `scripts/check_spec_state.py`.
+> T-TEN-01 y T-TEN-10 en revisión; las demás sin empezar. La columna **Evidencia** es obligatoria para `✅` y la verifica `scripts/check_spec_state.py`.
 
 | ID | Título | AC | Capa | Archivos esperados (ver detalle) | Depende de | Agente | Tamaño | Zona roja | Estado | Evidencia |
 |---|---|---|---|---|---|---|---|---|---|---|
@@ -63,7 +63,7 @@ Donde el diseño y el código de SPEC-00, o el orden real, difieren, manda esta 
 | T-TEN-07 | Reglas de roles (`decide_*`) | AC-TEN-13, AC-TEN-15, AC-TEN-16, AC-TEN-27 (decisión) | Dominio | `apps/tenancy/domain/role_rules.py` | T-TEN-05 | backend-dev | L | Sí | ☐ | |
 | T-TEN-08 | Resolución de organización por request | AC-TEN-03, AC-TEN-04, AC-TEN-06, AC-TEN-33 | API | `apps/tenancy/api/{permissions,base}.py`, `apps/tenancy/selectors/resolution.py` | T-TEN-05, T-TEN-06, T-IDA-06 | backend-dev | L | Sí | ☐ | |
 | T-TEN-09 | Suite cross-tenant parametrizada | AC-TEN-12, AC-TEN-33 | Aislamiento | `backend/tests/cross_tenant/*` | T-TEN-08 | backend-dev | L | Sí | ☐ | |
-| T-TEN-10 | Puerto de auditoría y catálogo | AC-TEN-23 (base) | Base | `apps/common/audit/{port,sinks}.py`, `apps/tenancy/domain/audit_events.py` | T-TEN-01 | backend-dev | M | Sí | ☐ | |
+| T-TEN-10 | Puerto de auditoría y catálogo | AC-TEN-23 (base) | Base | `apps/common/audit/{port,sinks}.py`, `apps/tenancy/domain/audit_events.py` | T-TEN-01 | backend-dev | M | Sí | 🟡 | rama `task/T-TEN-10-audit-port`, sin PR |
 | T-TEN-11 | Locks y tareas por organización | AC-TEN-28 (s2s) | Base | `apps/common/tenancy/{locks,celery}.py`, `apps/tenancy/selectors/locks.py` | T-TEN-08 | backend-dev | L | Sí | ☐ | |
 | T-TEN-12 | `GET /api/organizations/` y selector para `/api/me` | AC-TEN-08, AC-TEN-21, AC-IDA-21 | API | `apps/tenancy/api/organizations.py`, `selectors/memberships.py`, `services/membership_selector.py` | T-TEN-08, T-IDA-07 | backend-dev | M | Sí | ☐ | |
 | T-TEN-13 | Datos de la organización activa | AC-TEN-29 (API) | API | `apps/tenancy/api/organizations.py`, `services/organizations.py`, `domain/tax_id.py` | T-TEN-10, T-TEN-11, T-TEN-12 | backend-dev | L | Sí | ☐ | |
