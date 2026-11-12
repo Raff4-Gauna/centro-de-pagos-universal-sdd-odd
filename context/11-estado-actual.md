@@ -1,7 +1,7 @@
 ---
-actualizado: 2026-11-07
-ultimo_commit: c5c3136
-ultimo_pr: "#65"
+actualizado: 2026-11-12
+ultimo_commit: 4b75be5
+ultimo_pr: "#78"
 modulo_activo: 01-identity-access
 fase: implementación (00 en cierre, Implemented pendiente)
 ---
@@ -12,12 +12,12 @@ fase: implementación (00 en cierre, Implemented pendiente)
 > es `specs/NN-modulo/tasks.md` + `verification.md` + `git log`; si este archivo y git no coinciden, manda git y
 > hay que correr `/reconcile`.
 
-## 1. Dónde estamos (2026-11-06)
+## 1. Dónde estamos (2026-11-12)
 
 | Módulo | Spec | Tareas | Código | Nota |
 |---|---|---|---|---|
 | 00-platform | Approved 1.0.22 | 42 ✅ (42) | 42 de 42 tareas | Verificación **Con hallazgos**; ruleset activo |
-| 01-identity-access | Approved 1.0.2 | 2 ✅ · 30 ☐ (32) | 6 % | Depende de 00; diseño aprobado |
+| 01-identity-access | Approved 1.0.2 | 7 ✅ · 25 ☐ (32) | 22 % | Depende de 00; diseño aprobado |
 | 02-tenancy-rbac | Approved 1.0.2 | 36 ☐ (36) | 0 % | Se cierra junto con 01 (Q-108); diseño aprobado |
 | 03-integrations-engine | Draft | — | 0 % | Falta cerrar el contrato del motor |
 | 04-integration-management | Por redactar | — | 0 % | Bloquea a 06 |
@@ -58,7 +58,8 @@ fase: implementación (00 en cierre, Implemented pendiente)
 1. **Verificación manual de AC-PLT-01** (`verification.md §4`). Antes, el dueño mueve las claves de spikes de su
    `.env` a `spikes/.env`.
 2. **Repetir la verificación** de 00 y marcar las filas `🧪`. Solo el dueño puede pasar la spec a `Verified`.
-3. **Implementar 01 y 02:** la ola 1 y `T-IDA-26`, y seguir por olas en `specs/01-identity-access/tasks.md`.
+3. **Implementar 01 y 02:** ola 2 de 01 (`T-IDA-03`, `T-IDA-08`, después `T-IDA-06`) y ola 0 de 02 (`T-TEN-01`),
+   siguiendo las olas de cada `tasks.md`.
 4. **Redactar la spec 04** (bloquea a 06).
 5. **Ejecutar S-001** antes de diseñar el adaptador de Mercado Pago.
 6. Incorporar el checklist de buenas prácticas de software escalable que el dueño va a pasar; mapearlo contra
@@ -66,9 +67,8 @@ fase: implementación (00 en cierre, Implemented pendiente)
 
 **Además:** los PR que cambien `.github/workflows/` los mergea el dueño (Q-063).
 
-**Pendiente técnico:**
-- `scripts/smoke_stack.py` necesita el mecanismo de URL de ejemplo para rutas `[id]` y no debe contar un 3xx como
-  página revisada (línea 257): lo cierra `T-IDA-26`, antes de la primera ruta protegida (`T-IDA-28`).
+**Pendiente técnico:** el smoke ya no cuenta un 3xx como página revisada y tiene URL de ejemplo para `[id]`
+(`T-IDA-26`, #66). Falta documentarlo en `specs/00-platform/design.md:95` y en `verification.md` de 00.
 
 ## 4. Cómo retomar en 5 minutos
 
@@ -91,7 +91,21 @@ fase: implementación (00 en cierre, Implemented pendiente)
 
 ## 6. Pie de la última sesión
 
-- **Hecho:** reconciliación final de 00 con git sobre `82cd31c` (42 ✅) y `verification.md` al día (33 ✔ / 1 ⚠). Ruleset aplicado y probado en vivo (#58, #59).
-- **Merges de la sesión:** #48, #50 a #56. Worklog: `context/worklog/2026-11-06-reconcile-00c.md`.
-- **Pendiente / dudas:** Q-028 (SPEC-12), S-001 sin ejecutar.
-- **Siguiente rol sugerido:** el dueño corre AC-PLT-01; después `qa-verifier` repite la verificación de 00.
+- **Hecho:** ola 0 y ola 1 de 01 mergeadas: `T-IDA-00` (#63), `01` (#65), `26` (#66), `05` (#76), `02` (#75), `04` (#79)
+  y `09` (#78). #74 enlaza el squash de #65, que salió sin el ID, y el script local de merge (fuera del repo) ahora pasa
+  el título del PR como asunto del squash.
+- **Merges de las sesiones del 2026-11-06 al 12:** #61 a #66, #74 a #76, #78 y #79.
+- **En revisión:** `T-IDA-03` (#83), `T-IDA-08` (#84) y `T-TEN-01` (#82); sus filas pasan a 🟡 con cada PR.
+- **Notas que van a las fichas cuando arranque cada tarea:**
+  - `T-IDA-10`: `title` de `rate_limited` en español en `apps/common/api/problems.py`; pasar `IDENTITY_JWT_*` e
+    `IDENTITY_BFF_CREDENTIALS` en `infra/docker-compose.yml`.
+  - `T-IDA-11`/`13`: nivel propio del logger `audit` en la primera tarea que llame a `record`.
+  - `T-IDA-14`/`15`: tests de servicio de AC-IDA-15, 16 y 28; `used_at` y `now` del mismo reloj.
+  - `T-IDA-20`: `IDENTITY_BFF_CREDENTIALS` distinta de `IDENTITY_JWT_SIGNING_KEY` y de `DJANGO_SECRET_KEY` (design §7.5).
+  - `T-IDA-28`: probar que `return_to` no se refleje en la página.
+- **Dependabot:** #80 (Django 5.2.19 + psycopg + ruff, tomarlo pronto; reemplaza a #70), #81 (reemplaza a #72), #68,
+  #73 y #67 (toca `.github/actions/`).
+- **Pendiente / dudas:** ignorar Python en `docker` de `.github/dependabot.yml` (#69). `--write` sin `--spec` sale con 2
+  porque 01 no tiene marcadores; rompe el paso 6 de `/reconcile`. Q-028, S-001 sin ejecutar, AC-PLT-01.
+- **Siguiente rol sugerido:** `reviewer` en #82, #83 y #84; después `backend-dev` en
+  `T-IDA-06`.

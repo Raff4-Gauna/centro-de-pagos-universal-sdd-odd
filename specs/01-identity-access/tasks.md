@@ -62,14 +62,14 @@ El diseño se escribió antes de que existiera el código de SPEC-00. Donde difi
 |---|---|---|---|---|---|---|---|---|---|---|
 | T-IDA-00 | Guarda de `check_migrations_roundtrip` (deuda de 00) | AC-PLT-17 (regresión) | Migraciones | `check_migrations_roundtrip.py` | — | backend-dev | M | Sí | ✅ | #63 · c57db14 |
 | T-IDA-01 | `User` + `AUTH_USER_MODEL` + migración 0001 | AC-IDA-31 (normalización) | DB | `apps/identity/models/user.py`, `domain/emails.py`, `domain/profile.py` | T-IDA-00 | backend-dev | L | Sí | ✅ | #65 · c5c3136 |
-| T-IDA-02 | Reglas puras de sesión y formato de secretos | AC-IDA-15, AC-IDA-16, AC-IDA-28 (decisión) | Dominio | `domain/session_policy.py`, `domain/secrets_format.py`, `domain/errors.py` | T-IDA-01 | backend-dev | M | Sí | 🟡 | PR abierto |
+| T-IDA-02 | Reglas puras de sesión y formato de secretos | AC-IDA-15, AC-IDA-16, AC-IDA-28 (decisión) | Dominio | `domain/session_policy.py`, `domain/secrets_format.py`, `domain/errors.py` | T-IDA-01 | backend-dev | M | Sí | ✅ | #75 · c8d2e52 |
 | T-IDA-03 | `AuthSession`, `RefreshToken` + migración 0002 | AC-IDA-14 (solo hash), AC-IDA-16 (constraints) | DB | `models/auth_session.py`, `models/refresh_token.py`, `services/session_lifecycle.py` | T-IDA-02 | backend-dev | L | Sí | ☐ | |
-| T-IDA-04 | JWT del Hub: claves, emisión y verificación | AC-IDA-10, AC-IDA-11, AC-IDA-12, AC-IDA-13, AC-IDA-34 | Dominio | `tokens/keys.py`, `tokens/access_token.py`, `backend/pyproject.toml` | T-IDA-01 | backend-dev | L | Sí | 🟡 | PR abierto |
-| T-IDA-05 | Puertos, stubs, registro y catálogo de auditoría | AC-IDA-24 (catálogo) | Puertos | `ports/*`, `domain/audit_events.py` | T-IDA-01 | backend-dev | M | Sí | 🟡 | PR abierto |
+| T-IDA-04 | JWT del Hub: claves, emisión y verificación | AC-IDA-10, AC-IDA-11, AC-IDA-12, AC-IDA-13, AC-IDA-34 | Dominio | `tokens/keys.py`, `tokens/access_token.py`, `backend/pyproject.toml` | T-IDA-01 | backend-dev | L | Sí | ✅ | #79 · a2060e2 |
+| T-IDA-05 | Puertos, stubs, registro y catálogo de auditoría | AC-IDA-24 (catálogo) | Puertos | `ports/*`, `domain/audit_events.py` | T-IDA-01 | backend-dev | M | Sí | ✅ | #76 · ce80fcb |
 | T-IDA-06 | `HubJWTAuthentication` y deny-by-default | AC-IDA-10, AC-IDA-11, AC-IDA-12, AC-IDA-22, AC-IDA-26, AC-IDA-34 | API | `api/authentication.py`, `selectors/auth_sessions.py`, `config/settings/base.py` | T-IDA-03, T-IDA-04 | backend-dev | L | Sí | ☐ | |
 | T-IDA-07 | `GET /api/me` | AC-IDA-21, AC-IDA-22, AC-IDA-30 (API) | API | `api/views_me.py`, `api/urls.py`, `api/serializers.py` | T-IDA-05, T-IDA-06 | backend-dev | M | Sí | ☐ | |
 | T-IDA-08 | Gateway de Google + validación del ID token | AC-IDA-07, AC-IDA-08 (`nonce`), AC-IDA-36 | Integración | `oidc/google_gateway.py`, `oidc/id_token.py`, `tests/fakes/google.py` | T-IDA-04 | backend-dev | L | Sí | ☐ | |
-| T-IDA-09 | Credencial BFF, IP del cliente y throttles | AC-IDA-20, AC-IDA-37 | API | `api/bff_auth.py`, `api/client_ip.py`, `api/throttles.py`, `tests/config/test_RF_PLT_19_feature_flags.py` | T-IDA-01 | backend-dev | M | Sí | 🟡 | PR abierto |
+| T-IDA-09 | Credencial BFF, IP del cliente y throttles | AC-IDA-20, AC-IDA-37 | API | `api/bff_auth.py`, `api/client_ip.py`, `api/throttles.py`, `tests/config/test_RF_PLT_19_feature_flags.py` | T-IDA-01 | backend-dev | M | Sí | ✅ | #78 · 4b75be5 |
 | T-IDA-10 | Iniciar login: `LoginAttempt` + migración 0003 | AC-IDA-19 (servidor), AC-IDA-20, AC-IDA-37 | DB/API | `models/login_attempt.py`, `domain/return_path.py`, `services/login_start.py`, `api/views_bff.py`, `infra/docker-compose.yml` | T-IDA-08, T-IDA-09 | backend-dev | L | Sí | ☐ | |
 | T-IDA-11 | Reglas del callback y usuario existente | AC-IDA-09 (callback), AC-IDA-29, AC-IDA-30 | Servicio | `domain/login_rules.py`, `services/user_provisioning.py` | T-IDA-03, T-IDA-05 | backend-dev | L | Sí | ☐ | |
 | T-IDA-12 | Usuario nuevo por invitación y carrera de callbacks | AC-IDA-02, AC-IDA-03, AC-IDA-04, AC-IDA-05, AC-IDA-31 | Servicio | `services/user_provisioning.py` | T-IDA-11 | backend-dev | L | Sí | ☐ | |
@@ -86,7 +86,7 @@ El diseño se escribió antes de que existiera el código de SPEC-00. Donde difi
 | T-IDA-23 | BFF: CSRF y refresh con coalescencia | AC-IDA-19 (CSRF), AC-IDA-28 (BFF) | BFF | `src/lib/server/{csrf,refresh}.ts` | T-IDA-14, T-IDA-22 | frontend-dev | M | Sí | ☐ | |
 | T-IDA-24 | Route Handlers de inicio y callback | AC-IDA-01 (cookies), AC-IDA-18, AC-IDA-19 | BFF | `app/api/auth/google/{start,callback}/route.ts` | T-IDA-13, T-IDA-22 | frontend-dev | M | Sí | ☐ | |
 | T-IDA-25 | Route Handlers de logout y organización activa | AC-IDA-17 (cookies) | BFF | `app/api/auth/logout/route.ts`, `app/api/session/active-organization/route.ts` | T-IDA-16, T-IDA-23 | frontend-dev | M | Sí | ☐ | |
-| T-IDA-26 | Smoke: 3xx y URL de ejemplo (deuda de 00) | AC-PLT-29 (regresión) | CI | `scripts/smoke_stack.py`, `scripts/smoke_pages.py`, `scripts/tests/test_smoke_stack.py`, `scripts/tests/test_smoke_pages.py`, `scripts/tests/test_smoke_stack_wiring.py`, `scripts/tests/test_smoke_client_bundle.py` | — | backend-dev | M | Sí | 🟡 | PR abierto |
+| T-IDA-26 | Smoke: 3xx y URL de ejemplo (deuda de 00) | AC-PLT-29 (regresión) | CI | `scripts/smoke_stack.py`, `scripts/smoke_pages.py`, `scripts/tests/test_smoke_stack.py`, `scripts/tests/test_smoke_pages.py`, `scripts/tests/test_smoke_stack_wiring.py`, `scripts/tests/test_smoke_client_bundle.py` | — | backend-dev | M | Sí | ✅ | #66 · 5910ea9 |
 | T-IDA-27 | Proxy con sesión: Bearer, CSRF y refresh transparente | AC-IDA-18, AC-IDA-26 (UX), AC-IDA-28 | BFF | `src/lib/server/session-proxy.ts`, `src/lib/api-client.ts`, `context/07-frontend-ui-guidelines.md` | T-IDA-23 | frontend-dev | L | Sí | ☐ | |
 | T-IDA-28 | Pantalla "Ingresar" y protección de rutas | AC-IDA-19 (UI) | UI | `src/proxy.ts`, `app/(auth)/login/page.tsx`, `src/modules/identity/components/{LoginCard,LoginErrorAlert}.tsx`, `src/modules/identity/lib/login-errors.ts`, `scripts/smoke_pages.py`, `scripts/tests/test_smoke_pages.py` | T-IDA-24, T-IDA-26, T-IDA-27 | frontend-dev | M | Sí | ☐ | |
 | T-IDA-29 | Mi perfil, menú de usuario y "sin empresas" | AC-IDA-30 (UI) | UI | `src/modules/identity/components/{ProfileCard,UserMenu,NoOrganizationState}.tsx` | T-IDA-07, T-IDA-25, T-IDA-28 | frontend-dev | M | No | ☐ | |
@@ -246,10 +246,15 @@ módulos se aprueba en la misma pasada, después de `T-TEN-36`.
 - **AC:** AC-IDA-10, 11, 12, 22, 26 (`401 session_revoked`), 34 (nivel API). RF-IDA-03, RN-IDA-19, RN-IDA-20, RNF-IDA-02.
   **Zona roja:** sí.
 - **Archivos:** `apps/identity/api/authentication.py`, `selectors/auth_sessions.py`, `config/settings/base.py`,
-  `backend/tests/identity/api/test_authentication.py`, tests de 00 que dependan de `AllowAny`.
+  `tokens/access_token.py` (unificación), `backend/tests/identity/api/test_authentication.py`, tests de 00 que
+  dependan de `AllowAny`.
 - **Cambios:** una consulta por PK con `JOIN users`, sin caché ni escrituras; `401` con `WWW-Authenticate: Bearer
   realm="hub"`; `DEFAULT_AUTHENTICATION_CLASSES` y `DEFAULT_PERMISSION_CLASSES = IsAuthenticated`, como anuncia
   `base.py`. Las rutas públicas de 00 (`/healthz`, `/readyz`, esquema en dev) quedan explícitamente abiertas.
+- **Unificar (nota del reviewer de #79):** el TTL de 15 min está en `domain/session_policy.py`
+  (`ACCESS_TOKEN_LIFETIME`) y en `tokens/access_token.py` (`ACCESS_TOKEN_TTL_SECONDS`), y los códigos
+  `token_expired`/`token_invalid` en `domain/errors.py` y como literales en `tokens/access_token.py`. Esta tarea deja
+  una sola fuente para cada uno, por eso `tokens/access_token.py` entra en su alcance.
 - **Fuera:** `/api/me`, refresh.
 - **Pruebas:** `test_AC_IDA_22_api_key_is_not_a_session`, `test_AC_IDA_26_revoked_session_next_request_401`,
   `test_AC_IDA_10_expired_via_api`, `test_AC_IDA_11_bad_signature_via_api`, `test_AC_IDA_12_google_token_is_401`,
@@ -523,4 +528,4 @@ módulos se aprueba en la misma pasada, después de `T-TEN-36`.
 ---
 **Hecho:** 32 tareas, 38 AC y 10 RF cubiertos, olas y división de archivos.
 **Pendiente / dudas:** ninguna de 01.
-**Siguiente rol sugerido:** `backend-dev` en la ola 1 (`T-IDA-02`, `04`, `05`, `09`) y `T-IDA-26`; después `reviewer`.
+**Siguiente rol sugerido:** `reviewer` en `T-IDA-03` (#83) y `T-IDA-08` (#84); después `backend-dev` en `T-IDA-06`.
