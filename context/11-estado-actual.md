@@ -92,9 +92,10 @@ fase: implementación (00 en cierre, Implemented pendiente)
 ## 6. Pie de la última sesión
 
 - **Hecho:** ola 0 y ola 1 de 01 mergeadas: `T-IDA-00` (#63), `01` (#65), `26` (#66), `05` (#76), `02` (#75), `04` (#79)
-  y `09` (#78). #74 enlaza el squash de #65, que salió sin el ID, y `pr.sh` ahora pasa el título del PR como asunto.
-- **Merges de las sesiones del 2026-11-07 al 12:** #61 a #66, #74 a #76, #78 y #79.
-- **En curso:** `T-IDA-03`, `T-IDA-08` y `T-TEN-01`, en paralelo, cada una en su worktree.
+  y `09` (#78). #74 enlaza el squash de #65, que salió sin el ID, y el script local de merge (fuera del repo) ahora pasa
+  el título del PR como asunto del squash.
+- **Merges de las sesiones del 2026-11-06 al 12:** #61 a #66, #74 a #76, #78 y #79.
+- **En revisión:** `T-IDA-03` (#83), `T-IDA-08` (#84) y `T-TEN-01` (#82); sus filas pasan a 🟡 con cada PR.
 - **Notas que van a las fichas cuando arranque cada tarea:**
   - `T-IDA-10`: `title` de `rate_limited` en español en `apps/common/api/problems.py`; pasar `IDENTITY_JWT_*` e
     `IDENTITY_BFF_CREDENTIALS` en `infra/docker-compose.yml`.
@@ -102,8 +103,9 @@ fase: implementación (00 en cierre, Implemented pendiente)
   - `T-IDA-14`/`15`: tests de servicio de AC-IDA-15, 16 y 28; `used_at` y `now` del mismo reloj.
   - `T-IDA-20`: `IDENTITY_BFF_CREDENTIALS` distinta de `IDENTITY_JWT_SIGNING_KEY` y de `DJANGO_SECRET_KEY` (design §7.5).
   - `T-IDA-28`: probar que `return_to` no se refleje en la página.
-- **Dependabot:** #70 (Django 5.2.19, tomarlo pronto), #68, #72, #73, #80, #81, y #67 (toca `.github/actions/`).
+- **Dependabot:** #80 (Django 5.2.19 + psycopg + ruff, tomarlo pronto; reemplaza a #70), #81 (reemplaza a #72), #68,
+  #73 y #67 (toca `.github/actions/`).
 - **Pendiente / dudas:** ignorar Python en `docker` de `.github/dependabot.yml` (#69). `--write` sin `--spec` sale con 2
   porque 01 no tiene marcadores; rompe el paso 6 de `/reconcile`. Q-028, S-001 sin ejecutar, AC-PLT-01.
-- **Siguiente rol sugerido:** `reviewer` en los PR de `T-IDA-03`, `T-IDA-08` y `T-TEN-01`; después `backend-dev` en
+- **Siguiente rol sugerido:** `reviewer` en #82, #83 y #84; después `backend-dev` en
   `T-IDA-06`.
