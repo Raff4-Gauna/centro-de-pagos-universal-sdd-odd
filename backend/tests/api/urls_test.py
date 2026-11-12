@@ -19,6 +19,7 @@ from django.http import Http404, HttpRequest, HttpResponseBase, JsonResponse
 from django.urls import URLPattern, URLResolver, path
 from rest_framework import serializers
 from rest_framework.exceptions import Throttled
+from rest_framework.permissions import AllowAny
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -86,7 +87,10 @@ class Payload(serializers.Serializer[dict[str, Any]]):
 
 class ProblemView(APIView):
     """GET raises what ``?outcome=`` asks for (Django exceptions carry the sentinel in their
-    message); POST validates ``Payload``."""
+    message); POST validates ``Payload``. Open on purpose: the API denies by default (SPEC-01), and
+    these tests are about the error envelope and the throttle of an anonymous client."""
+
+    permission_classes = (AllowAny,)
 
     def get(self, request: Request) -> Response:
         outcome = request.query_params.get("outcome")
