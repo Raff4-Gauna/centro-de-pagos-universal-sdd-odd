@@ -68,7 +68,7 @@ El diseño se escribió antes de que existiera el código de SPEC-00. Donde difi
 | T-IDA-05 | Puertos, stubs, registro y catálogo de auditoría | AC-IDA-24 (catálogo) | Puertos | `ports/*`, `domain/audit_events.py` | T-IDA-01 | backend-dev | M | Sí | 🟡 | PR abierto |
 | T-IDA-06 | `HubJWTAuthentication` y deny-by-default | AC-IDA-10, AC-IDA-11, AC-IDA-12, AC-IDA-22, AC-IDA-26, AC-IDA-34 | API | `api/authentication.py`, `selectors/auth_sessions.py`, `config/settings/base.py` | T-IDA-03, T-IDA-04 | backend-dev | L | Sí | 🟡 | rama `task/T-IDA-06-hub-jwt-auth`, sin PR |
 | T-IDA-07 | `GET /api/me` | AC-IDA-21, AC-IDA-22, AC-IDA-30 (API) | API | `api/views_me.py`, `api/urls.py`, `api/serializers.py` | T-IDA-05, T-IDA-06 | backend-dev | M | Sí | ☐ | |
-| T-IDA-08 | Gateway de Google + validación del ID token | AC-IDA-07, AC-IDA-08 (`nonce`), AC-IDA-36 | Integración | `oidc/google_gateway.py`, `oidc/id_token.py`, `tests/fakes/google.py` | T-IDA-04 | backend-dev | L | Sí | ☐ | |
+| T-IDA-08 | Gateway de Google + validación del ID token | AC-IDA-07, AC-IDA-08 (`nonce`), AC-IDA-36 | Integración | `oidc/google_gateway.py`, `oidc/id_token.py`, `tests/fakes/google.py` | T-IDA-04 | backend-dev | L | Sí | 🟡 | rama `task/T-IDA-08-google-gateway`, sin PR |
 | T-IDA-09 | Credencial BFF, IP del cliente y throttles | AC-IDA-20, AC-IDA-37 | API | `api/bff_auth.py`, `api/client_ip.py`, `api/throttles.py`, `tests/config/test_RF_PLT_19_feature_flags.py` | T-IDA-01 | backend-dev | M | Sí | 🟡 | PR abierto |
 | T-IDA-10 | Iniciar login: `LoginAttempt` + migración 0003 | AC-IDA-19 (servidor), AC-IDA-20, AC-IDA-37 | DB/API | `models/login_attempt.py`, `domain/return_path.py`, `services/login_start.py`, `api/views_bff.py`, `infra/docker-compose.yml` | T-IDA-08, T-IDA-09 | backend-dev | L | Sí | ☐ | |
 | T-IDA-11 | Reglas del callback y usuario existente | AC-IDA-09 (callback), AC-IDA-29, AC-IDA-30 | Servicio | `domain/login_rules.py`, `services/user_provisioning.py` | T-IDA-03, T-IDA-05 | backend-dev | L | Sí | ☐ | |
@@ -278,6 +278,10 @@ módulos se aprueba en la misma pasada, después de `T-TEN-36`.
 - **Fuera:** decisiones de acceso (`T-IDA-11`), `dev_oidc` (`T-IDA-20`).
 - **Pruebas:** `test_AC_IDA_07_{bad_signature,foreign_aud,foreign_iss,expired}`, `test_AC_IDA_08_nonce_mismatch`,
   `test_AC_IDA_36_{timeout,5xx,429,jwks_down}_is_unavailable`, `test_RNF_IDA_01_unknown_kid_refreshes_once`.
+- **Nota de implementación:** `GoogleGateway` e `IdTokenVerifier` reciben un `GoogleOidcConfig` explícito. Las
+  variables `IDENTITY_GOOGLE_*` e `IDENTITY_OIDC_PROVIDER` quedan validadas en `env.py`, pero esta ficha no lista
+  `config/settings/{dev,test,prod}.py` y no se exponen como settings de Django todavía. Lo hace la primera tarea que
+  arme el gateway desde settings (`T-IDA-10`), junto con el verificador único por proceso que conserva el caché de JWKS.
 
 ### T-IDA-09 — Credencial BFF, IP del cliente y throttles
 - **AC:** AC-IDA-20, AC-IDA-37. RN-IDA-15. **Zona roja:** sí.

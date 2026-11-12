@@ -24,6 +24,9 @@ dependencies = [
     # imports it directly: pinned here so it does not depend on what PyJWT's extra resolves to.
     "pyjwt[crypto]==2.15.1",
     "cryptography==50.0.2",
+    # Code exchange with Google's token endpoint, explicit timeouts and no retries (ADR-0004,
+    # design.md sec. 8.1-8.2, C-13).
+    "httpx==0.28.1",
 ]
 
 [dependency-groups]

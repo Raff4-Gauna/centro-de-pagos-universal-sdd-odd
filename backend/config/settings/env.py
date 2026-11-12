@@ -211,6 +211,14 @@ class PlatformEnv(BffCredentialEnv):
     IDENTITY_JWT_SIGNING_KEY: JwtSigningKey = SecretStr("")
     # {kid: public PEM}: the active key and, during a rotation, the previous one.
     IDENTITY_JWT_VERIFICATION_KEYS: JwtVerificationKeys = Field(default_factory=dict)
+    # Login with Google (design.md sec. 8.3). ``fake`` is the OIDC provider of local/test (Q-122);
+    # its startup check is T-IDA-20's. Unset client: the Hub starts, and logging in is impossible.
+    IDENTITY_OIDC_PROVIDER: Literal["google", "fake"] = "google"
+    IDENTITY_GOOGLE_CLIENT_ID: str = ""
+    # A secret of its own, never the JWT key nor DJANGO_SECRET_KEY (RN-IDA-16).
+    IDENTITY_GOOGLE_CLIENT_SECRET: SecretStr = SecretStr("")
+    # https://<app>/api/auth/google/callback, one per environment.
+    IDENTITY_GOOGLE_REDIRECT_URI: str = ""
 
     @model_validator(mode="after")
     def _jwt_signer_verifies_its_own_tokens(self) -> Self:
