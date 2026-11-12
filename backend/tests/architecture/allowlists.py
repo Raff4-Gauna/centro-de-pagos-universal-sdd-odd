@@ -25,7 +25,13 @@ ADAPTER_IMPORT_ALLOWLIST: tuple[AllowEntry, ...] = ()
 
 # C-01: raw manager access (``.objects``, ``._default_manager``, ``._base_manager``) in
 # ``apps/<app>/services/``. SPEC-02 fills it when the tenant-aware managers exist.
-ALLOWED_TENANT_MANAGERS: tuple[AllowEntry, ...] = ()
+# SPEC-01's entities are global (no ``organization_id``): their entries carry that reason.
+_GLOBAL_ENTITY = "entidad global, spec §9 (SPEC-01): sin organization_id, se filtra por PK"
+_SESSION_LIFECYCLE = "apps/identity/services/session_lifecycle.py"
+ALLOWED_TENANT_MANAGERS: tuple[AllowEntry, ...] = (
+    AllowEntry(_SESSION_LIFECYCLE, "AuthSession.objects", _GLOBAL_ENTITY),
+    AllowEntry(_SESSION_LIFECYCLE, "RefreshToken.objects", _GLOBAL_ENTITY),
+)
 
 # C-02: ``FloatField`` in models and ``float`` in domain/services/selectors/api (money_rules.py).
 # Only for a value that is not money (a ratio, a metric) and cannot be a Decimal; never for an
