@@ -38,7 +38,7 @@ def demo_registry(monkeypatch: pytest.MonkeyPatch) -> dict[str, str]:
 def test_RF_PLT_19_flag_off_by_default(
     demo_registry: dict[str, str], settings: SettingsWrapper
 ) -> None:
-    assert load_feature_flags(demo_registry) == {DEMO: False}
+    assert load_feature_flags(demo_registry) == dict.fromkeys(demo_registry, False)
     settings.FEATURE_FLAGS = load_feature_flags(demo_registry)
     assert feature_flags.is_enabled(DEMO) is False
     # A settings module that forgot FEATURE_FLAGS leaves every flag off too.
@@ -64,7 +64,7 @@ def test_RF_PLT_19_empty_variable_counts_as_unset(
 ) -> None:
     monkeypatch.setenv(f"FEATURE_{DEMO}", "")
     monkeypatch.setenv("FEATURE_NOT_REGISTERED", "")
-    assert load_feature_flags(demo_registry) == {DEMO: False}
+    assert load_feature_flags(demo_registry) == dict.fromkeys(demo_registry, False)
 
 
 def test_RF_PLT_19_unregistered_flag_name_raises(demo_registry: dict[str, str]) -> None:

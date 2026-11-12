@@ -14,8 +14,12 @@ from collections.abc import Mapping
 
 from django.conf import settings
 
-# Empty in 00: the first flag comes with the first risky change in a red zone (C-17).
-REGISTRY: dict[str, str] = {}
+REGISTRY: dict[str, str] = {
+    "IDENTITY_GOOGLE_LOGIN": (
+        "Gates login/start and login/complete (503 login_disabled); refresh, logout and open "
+        "sessions go on. Goes away once login with Google is verified in production (ADR-0004 §14)."
+    ),
+}
 
 
 def is_enabled(name: str) -> bool:

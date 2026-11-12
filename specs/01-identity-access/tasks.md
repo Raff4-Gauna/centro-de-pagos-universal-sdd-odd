@@ -69,8 +69,8 @@ El diseño se escribió antes de que existiera el código de SPEC-00. Donde difi
 | T-IDA-06 | `HubJWTAuthentication` y deny-by-default | AC-IDA-10, AC-IDA-11, AC-IDA-12, AC-IDA-22, AC-IDA-26, AC-IDA-34 | API | `api/authentication.py`, `selectors/auth_sessions.py`, `config/settings/base.py` | T-IDA-03, T-IDA-04 | backend-dev | L | Sí | ☐ | |
 | T-IDA-07 | `GET /api/me` | AC-IDA-21, AC-IDA-22, AC-IDA-30 (API) | API | `api/views_me.py`, `api/urls.py`, `api/serializers.py` | T-IDA-05, T-IDA-06 | backend-dev | M | Sí | ☐ | |
 | T-IDA-08 | Gateway de Google + validación del ID token | AC-IDA-07, AC-IDA-08 (`nonce`), AC-IDA-36 | Integración | `oidc/google_gateway.py`, `oidc/id_token.py`, `tests/fakes/google.py` | T-IDA-04 | backend-dev | L | Sí | ☐ | |
-| T-IDA-09 | Credencial BFF, IP del cliente y throttles | AC-IDA-20, AC-IDA-37 | API | `api/bff_auth.py`, `api/client_ip.py`, `api/throttles.py` | T-IDA-01 | backend-dev | M | Sí | ☐ | |
-| T-IDA-10 | Iniciar login: `LoginAttempt` + migración 0003 | AC-IDA-19 (servidor), AC-IDA-20, AC-IDA-37 | DB/API | `models/login_attempt.py`, `domain/return_path.py`, `services/login_start.py`, `api/views_bff.py` | T-IDA-08, T-IDA-09 | backend-dev | L | Sí | ☐ | |
+| T-IDA-09 | Credencial BFF, IP del cliente y throttles | AC-IDA-20, AC-IDA-37 | API | `api/bff_auth.py`, `api/client_ip.py`, `api/throttles.py`, `tests/config/test_RF_PLT_19_feature_flags.py` | T-IDA-01 | backend-dev | M | Sí | 🟡 | PR abierto |
+| T-IDA-10 | Iniciar login: `LoginAttempt` + migración 0003 | AC-IDA-19 (servidor), AC-IDA-20, AC-IDA-37 | DB/API | `models/login_attempt.py`, `domain/return_path.py`, `services/login_start.py`, `api/views_bff.py`, `infra/docker-compose.yml` | T-IDA-08, T-IDA-09 | backend-dev | L | Sí | ☐ | |
 | T-IDA-11 | Reglas del callback y usuario existente | AC-IDA-09 (callback), AC-IDA-29, AC-IDA-30 | Servicio | `domain/login_rules.py`, `services/user_provisioning.py` | T-IDA-03, T-IDA-05 | backend-dev | L | Sí | ☐ | |
 | T-IDA-12 | Usuario nuevo por invitación y carrera de callbacks | AC-IDA-02, AC-IDA-03, AC-IDA-04, AC-IDA-05, AC-IDA-31 | Servicio | `services/user_provisioning.py` | T-IDA-11 | backend-dev | L | Sí | ☐ | |
 | T-IDA-13 | Completar login: orquestación y vista | AC-IDA-01, AC-IDA-03, AC-IDA-06, AC-IDA-08, AC-IDA-09, AC-IDA-20, AC-IDA-24 (login) | Servicio/API | `services/login_complete.py`, `api/views_bff.py` | T-IDA-10, T-IDA-12 | backend-dev | L | Sí | ☐ | |
@@ -280,9 +280,14 @@ módulos se aprueba en la misma pasada, después de `T-TEN-36`.
 ### T-IDA-09 — Credencial BFF, IP del cliente y throttles
 - **AC:** AC-IDA-20, AC-IDA-37. RN-IDA-15. **Zona roja:** sí.
 - **Archivos:** `api/{bff_auth,client_ip,throttles}.py`, `config/settings/{env,base}.py`, `env.example`,
-  `apps/common/feature_flags.py`, `backend/tests/identity/api/test_throttles.py`.
+  `apps/common/feature_flags.py`, `backend/tests/identity/api/test_throttles.py`,
+  `backend/tests/config/test_RF_PLT_19_feature_flags.py` (dos aserciones suponían `REGISTRY` vacío; la flag lo llena).
 - **Cambios:** `IsBffCaller` con comparación en tiempo constante, `404` sin credencial, lista vigente/anterior; IP desde
   `X-Hub-Client-IP` solo con credencial válida; scopes de `design.md §7.6`; flag `IDENTITY_GOOGLE_LOGIN` en `REGISTRY`.
+- **Vistas:** `BffAPIView` (en `bff_auth.py`) responde sin credencial lo mismo que una ruta inexistente (bytes, sin `Allow`),
+  no autentica por `Authorization` y convierte el exceso en `429 rate_limited` (`design.md §6.1`, §6.3).
+- **Redis caído:** los tres throttles heredan el fail-open de D-06; aceptado por el reviewer (#78). Conviene alertar sobre
+  `throttle.cache_unavailable`.
 - **Fuera:** las vistas que los usan (`T-IDA-10`, `13`, `14`).
 - **Pruebas:** `test_AC_IDA_20_key_is_per_ip_and_scope`, `test_AC_IDA_37_ten_client_ips_share_no_quota`,
   `test_client_ip_header_ignored_without_credential`, `test_bff_endpoint_without_credential_is_404`.
@@ -290,9 +295,14 @@ módulos se aprueba en la misma pasada, después de `T-TEN-36`.
 ### T-IDA-10 — Iniciar login: `LoginAttempt` + migración 0003
 - **AC:** AC-IDA-19 (servidor), AC-IDA-20, AC-IDA-37. RF-IDA-01, RN-IDA-13, RNF-IDA-06. **Zona roja:** sí.
 - **Archivos:** `models/login_attempt.py`, `migrations/0003_login_attempts.py`, `domain/return_path.py`,
-  `services/login_start.py`, `api/views_bff.py`, `api/urls.py`, `openapi.yaml`, `api.d.ts`, tests.
+  `services/login_start.py`, `api/views_bff.py`, `api/urls.py`, `infra/docker-compose.yml`,
+  `apps/common/logging/report_filter.py`, `openapi.yaml`, `api.d.ts`, tests.
 - **Cambios:** `POST /api/auth/bff/login/start`; solo hashes salvo `code_verifier`; `503 login_disabled` con el flag
   apagado.
+- **Compose:** `infra/docker-compose.yml` pasa `IDENTITY_BFF_CREDENTIALS` y `FEATURE_*`, para que `auth/bff/*` funcione en dev antes de `T-IDA-27`.
+- **Reportes de error:** adelantado desde `T-IDA-21`: `report_filter.py` oculta `HTTP_X_HUB_BFF_CREDENTIAL`, que empieza a circular acá.
+- **Vistas:** extienden `BffAPIView` (`T-IDA-09`: ya trae `authentication_classes = ()`, el `404` idéntico y
+  `rate_limited`) y declaran `throttle_classes` explícitos.
 - **Fuera:** callback.
 - **Pruebas:** `test_AC_IDA_19_hostile_return_path_goes_home` (absoluto, esquema, `//host`, otro dominio),
   `test_AC_IDA_20_eleventh_start_is_429_without_google`, `test_AC_IDA_37_ten_ips_via_bff_no_429`,
@@ -328,6 +338,8 @@ módulos se aprueba en la misma pasada, después de `T-TEN-36`.
   `backend/tests/identity/api/test_login_complete.py`.
 - **Cambios:** tabla de `design.md §4.2` en orden fijo; `DELETE … RETURNING` del intento. Éxito audita dentro de la
   transacción; rechazo después del rollback, solo con el motivo (**Q-125:** sin email ni `sub`).
+- **Vistas:** extienden `BffAPIView` (`T-IDA-09`: ya trae `authentication_classes = ()`, el `404` idéntico y
+  `rate_limited`) y declaran `throttle_classes` explícitos.
 - **Fuera:** cookies.
 - **Pruebas:** `test_AC_IDA_01_active_user_gets_session`, `test_AC_IDA_03_rejected_is_audited`,
   `test_AC_IDA_06_unverified_email`, `test_AC_IDA_08_bad_state_never_calls_google`, `test_AC_IDA_08_repeated_callback`,
@@ -339,6 +351,11 @@ módulos se aprueba en la misma pasada, después de `T-TEN-36`.
 - **Archivos:** `services/refresh.py`, `api/views_bff.py`, `api/serializers.py`, `openapi.yaml`, `api.d.ts`, tests.
 - **Cambios:** `POST /api/auth/bff/refresh`, camino de rotación de `design.md §4.5` con `FOR UPDATE`; el vencimiento
   materializa `expired`.
+- **Vistas:** extienden `BffAPIView` (`T-IDA-09`: ya trae `authentication_classes = ()`, el `404` idéntico y
+  `rate_limited`) y declaran `throttle_classes` explícitos.
+- **`sid`:** unificar el parseo local de `api/throttles.py` con `domain/secrets_format.py`.
+- **Tope por IP:** el refresh limita solo por `sid`; un `sid` aleatorio con formato válido estrena cupo y no hay tope por IP.
+  Decidirlo acá (planner).
 - **Fuera:** gracia y reuso (`T-IDA-15`).
 - **Pruebas:** `test_AC_IDA_14_rotation_new_pair`, `test_AC_IDA_16_idle_expired_refresh`,
   `test_AC_IDA_16_absolute_expired_refresh`, `test_AC_IDA_16_refresh_never_moves_absolute`,
@@ -396,6 +413,8 @@ módulos se aprueba en la misma pasada, después de `T-TEN-36`.
 - **Cambios:** ver "Ajustes al diseño" por `APP_ENV`; `IdentityConfig.ready()` lanza `ImproperlyConfigured` si
   `IDENTITY_OIDC_PROVIDER=fake` sin `IDENTITY_FAKE_OIDC_ALLOWED`; `checks.py` exige secretos distintos y, en prod, issuer y
   endpoints exactos de Google. `/dev-oidc/*` no se monta en prod.
+- **Credencial BFF:** evaluar una longitud mínima de `IDENTITY_BFF_CREDENTIALS` en prod (hoy no se exige), y que prod
+  rechace el placeholder público de `env.example`.
 - **Pruebas:** `test_RNF_IDA_06_fake_provider_fails_in_prod_settings`, `test_RN_IDA_16_equal_secrets_fail_check`,
   `test_RN_IDA_01_dev_oidc_routes_absent_in_prod`.
 
@@ -404,6 +423,7 @@ módulos se aprueba en la misma pasada, después de `T-TEN-36`.
 - **Archivos:** `apps/common/domain/redaction.py`, servicios que falten eventos, `backend/tests/identity/test_AC_IDA_23_*.py`,
   `test_AC_IDA_24_events.py`.
 - **Cambios:** claves de `design.md §7.5`; eventos `auth.*` con `outcome`/`reason` y `alert=true`.
+- **Reportes de error:** el ocultamiento de `HTTP_X_HUB_BFF_CREDENTIAL` en `report_filter.py` se adelantó a `T-IDA-10`.
 - **Pruebas:** `test_AC_IDA_23_no_secret_in_logs_or_errors` (login, refresh, logout, rechazo),
   `test_AC_IDA_24_every_event_is_emitted`, `test_AC_IDA_24_429_is_not_audited`.
 - **Aviso de `T-IDA-05`:** el logger `audit` hereda el nivel del root, así que con `LOG_LEVEL=WARNING` se pierden los eventos `info`: darle nivel propio en `apps/common/logging/setup.py` (sumarlo a los archivos). Una clave de `metadata` con `session` o `token` sale `[REDACTED]` en ese canal.
@@ -414,6 +434,7 @@ módulos se aprueba en la misma pasada, después de `T-TEN-36`.
   `env.example`, `backend/tests/config/test_AC_PLT_05_env_example_parity.py`, `.github/zona-roja-paths.txt`.
 - **Cambios:** cookies de `design.md §7.1`; agrega `frontend/src/app/api/**`, `frontend/src/lib/server/**` y
   `frontend/src/proxy.ts` a la zona roja, como anuncia ese archivo. Variables `HUB_BFF_CREDENTIAL`, `HUB_APP_ORIGIN`, `HUB_TRUSTED_PROXY_HOPS`.
+- **`django.ts`:** envía `X-Forwarded-Proto: https` (Q-065); sin eso, `SECURE_SSL_REDIRECT` responde 301 en prod.
 - **Fuera:** rutas.
 - **Pruebas:** `test_AC_IDA_18` en `cookies.test.ts` (atributos y prefijo `__Host-`), `test_AC_IDA_19` en
   `return-path.test.ts`, `test_AC_IDA_37` en `client-ip.test.ts`.
@@ -463,6 +484,7 @@ módulos se aprueba en la misma pasada, después de `T-TEN-36`.
   punto de enganche. La sesión, el reintento y la denylist van en `session-proxy.ts`.
 - **Cambios:** `design.md §4.4` y `§6.3`; `404` para `auth/bff/**` y `auth/google/**`; `api-client` manda `X-CSRF-Token` y
   ante `401` va a `/login?error=session_expired`. Aplica `design.md §13` a `07 §3.2`.
+- **Compose:** `infra/docker-compose.yml` ya pasa `IDENTITY_BFF_CREDENTIALS` y `FEATURE_*` desde `T-IDA-10`; acá no se toca.
 - **Pruebas:** `test_AC_IDA_28` (reintento único tras `token_expired`), `test_AC_IDA_26` (`session_revoked` no reintenta y
   borra cookies), `test_AC_IDA_18` (denylist), cookies y `authorization` del navegador nunca se reenvían.
 

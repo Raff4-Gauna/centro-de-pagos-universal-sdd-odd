@@ -7,7 +7,8 @@ whose message holds only variable names and error types, never a value, and rais
 ``except`` block so the pydantic error (which renders the inputs) is neither ``__context__`` nor
 ``__cause__``: no value reaches stderr or a log (AC-PLT-03, C-06). The variables that carry
 credentials are ``SecretStr``/``Secret[...]``, masked in ``repr``, ``str`` and ``model_dump``.
-``load_feature_flags()`` reads the ``FEATURE_*`` variables the same way (RF-PLT-19, §3.2.8).
+``load_feature_flags()`` reads the ``FEATURE_*`` variables the same way (RF-PLT-19, §3.2.8), and
+``load_bff_credentials()`` the one value every settings module takes alike, for ``base.py``.
 """
 
 from __future__ import annotations
@@ -45,6 +46,7 @@ from apps.identity.tokens.keys import is_public_key_of, load_private_key, load_p
 
 FEATURE_PREFIX = "FEATURE_"
 _BOOL_TEXTS = {"true", "false"}
+MAX_BFF_CREDENTIALS = 2
 
 
 def _strict_bool(value: object) -> object:
@@ -143,8 +145,14 @@ JwtVerificationKeys = Annotated[
 ]
 
 
-class PlatformEnv(BaseSettings):
-    """Platform variables. Field names are the variable names (``case_sensitive=True``)."""
+# Current and, during a rotation, previous (design.md §8.3).
+BffCredentials = Annotated[
+    list[SecretStr], NoDecode, BeforeValidator(_csv), Field(max_length=MAX_BFF_CREDENTIALS)
+]
+
+
+class HubEnv(BaseSettings):
+    """Where the variables come from. Field names are the names (``case_sensitive=True``)."""
 
     model_config = SettingsConfigDict(
         env_file=None,
@@ -155,6 +163,29 @@ class PlatformEnv(BaseSettings):
         extra="ignore",
         frozen=True,
     )
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        # Process environment only: no .env file, no secrets directory.
+        return (init_settings, env_settings)
+
+
+class BffCredentialEnv(HubEnv):
+    """Apart from ``PlatformEnv``: ``base.py`` loads it, and runs under every env class."""
+
+    # Accepted in X-Hub-Bff-Credential (ADR-0004 §9). Empty: nobody is accepted, auth/bff/* is 404.
+    IDENTITY_BFF_CREDENTIALS: BffCredentials = Field(default_factory=list)
+
+
+class PlatformEnv(BffCredentialEnv):
+    """Platform variables, the ones ``env.example`` lists (AC-PLT-05)."""
 
     DJANGO_SECRET_KEY: Annotated[SecretStr, Field(min_length=1)]
     DJANGO_DEBUG: EnvBool = False
@@ -194,18 +225,6 @@ class PlatformEnv(BaseSettings):
             raise PydanticCustomError("jwt_signing_key_not_verifiable", "public key not listed")
         return self
 
-    @classmethod
-    def settings_customise_sources(
-        cls,
-        settings_cls: type[BaseSettings],
-        init_settings: PydanticBaseSettingsSource,
-        env_settings: PydanticBaseSettingsSource,
-        dotenv_settings: PydanticBaseSettingsSource,
-        file_secret_settings: PydanticBaseSettingsSource,
-    ) -> tuple[PydanticBaseSettingsSource, ...]:
-        # Process environment only: no .env file, no secrets directory.
-        return (init_settings, env_settings)
-
     def databases(self) -> dict[str, dict[str, Any]]:
         """``DATABASES`` from ``DATABASE_URL``; ``connect_timeout=2`` so /readyz answers fast."""
         url = self.DATABASE_URL.get_secret_value()
@@ -223,7 +242,7 @@ class PlatformEnv(BaseSettings):
         }
 
 
-def describe_errors(env_class: type[PlatformEnv], error: ValidationError) -> str:
+def describe_errors(env_class: type[HubEnv], error: ValidationError) -> str:
     """One line per invalid variable: ``- NAME: error_type``. Never the input nor the URL."""
     lines = []
     for item in error.errors(include_input=False, include_url=False, include_context=False):
@@ -233,7 +252,7 @@ def describe_errors(env_class: type[PlatformEnv], error: ValidationError) -> str
     return "\n".join([header, *sorted(set(lines))])
 
 
-def load_env[EnvT: PlatformEnv](env_class: type[EnvT]) -> EnvT:
+def load_env[EnvT: HubEnv](env_class: type[EnvT]) -> EnvT:
     """Validate the environment with ``env_class``; on failure, raise without any value."""
     try:
         return env_class()
@@ -241,6 +260,11 @@ def load_env[EnvT: PlatformEnv](env_class: type[EnvT]) -> EnvT:
         message = describe_errors(env_class, error)
     # Raised outside the except block: the ValidationError is not even kept as __context__.
     raise ImproperlyConfigured(message)
+
+
+def load_bff_credentials() -> tuple[SecretStr, ...]:
+    """``IDENTITY_BFF_CREDENTIALS``, still masked: a setting is rendered by error reports."""
+    return tuple(load_env(BffCredentialEnv).IDENTITY_BFF_CREDENTIALS)
 
 
 def load_feature_flags(registry: Collection[str]) -> dict[str, bool]:
