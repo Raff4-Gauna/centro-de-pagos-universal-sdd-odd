@@ -11,8 +11,7 @@ return value and, in some paths, the args.
 Most tests run the task in-process with ``Task.apply`` (same signals, no broker) or publish to
 kombu's in-memory transport. The ``integration`` ones run a real worker thread (``start_worker``)
 against the Redis of ``REDIS_URL``: what ``celery -A config worker`` does with a message, minus the
-process. The diagnostic route keeps the API's default since SPEC-01 (deny by default), so the tests
-that call it send a session's access JWT (``bearer``).
+process.
 """
 
 from __future__ import annotations
@@ -27,14 +26,10 @@ from unittest import mock
 import pytest
 from django.conf import settings
 from django.test import Client
-from django.utils import timezone
 
 from apps.common.logging import context, get_logger
 from apps.common.logging.setup import StdoutHandler
 from apps.common.middleware.request_id import REQUEST_ID_HEADER
-from apps.identity.models import User
-from apps.identity.services.session_lifecycle import open_session
-from apps.identity.tokens.access_token import issue_access_token
 from config import celery_app
 from tests.logging.conftest import CapturedLog, StdoutLog, broker_transport, captured
 
@@ -47,14 +42,6 @@ SENTINEL = "celery-" + "sentinel-9b4e"
 # The only fields of the end-of-task event besides the shared ones and the exception description.
 TASK_FIELDS = {"timestamp", "level", "component", "message", "request_id", "task_id", "task_name"}
 FAILURE_FIELDS = {"exception_type", "exception_chain", "exception_frames", "exception_chain_frames"}
-
-
-@pytest.fixture
-def bearer(db: None) -> dict[str, str]:
-    """``Authorization`` of a live session: the diagnostic route needs one (SPEC-01)."""
-    user = User.objects.create_user(google_sub="sub-diagnostic", email="diagnostic@example.com")
-    session = open_session(user, now=timezone.now()).session
-    return {"Authorization": f"Bearer {issue_access_token(user_id=user.pk, session_id=session.pk)}"}
 
 
 @celery_app.task(name="tests.echo")
@@ -158,9 +145,9 @@ def test_AC_PLT_11_celery_trace_logger_is_silenced(stdout_log: StdoutLog) -> Non
 
 
 def test_AC_PLT_11_diagnostic_endpoint_returns_202_with_task_id_and_request_id(
-    client: Client, memory_broker: list[dict[str, Any]], bearer: dict[str, str]
+    client: Client, memory_broker: list[dict[str, Any]]
 ) -> None:
-    response = client.post(DIAGNOSTIC_URL, headers={REQUEST_ID_HEADER: VALID, **bearer})
+    response = client.post(DIAGNOSTIC_URL, headers={REQUEST_ID_HEADER: VALID})
     assert response.status_code == 202
     assert broker_transport() == "memory"  # published in memory, not to REDIS_URL
     body = response.json()
@@ -216,12 +203,9 @@ def test_RN_PLT_05_celery_logging_setup_keeps_the_json_handler(stdout_log: Stdou
 
 @pytest.mark.integration
 def test_AC_PLT_11_task_log_is_json_with_task_id_and_origin_request_id(
-    client: Client,
-    redis_worker: threading.Event,
-    capfd: pytest.CaptureFixture[str],
-    bearer: dict[str, str],
+    client: Client, redis_worker: threading.Event, capfd: pytest.CaptureFixture[str]
 ) -> None:
-    response = client.post(DIAGNOSTIC_URL, headers={REQUEST_ID_HEADER: VALID, **bearer})
+    response = client.post(DIAGNOSTIC_URL, headers={REQUEST_ID_HEADER: VALID})
     assert response.status_code == 202
     task_id = response.json()["task_id"]
     assert redis_worker.wait(timeout=30)

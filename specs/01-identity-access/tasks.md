@@ -246,7 +246,9 @@ módulos se aprueba en la misma pasada, después de `T-TEN-36`.
 - **AC:** AC-IDA-10, 11, 12, 22, 26 (`401 session_revoked`), 34 (nivel API). RF-IDA-03, RN-IDA-19, RN-IDA-20, RNF-IDA-02.
   **Zona roja:** sí.
 - **Archivos:** `apps/identity/api/authentication.py`, `selectors/auth_sessions.py`, `config/settings/base.py`,
-  `backend/tests/identity/api/test_authentication.py`, tests de 00 que dependan de `AllowAny`.
+  `backend/tests/identity/api/test_authentication.py`, tests de 00 que dependan de `AllowAny`,
+  `tokens/access_token.py` (TTL y códigos desde el dominio, revisión de #79) y `apps/common/api/dev_views.py`
+  (ruta de diagnóstico anónima en dev, 00 `design.md §6`).
 - **Cambios:** una consulta por PK con `JOIN users`, sin caché ni escrituras; `401` con `WWW-Authenticate: Bearer
   realm="hub"`; `DEFAULT_AUTHENTICATION_CLASSES` y `DEFAULT_PERMISSION_CLASSES = IsAuthenticated`, como anuncia
   `base.py`. Las rutas públicas de 00 (`/healthz`, `/readyz`, esquema en dev) quedan explícitamente abiertas.

@@ -109,9 +109,12 @@ def token_of(session: AuthSession, *, issued_ago: float = 0) -> str:
     return issue_access_token(user_id=session.user_id, session_id=session.pk, now=moment)
 
 
+def headers_of(authorization: str | None) -> dict[str, str]:
+    return {} if authorization is None else {"Authorization": authorization}
+
+
 def get(client: Client, authorization: str | None, url: str = PROTECTED) -> Any:
-    headers = {} if authorization is None else {"Authorization": authorization}
-    return client.get(url, headers=headers)
+    return client.get(url, headers=headers_of(authorization))
 
 
 def assert_401(response: Any, code: IdentityErrorCode, token: str = "") -> None:
@@ -161,6 +164,17 @@ def test_open_routes_stay_open(client: Client) -> None:
 @pytest.mark.parametrize("route", ["/api/dev/schema/", "/api/dev/docs/"])
 def test_dev_schema_and_docs_stay_open(client: Client, route: str) -> None:
     assert client.get(route).status_code == 200
+
+
+@pytest.mark.urls("config.urls_dev")
+@pytest.mark.parametrize("authorization", [None, "Bearer not-a-token"], ids=["none", "bad-bearer"])
+def test_dev_diagnostic_task_stays_anonymous(client: Client, authorization: str | None) -> None:
+    # 00 design.md §6: anonymous in dev. The task is not under test here, so it is not published.
+    with mock.patch("apps.common.api.dev_views.diagnostic_ping.delay") as delay:
+        delay.return_value.id = "task-id"
+        response = client.post("/api/dev/diagnostic-task/", headers=headers_of(authorization))
+    assert response.status_code == 202
+    assert response.json()["task_id"] == "task-id"
 
 
 def test_bff_routes_keep_their_own_credential(

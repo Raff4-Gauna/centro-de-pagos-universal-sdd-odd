@@ -59,13 +59,13 @@ WSGI_APPLICATION = "config.wsgi.application"
 # the only authentication, never a Django session, cookie or Basic (ADR-0004); a view that declares
 # no permission answers 401 unauthenticated. Open on purpose: /healthz and /readyz (plain Django
 # views, outside DRF), the dev-only schema and Swagger UI (drf-spectacular's SERVE_PERMISSIONS,
-# AllowAny) and auth/bff/* (BffAPIView, its own credential). No anonymous user object (no
-# django.contrib.auth, D-03): request.user is None until authenticated. JSON only (no browsable
-# API); every error as application/problem+json (T-PLT-15); drf-spectacular's schema (T-PLT-18); one
-# global throttle for anonymous clients (T-PLT-16, RN-PLT-19) whose rate the throttle reads at
-# runtime from API_THROTTLE_ANON_RATE, so DEFAULT_THROTTLE_RATES stays out. NUM_PROXIES=0 keys it on
-# REMOTE_ADDR (DRF's None would trust any X-Forwarded-For); dev/test/prod set both from the
-# environment.
+# AllowAny), the dev-only diagnostic task (anonymous, 00 design §6) and auth/bff/* (BffAPIView,
+# its own credential). No anonymous user object (no django.contrib.auth, D-03): request.user is
+# None until authenticated. JSON only (no browsable API); every error as application/problem+json
+# (T-PLT-15); drf-spectacular's schema (T-PLT-18); one global throttle for anonymous clients
+# (T-PLT-16, RN-PLT-19) whose rate the throttle reads at runtime from API_THROTTLE_ANON_RATE, so
+# DEFAULT_THROTTLE_RATES stays out. NUM_PROXIES=0 keys it on REMOTE_ADDR (DRF's None would trust
+# any X-Forwarded-For); dev/test/prod set both from the environment.
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": ["apps.identity.api.authentication.HubJWTAuthentication"],
     "DEFAULT_PERMISSION_CLASSES": ["apps.identity.api.authentication.IsAuthenticated"],
