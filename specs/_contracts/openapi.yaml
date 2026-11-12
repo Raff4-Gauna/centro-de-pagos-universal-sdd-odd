@@ -1,10 +1,90 @@
 openapi: 3.0.3
 info:
   title: Centro de Pagos Universal API
-  version: 0.1.0
-paths: {}
+  version: 0.2.0
+paths:
+  /api/me/:
+    get:
+      operationId: me_retrieve
+      summary: La persona autenticada y sus memberships activas
+      tags:
+      - identity
+      security:
+      - HubBearer: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Me'
+          description: ''
+        '401':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: 'code: unauthenticated · token_expired · token_invalid · session_revoked
+            (con WWW-Authenticate: Bearer realm="hub")'
+        4XX:
+          description: Error del cliente
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        5XX:
+          description: Error del servidor
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
 components:
   schemas:
+    Me:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        email:
+          type: string
+          format: email
+          readOnly: true
+        display_name:
+          type: string
+          readOnly: true
+        avatar_url:
+          type: string
+          nullable: true
+          readOnly: true
+        memberships:
+          type: array
+          items:
+            $ref: '#/components/schemas/Membership'
+          readOnly: true
+      required:
+      - avatar_url
+      - display_name
+      - email
+      - id
+      - memberships
+    Membership:
+      type: object
+      properties:
+        organization_id:
+          type: string
+          format: uuid
+          readOnly: true
+        organization_name:
+          type: string
+          readOnly: true
+        role:
+          type: string
+          readOnly: true
+      required:
+      - organization_id
+      - organization_name
+      - role
     Problem:
       type: object
       description: Sobre único de error (RFC 9457), media type application/problem+json.
@@ -60,3 +140,8 @@ components:
       - field
       - code
       - message
+  securitySchemes:
+    HubBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT

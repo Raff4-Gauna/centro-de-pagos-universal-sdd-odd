@@ -16,7 +16,7 @@ from typing import Any
 
 from apps.common.api.problems import PROBLEM_CONTENT_TYPE
 
-API_VERSION = "0.1.0"
+API_VERSION = "0.2.0"
 PUBLIC_URLCONF = "config.urls"
 
 PROBLEM = "Problem"

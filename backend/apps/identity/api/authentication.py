@@ -13,6 +13,9 @@ that is open on purpose (``AllowAny``) still answers an anonymous caller.
 
 ``IsAuthenticated`` is the default permission (deny by default): a view that declares none refuses
 an anonymous caller with ``401 unauthenticated`` (DRF's own says ``not_authenticated``).
+
+``HubBearerScheme`` documents it in the contract as the ``HubBearer`` security scheme; it lives here
+so that drf-spectacular finds it whenever it resolves the class (it registers on import).
 """
 
 from __future__ import annotations
@@ -20,6 +23,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from django.utils import timezone
+from drf_spectacular.extensions import OpenApiAuthenticationExtension
 from rest_framework import exceptions, permissions
 from rest_framework.authentication import BaseAuthentication, get_authorization_header
 
@@ -28,6 +32,7 @@ from apps.identity.selectors.auth_sessions import RequestAuthContext, get_reques
 from apps.identity.tokens.access_token import AccessTokenError, verify_access_token
 
 if TYPE_CHECKING:
+    from drf_spectacular.openapi import AutoSchema
     from rest_framework.request import Request
     from rest_framework.views import APIView
 
@@ -86,3 +91,13 @@ class IsAuthenticated(permissions.IsAuthenticated):
         if not super().has_permission(request, view):
             raise Unauthenticated
         return True
+
+
+class HubBearerScheme(OpenApiAuthenticationExtension):
+    """``HubJWTAuthentication`` in the OpenAPI contract: ``Authorization: Bearer <Hub JWT>``."""
+
+    target_class = HubJWTAuthentication
+    name = "HubBearer"
+
+    def get_security_definition(self, auto_schema: AutoSchema) -> dict[str, str]:
+        return {"type": "http", "scheme": "bearer", "bearerFormat": "JWT"}
