@@ -264,6 +264,7 @@ módulos se aprueba en la misma pasada, después de `T-TEN-36`.
   `frontend/src/types/api.d.ts`, `backend/tests/identity/api/test_AC_IDA_21_me.py`.
   También `api/authentication.py`: `HubBearerScheme` publica `HubJWTAuthentication` como `securitySchemes.HubBearer`
   (observación del reviewer de #85; vive junto a la clase para que drf-spectacular la registre al resolverla).
+  Y `apps/common/api/schema.py`: `API_VERSION` 0.1.0 → 0.2.0 (versión del contrato; un endpoint nuevo sube la minor).
 - **Cambios:** primera rebanada autenticada completa, con `memberships: []` del stub.
 - **Fuera:** selector real (`T-TEN-12`).
 - **Pruebas:** `test_AC_IDA_21_returns_only_own_data`, `test_AC_IDA_21_anonymous_is_401_unauthenticated`,
