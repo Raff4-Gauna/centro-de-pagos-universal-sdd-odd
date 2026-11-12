@@ -44,6 +44,8 @@ IDENTITY_BFF_CREDENTIALS = load_bff_credentials()
 # right after Security, so it times and logs everything the rest of the chain answers.
 MIDDLEWARE = [
     "apps.common.middleware.request_id.RequestIdMiddleware",
+    # Every request starts and ends without a tenant (SPEC-02, design.md §3.1).
+    "apps.common.tenancy.middleware.TenantContextMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "apps.common.middleware.access_log.AccessLogMiddleware",
     "django.middleware.common.CommonMiddleware",

@@ -27,6 +27,9 @@ backend/tests/architecture/**
 # charges: money, charge states and refunds; webhooks: webhooks and idempotency;
 # reconciliation: money. (SPEC-01 adds frontend/src/app/api/** and frontend/src/lib/server/**.)
 backend/apps/{identity,tenancy,integrations,charges,webhooks,reconciliation}/**
+# Shared tenancy base reused by every module (SPEC-02, T-TEN-01): tenant context and scope, roles and
+# permission checks, audit port. Roles and organization_id isolation, like apps/tenancy itself.
+backend/apps/common/{tenancy,authz,audit}/**
 
 # --- The gate itself (Q-058, decided by the owner 2026-10-31) ---
 .github/**
