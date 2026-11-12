@@ -67,7 +67,7 @@ El diseño se escribió antes de que existiera el código de SPEC-00. Donde difi
 | T-IDA-04 | JWT del Hub: claves, emisión y verificación | AC-IDA-10, AC-IDA-11, AC-IDA-12, AC-IDA-13, AC-IDA-34 | Dominio | `tokens/keys.py`, `tokens/access_token.py`, `backend/pyproject.toml` | T-IDA-01 | backend-dev | L | Sí | 🟡 | PR abierto |
 | T-IDA-05 | Puertos, stubs, registro y catálogo de auditoría | AC-IDA-24 (catálogo) | Puertos | `ports/*`, `domain/audit_events.py` | T-IDA-01 | backend-dev | M | Sí | 🟡 | PR abierto |
 | T-IDA-06 | `HubJWTAuthentication` y deny-by-default | AC-IDA-10, AC-IDA-11, AC-IDA-12, AC-IDA-22, AC-IDA-26, AC-IDA-34 | API | `api/authentication.py`, `selectors/auth_sessions.py`, `config/settings/base.py` | T-IDA-03, T-IDA-04 | backend-dev | L | Sí | 🟡 | rama `task/T-IDA-06-hub-jwt-auth`, sin PR |
-| T-IDA-07 | `GET /api/me` | AC-IDA-21, AC-IDA-22, AC-IDA-30 (API) | API | `api/views_me.py`, `api/urls.py`, `api/serializers.py` | T-IDA-05, T-IDA-06 | backend-dev | M | Sí | ☐ | |
+| T-IDA-07 | `GET /api/me` | AC-IDA-21, AC-IDA-22, AC-IDA-30 (API) | API | `api/views_me.py`, `api/urls.py`, `api/serializers.py` | T-IDA-05, T-IDA-06 | backend-dev | M | Sí | 🟡 | rama `task/T-IDA-07-api-me`, sin PR |
 | T-IDA-08 | Gateway de Google + validación del ID token | AC-IDA-07, AC-IDA-08 (`nonce`), AC-IDA-36 | Integración | `oidc/google_gateway.py`, `oidc/id_token.py`, `tests/fakes/google.py` | T-IDA-04 | backend-dev | L | Sí | 🟡 | rama `task/T-IDA-08-google-gateway`, sin PR |
 | T-IDA-09 | Credencial BFF, IP del cliente y throttles | AC-IDA-20, AC-IDA-37 | API | `api/bff_auth.py`, `api/client_ip.py`, `api/throttles.py`, `tests/config/test_RF_PLT_19_feature_flags.py` | T-IDA-01 | backend-dev | M | Sí | 🟡 | PR abierto |
 | T-IDA-10 | Iniciar login: `LoginAttempt` + migración 0003 | AC-IDA-19 (servidor), AC-IDA-20, AC-IDA-37 | DB/API | `models/login_attempt.py`, `domain/return_path.py`, `services/login_start.py`, `api/views_bff.py`, `infra/docker-compose.yml` | T-IDA-08, T-IDA-09 | backend-dev | L | Sí | ☐ | |
@@ -262,6 +262,8 @@ módulos se aprueba en la misma pasada, después de `T-TEN-36`.
 - **AC:** AC-IDA-21, AC-IDA-22, AC-IDA-30 (API). RF-IDA-06, RN-IDA-18, RN-IDA-22. **Zona roja:** sí.
 - **Archivos:** `api/{views_me,urls,serializers}.py`, `config/urls.py`, `specs/_contracts/openapi.yaml`,
   `frontend/src/types/api.d.ts`, `backend/tests/identity/api/test_AC_IDA_21_me.py`.
+  También `api/authentication.py`: `HubBearerScheme` publica `HubJWTAuthentication` como `securitySchemes.HubBearer`
+  (observación del reviewer de #85; vive junto a la clase para que drf-spectacular la registre al resolverla).
 - **Cambios:** primera rebanada autenticada completa, con `memberships: []` del stub.
 - **Fuera:** selector real (`T-TEN-12`).
 - **Pruebas:** `test_AC_IDA_21_returns_only_own_data`, `test_AC_IDA_21_anonymous_is_401_unauthenticated`,

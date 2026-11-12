@@ -8,7 +8,7 @@ urlconf used as ROOT_URLCONF re-exports these two handlers.
 
 from __future__ import annotations
 
-from django.urls import URLPattern, URLResolver, path
+from django.urls import URLPattern, URLResolver, include, path
 
 from apps.common.health import views as health_views
 
@@ -18,4 +18,6 @@ handler500 = "apps.common.api.exceptions.server_error"
 urlpatterns: list[URLPattern | URLResolver] = [
     path("healthz", health_views.healthz, name="healthz"),
     path("readyz", health_views.readyz, name="readyz"),
+    # SPEC-01: /api/me/ (T-IDA-07); the sessions and auth/bff/* routes join it in the same urlconf.
+    path("api/", include("apps.identity.api.urls")),
 ]
