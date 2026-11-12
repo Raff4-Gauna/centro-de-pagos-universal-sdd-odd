@@ -8,14 +8,14 @@ version = "0.0.0"
 description = "Centro de Pagos Universal - Django + DRF backend"
 requires-python = "==3.12.*"
 dependencies = [
-    "django==5.2.18",
+    "django==5.2.19",
     # 3.18.2 (Q-059, owner review 2026-11-01): fixes three high advisories of 3.16.1. Its stubs
     # stay at 3.16.9 (dev group): the 3.18 stubs need django-stubs>=6, which targets Django 6.
     "djangorestframework==3.18.3",
     # Celery 5.6.3 pulls kombu 5.6.2, which needs redis<6.5 (Q-059).
     "celery[redis]==5.6.3",
     "redis==6.4.0",
-    "psycopg[binary]==3.3.7",
+    "psycopg[binary]==3.3.8",
     "pydantic-settings==2.16.2",
     "structlog==26.1.0",
     "drf-spectacular==0.30.0",
@@ -31,7 +31,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
-    "ruff==0.17.3",
+    "ruff==0.17.4",
     # django-stubs 5.2.9 requires mypy<1.20.
     "mypy==1.19.1",
     # Pinned so uv does not move to django-stubs 6.x, which targets Django 6.
