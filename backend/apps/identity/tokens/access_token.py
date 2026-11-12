@@ -18,27 +18,30 @@ from django.conf import settings
 from django.utils import timezone
 from jwt.exceptions import ExpiredSignatureError, InvalidTokenError
 
+from apps.identity.domain.errors import IdentityErrorCode
+from apps.identity.domain.session_policy import ACCESS_TOKEN_LIFETIME
 from apps.identity.tokens.keys import active_signing_key, verification_key
 
 ALGORITHMS = ["ES256"]
 TOKEN_TYPE = "at+jwt"  # noqa: S105 - the JOSE `typ`, not a credential
-ACCESS_TOKEN_TTL_SECONDS = 900
+# The 15 minutes and the error codes live in the domain (RN-IDA-11, spec §11): one source each.
+ACCESS_TOKEN_TTL_SECONDS = int(ACCESS_TOKEN_LIFETIME.total_seconds())
 CLOCK_SKEW_SECONDS = 60
 REQUIRED_CLAIMS = ["exp", "iat", "nbf", "iss", "aud", "sub", "sid"]
 
 
 class AccessTokenError(Exception):
-    code: ClassVar[str]
+    code: ClassVar[IdentityErrorCode]
 
 
 class AccessTokenExpiredError(AccessTokenError):
     """Expired past the tolerance, and nothing else is wrong with it."""
 
-    code = "token_expired"
+    code = IdentityErrorCode.TOKEN_EXPIRED
 
 
 class AccessTokenInvalidError(AccessTokenError):
-    code = "token_invalid"
+    code = IdentityErrorCode.TOKEN_INVALID
 
 
 @dataclass(frozen=True, slots=True)

@@ -66,7 +66,7 @@ El diseño se escribió antes de que existiera el código de SPEC-00. Donde difi
 | T-IDA-03 | `AuthSession`, `RefreshToken` + migración 0002 | AC-IDA-14 (solo hash), AC-IDA-16 (constraints) | DB | `models/auth_session.py`, `models/refresh_token.py`, `services/session_lifecycle.py` | T-IDA-02 | backend-dev | L | Sí | 🟡 | |
 | T-IDA-04 | JWT del Hub: claves, emisión y verificación | AC-IDA-10, AC-IDA-11, AC-IDA-12, AC-IDA-13, AC-IDA-34 | Dominio | `tokens/keys.py`, `tokens/access_token.py`, `backend/pyproject.toml` | T-IDA-01 | backend-dev | L | Sí | 🟡 | PR abierto |
 | T-IDA-05 | Puertos, stubs, registro y catálogo de auditoría | AC-IDA-24 (catálogo) | Puertos | `ports/*`, `domain/audit_events.py` | T-IDA-01 | backend-dev | M | Sí | 🟡 | PR abierto |
-| T-IDA-06 | `HubJWTAuthentication` y deny-by-default | AC-IDA-10, AC-IDA-11, AC-IDA-12, AC-IDA-22, AC-IDA-26, AC-IDA-34 | API | `api/authentication.py`, `selectors/auth_sessions.py`, `config/settings/base.py` | T-IDA-03, T-IDA-04 | backend-dev | L | Sí | ☐ | |
+| T-IDA-06 | `HubJWTAuthentication` y deny-by-default | AC-IDA-10, AC-IDA-11, AC-IDA-12, AC-IDA-22, AC-IDA-26, AC-IDA-34 | API | `api/authentication.py`, `selectors/auth_sessions.py`, `config/settings/base.py` | T-IDA-03, T-IDA-04 | backend-dev | L | Sí | 🟡 | rama `task/T-IDA-06-hub-jwt-auth`, sin PR |
 | T-IDA-07 | `GET /api/me` | AC-IDA-21, AC-IDA-22, AC-IDA-30 (API) | API | `api/views_me.py`, `api/urls.py`, `api/serializers.py` | T-IDA-05, T-IDA-06 | backend-dev | M | Sí | ☐ | |
 | T-IDA-08 | Gateway de Google + validación del ID token | AC-IDA-07, AC-IDA-08 (`nonce`), AC-IDA-36 | Integración | `oidc/google_gateway.py`, `oidc/id_token.py`, `tests/fakes/google.py` | T-IDA-04 | backend-dev | L | Sí | ☐ | |
 | T-IDA-09 | Credencial BFF, IP del cliente y throttles | AC-IDA-20, AC-IDA-37 | API | `api/bff_auth.py`, `api/client_ip.py`, `api/throttles.py`, `tests/config/test_RF_PLT_19_feature_flags.py` | T-IDA-01 | backend-dev | M | Sí | 🟡 | PR abierto |
@@ -246,7 +246,9 @@ módulos se aprueba en la misma pasada, después de `T-TEN-36`.
 - **AC:** AC-IDA-10, 11, 12, 22, 26 (`401 session_revoked`), 34 (nivel API). RF-IDA-03, RN-IDA-19, RN-IDA-20, RNF-IDA-02.
   **Zona roja:** sí.
 - **Archivos:** `apps/identity/api/authentication.py`, `selectors/auth_sessions.py`, `config/settings/base.py`,
-  `backend/tests/identity/api/test_authentication.py`, tests de 00 que dependan de `AllowAny`.
+  `backend/tests/identity/api/test_authentication.py`, tests de 00 que dependan de `AllowAny`,
+  `tokens/access_token.py` (TTL y códigos desde el dominio, revisión de #79) y `apps/common/api/dev_views.py`
+  (ruta de diagnóstico anónima en dev, 00 `design.md §6`).
 - **Cambios:** una consulta por PK con `JOIN users`, sin caché ni escrituras; `401` con `WWW-Authenticate: Bearer
   realm="hub"`; `DEFAULT_AUTHENTICATION_CLASSES` y `DEFAULT_PERMISSION_CLASSES = IsAuthenticated`, como anuncia
   `base.py`. Las rutas públicas de 00 (`/healthz`, `/readyz`, esquema en dev) quedan explícitamente abiertas.
