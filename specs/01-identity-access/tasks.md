@@ -319,7 +319,8 @@ módulos se aprueba en la misma pasada, después de `T-TEN-36`.
 
 ### T-IDA-11 — Reglas del callback y usuario existente
 - **AC:** AC-IDA-09 (callback), AC-IDA-29, AC-IDA-30. RF-IDA-02, RN-IDA-03, 05 caso (a), 07, 21, 22. **Zona roja:** sí.
-- **Archivos:** `domain/login_rules.py`, `selectors/users.py`, `services/user_provisioning.py` (caso a), tests.
+- **Archivos:** `domain/login_rules.py`, `selectors/users.py`, `services/user_provisioning.py` (caso a),
+  `apps/common/logging/setup.py` (nivel propio del logger `audit`, primera tarea que audita), tests.
 - **Cambios:** `evaluate_identity` (`email_verified` ∈ `True`/`"true"`); `_sync_existing_user`: email libre actualiza y
   audita, colisión no cambia y audita, nombre y avatar se sincronizan; `sub` nuevo con email ajeno → `identity_conflict`
   con alerta. **Q-121:** el caso (a) no llama al puerto de invitaciones.
@@ -340,6 +341,9 @@ módulos se aprueba en la misma pasada, después de `T-TEN-36`.
   `test_AC_IDA_03_no_invitation_creates_nothing`, `test_AC_IDA_04_expired_or_revoked_is_not_invited`,
   `test_AC_IDA_05_accept_failure_rolls_back_all`, `test_AC_IDA_31_alias_is_not_invited`.
 - **División (`C-14`):** el test de carrera va en archivo propio; `user_provisioning.py` queda ≤ 250 líneas.
+- **Nota de T-IDA-11:** la diferencia entre `lower()` de Python y de PostgreSQL para algunos caracteres no ASCII
+  puede hacer fallar `users_email_normalized` en el alta del caso (b). T-IDA-12 la maneja sin confundirla con la
+  carrera; si hace falta una regla nueva, se abre un `Q-xxx`.
 
 ### T-IDA-13 — Completar login: orquestación y vista
 - **AC:** AC-IDA-01, 03, 06, 08, 09, 20, 24 (login). RF-IDA-02, RN-IDA-17. **Zona roja:** sí.
