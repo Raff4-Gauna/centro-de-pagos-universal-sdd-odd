@@ -38,6 +38,13 @@ REST_FRAMEWORK = {**REST_FRAMEWORK, "NUM_PROXIES": _env.TRUSTED_PROXY_COUNT}
 LOGGING = logging_config(_env.LOG_LEVEL)
 # RF-PLT-19: read through apps.common.feature_flags.is_enabled, never directly.
 FEATURE_FLAGS = load_feature_flags(FEATURE_REGISTRY)
+# The Hub's access JWT (ADR-0004 sec. 5), read through apps.identity.tokens. Masked in error reports
+# by the KEY rule of CredentialSafeReporterFilter (C-06).
+IDENTITY_JWT_ISSUER = _env.IDENTITY_JWT_ISSUER
+IDENTITY_JWT_AUDIENCE = _env.IDENTITY_JWT_AUDIENCE
+IDENTITY_JWT_SIGNING_KID = _env.IDENTITY_JWT_SIGNING_KID
+IDENTITY_JWT_SIGNING_KEY = _env.IDENTITY_JWT_SIGNING_KEY.get_secret_value()
+IDENTITY_JWT_VERIFICATION_KEYS = _env.IDENTITY_JWT_VERIFICATION_KEYS
 
 # Drop the env object: it must not outlive the settings it fed (C-06).
 del _env

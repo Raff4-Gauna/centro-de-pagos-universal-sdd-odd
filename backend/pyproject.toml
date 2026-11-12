@@ -20,6 +20,10 @@ dependencies = [
     "structlog==26.1.0",
     "drf-spectacular==0.30.0",
     "gunicorn==26.2.0",
+    # The Hub's own JWT, ES256 (ADR-0004, C-13). `cryptography` is its backend, and tokens/keys.py
+    # imports it directly: pinned here so it does not depend on what PyJWT's extra resolves to.
+    "pyjwt[crypto]==2.15.1",
+    "cryptography==50.0.2",
 ]
 
 [dependency-groups]
