@@ -21,6 +21,19 @@ operand on either side, a plain queryset of the base manager, another organizati
 ``_base_manager.filter(pk__in=...)``, a plain queryset that carries neither the scope nor these
 guards. Combine first and slice the result, or use ``union``.
 
+Under a tenant scope (``for_tenant``) some writes and reads do not carry the organization filter, so
+they fail closed and are only allowed with ``unscoped(reason)``:
+
+- ``bulk_create`` (and ``abulk_create``) with ``ignore_conflicts`` or ``update_conflicts``: the
+  ``INSERT ... ON CONFLICT`` has no ``WHERE`` and would touch the conflicting row of another
+  organization. Each instance must also carry the organization of the scope in ``tenant_lookup``,
+  checked without SQL; for ``Organization`` that is its ``pk``, so a tenant scope can only insert
+  its own organization and new organizations go through ``unscoped(reason)``.
+- ``raw``: the SQL is written by hand and ignores the filter.
+
+Assigning ``qs.query = ...`` replaces the filter with a query that may not have it, so it clears the
+scope: the queryset fails closed until it is scoped again.
+
 Known gap: an unscoped queryset used as a subquery (``__in=qs``) never runs by itself; the
 architecture test catches it, and later RLS (ADR-0001).
 
@@ -33,11 +46,13 @@ stays a plain ``Manager``: the guard is for business code, which goes through ``
 from __future__ import annotations
 
 import functools
-from collections.abc import Callable
+from collections.abc import Callable, Collection, Iterable
 from enum import StrEnum
 from typing import Any, Self, TypeVar
 
 from django.db import models
+from django.db.models.query import RawQuerySet
+from django.db.models.sql.query import Query
 
 from apps.common.tenancy.context import TenantContext
 from apps.common.tenancy.current import current_tenant
@@ -93,6 +108,7 @@ GUARDED_METHODS = (
     "_raw_delete",
 )
 DELETE_METHODS = frozenset({"delete", "_raw_delete"})
+_BASE_QUERY: property = vars(models.QuerySet)["query"]
 
 
 class TenantQuerySet(models.QuerySet[_M]):
@@ -122,6 +138,57 @@ class TenantQuerySet(models.QuerySet[_M]):
         clone = self.all()
         clone._scope = reason
         return clone
+
+    @property
+    def query(self) -> Query:
+        return _BASE_QUERY.fget(self)  # type: ignore[misc, no-any-return]
+
+    @query.setter
+    def query(self, value: Query) -> None:
+        _BASE_QUERY.fset(self, value)  # type: ignore[misc]
+        self._scope = None  # the new query may not carry the filter of the scope
+
+    def bulk_create(
+        self,
+        objs: Iterable[_M],
+        batch_size: int | None = None,
+        ignore_conflicts: bool = False,
+        update_conflicts: bool = False,
+        update_fields: Collection[str] | None = None,
+        unique_fields: Collection[str] | None = None,
+    ) -> list[_M]:
+        self._require_scope("bulk_create")
+        objs = list(objs)
+        if isinstance(self._scope, TenantContext):
+            if ignore_conflicts or update_conflicts:
+                raise TenantScopeError(
+                    f"{self._model_name()}.bulk_create on conflict needs unscoped(reason)"
+                )
+            organization_id = self._scope.organization_id
+            if any(getattr(obj, self.tenant_lookup) != organization_id for obj in objs):
+                raise TenantScopeError(f"{self._model_name()}.bulk_create for another organization")
+        return super().bulk_create(
+            objs,
+            batch_size=batch_size,
+            ignore_conflicts=ignore_conflicts,
+            update_conflicts=update_conflicts,
+            update_fields=update_fields,
+            unique_fields=unique_fields,
+        )
+
+    bulk_create.alters_data = True  # type: ignore[attr-defined]  # as Django's
+
+    def raw(
+        self,
+        raw_query: Any,
+        params: Any = (),
+        translations: dict[str, str] | None = None,
+        using: str | None = None,
+    ) -> RawQuerySet[_M]:
+        self._require_scope("raw")
+        if isinstance(self._scope, TenantContext):
+            raise TenantScopeError(f"{self._model_name()}.raw needs unscoped(reason)")
+        return super().raw(raw_query, params, translations, using)
 
     def _require_scope(self, operation: str) -> None:
         if self._scope is None:
@@ -202,5 +269,7 @@ def _guard(name: str) -> Callable[..., Any]:
 
 # Set after the class so that callers keep Django's typed signatures (django-stubs) and each
 # wrapper keeps the attributes Django reads (``alters_data``, ``queryset_only`` via ``wraps``).
+# ``bulk_create`` and ``raw`` are defined on the class: they check the scope themselves.
 for _name in GUARDED_METHODS:
-    setattr(TenantQuerySet, _name, _guard(_name))
+    if _name not in vars(TenantQuerySet):
+        setattr(TenantQuerySet, _name, _guard(_name))

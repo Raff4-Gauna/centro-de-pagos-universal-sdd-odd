@@ -180,10 +180,13 @@ T-TEN-30 · suspendida → T-TEN-29.
 - **AC:** AC-TEN-11. RN-TEN-02, RNF-TEN-05. **Zona roja:** sí.
 - **Archivos:** `apps/common/tenancy/{querysets,models}.py` (`NoHardDeleteMixin`), `apps/tenancy/{__init__,apps}.py`,
   `models/{__init__,organization}.py`, `migrations/0001_organization.py`, `config/settings/base.py`,
-  `backend/tests/tenancy/test_AC_TEN_11_fail_closed.py`.
-- **Cambios:** `design.md §3.4` y tabla `tenancy_organization` de §5.
+  `backend/tests/tenancy/test_AC_TEN_11_fail_closed.py`, `backend/tests/tenancy/test_AC_TEN_11_scoped_writes.py`.
+- **Cambios:** `design.md §3.4` y tabla `tenancy_organization` de §5. Con scope de tenant, `bulk_create` con
+  `ignore_conflicts`/`update_conflicts`, o con instancias de otra organización, y `raw` fallan cerrado; asignar
+  `qs.query` limpia el scope.
 - **Pruebas:** `test_AC_TEN_11_every_terminal_method_raises` (parametrizado, sin ir a la BD),
-  `test_AC_TEN_11_clone_keeps_scope`, `test_hard_delete_is_forbidden`.
+  `test_AC_TEN_11_clone_keeps_scope`, `test_hard_delete_is_forbidden`,
+  `test_AC_TEN_11_bulk_create_under_a_tenant_leaves_other_organizations`.
 
 ### T-TEN-03 — `TenantModel` y app de prueba `tenant_probe`
 - **AC:** AC-TEN-07 (guarda), AC-TEN-11. RN-TEN-01, RN-TEN-04. **Zona roja:** sí.
@@ -192,6 +195,9 @@ T-TEN-30 · suspendida → T-TEN-29.
 - **Cambios:** FK `PROTECT`, `related_name="+"`, guarda de `save()`; `Widget` solo en settings de test.
 - **Pruebas:** `test_AC_TEN_07_save_rejects_other_org`, `test_AC_TEN_11_tenant_model_without_scope_raises`,
   `test_organization_id_is_immutable`.
+- **Pendiente heredado de T-TEN-02 (revisión del PR #89):** `Organization.save()` con el `pk` cambiado
+  (`org.pk = b.pk; org.save()`) sobrescribe la otra organización, porque `save()` usa `_base_manager`. La guarda de
+  `save()` de `TenantModel` no cubre a `Organization`: resolverlo acá o en los servicios de organización.
 
 ### T-TEN-04 — Test de arquitectura de accesos crudos
 - **AC:** AC-TEN-10. RN-TEN-02, RNF-TEN-01. **Zona roja:** sí.
