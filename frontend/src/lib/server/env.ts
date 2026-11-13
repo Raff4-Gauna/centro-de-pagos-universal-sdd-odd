@@ -24,10 +24,17 @@ export function getBackendInternalUrl(): URL {
 
 // Credential the BFF presents to Django's `auth/bff/*` in X-Hub-Bff-Credential (RN-IDA-12,
 // ADR-0004 §9). A secret: it is never logged, echoed in an error or sent to the browser (C-06).
+// Visible ASCII only: anything else could not travel in a header, and the error `Headers` would
+// throw names the offending value.
+const CREDENTIAL_CHARACTERS = /^[\x21-\x7e]+$/;
+
 export function getBffCredential(): string {
   const value = process.env.HUB_BFF_CREDENTIAL;
   if (!value) {
     throw new Error("HUB_BFF_CREDENTIAL is not set");
+  }
+  if (!CREDENTIAL_CHARACTERS.test(value)) {
+    throw new Error("HUB_BFF_CREDENTIAL has characters that are not visible ASCII");
   }
   return value;
 }

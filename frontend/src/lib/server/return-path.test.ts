@@ -104,6 +104,23 @@ describe("return path in the BFF (AC-IDA-19, RN-IDA-13)", () => {
     expect(sanitizeReturnPath("／／evil.example")).toBe(DEFAULT_RETURN_PATH);
   });
 
+  it("test_AC_IDA_19_dot_segments_that_collapse_to_a_network_path_become_home", () => {
+    // They pass the string rule (one leading `/`), but resolving drops the dot segments and the
+    // pathname becomes `//evil.example`: as a relative Location it would leave the app.
+    for (const value of [
+      "/..//evil.example",
+      "/.//evil.example",
+      "/%2e%2e//evil.example",
+      "/%2E//evil.example",
+      "/a/../..//evil.example",
+      "/./..//evil.example/x?y#z",
+    ]) {
+      expect(returnUrl(value, APP).href, value).toBe(`${APP}/`);
+    }
+    // A double slash further in is harmless and kept.
+    expect(returnUrl("/a//b", APP).href).toBe(`${APP}/a//b`);
+  });
+
   it("test_AC_IDA_19_redirect_never_leaves_the_app_origin", () => {
     expect(returnUrl("/x", `${APP}/ignored/path`).href).toBe(`${APP}/x`);
     expect(returnUrl("//evil.example", "http://localhost:3000").href).toBe(

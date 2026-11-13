@@ -2,6 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DJANGO_BFF_TIMEOUT_MS, callDjangoBff } from "./django";
+import { getBffCredential } from "./env";
 import { bffProblem } from "./problem";
 
 // `server-only` throws outside the react-server condition; the guard is asserted in env.test.ts.
@@ -115,6 +116,41 @@ describe("BFF client to Django auth/bff/* (RN-IDA-12, design.md §6.1)", () => {
     expect(await start()).toEqual({ kind: "unavailable", reason: "config" });
     // Misconfigured: Django is never called (and so never without the credential).
     expect(calls).toHaveLength(0);
+  });
+
+  it("test_RN_IDA_12_invalid_credential_fails_without_its_value", async () => {
+    const calls = mockDjango();
+    for (const bad of [
+      `${CREDENTIAL}\n`,
+      // U+0000 cannot be set: process.env cuts the value there, like the OS environment does.
+      `${CREDENTIAL}\t`,
+      `${CREDENTIAL} x`,
+      `${CREDENTIAL}ñ`,
+    ]) {
+      vi.stubEnv("HUB_BFF_CREDENTIAL", bad);
+      let message = "";
+      try {
+        getBffCredential();
+      } catch (error) {
+        message = String(error);
+      }
+      expect(message).toContain("HUB_BFF_CREDENTIAL has characters");
+      expect(message).not.toContain(CREDENTIAL);
+      const outcome = await start();
+      expect(outcome).toEqual({ kind: "unavailable", reason: "config" });
+      expect(JSON.stringify(outcome)).not.toContain(CREDENTIAL);
+    }
+    expect(calls).toHaveLength(0);
+  });
+
+  it("test_RN_PLT_07_invalid_request_id_is_replaced", async () => {
+    const calls = mockDjango();
+    const body = { login_binding: BINDING };
+    await callDjangoBff({ path: PATH, body, requestId: "bad\r\nx-injected: 1" });
+    await callDjangoBff({ path: PATH, body, requestId: REQUEST_ID.toUpperCase() });
+    const [first, second] = calls.map((call) => sentHeaders(call)["x-request-id"]);
+    expect(first).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    expect(second).toBe(REQUEST_ID);
   });
 
   it("test_RN_IDA_12_timeout_and_client_abort_are_told_apart", async () => {

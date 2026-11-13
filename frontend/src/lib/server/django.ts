@@ -3,7 +3,7 @@ import "server-only";
 import type { paths } from "@/types/api";
 
 import { getBackendInternalUrl, getBffCredential } from "./env";
-import { REQUEST_ID_HEADER } from "./request-id";
+import { REQUEST_ID_HEADER, resolveRequestId } from "./request-id";
 import { sanitizeReturnPath } from "./return-path";
 
 // Client of the BFF for Django's `auth/bff/*` (design.md §6.1, ADR-0004 §9, RN-IDA-12). Only these
@@ -86,23 +86,23 @@ export async function callDjangoBff<P extends BffPath>(
   call: DjangoBffCall<P>,
 ): Promise<DjangoBffOutcome> {
   let target: URL;
-  let credential: string;
+  let headers: Headers;
   try {
-    const base = getBackendInternalUrl();
-    target = new URL(call.path, base);
-    credential = getBffCredential();
+    target = new URL(call.path, getBackendInternalUrl());
+    // Built inside the `try`: a `Headers` error names the value it refused, and that value could
+    // be the credential. env.ts already refuses one that cannot be a header; this is the backstop.
+    headers = new Headers({
+      accept: "application/json",
+      "content-type": "application/json",
+      // Same rule as everywhere in the BFF: an id that is not a UUIDv4 is replaced (RN-PLT-07).
+      [REQUEST_ID_HEADER]: resolveRequestId(call.requestId),
+      [FORWARDED_PROTO_HEADER]: FORWARDED_PROTO,
+      [BFF_CREDENTIAL_HEADER]: getBffCredential(),
+    });
   } catch {
-    // Which variable is missing is in the error, never its value; it is not exposed either.
+    // The message names the variable at most, never its value; it is not exposed either.
     return { kind: "unavailable", reason: "config" };
   }
-
-  const headers = new Headers({
-    accept: "application/json",
-    "content-type": "application/json",
-    [REQUEST_ID_HEADER]: call.requestId,
-    [FORWARDED_PROTO_HEADER]: FORWARDED_PROTO,
-    [BFF_CREDENTIAL_HEADER]: credential,
-  });
   // Only an address client-ip.ts accepted ever gets here; still, nothing that could break a header.
   const clientIp = headerSafe(call.clientIp, 64);
   if (clientIp !== null) {

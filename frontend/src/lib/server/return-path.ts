@@ -42,9 +42,15 @@ export function sanitizeReturnPath(raw: unknown): string {
 }
 
 // The absolute URL to redirect to: the sanitized path on `appOrigin`, or "Inicio" if resolving it
-// would leave that origin (it cannot after `sanitizeReturnPath`; this keeps it that way).
+// leaves that origin or yields a path that starts with `//`. Dot segments collapse on resolution
+// (`/..//evil.example`, `/.//x`, `/%2e%2e//x` all resolve to `//…`), and a `Location` with that
+// path is a network-path reference: the browser would go to another host. Route handlers redirect
+// to this URL's absolute `href`, never to the raw path.
 export function returnUrl(raw: unknown, appOrigin: string): URL {
   const origin = new URL(appOrigin).origin;
   const target = new URL(sanitizeReturnPath(raw), origin);
-  return target.origin === origin ? target : new URL(DEFAULT_RETURN_PATH, origin);
+  if (target.origin !== origin || target.pathname.startsWith("//")) {
+    return new URL(DEFAULT_RETURN_PATH, origin);
+  }
+  return target;
 }
