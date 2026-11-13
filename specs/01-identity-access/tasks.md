@@ -70,7 +70,7 @@ El diseño se escribió antes de que existiera el código de SPEC-00. Donde difi
 | T-IDA-07 | `GET /api/me` | AC-IDA-21, AC-IDA-22, AC-IDA-30 (API) | API | `api/views_me.py`, `api/urls.py`, `api/serializers.py` | T-IDA-05, T-IDA-06 | backend-dev | M | Sí | 🟡 | rama `task/T-IDA-07-api-me`, sin PR |
 | T-IDA-08 | Gateway de Google + validación del ID token | AC-IDA-07, AC-IDA-08 (`nonce`), AC-IDA-36 | Integración | `oidc/google_gateway.py`, `oidc/id_token.py`, `tests/fakes/google.py` | T-IDA-04 | backend-dev | L | Sí | 🟡 | rama `task/T-IDA-08-google-gateway`, sin PR |
 | T-IDA-09 | Credencial BFF, IP del cliente y throttles | AC-IDA-20, AC-IDA-37 | API | `api/bff_auth.py`, `api/client_ip.py`, `api/throttles.py`, `tests/config/test_RF_PLT_19_feature_flags.py` | T-IDA-01 | backend-dev | M | Sí | 🟡 | PR abierto |
-| T-IDA-10 | Iniciar login: `LoginAttempt` + migración 0003 | AC-IDA-19 (servidor), AC-IDA-20, AC-IDA-37 | DB/API | `models/login_attempt.py`, `domain/return_path.py`, `services/login_start.py`, `api/views_bff.py`, `infra/docker-compose.yml` | T-IDA-08, T-IDA-09 | backend-dev | L | Sí | ☐ | |
+| T-IDA-10 | Iniciar login: `LoginAttempt` + migración 0003 | AC-IDA-19 (servidor), AC-IDA-20, AC-IDA-37 | DB/API | `models/login_attempt.py`, `domain/return_path.py`, `services/login_start.py`, `api/views_bff.py`, `infra/docker-compose.yml` | T-IDA-08, T-IDA-09 | backend-dev | L | Sí | 🟡 | rama `task/T-IDA-10-login-start`, sin PR |
 | T-IDA-11 | Reglas del callback y usuario existente | AC-IDA-09 (callback), AC-IDA-29, AC-IDA-30 | Servicio | `domain/login_rules.py`, `services/user_provisioning.py` | T-IDA-03, T-IDA-05 | backend-dev | L | Sí | 🟡 | rama `task/T-IDA-11-callback-rules`, sin PR |
 | T-IDA-12 | Usuario nuevo por invitación y carrera de callbacks | AC-IDA-02, AC-IDA-03, AC-IDA-04, AC-IDA-05, AC-IDA-31 | Servicio | `services/user_provisioning.py` | T-IDA-11 | backend-dev | L | Sí | ☐ | |
 | T-IDA-13 | Completar login: orquestación y vista | AC-IDA-01, AC-IDA-03, AC-IDA-06, AC-IDA-08, AC-IDA-09, AC-IDA-20, AC-IDA-24 (login) | Servicio/API | `services/login_complete.py`, `api/views_bff.py` | T-IDA-10, T-IDA-12 | backend-dev | L | Sí | ☐ | |
@@ -305,10 +305,22 @@ módulos se aprueba en la misma pasada, después de `T-TEN-36`.
 - **AC:** AC-IDA-19 (servidor), AC-IDA-20, AC-IDA-37. RF-IDA-01, RN-IDA-13, RNF-IDA-06. **Zona roja:** sí.
 - **Archivos:** `models/login_attempt.py`, `migrations/0003_login_attempts.py`, `domain/return_path.py`,
   `services/login_start.py`, `api/views_bff.py`, `api/urls.py`, `infra/docker-compose.yml`,
-  `apps/common/logging/report_filter.py`, `openapi.yaml`, `api.d.ts`, tests.
-- **Cambios:** `POST /api/auth/bff/login/start`; solo hashes salvo `code_verifier`; `503 login_disabled` con el flag
+  `apps/common/logging/report_filter.py`, `openapi.yaml`, `api.d.ts`, tests. Sumados al implementar:
+  `oidc/provider.py` y `config/settings/{dev,test,prod}.py` (nota de `T-IDA-08`: exponen `IDENTITY_OIDC_PROVIDER` e
+  `IDENTITY_GOOGLE_*` y arman un gateway y un verificador por proceso, que conserva el caché de JWKS),
+  `models/__init__.py`, `apps/common/api/problems.py` (`title` en español de `rate_limited` y `login_disabled`),
+  `apps/common/api/schema.py` (`API_VERSION` 0.3.0 por la operación nueva y esquema de seguridad `BffCredential`),
+  `backend/tests/architecture/allowlists.py` (`LoginAttempt.objects`, entidad global: convención C-01 de esta lista).
+- **Cambios:** `POST /api/auth/bff/login/start/`; solo hashes salvo `code_verifier`; `503 login_disabled` con el flag
   apagado.
-- **Compose:** `infra/docker-compose.yml` pasa `IDENTITY_BFF_CREDENTIALS` y `FEATURE_*`, para que `auth/bff/*` funcione en dev antes de `T-IDA-27`.
+- **Compose:** `infra/docker-compose.yml` pasa `IDENTITY_BFF_CREDENTIALS`, `IDENTITY_JWT_*`, `IDENTITY_OIDC_PROVIDER` e
+  `IDENTITY_GOOGLE_*`, para que `auth/bff/*` funcione en dev antes de `T-IDA-27`. `FEATURE_IDENTITY_GOOGLE_LOGIN` va fijo
+  en `"true"` en el stack de dev, como `DJANGO_DEBUG`: interpolarlo exige sacarlo de comentario en `env.example` y cambiar
+  `test_AC_PLT_01_every_compose_variable_is_in_env_example`, que no son de esta ficha.
+- **Notas de implementación:** el `CHECK` de los tres hashes (SHA-256 hex) se suma a los de `design.md §5`, como en
+  `refresh_tokens`. Sin cliente de Google configurado, o con `IDENTITY_OIDC_PROVIDER=fake`, iniciar un login falla
+  cerrado (`500 internal_error`, sin fila): los endpoints del proveedor falso llegan con `dev_oidc` (`T-IDA-20`), que
+  extiende `oidc/provider.py`. El flag se evalúa antes que el cuerpo (`design.md §4.1`).
 - **Reportes de error:** adelantado desde `T-IDA-21`: `report_filter.py` oculta `HTTP_X_HUB_BFF_CREDENTIAL`, que empieza a circular acá.
 - **Vistas:** extienden `BffAPIView` (`T-IDA-09`: ya trae `authentication_classes = ()`, el `404` idéntico y
   `rate_limited`) y declaran `throttle_classes` explícitos.

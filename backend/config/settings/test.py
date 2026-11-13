@@ -60,6 +60,13 @@ IDENTITY_JWT_VERIFICATION_KEYS = {
 }
 del _jwt_key
 
+# Login with Google (design.md sec. 8.3), read through apps.identity.oidc.provider. The secret is
+# masked in error reports by the SECRET rule of CredentialSafeReporterFilter (C-06).
+IDENTITY_OIDC_PROVIDER = _env.IDENTITY_OIDC_PROVIDER
+IDENTITY_GOOGLE_CLIENT_ID = _env.IDENTITY_GOOGLE_CLIENT_ID
+IDENTITY_GOOGLE_CLIENT_SECRET = _env.IDENTITY_GOOGLE_CLIENT_SECRET.get_secret_value()
+IDENTITY_GOOGLE_REDIRECT_URI = _env.IDENTITY_GOOGLE_REDIRECT_URI
+
 # Every audit event of the suite stays in memory, where the tests read it (design.md §9).
 AUDIT_SINK = "apps.common.audit.sinks.RecordingSink"
 

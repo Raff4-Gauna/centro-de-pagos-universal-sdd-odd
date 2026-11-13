@@ -32,6 +32,9 @@ TITLES: Mapping[str, str] = {
     "not_acceptable": "Formato de respuesta no disponible",
     "unsupported_media_type": "Tipo de contenido no soportado",
     "throttled": "Demasiadas solicitudes",
+    # SPEC-01 (design.md §6.1): codes of auth/bff/*.
+    "rate_limited": "Demasiadas solicitudes",
+    "login_disabled": "Ingreso deshabilitado",
     INTERNAL_ERROR: "Error interno",
 }
 

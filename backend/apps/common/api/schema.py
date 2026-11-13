@@ -16,10 +16,12 @@ from typing import Any
 
 from apps.common.api.problems import PROBLEM_CONTENT_TYPE
 
-API_VERSION = "0.2.0"
+API_VERSION = "0.3.0"
 PUBLIC_URLCONF = "config.urls"
 
 PROBLEM = "Problem"
+# auth/bff/* (SPEC-01, design.md §6): the BFF's own credential, never a person's.
+BFF_CREDENTIAL_SCHEME = "BffCredential"
 FIELD_ERROR = "ProblemFieldError"
 _PROBLEM_REF = f"#/components/schemas/{PROBLEM}"
 _PLAIN_TEXT = (
@@ -103,7 +105,15 @@ def spectacular_settings() -> dict[str, Any]:
         "SERVE_URLCONF": PUBLIC_URLCONF,
         "COMPONENT_SPLIT_REQUEST": True,
         "APPEND_COMPONENTS": {
-            "schemas": {PROBLEM: _problem_schema(), FIELD_ERROR: _field_error_schema()}
+            "schemas": {PROBLEM: _problem_schema(), FIELD_ERROR: _field_error_schema()},
+            "securitySchemes": {
+                BFF_CREDENTIAL_SCHEME: {
+                    "type": "apiKey",
+                    "in": "header",
+                    "name": "X-Hub-Bff-Credential",
+                    "description": "Solo el BFF. Sin ella, la ruta responde 404 not_found.",
+                }
+            },
         },
         "POSTPROCESSING_HOOKS": [
             "drf_spectacular.hooks.postprocess_schema_enums",
