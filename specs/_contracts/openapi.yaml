@@ -1,8 +1,74 @@
 openapi: 3.0.3
 info:
   title: Centro de Pagos Universal API
-  version: 0.4.0
+  version: 0.5.0
 paths:
+  /api/auth/bff/login/complete/:
+    post:
+      operationId: auth_bff_login_complete
+      description: Consume el intento de login (un solo uso, 10 minutos), canjea el
+        código con Google, valida el ID token y abre la sesión. Los tokens son solo
+        para el BFF.
+      summary: Completa un login con Google (solo BFF)
+      tags:
+      - bff-internal
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginCompleteRequest'
+        required: true
+      security:
+      - BffCredential: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginCompleteResponse'
+          description: ''
+        '400':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: 'code: google_auth_failed · login_cancelled · validation_error'
+        '403':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: 'code: email_not_verified · not_invited · user_inactive'
+        '409':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: 'code: identity_conflict'
+        '429':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: 'code: rate_limited (con Retry-After)'
+        '503':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: 'code: google_unavailable · login_disabled'
+        4XX:
+          description: Error del cliente
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        5XX:
+          description: Error del servidor
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
   /api/auth/bff/login/start/:
     post:
       operationId: auth_bff_login_start
@@ -134,6 +200,56 @@ paths:
                 $ref: '#/components/schemas/Problem'
 components:
   schemas:
+    LoginCompleteRequest:
+      type: object
+      properties:
+        state:
+          type: string
+          maxLength: 512
+        login_binding:
+          type: string
+          minLength: 43
+          maxLength: 43
+        code:
+          type: string
+          nullable: true
+          maxLength: 2048
+        error:
+          type: string
+          nullable: true
+          maxLength: 256
+      required:
+      - login_binding
+      - state
+    LoginCompleteResponse:
+      type: object
+      properties:
+        access_token:
+          type: string
+          readOnly: true
+        access_expires_in:
+          type: integer
+          readOnly: true
+        refresh_token:
+          type: string
+          readOnly: true
+        session_id:
+          type: string
+          format: uuid
+          readOnly: true
+        session_expires_in:
+          type: integer
+          readOnly: true
+        return_path:
+          type: string
+          readOnly: true
+      required:
+      - access_expires_in
+      - access_token
+      - refresh_token
+      - return_path
+      - session_expires_in
+      - session_id
     LoginStartRequest:
       type: object
       properties:

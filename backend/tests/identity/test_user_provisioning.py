@@ -167,7 +167,8 @@ def test_AC_IDA_29_new_sub_with_taken_email_is_conflict(
     assert ForbiddenInvitationPort.calls == []
     lines = log_lines(capsys)
     [alert] = [line for line in lines if line.get("alert") is True]
-    assert alert["message"] == "auth.login_rejected"
+    assert alert["message"] == "auth.identity_conflict"
+    assert alert["outcome"] == "rejected"
     assert alert["reason"] == "identity_conflict"
     assert alert["level"] == "warning"
     assert alert["existing_user_id"] == str(owner.pk)

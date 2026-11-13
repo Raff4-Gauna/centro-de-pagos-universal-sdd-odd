@@ -215,7 +215,7 @@ def test_Q_126_unstorable_email_of_a_new_user_is_rejected_not_retried(
     assert ports.invitations.calls == []
     output = capsys.readouterr().out
     [line] = [json.loads(text) for text in output.splitlines()]
-    assert (line["message"], line["reason"]) == ("auth.login_rejected", "google_auth_failed")
+    assert (line["message"], line["reason"]) == ("auth.email_not_storable", "google_auth_failed")
     assert line["detail"] == "email_not_storable"
     assert "ANA@x.com" not in output
     assert SUB not in output
