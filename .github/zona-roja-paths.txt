@@ -25,11 +25,17 @@ backend/tests/architecture/**
 # identity: auth, roles and permissions; tenancy: organization_id isolation; integrations:
 # credentials/encryption and provider adapters (integrations/providers/<provider>/);
 # charges: money, charge states and refunds; webhooks: webhooks and idempotency;
-# reconciliation: money. (SPEC-01 adds frontend/src/app/api/** and frontend/src/lib/server/**.)
+# reconciliation: money.
 backend/apps/{identity,tenancy,integrations,charges,webhooks,reconciliation}/**
 # Shared tenancy base reused by every module (SPEC-02, T-TEN-01): tenant context and scope, roles and
 # permission checks, audit port. Roles and organization_id isolation, like apps/tenancy itself.
 backend/apps/common/{tenancy,authz,audit}/**
+# The BFF (SPEC-01, T-IDA-22): its route handlers and server library set the session cookies, hold
+# the BFF credential, apply CSRF and the return-path rule; proxy.ts decides which pages need a
+# session. Auth, like apps/identity itself.
+frontend/src/app/api/**
+frontend/src/lib/server/**
+frontend/src/proxy.ts
 
 # --- The gate itself (Q-058, decided by the owner 2026-10-31) ---
 .github/**

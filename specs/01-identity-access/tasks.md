@@ -82,7 +82,7 @@ El diseño se escribió antes de que existiera el código de SPEC-00. Donde difi
 | T-IDA-19 | Purga periódica | AC-IDA-38 | Asíncrono | `tasks.py`, `beat.py`, `services/purge.py` | T-IDA-10, T-IDA-14 | backend-dev | M | Sí | ☐ | |
 | T-IDA-20 | Chequeos de arranque y proveedor OIDC falso | — (RN-IDA-01, RN-IDA-16, RNF-IDA-06) | Config | `checks.py`, `apps.py`, `dev_oidc/*`, `oidc/provider.py` | T-IDA-08 | backend-dev | L | Sí | 🟡 | rama `task/T-IDA-20-startup-checks`, sin PR |
 | T-IDA-21 | Redacción de logs, métricas y catálogo completo | AC-IDA-23, AC-IDA-24 | Observabilidad | `apps/common/domain/redaction.py`, tests de identity | T-IDA-13, T-IDA-15, T-IDA-16, T-IDA-17, T-IDA-18 | backend-dev | M | Sí | ☐ | |
-| T-IDA-22 | BFF: cookies, IP, retorno y cliente a Django | AC-IDA-18, AC-IDA-19, AC-IDA-37 (BFF) | BFF | `src/lib/server/{cookies,client-ip,return-path,django,problem}.ts`, `.github/zona-roja-paths.txt` | T-IDA-10 | frontend-dev | L | Sí | ☐ | |
+| T-IDA-22 | BFF: cookies, IP, retorno y cliente a Django | AC-IDA-18, AC-IDA-19, AC-IDA-37 (BFF) | BFF | `src/lib/server/{cookies,client-ip,return-path,django,problem}.ts`, `.github/zona-roja-paths.txt` | T-IDA-10 | frontend-dev | L | Sí | 🟡 | rama `task/T-IDA-22-bff-lib`, sin PR |
 | T-IDA-23 | BFF: CSRF y refresh con coalescencia | AC-IDA-19 (CSRF), AC-IDA-28 (BFF) | BFF | `src/lib/server/{csrf,refresh}.ts` | T-IDA-14, T-IDA-22 | frontend-dev | M | Sí | ☐ | |
 | T-IDA-24 | Route Handlers de inicio y callback | AC-IDA-01 (cookies), AC-IDA-18, AC-IDA-19 | BFF | `app/api/auth/google/{start,callback}/route.ts` | T-IDA-13, T-IDA-22 | frontend-dev | M | Sí | ☐ | |
 | T-IDA-25 | Route Handlers de logout y organización activa | AC-IDA-17 (cookies) | BFF | `app/api/auth/logout/route.ts`, `app/api/session/active-organization/route.ts` | T-IDA-16, T-IDA-23 | frontend-dev | M | Sí | ☐ | |
@@ -528,6 +528,7 @@ módulos se aprueba en la misma pasada, después de `T-TEN-36`.
 - **AC:** AC-IDA-18, AC-IDA-19, AC-IDA-37 (BFF). RN-IDA-12, RN-IDA-13. **Zona roja:** sí.
 - **Archivos:** `frontend/src/lib/server/{cookies,client-ip,return-path,django,problem}.ts` y sus tests, `env.ts`,
   `env.example`, `backend/tests/config/test_AC_PLT_05_env_example_parity.py`, `.github/zona-roja-paths.txt`.
+  Se sumó al implementar `scripts/tests/test_AC_PLT_32_zona_roja_rules.py`: fijaba `backend-proxy.ts` como no roja.
 - **Cambios:** cookies de `design.md §7.1`; agrega `frontend/src/app/api/**`, `frontend/src/lib/server/**` y
   `frontend/src/proxy.ts` a la zona roja, como anuncia ese archivo. Variables `HUB_BFF_CREDENTIAL`, `HUB_APP_ORIGIN`, `HUB_TRUSTED_PROXY_HOPS`.
 - **`django.ts`:** envía `X-Forwarded-Proto: https` (Q-065); sin eso, `SECURE_SSL_REDIRECT` responde 301 en prod.
