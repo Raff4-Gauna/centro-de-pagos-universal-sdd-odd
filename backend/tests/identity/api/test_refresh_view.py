@@ -226,4 +226,4 @@ def test_contract_publishes_refresh_as_bff_internal() -> None:
         "session_expires_in",
     }
     assert answer["properties"]["refresh_token"]["nullable"] is True
-    assert contract["info"]["version"] == "0.4.0"
+    assert contract["info"]["version"] == "0.5.0"

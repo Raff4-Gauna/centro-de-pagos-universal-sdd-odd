@@ -55,6 +55,9 @@ from apps.identity.selectors.users import get_by_email, get_by_sub
 logger = get_logger(__name__)
 
 EMAIL_CHECK = "users_email_normalized"
+# Detail of a rejection (RNF-IDA-04); its one ``auth.login_rejected`` is ``login_complete``'s.
+IDENTITY_CONFLICT_EVENT = "auth.identity_conflict"
+EMAIL_NOT_STORABLE_EVENT = "auth.email_not_storable"
 # The first attempt and the one retry of design.md §4.3.
 ATTEMPTS = 2
 
@@ -157,7 +160,8 @@ def _classify(error: IntegrityError) -> _Write:
 def _reject_unstorable_email(*, user_id: UUID | None) -> NoReturn:
     """Q-126: PostgreSQL does not lowercase this address as Python did, so it cannot be kept."""
     logger.warning(
-        "auth.login_rejected",
+        EMAIL_NOT_STORABLE_EVENT,
+        outcome="rejected",
         reason=IdentityErrorCode.GOOGLE_AUTH_FAILED.value,
         detail="email_not_storable",
         user_id=None if user_id is None else str(user_id),
@@ -171,7 +175,8 @@ def _reject_identity_conflict(owner: User) -> NoReturn:
     The alert names the user whose email was presented (an id, RNF-IDA-05), not the newcomer.
     """
     logger.warning(
-        "auth.login_rejected",
+        IDENTITY_CONFLICT_EVENT,
+        outcome="rejected",
         reason=IdentityErrorCode.IDENTITY_CONFLICT.value,
         alert=True,
         existing_user_id=str(owner.pk),

@@ -1,10 +1,14 @@
 """``auth/bff/*``: what only the BFF may call (design.md §6.1, ADR-0004 §9).
 
 ``POST /api/auth/bff/login/start/`` (RF-IDA-01): the BFF sends the binding it keeps in
-``__Host-cpu_login`` and where the person was going; it gets Google's authorization URL. Order of
-design.md §4.1: credential (``BffAPIView``, ``404`` without it), 10/min per client IP (``429
-rate_limited``, before anything else runs, so before Google), flag (``503 login_disabled``), body.
-A hostile ``return_path`` is not an error: the attempt keeps "Inicio" instead (AC-IDA-19).
+``__Host-cpu_login`` and where the person was going; it gets Google's authorization URL.
+``POST /api/auth/bff/login/complete/`` (RF-IDA-02): the BFF relays Google's redirect (``state``,
+``code`` or ``error``) with that binding; it gets the session's tokens and where to go.
+
+Order of design.md §4.1: credential (``BffAPIView``, ``404`` without it), 10/min per client IP
+(``429 rate_limited``, before anything else runs, so before Google), flag (``503
+login_disabled``), body. A hostile ``return_path`` is not an error: the attempt keeps "Inicio"
+instead (AC-IDA-19).
 
 ``POST /api/auth/bff/refresh/`` (RF-IDA-04): the BFF sends the refresh token of ``__Host-cpu_rt``
 and gets a new access token and, unless it falls in the grace window, a new refresh token
@@ -15,8 +19,10 @@ know whether to clear the cookies. ``Authorization`` is not read (``BffAPIView``
 person's JWT nor an ERP API key counts as a refresh (AC-IDA-22). The login flag does not apply
 (ADR-0004 §14): sessions already open keep refreshing with it off.
 
-The serializers live here, apart from the public ones: these shapes are the BFF's, not the
-browser's. Their errors never echo the input (design.md §7.5).
+The shapes live in ``serializers.py``.
+
+The callback's codes keep the status of design.md §6.1. ``UserProvisioningError`` has none of its
+own: no rule explains it, so it is ``500 internal_error``, without detail nor personal data.
 """
 
 from __future__ import annotations
@@ -25,7 +31,7 @@ from typing import Any
 
 from django.utils import timezone
 from drf_spectacular.utils import OpenApiResponse, extend_schema
-from rest_framework import serializers, status
+from rest_framework import status
 from rest_framework.exceptions import APIException
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -34,28 +40,61 @@ from apps.common.api.problems import PROBLEM_CONTENT_TYPE
 from apps.common.api.schema import BFF_CREDENTIAL_SCHEME, PROBLEM
 from apps.common.feature_flags import is_enabled
 from apps.identity.api.bff_auth import BffAPIView
+from apps.identity.api.serializers import (
+    LoginCompleteRequestSerializer,
+    LoginCompleteResponseSerializer,
+    LoginStartRequestSerializer,
+    LoginStartResponseSerializer,
+    RefreshRequestSerializer,
+    RefreshResponseSerializer,
+)
 from apps.identity.api.throttles import (
+    LoginCompleteIpThrottle,
     LoginStartIpThrottle,
     RefreshIpThrottle,
     RefreshSessionThrottle,
 )
 from apps.identity.domain.errors import IdentityError, IdentityErrorCode
-from apps.identity.domain.secrets_format import is_login_binding
+from apps.identity.services.login_complete import complete_login
 from apps.identity.services.login_start import LOGIN_FLAG, LoginDisabledError, start_login
 from apps.identity.services.refresh import refresh_session
 from apps.identity.tokens.access_token import ACCESS_TOKEN_TTL_SECONDS
 
 BFF_TAG = "bff-internal"
 _PROBLEM = {"$ref": f"#/components/schemas/{PROBLEM}"}
-_BINDING_LENGTH = 43
 # A security requirement, which is what drf-spectacular writes to the operation as it comes; its
 # stubs type the argument as a list of names.
 _BFF_SECURITY: Any = [{BFF_CREDENTIAL_SCHEME: []}]
+_NO_STORE = {"Cache-Control": "no-store"}
+
+# Status and fixed detail of each code (spec §11): the detail says no more than the code, never an
+# email nor anything Google sent. A 5xx carries none (problems.py).
+_LOGIN_ERRORS: dict[IdentityErrorCode, tuple[int, str | None]] = {
+    IdentityErrorCode.GOOGLE_AUTH_FAILED: (400, "No se pudo validar el ingreso con Google."),
+    IdentityErrorCode.LOGIN_CANCELLED: (400, "El ingreso con Google se canceló."),
+    IdentityErrorCode.EMAIL_NOT_VERIFIED: (
+        403,
+        "La cuenta de Google no tiene el email verificado.",
+    ),
+    IdentityErrorCode.NOT_INVITED: (403, "No hay una invitación vigente para esta cuenta."),
+    IdentityErrorCode.USER_INACTIVE: (403, "El usuario está desactivado."),
+    IdentityErrorCode.IDENTITY_CONFLICT: (409, "El email ya pertenece a otro usuario."),
+    IdentityErrorCode.GOOGLE_UNAVAILABLE: (503, None),
+    IdentityErrorCode.LOGIN_DISABLED: (503, None),
+}
 
 
 class LoginDisabled(APIException):
     status_code = status.HTTP_503_SERVICE_UNAVAILABLE
     default_code = IdentityErrorCode.LOGIN_DISABLED.value
+
+
+class LoginFailed(APIException):
+    """One of the callback's codes, with its status and fixed detail."""
+
+    def __init__(self, code: IdentityErrorCode) -> None:
+        self.status_code, detail = _LOGIN_ERRORS[code]
+        super().__init__(detail=detail, code=code.value)
 
 
 # Fixed per code: the detail never says what was wrong with the token.
@@ -74,34 +113,13 @@ class RefreshRefused(APIException):
         super().__init__(detail=_REFRESH_DETAILS[code], code=code.value)
 
 
-def _login_binding(value: str) -> None:
-    if not is_login_binding(value):
-        raise serializers.ValidationError("Formato inválido.", code="invalid")
-
-
-# Comments, not docstrings: drf-spectacular would publish a docstring as the description.
-# login_binding: 32 random bytes in base64url, created by the BFF (design.md §6.3).
-# return_path: any text is accepted; one that is not an internal path is replaced, not refused.
-class LoginStartRequestSerializer(serializers.Serializer[dict[str, Any]]):
-    login_binding = serializers.CharField(
-        min_length=_BINDING_LENGTH,
-        max_length=_BINDING_LENGTH,
-        trim_whitespace=False,
-        validators=[_login_binding],
-    )
-    return_path = serializers.CharField(
-        required=False, allow_blank=True, allow_null=True, trim_whitespace=False
-    )
-
-    class Meta:
-        ref_name = "LoginStart"  # published as LoginStartRequest (split components)
-
-
-class LoginStartResponseSerializer(serializers.Serializer[dict[str, Any]]):
-    authorization_url = serializers.URLField(read_only=True)
-
-    class Meta:
-        ref_name = "LoginStartResponse"
+def _problems(*described: tuple[int, str]) -> dict[Any, OpenApiResponse]:
+    return {
+        (status_code, PROBLEM_CONTENT_TYPE): OpenApiResponse(
+            response=_PROBLEM, description=description
+        )
+        for status_code, description in described
+    }
 
 
 class LoginStartView(BffAPIView):
@@ -119,11 +137,8 @@ class LoginStartView(BffAPIView):
         request=LoginStartRequestSerializer,
         responses={
             200: LoginStartResponseSerializer,
-            (429, PROBLEM_CONTENT_TYPE): OpenApiResponse(
-                response=_PROBLEM, description="code: rate_limited (con Retry-After)"
-            ),
-            (503, PROBLEM_CONTENT_TYPE): OpenApiResponse(
-                response=_PROBLEM, description="code: login_disabled"
+            **_problems(
+                (429, "code: rate_limited (con Retry-After)"), (503, "code: login_disabled")
             ),
         },
     )
@@ -141,29 +156,63 @@ class LoginStartView(BffAPIView):
         except LoginDisabledError:
             raise LoginDisabled from None
         # The URL carries state and nonce: no cache keeps a copy.
-        return Response(
-            {"authorization_url": authorization_url}, headers={"Cache-Control": "no-store"}
-        )
+        return Response({"authorization_url": authorization_url}, headers=_NO_STORE)
 
 
-# refresh_token: rt1.<sid>.<secret>, the one in __Host-cpu_rt (design.md §4.5).
-class RefreshRequestSerializer(serializers.Serializer[dict[str, Any]]):
-    refresh_token = serializers.CharField(trim_whitespace=False)
+class LoginCompleteView(BffAPIView):
+    throttle_classes = (LoginCompleteIpThrottle,)
 
-    class Meta:
-        ref_name = "Refresh"  # published as RefreshRequest (split components)
-
-
-# refresh_token is null in the grace window: the BFF then keeps the cookie it has (design.md §4.5).
-# session_expires_in: seconds to the idle deadline, the Max-Age of __Host-cpu_rt (design.md §7.1).
-class RefreshResponseSerializer(serializers.Serializer[dict[str, Any]]):
-    access_token = serializers.CharField(read_only=True)
-    access_expires_in = serializers.IntegerField(read_only=True)
-    refresh_token = serializers.CharField(read_only=True, allow_null=True)
-    session_expires_in = serializers.IntegerField(read_only=True)
-
-    class Meta:
-        ref_name = "RefreshResponse"
+    @extend_schema(
+        operation_id="auth_bff_login_complete",
+        summary="Completa un login con Google (solo BFF)",
+        description=(
+            "Consume el intento de login (un solo uso, 10 minutos), canjea el código con Google, "
+            "valida el ID token y abre la sesión. Los tokens son solo para el BFF."
+        ),
+        tags=[BFF_TAG],
+        auth=_BFF_SECURITY,
+        request=LoginCompleteRequestSerializer,
+        responses={
+            200: LoginCompleteResponseSerializer,
+            **_problems(
+                (400, "code: google_auth_failed · login_cancelled · validation_error"),
+                (403, "code: email_not_verified · not_invited · user_inactive"),
+                (409, "code: identity_conflict"),
+                (429, "code: rate_limited (con Retry-After)"),
+                (503, "code: google_unavailable · login_disabled"),
+            ),
+        },
+    )
+    def post(self, request: Request) -> Response:
+        # The flag before the body, as in start: no attempt is consumed with the login off.
+        if not is_enabled(LOGIN_FLAG):
+            raise LoginDisabled
+        body = LoginCompleteRequestSerializer(data=request.data)
+        body.is_valid(raise_exception=True)
+        data = body.validated_data
+        try:
+            login = complete_login(
+                state=data["state"],
+                login_binding=data["login_binding"],
+                code=data.get("code"),
+                error=data.get("error"),
+            )
+        except IdentityError as error:
+            if error.code not in _LOGIN_ERRORS:
+                raise
+            raise LoginFailed(error.code) from None
+        result = LoginCompleteResponseSerializer(
+            {
+                "access_token": login.access_token,
+                "access_expires_in": login.access_expires_in,
+                "refresh_token": login.refresh_token,
+                "session_id": login.session_id,
+                "session_expires_in": login.session_expires_in,
+                "return_path": login.return_path,
+            }
+        ).data
+        # Tokens: no cache keeps a copy (design.md §7.5).
+        return Response(result, headers=_NO_STORE)
 
 
 class RefreshView(BffAPIView):
@@ -182,11 +231,9 @@ class RefreshView(BffAPIView):
         request=RefreshRequestSerializer,
         responses={
             200: RefreshResponseSerializer,
-            (401, PROBLEM_CONTENT_TYPE): OpenApiResponse(
-                response=_PROBLEM, description="code: token_invalid | session_revoked"
-            ),
-            (429, PROBLEM_CONTENT_TYPE): OpenApiResponse(
-                response=_PROBLEM, description="code: rate_limited (con Retry-After)"
+            **_problems(
+                (401, "code: token_invalid | session_revoked"),
+                (429, "code: rate_limited (con Retry-After)"),
             ),
         },
     )
@@ -205,4 +252,4 @@ class RefreshView(BffAPIView):
             "session_expires_in": refreshed.session_expires_in,
         }
         # Tokens: no cache keeps a copy.
-        return Response(payload, headers={"Cache-Control": "no-store"})
+        return Response(payload, headers=_NO_STORE)

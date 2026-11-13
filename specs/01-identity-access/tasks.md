@@ -73,7 +73,7 @@ El diseño se escribió antes de que existiera el código de SPEC-00. Donde difi
 | T-IDA-10 | Iniciar login: `LoginAttempt` + migración 0003 | AC-IDA-19 (servidor), AC-IDA-20, AC-IDA-37 | DB/API | `models/login_attempt.py`, `domain/return_path.py`, `services/login_start.py`, `api/views_bff.py`, `infra/docker-compose.yml` | T-IDA-08, T-IDA-09 | backend-dev | L | Sí | 🟡 | rama `task/T-IDA-10-login-start`, sin PR |
 | T-IDA-11 | Reglas del callback y usuario existente | AC-IDA-09 (callback), AC-IDA-29, AC-IDA-30 | Servicio | `domain/login_rules.py`, `services/user_provisioning.py` | T-IDA-03, T-IDA-05 | backend-dev | L | Sí | 🟡 | rama `task/T-IDA-11-callback-rules`, sin PR |
 | T-IDA-12 | Usuario nuevo por invitación y carrera de callbacks | AC-IDA-02, AC-IDA-03, AC-IDA-04, AC-IDA-05, AC-IDA-31 | Servicio | `services/user_provisioning.py` | T-IDA-11 | backend-dev | L | Sí | 🟡 | rama `task/T-IDA-12-invited-user`, sin PR |
-| T-IDA-13 | Completar login: orquestación y vista | AC-IDA-01, AC-IDA-03, AC-IDA-06, AC-IDA-08, AC-IDA-09, AC-IDA-20, AC-IDA-24 (login) | Servicio/API | `services/login_complete.py`, `api/views_bff.py` | T-IDA-10, T-IDA-12 | backend-dev | L | Sí | ☐ | |
+| T-IDA-13 | Completar login: orquestación y vista | AC-IDA-01, AC-IDA-03, AC-IDA-06, AC-IDA-08, AC-IDA-09, AC-IDA-20, AC-IDA-24 (login) | Servicio/API | `services/login_complete.py`, `api/views_bff.py` | T-IDA-10, T-IDA-12 | backend-dev | L | Sí | 🟡 | rama `task/T-IDA-13-login-complete`, sin PR |
 | T-IDA-14 | Refresh: rotación y vencimientos | AC-IDA-09 (refresh), AC-IDA-14, AC-IDA-15, AC-IDA-16, AC-IDA-22, AC-IDA-28 (servicio) | Servicio/API | `services/refresh.py`, `api/views_bff.py`, `api/throttles.py`, `config/settings/base.py` | T-IDA-06, T-IDA-09 | backend-dev | L | Sí | 🟡 | rama `task/T-IDA-14-refresh`, sin PR |
 | T-IDA-15 | Refresh: concurrencia y 31.º refresh | AC-IDA-20 (refresh), AC-IDA-28 (carrera) | Servicio | `backend/tests/identity/test_refresh_concurrency.py` | T-IDA-14 | backend-dev | M | Sí | ☐ | |
 | T-IDA-16 | Logout | AC-IDA-17 (backend), AC-IDA-35 | Servicio/API | `services/logout.py`, `api/views_bff.py` | T-IDA-14 | backend-dev | M | Sí | ☐ | |
@@ -375,6 +375,21 @@ módulos se aprueba en la misma pasada, después de `T-TEN-36`.
   `test_AC_IDA_06_unverified_email`, `test_AC_IDA_08_bad_state_never_calls_google`, `test_AC_IDA_08_repeated_callback`,
   `test_AC_IDA_09_inactive_gets_no_tokens`, `test_AC_IDA_20_eleventh_callback_is_429`,
   `test_AC_IDA_24_login_events_have_null_org`, `test_Q_125_rejection_has_no_email_nor_sub`.
+- **Sumados al implementar:** `backend/tests/identity/api/{conftest,login_flow}.py` (fixture `flow`: login de punta a
+  punta con Google falso en la red y puertos en memoria) y `test_login_complete_errors.py` (división `C-14`: errores de
+  Google, flag, cuerpo, logs y contrato); `apps/common/api/problems.py` (`title` en español de los siete códigos nuevos,
+  como en `T-IDA-10`); `apps/common/api/schema.py` (`API_VERSION` 0.5.0 por la operación nueva);
+  `tests/identity/api/test_{login_start,refresh_view}.py` (afirman la versión del contrato); `api/urls.py`; `services/user_provisioning.py` y sus
+  tests `test_user_provisioning.py` y `test_AC_IDA_02_invited_user.py` (nota del reviewer: los logs de detalle pasan a
+  `auth.identity_conflict` y `auth.email_not_storable`, con `outcome`, para que `auth.login_rejected` salga una sola vez
+  por callback, desde `login_complete`).
+- **Resultado:** `UserProvisioningError` → `500 internal_error`, sin `detail` ni datos personales y sin evento de
+  auditoría (no es un rechazo de RN-IDA-17; `design.md §4.2` no lo cubre). El intento se consume con un `DELETE …
+  RETURNING` por `state_hash` + `binding_hash` + vigencia, en una transacción propia que commitea antes de llamar a
+  Google: un binding ajeno no quema el intento del navegador dueño. `X-Hub-Client-UA` todavía no se lee: las sesiones
+  nacen con navegador y SO vacíos hasta `T-IDA-17` (`domain/client_hint.py`), que lo agrega al contrato. Los
+  serializers del BFF (también los de refresh, de `T-IDA-14`) pasaron de `views_bff.py` a `api/serializers.py` sin
+  cambiar su contrato. La ruta va con `non_atomic_requests`, como la de refresh.
 
 ### T-IDA-14 — Refresh: rotación y vencimientos
 - **AC:** AC-IDA-09 (refresh), AC-IDA-14, AC-IDA-16. RF-IDA-04, RN-IDA-11. **Zona roja:** sí.

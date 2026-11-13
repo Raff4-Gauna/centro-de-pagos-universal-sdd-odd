@@ -35,6 +35,13 @@ TITLES: Mapping[str, str] = {
     # SPEC-01 (design.md §6.1): codes of auth/bff/*.
     "rate_limited": "Demasiadas solicitudes",
     "login_disabled": "Ingreso deshabilitado",
+    "google_auth_failed": "Ingreso con Google fallido",
+    "login_cancelled": "Ingreso cancelado",
+    "google_unavailable": "Google no disponible",
+    "email_not_verified": "Email no verificado",
+    "not_invited": "Sin invitación",
+    "user_inactive": "Usuario desactivado",
+    "identity_conflict": "Conflicto de identidad",
     INTERNAL_ERROR: "Error interno",
 }
 

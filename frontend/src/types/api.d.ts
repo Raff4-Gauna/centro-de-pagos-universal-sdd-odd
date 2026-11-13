@@ -4,6 +4,26 @@
  */
 
 export interface paths {
+    "/api/auth/bff/login/complete/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Completa un login con Google (solo BFF)
+         * @description Consume el intento de login (un solo uso, 10 minutos), canjea el código con Google, valida el ID token y abre la sesión. Los tokens son solo para el BFF.
+         */
+        post: operations["auth_bff_login_complete"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/auth/bff/login/start/": {
         parameters: {
             query?: never;
@@ -65,6 +85,21 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        LoginCompleteRequest: {
+            state: string;
+            login_binding: string;
+            code?: string | null;
+            error?: string | null;
+        };
+        LoginCompleteResponse: {
+            readonly access_token: string;
+            readonly access_expires_in: number;
+            readonly refresh_token: string;
+            /** Format: uuid */
+            readonly session_id: string;
+            readonly session_expires_in: number;
+            readonly return_path: string;
+        };
         LoginStartRequest: {
             login_binding: string;
             return_path?: string | null;
@@ -133,6 +168,92 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    auth_bff_login_complete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LoginCompleteRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LoginCompleteResponse"];
+                };
+            };
+            /** @description code: google_auth_failed · login_cancelled · validation_error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description code: email_not_verified · not_invited · user_inactive */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description code: identity_conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description code: rate_limited (con Retry-After) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description code: google_unavailable · login_disabled */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Error del cliente */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Error del servidor */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     auth_bff_login_start: {
         parameters: {
             query?: never;
