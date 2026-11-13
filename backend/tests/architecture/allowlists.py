@@ -31,6 +31,7 @@ _SESSION_LIFECYCLE = "apps/identity/services/session_lifecycle.py"
 ALLOWED_TENANT_MANAGERS: tuple[AllowEntry, ...] = (
     AllowEntry(_SESSION_LIFECYCLE, "AuthSession.objects", _GLOBAL_ENTITY),
     AllowEntry(_SESSION_LIFECYCLE, "RefreshToken.objects", _GLOBAL_ENTITY),
+    AllowEntry("apps/identity/services/login_start.py", "LoginAttempt.objects", _GLOBAL_ENTITY),
 )
 
 # C-02: ``FloatField`` in models and ``float`` in domain/services/selectors/api (money_rules.py).

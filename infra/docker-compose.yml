@@ -28,6 +28,22 @@ x-backend-environment: &backend-environment
   APP_VERSION: ${APP_VERSION:-}
   API_THROTTLE_ANON_RATE: ${API_THROTTLE_ANON_RATE:-}
   TRUSTED_PROXY_COUNT: ${TRUSTED_PROXY_COUNT:-}
+  # SPEC-01: without the BFF credential auth/bff/* answers 404; without the JWT keys nothing is
+  # issued or verified; without the Google client, starting a login fails (env.example explains
+  # each one).
+  IDENTITY_BFF_CREDENTIALS: ${IDENTITY_BFF_CREDENTIALS:-}
+  IDENTITY_JWT_ISSUER: ${IDENTITY_JWT_ISSUER:-}
+  IDENTITY_JWT_AUDIENCE: ${IDENTITY_JWT_AUDIENCE:-}
+  IDENTITY_JWT_SIGNING_KID: ${IDENTITY_JWT_SIGNING_KID:-}
+  IDENTITY_JWT_SIGNING_KEY: ${IDENTITY_JWT_SIGNING_KEY:-}
+  IDENTITY_JWT_VERIFICATION_KEYS: ${IDENTITY_JWT_VERIFICATION_KEYS:-}
+  IDENTITY_OIDC_PROVIDER: ${IDENTITY_OIDC_PROVIDER:-}
+  IDENTITY_GOOGLE_CLIENT_ID: ${IDENTITY_GOOGLE_CLIENT_ID:-}
+  IDENTITY_GOOGLE_CLIENT_SECRET: ${IDENTITY_GOOGLE_CLIENT_SECRET:-}
+  IDENTITY_GOOGLE_REDIRECT_URI: ${IDENTITY_GOOGLE_REDIRECT_URI:-}
+  # Feature flags (RF-PLT-19). On in the dev stack on purpose, like DJANGO_DEBUG: prod leaves it
+  # off until login with Google is verified there (design.md §10 of SPEC-01).
+  FEATURE_IDENTITY_GOOGLE_LOGIN: "true"
   # The source is bind-mounted from the host: no root-owned __pycache__ in the host tree.
   PYTHONDONTWRITEBYTECODE: "1"
 

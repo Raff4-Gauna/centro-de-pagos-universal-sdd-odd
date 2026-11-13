@@ -1,8 +1,55 @@
 openapi: 3.0.3
 info:
   title: Centro de Pagos Universal API
-  version: 0.2.0
+  version: 0.3.0
 paths:
+  /api/auth/bff/login/start/:
+    post:
+      operationId: auth_bff_login_start
+      description: Crea el intento de login y devuelve la URL de autorización de Google.
+        Un return_path que no es una ruta interna se reemplaza por Inicio.
+      summary: Inicia un login con Google (solo BFF)
+      tags:
+      - bff-internal
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginStartRequest'
+        required: true
+      security:
+      - BffCredential: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginStartResponse'
+          description: ''
+        '429':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: 'code: rate_limited (con Retry-After)'
+        '503':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: 'code: login_disabled'
+        4XX:
+          description: Error del cliente
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        5XX:
+          description: Error del servidor
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
   /api/me/:
     get:
       operationId: me_retrieve
@@ -39,6 +86,27 @@ paths:
                 $ref: '#/components/schemas/Problem'
 components:
   schemas:
+    LoginStartRequest:
+      type: object
+      properties:
+        login_binding:
+          type: string
+          minLength: 43
+          maxLength: 43
+        return_path:
+          type: string
+          nullable: true
+      required:
+      - login_binding
+    LoginStartResponse:
+      type: object
+      properties:
+        authorization_url:
+          type: string
+          format: uri
+          readOnly: true
+      required:
+      - authorization_url
     Me:
       type: object
       properties:
@@ -141,6 +209,11 @@ components:
       - code
       - message
   securitySchemes:
+    BffCredential:
+      type: apiKey
+      in: header
+      name: X-Hub-Bff-Credential
+      description: Solo el BFF. Sin ella, la ruta responde 404 not_found.
     HubBearer:
       type: http
       scheme: bearer

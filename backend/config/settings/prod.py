@@ -90,6 +90,13 @@ IDENTITY_JWT_SIGNING_KID = _env.IDENTITY_JWT_SIGNING_KID
 IDENTITY_JWT_SIGNING_KEY = _env.IDENTITY_JWT_SIGNING_KEY.get_secret_value()
 IDENTITY_JWT_VERIFICATION_KEYS = _env.IDENTITY_JWT_VERIFICATION_KEYS
 
+# Login with Google (design.md sec. 8.3), read through apps.identity.oidc.provider. The secret is
+# masked in error reports by the SECRET rule of CredentialSafeReporterFilter (C-06).
+IDENTITY_OIDC_PROVIDER = _env.IDENTITY_OIDC_PROVIDER
+IDENTITY_GOOGLE_CLIENT_ID = _env.IDENTITY_GOOGLE_CLIENT_ID
+IDENTITY_GOOGLE_CLIENT_SECRET = _env.IDENTITY_GOOGLE_CLIENT_SECRET.get_secret_value()
+IDENTITY_GOOGLE_REDIRECT_URI = _env.IDENTITY_GOOGLE_REDIRECT_URI
+
 # Drop the env object: it must not outlive the settings it fed (C-06).
 del _env
 
