@@ -162,9 +162,44 @@ def test_AC_TEN_11_combining_within_one_scope_keeps_it(combine: Combine) -> None
 
     assert in_tenant.scope == ctx_for(org_id)
     assert in_global.scope is UnscopedReason.PLATFORM_COMMAND
-    # Two unscoped operands stay unscoped: the result still raises when it runs.
+    with pytest.raises(TenantScopeError):  # two unscoped operands: nothing to run under
+        combine(Organization.objects.filter(name="a"), Organization.objects.filter(name="b"))
+
+
+OPERATORS = {name: COMBINE[name] for name in ("or", "xor", "and")}
+
+
+def _unscoped() -> OrganizationQuerySet:
+    return Organization.objects.all().order_by("name")
+
+
+# With a slice Django rebuilds the operand as ``_base_manager.filter(pk__in=...)``: an unscoped
+# left operand used to skip the check, and a scoped one came back as a plain queryset without scope.
+SLICED: dict[str, Callable[[OrganizationQuerySet], tuple[Any, Any]]] = {
+    "unscoped_slice_left": lambda scoped: (_unscoped()[:5], scoped),
+    "unscoped_slice_right": lambda scoped: (scoped, _unscoped()[:5]),
+    "unscoped_left": lambda scoped: (_unscoped(), scoped),
+    "scoped_slice_left": lambda scoped: (scoped.order_by("name")[:5], scoped),
+    "scoped_slice_right": lambda scoped: (scoped, scoped.order_by("name")[:5]),
+    "both_sliced": lambda scoped: (scoped.order_by("name")[:5], scoped.order_by("name")[1:3]),
+}
+
+
+@pytest.mark.parametrize("combine", OPERATORS.values(), ids=OPERATORS.keys())
+@pytest.mark.parametrize("operands", SLICED.values(), ids=SLICED.keys())
+def test_AC_TEN_11_operators_reject_unscoped_or_sliced_operands(
+    combine: Combine, operands: Callable[[OrganizationQuerySet], tuple[Any, Any]]
+) -> None:
+    left, right = operands(Organization.objects.for_tenant(ctx_for(uuid.uuid4())))
+
     with pytest.raises(TenantScopeError):
-        list(combine(Organization.objects.filter(name="a"), Organization.objects.filter(name="b")))
+        combine(left, right)
+
+
+@pytest.mark.parametrize("combine", COMBINE.values(), ids=COMBINE.keys())
+def test_AC_TEN_11_combining_needs_a_scope_on_the_left(combine: Combine) -> None:
+    with pytest.raises(TenantScopeError):
+        combine(_unscoped(), Organization.objects.for_tenant(ctx_for(uuid.uuid4())))
 
 
 def test_AC_TEN_11_clone_keeps_scope() -> None:
@@ -228,6 +263,8 @@ def test_AC_TEN_11_combined_querysets_return_only_their_organization() -> None:
         union = list(scoped.union(scoped.filter(pk=other.pk)))
         with pytest.raises(TenantScopeError):
             list(scoped | Organization.objects.filter(name="Other"))
+        with pytest.raises(TenantScopeError):
+            list(Organization.objects.all().order_by("name")[:5] | scoped)
 
     assert either == [mine]
     assert union == [mine]

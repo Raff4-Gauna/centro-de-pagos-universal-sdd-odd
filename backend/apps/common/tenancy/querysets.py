@@ -13,9 +13,13 @@ touching the database when the queryset has neither. The scope survives ``filter
 any other clone.
 
 Two querysets combined into one query (``|``, ``&``, ``^``, ``union``, ``intersection``,
-``difference``) run under the scope of the left one, so the right one must not widen it: it has to
-be a ``TenantQuerySet`` with a scope that agrees (the same organization, or both global). Anything
-else raises when combined, a plain queryset of the base manager included.
+``difference``) run under the scope of the left one, so both must carry a scope and the two must
+agree (the same organization, or both global). Anything else raises when combined: an unscoped
+operand on either side, a plain queryset of the base manager, another organization.
+
+``|``, ``&`` and ``^`` also reject a sliced operand: Django rebuilds it as
+``_base_manager.filter(pk__in=...)``, a plain queryset that carries neither the scope nor these
+guards. Combine first and slice the result, or use ``union``.
 
 Known gap: an unscoped queryset used as a subquery (``__in=qs``) never runs by itself; the
 architecture test catches it, and later RLS (ADR-0001).
@@ -135,29 +139,37 @@ class TenantQuerySet(models.QuerySet[_M]):
 
     def _require_same_scope(self, other: Any, operation: str) -> None:
         """``other`` joins a query that runs under ``self._scope``: it must not widen it."""
+        self._require_scope(operation)
         if not isinstance(other, TenantQuerySet):
             raise TenantScopeError(f"{self._model_name()}.{operation} with an unscoped queryset")
         other._require_scope(operation)
-        if self._scope is not None and not _same_scope(self._scope, other._scope):
+        if not _same_scope(self._scope, other._scope):
             raise TenantScopeError(f"{self._model_name()}.{operation} with a different scope")
+
+    def _require_operands(self, other: Any, operation: str) -> None:
+        self._require_same_scope(other, operation)
+        if self.query.is_sliced or other.query.is_sliced:
+            raise TenantScopeError(
+                f"{self._model_name()}.{operation} with a sliced queryset: slice the result instead"
+            )
 
     def _combinator_query(self, combinator: str, *other_qs: Any, all: bool = False) -> Self:
         for other in other_qs:
             self._require_same_scope(other, combinator)
         return super()._combinator_query(combinator, *other_qs, all=all)  # type: ignore[misc, no-any-return]
 
-    # ``a | b`` absorbs the empty WHERE of an unscoped ``b`` and would run marked with the scope
-    # of ``a``: checked here, before Django merges the two queries.
+    # ``a | b`` absorbs the empty WHERE of an unscoped operand and would run marked with the scope
+    # of the other: checked here, before Django merges (or, with a slice, rebuilds) the queries.
     def __and__(self, other: Any) -> Self:
-        self._require_same_scope(other, "__and__")
+        self._require_operands(other, "__and__")
         return super().__and__(other)
 
     def __or__(self, other: Any) -> Self:
-        self._require_same_scope(other, "__or__")
+        self._require_operands(other, "__or__")
         return super().__or__(other)
 
     def __xor__(self, other: Any) -> Self:
-        self._require_same_scope(other, "__xor__")
+        self._require_operands(other, "__xor__")
         # django-stubs has no ``QuerySet.__xor__`` (Django added it in 4.1).
         return super().__xor__(other)  # type: ignore[misc, no-any-return]
 
@@ -168,7 +180,7 @@ class TenantQuerySet(models.QuerySet[_M]):
         return super().__repr__()
 
 
-def _same_scope(left: Scope, right: Scope | None) -> bool:
+def _same_scope(left: Scope | None, right: Scope | None) -> bool:
     if isinstance(left, TenantContext) and isinstance(right, TenantContext):
         return left.organization_id == right.organization_id
     return isinstance(left, UnscopedReason) and isinstance(right, UnscopedReason)
