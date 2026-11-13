@@ -72,7 +72,7 @@ El diseño se escribió antes de que existiera el código de SPEC-00. Donde difi
 | T-IDA-09 | Credencial BFF, IP del cliente y throttles | AC-IDA-20, AC-IDA-37 | API | `api/bff_auth.py`, `api/client_ip.py`, `api/throttles.py`, `tests/config/test_RF_PLT_19_feature_flags.py` | T-IDA-01 | backend-dev | M | Sí | 🟡 | PR abierto |
 | T-IDA-10 | Iniciar login: `LoginAttempt` + migración 0003 | AC-IDA-19 (servidor), AC-IDA-20, AC-IDA-37 | DB/API | `models/login_attempt.py`, `domain/return_path.py`, `services/login_start.py`, `api/views_bff.py`, `infra/docker-compose.yml` | T-IDA-08, T-IDA-09 | backend-dev | L | Sí | 🟡 | rama `task/T-IDA-10-login-start`, sin PR |
 | T-IDA-11 | Reglas del callback y usuario existente | AC-IDA-09 (callback), AC-IDA-29, AC-IDA-30 | Servicio | `domain/login_rules.py`, `services/user_provisioning.py` | T-IDA-03, T-IDA-05 | backend-dev | L | Sí | 🟡 | rama `task/T-IDA-11-callback-rules`, sin PR |
-| T-IDA-12 | Usuario nuevo por invitación y carrera de callbacks | AC-IDA-02, AC-IDA-03, AC-IDA-04, AC-IDA-05, AC-IDA-31 | Servicio | `services/user_provisioning.py` | T-IDA-11 | backend-dev | L | Sí | ☐ | |
+| T-IDA-12 | Usuario nuevo por invitación y carrera de callbacks | AC-IDA-02, AC-IDA-03, AC-IDA-04, AC-IDA-05, AC-IDA-31 | Servicio | `services/user_provisioning.py` | T-IDA-11 | backend-dev | L | Sí | 🟡 | rama `task/T-IDA-12-invited-user`, sin PR |
 | T-IDA-13 | Completar login: orquestación y vista | AC-IDA-01, AC-IDA-03, AC-IDA-06, AC-IDA-08, AC-IDA-09, AC-IDA-20, AC-IDA-24 (login) | Servicio/API | `services/login_complete.py`, `api/views_bff.py` | T-IDA-10, T-IDA-12 | backend-dev | L | Sí | ☐ | |
 | T-IDA-14 | Refresh: rotación y vencimientos | AC-IDA-09 (refresh), AC-IDA-14, AC-IDA-16, AC-IDA-22 | Servicio/API | `services/refresh.py`, `api/views_bff.py` | T-IDA-06, T-IDA-09 | backend-dev | L | Sí | ☐ | |
 | T-IDA-15 | Refresh: gracia, reuso y concurrencia | AC-IDA-15, AC-IDA-20 (refresh), AC-IDA-28 | Servicio | `services/refresh.py` | T-IDA-14 | backend-dev | M | Sí | ☐ | |
@@ -356,6 +356,11 @@ módulos se aprueba en la misma pasada, después de `T-TEN-36`.
 - **Nota de T-IDA-11:** la diferencia entre `lower()` de Python y de PostgreSQL para algunos caracteres no ASCII
   puede hacer fallar `users_email_normalized` en el alta del caso (b). T-IDA-12 la maneja sin confundirla con la
   carrera; si hace falta una regla nueva, se abre un `Q-xxx`.
+- **Resultado (2026-11-12):** se abrió **Q-126** con valor provisional a): solo `UniqueViolation` es carrera o
+  colisión; la `CheckViolation` de `users_email_normalized` rechaza con `google_auth_failed` en los casos (a) y (b).
+  El test de carrera quedó en `test_AC_IDA_02_concurrent_callbacks.py`. `InvitationsNoLongerValid` al aceptar →
+  `not_invited`. El alta usa `User(...).save(force_insert=True)` y no `User.objects` (C-01, sin tocar la
+  allowlist de `tests/architecture/`). `T-IDA-13` decide el código HTTP de `UserProvisioningError` (hoy sin mapear: `500` sin datos personales).
 
 ### T-IDA-13 — Completar login: orquestación y vista
 - **AC:** AC-IDA-01, 03, 06, 08, 09, 20, 24 (login). RF-IDA-02, RN-IDA-17. **Zona roja:** sí.
