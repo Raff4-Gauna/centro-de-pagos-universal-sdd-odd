@@ -26,6 +26,9 @@ x-backend-environment: &backend-environment
   LOG_LEVEL: INFO
   API_THROTTLE_ANON_RATE: 300/min
   TRUSTED_PROXY_COUNT: "0"
+  # Empty: prod settings refuse the public BFF credential of env.example (T-IDA-20), and the smoke
+  # never calls auth/bff/*, which answers 404 without one.
+  IDENTITY_BFF_CREDENTIALS: ""
 
 services:
   db:

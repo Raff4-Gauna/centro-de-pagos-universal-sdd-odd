@@ -467,7 +467,8 @@ módulos se aprueba en la misma pasada, después de `T-TEN-36`.
 ### T-IDA-20 — Chequeos de arranque y proveedor OIDC falso
 - **AC:** — (RN-IDA-01, RN-IDA-16, RNF-IDA-06, Q-122). **Zona roja:** sí.
 - **Archivos:** `checks.py`, `apps.py`, `dev_oidc/{views,urls}.py`, `config/settings/{base,dev,test,prod}.py`,
-  `config/urls_dev.py`, `backend/tests/identity/test_RNF_IDA_06_*.py`.
+  `config/urls_dev.py`, `backend/tests/identity/test_RNF_IDA_06_*.py`, `infra/docker-compose.ci.yml` (el stack de CI
+  corre `settings.prod` con `env.example`, cuyo placeholder BFF prod ahora rechaza: se vacía, el smoke no usa `auth/bff/*`).
 - **Cambios:** ver "Ajustes al diseño" por `APP_ENV`; `IdentityConfig.ready()` lanza `ImproperlyConfigured` si
   `IDENTITY_OIDC_PROVIDER=fake` sin `IDENTITY_FAKE_OIDC_ALLOWED`; `checks.py` exige secretos distintos y, en prod, issuer y
   endpoints exactos de Google. `/dev-oidc/*` no se monta en prod.
@@ -492,8 +493,8 @@ módulos se aprueba en la misma pasada, después de `T-TEN-36`.
     PKCE S256) y `GET jwks`. La clave RSA vive en el caché, compartida por los workers. Todo responde `404` sin el
     proveedor falso activo, antes de mirar el método.
   - **Stack de CI:** `infra/docker-compose.ci.yml` corre `settings.prod` con `--env-file env.example`, así que el backend
-    recibe el placeholder y no arranca. Hace falta `IDENTITY_BFF_CREDENTIALS: ""` en su `x-backend-environment`
-    (fuera de esta ficha: se reporta como scope drift).
+    recibiría el placeholder y no arrancaría: su `x-backend-environment` fija `IDENTITY_BFF_CREDENTIALS: ""` (sumado a
+    la ficha por decisión de planificación).
 - **Pruebas:** `test_RNF_IDA_06_fake_provider_fails_in_prod_settings`, `test_RN_IDA_16_equal_secrets_fail_check`,
   `test_RN_IDA_01_dev_oidc_routes_absent_in_prod`, `test_RN_IDA_16_weak_bff_credential_in_prod_does_not_start`,
   `test_RNF_IDA_06_fake_login_passes_the_real_gateway_and_verifier` y el resto de `test_RNF_IDA_06_*.py`.
@@ -597,6 +598,8 @@ módulos se aprueba en la misma pasada, después de `T-TEN-36`.
 - **Cambios:** contra el Compose de desarrollo con `IDENTITY_OIDC_PROVIDER=fake`: ingresar → `/api/me` → sesiones →
   cerrar las demás → logout, con jar de cookies propio. Sin navegador ni dependencias nuevas. Corre a mano y lo usa
   `verification.md`; sumarlo a CI tocaría `ci.yml` (Q-063) y queda para el dueño.
+- **Aviso de `T-IDA-20`:** el proveedor falso solo arranca con `settings.dev` o `settings.test`; el stack de CI
+  (`infra/docker-compose.ci.yml`) corre `settings.prod`, así que el E2E necesita un stack con settings de dev/test.
 - **Pruebas:** `test_AC_IDA_01_e2e_flow_parses_redirects`, `test_AC_IDA_17_e2e_logout_step`, `test_AC_IDA_33_e2e_revoke_others`
   con respuestas simuladas; la corrida real se registra en `verification.md`.
 
