@@ -104,6 +104,69 @@ def test_AC_TEN_11_manager_shortcuts_raise(call: Callable[[], Any]) -> None:
         call()
 
 
+Combine = Callable[[OrganizationQuerySet, Any], Any]
+
+# How two querysets become one query. The result runs under the scope of the left operand, so the
+# right one must not widen it (``scoped | Organization.objects.all()`` used to leak every row).
+COMBINE: dict[str, Combine] = {
+    "or": lambda left, right: left | right,
+    "xor": lambda left, right: left ^ right,
+    "and": lambda left, right: left & right,
+    "union": lambda left, right: left.union(right),
+    "intersection": lambda left, right: left.intersection(right),
+    "difference": lambda left, right: left.difference(right),
+}
+
+WIDENING: dict[str, Callable[[], Any]] = {
+    "unscoped": lambda: Organization.objects.all(),
+    "unscoped_filter": lambda: Organization.objects.filter(name="Other"),
+    "base_manager": lambda: Organization._base_manager.all(),
+    "other_organization": lambda: Organization.objects.for_tenant(ctx_for(uuid.uuid4())),
+    "global": lambda: Organization.objects.unscoped(UnscopedReason.SYSTEM_FANOUT),
+}
+
+
+@pytest.mark.parametrize("combine", COMBINE.values(), ids=COMBINE.keys())
+@pytest.mark.parametrize("widening", WIDENING.values(), ids=WIDENING.keys())
+def test_AC_TEN_11_combining_cannot_widen_the_scope(
+    combine: Combine, widening: Callable[[], Any]
+) -> None:
+    scoped = Organization.objects.for_tenant(ctx_for(uuid.uuid4()))
+
+    with pytest.raises(TenantScopeError):
+        combine(scoped, widening())
+
+
+@pytest.mark.parametrize("combine", COMBINE.values(), ids=COMBINE.keys())
+def test_AC_TEN_11_combining_a_global_queryset_with_a_scoped_one_raises(combine: Combine) -> None:
+    everything = Organization.objects.unscoped(UnscopedReason.SYSTEM_FANOUT)
+
+    with pytest.raises(TenantScopeError):
+        combine(everything, Organization.objects.for_tenant(ctx_for(uuid.uuid4())))
+
+
+@pytest.mark.parametrize("combine", COMBINE.values(), ids=COMBINE.keys())
+def test_AC_TEN_11_combining_within_one_scope_keeps_it(combine: Combine) -> None:
+    org_id = uuid.uuid4()
+    # Another context object of the same organization: what counts is the organization.
+    same = TenantContext(
+        organization_id=org_id,
+        organization_status=OrgStatus.SUSPENDED,
+        actor=SystemActor(SystemReason.PLATFORM_COMMAND),
+    )
+    scoped = Organization.objects.for_tenant(ctx_for(org_id))
+    everything = Organization.objects.unscoped(UnscopedReason.PLATFORM_COMMAND)
+
+    in_tenant = combine(scoped.filter(name="a"), Organization.objects.for_tenant(same))
+    in_global = combine(everything.filter(name="a"), everything.filter(name="b"))
+
+    assert in_tenant.scope == ctx_for(org_id)
+    assert in_global.scope is UnscopedReason.PLATFORM_COMMAND
+    # Two unscoped operands stay unscoped: the result still raises when it runs.
+    with pytest.raises(TenantScopeError):
+        list(combine(Organization.objects.filter(name="a"), Organization.objects.filter(name="b")))
+
+
 def test_AC_TEN_11_clone_keeps_scope() -> None:
     org_id = uuid.uuid4()
     scoped = Organization.objects.for_tenant(ctx_for(org_id))
@@ -152,6 +215,22 @@ def test_AC_TEN_11_for_tenant_returns_only_its_organization() -> None:
 
     assert found == [mine]
     assert missing is False
+
+
+@pytest.mark.django_db
+def test_AC_TEN_11_combined_querysets_return_only_their_organization() -> None:
+    mine, other = new_org("Mine"), new_org("Other")
+    ctx = ctx_for(mine.id)
+
+    with tenant_scope(ctx):
+        scoped = Organization.objects.for_tenant(ctx)
+        either = list(scoped.filter(name="Mine") | scoped.filter(name="Other"))
+        union = list(scoped.union(scoped.filter(pk=other.pk)))
+        with pytest.raises(TenantScopeError):
+            list(scoped | Organization.objects.filter(name="Other"))
+
+    assert either == [mine]
+    assert union == [mine]
 
 
 @pytest.mark.django_db
