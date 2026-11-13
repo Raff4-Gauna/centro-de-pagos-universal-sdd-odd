@@ -80,7 +80,7 @@ El diseño se escribió antes de que existiera el código de SPEC-00. Donde difi
 | T-IDA-17 | Sesiones propias: listar y revocar | AC-IDA-25, AC-IDA-26, AC-IDA-33 (API) | Servicio/API | `services/sessions.py`, `api/views_sessions.py`, `domain/client_hint.py` | T-IDA-06, T-IDA-13 | backend-dev | L | Sí | ☐ | |
 | T-IDA-18 | Comandos de desactivar y reactivar usuario | AC-IDA-27, AC-IDA-32 (parte 01) | Comandos | `services/user_status.py`, `management/commands/*` | T-IDA-17 | backend-dev | M | Sí | ☐ | |
 | T-IDA-19 | Purga periódica | AC-IDA-38 | Asíncrono | `tasks.py`, `beat.py`, `services/purge.py` | T-IDA-10, T-IDA-14 | backend-dev | M | Sí | ☐ | |
-| T-IDA-20 | Chequeos de arranque y proveedor OIDC falso | — (RN-IDA-01, RN-IDA-16, RNF-IDA-06) | Config | `checks.py`, `apps.py`, `dev_oidc/*` | T-IDA-08 | backend-dev | L | Sí | ☐ | |
+| T-IDA-20 | Chequeos de arranque y proveedor OIDC falso | — (RN-IDA-01, RN-IDA-16, RNF-IDA-06) | Config | `checks.py`, `apps.py`, `dev_oidc/*`, `oidc/provider.py` | T-IDA-08 | backend-dev | L | Sí | 🟡 | rama `task/T-IDA-20-startup-checks`, sin PR |
 | T-IDA-21 | Redacción de logs, métricas y catálogo completo | AC-IDA-23, AC-IDA-24 | Observabilidad | `apps/common/domain/redaction.py`, tests de identity | T-IDA-13, T-IDA-15, T-IDA-16, T-IDA-17, T-IDA-18 | backend-dev | M | Sí | ☐ | |
 | T-IDA-22 | BFF: cookies, IP, retorno y cliente a Django | AC-IDA-18, AC-IDA-19, AC-IDA-37 (BFF) | BFF | `src/lib/server/{cookies,client-ip,return-path,django,problem}.ts`, `.github/zona-roja-paths.txt` | T-IDA-10 | frontend-dev | L | Sí | ☐ | |
 | T-IDA-23 | BFF: CSRF y refresh con coalescencia | AC-IDA-19 (CSRF), AC-IDA-28 (BFF) | BFF | `src/lib/server/{csrf,refresh}.ts` | T-IDA-14, T-IDA-22 | frontend-dev | M | Sí | ☐ | |
@@ -473,8 +473,30 @@ módulos se aprueba en la misma pasada, después de `T-TEN-36`.
   endpoints exactos de Google. `/dev-oidc/*` no se monta en prod.
 - **Credencial BFF:** evaluar una longitud mínima de `IDENTITY_BFF_CREDENTIALS` en prod (hoy no se exige), y que prod
   rechace el placeholder público de `env.example`.
+- **Sumados al implementar:** `oidc/provider.py` (modo `fake`: los endpoints e issuer de `dev_oidc`, armados con el
+  setting `IDENTITY_FAKE_OIDC_BASE_URL`, `http://localhost:8000` en dev y `http://testserver` en test; fuera de dev y test
+  falla cerrado), `dev_oidc/__init__.py` y `backend/tests/identity/oidc/test_provider.py` (el test que pedía que `fake`
+  fallara siempre ahora prueba los endpoints de `dev_oidc`).
+- **Notas de implementación:**
+  - **Credencial BFF, decidido:** `ProdEnv` (prod y staging) no arranca si una de las credenciales tiene menos de 32
+    caracteres (`bff_credential_too_short`; 32 es el largo de 24 bytes al azar en base64) o es el placeholder de
+    `env.example` (`bff_credential_public`). Va en `ProdEnv` y no en `checks.py` porque gunicorn y Celery no corren los
+    chequeos. Vacía sigue permitida: nadie entra y `auth/bff/*` da `404`.
+  - **`checks.py`:** `identity.E001` (dos secretos iguales, también la credencial anterior de una rotación),
+    `identity.E002` (fuera de dev y test, Google con sus endpoints e issuers exactos, escritos de nuevo en el chequeo) e
+    `identity.W001` (flag de login prendido sin cliente de Google). `W001` es la decisión sobre "sin cliente
+    configurado": se mantiene el `500 internal_error` de `T-IDA-10`, porque un código propio cambia el contrato y la
+    allowlist del BFF (ADR-0004 §15), y el aviso sale en cada `migrate` y `check`.
+  - **`dev_oidc`:** `GET authorize` (formulario; con `email`, vuelve al `redirect_uri` registrado con `code` y `state`;
+    `cancel` da `access_denied`), `POST token` (código firmado con `django.core.signing`, 10 min, un solo uso por caché,
+    PKCE S256) y `GET jwks`. La clave RSA vive en el caché, compartida por los workers. Todo responde `404` sin el
+    proveedor falso activo, antes de mirar el método.
+  - **Stack de CI:** `infra/docker-compose.ci.yml` corre `settings.prod` con `--env-file env.example`, así que el backend
+    recibe el placeholder y no arranca. Hace falta `IDENTITY_BFF_CREDENTIALS: ""` en su `x-backend-environment`
+    (fuera de esta ficha: se reporta como scope drift).
 - **Pruebas:** `test_RNF_IDA_06_fake_provider_fails_in_prod_settings`, `test_RN_IDA_16_equal_secrets_fail_check`,
-  `test_RN_IDA_01_dev_oidc_routes_absent_in_prod`.
+  `test_RN_IDA_01_dev_oidc_routes_absent_in_prod`, `test_RN_IDA_16_weak_bff_credential_in_prod_does_not_start`,
+  `test_RNF_IDA_06_fake_login_passes_the_real_gateway_and_verifier` y el resto de `test_RNF_IDA_06_*.py`.
 
 ### T-IDA-21 — Redacción de logs, métricas y catálogo completo
 - **AC:** AC-IDA-23, AC-IDA-24. RF-IDA-09, RNF-IDA-03, RNF-IDA-04. **Zona roja:** sí.

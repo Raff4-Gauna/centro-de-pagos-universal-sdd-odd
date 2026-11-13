@@ -65,11 +65,24 @@ def test_RN_IDA_16_unconfigured_client_fails_closed_naming_only_the_setting(
     assert CLIENT_VALUE not in str(info.value)
 
 
-def test_RNF_IDA_06_fake_provider_is_never_answered_with_google(
-    settings: SettingsWrapper,
-) -> None:
-    # Its endpoints arrive with dev_oidc (T-IDA-20); until then it builds nothing.
+def test_RNF_IDA_06_fake_provider_uses_dev_oidc_never_google(settings: SettingsWrapper) -> None:
     settings.IDENTITY_OIDC_PROVIDER = "fake"
+    settings.IDENTITY_FAKE_OIDC_BASE_URL = "http://localhost:8000/"
+    config = google_oidc_config()
+    assert config.authorization_endpoint == "http://localhost:8000/dev-oidc/authorize"
+    assert config.token_endpoint == "http://localhost:8000/dev-oidc/token"  # noqa: S105 - a URL
+    assert config.jwks_uri == "http://localhost:8000/dev-oidc/jwks"
+    assert config.issuers == frozenset({"http://localhost:8000/dev-oidc"})
+    assert config.client_id == google.CLIENT_ID
+
+
+@pytest.mark.parametrize(("allowed", "base_url"), [(False, "http://localhost:8000"), (True, "")])
+def test_RNF_IDA_06_fake_provider_fails_closed_where_not_allowed(
+    settings: SettingsWrapper, allowed: bool, base_url: str
+) -> None:
+    settings.IDENTITY_OIDC_PROVIDER = "fake"
+    settings.IDENTITY_FAKE_OIDC_ALLOWED = allowed
+    settings.IDENTITY_FAKE_OIDC_BASE_URL = base_url
     with pytest.raises(ImproperlyConfigured):
         get_google_gateway()
     with pytest.raises(ImproperlyConfigured):

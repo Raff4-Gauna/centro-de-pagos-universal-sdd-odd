@@ -53,5 +53,10 @@ IDENTITY_GOOGLE_CLIENT_ID = _env.IDENTITY_GOOGLE_CLIENT_ID
 IDENTITY_GOOGLE_CLIENT_SECRET = _env.IDENTITY_GOOGLE_CLIENT_SECRET.get_secret_value()
 IDENTITY_GOOGLE_REDIRECT_URI = _env.IDENTITY_GOOGLE_REDIRECT_URI
 
+# The fake OIDC provider may run here (Q-122), with IDENTITY_OIDC_PROVIDER=fake: the port of the
+# dev stack, which the browser and this backend both reach (infra/docker-compose.yml).
+IDENTITY_FAKE_OIDC_ALLOWED = True
+IDENTITY_FAKE_OIDC_BASE_URL = "http://localhost:8000"
+
 # Drop the env object: it must not outlive the settings it fed (C-06).
 del _env

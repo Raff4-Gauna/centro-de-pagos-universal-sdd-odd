@@ -1,7 +1,8 @@
 """Production settings: ``DJANGO_SETTINGS_MODULE=config.settings.prod`` (image default, wsgi.py).
 
 ``ProdEnv`` is stricter than ``PlatformEnv`` (RN-PLT-02, Q-040): ``DJANGO_ALLOWED_HOSTS`` has no
-default and no ``*``, ``DJANGO_DEBUG=true`` does not start and ``DJANGO_SECRET_KEY`` must be strong.
+default and no ``*``, ``DJANGO_DEBUG=true`` does not start, and ``DJANGO_SECRET_KEY`` and every
+``IDENTITY_BFF_CREDENTIALS`` must be strong.
 A missing or malformed variable stops the process with an error that names it and shows no value
 (AC-PLT-03). The rest is the HTTPS hardening that makes ``check --deploy`` pass without warnings
 (AC-PLT-04, RNF-PLT-02, design.md §3.2.2).
@@ -22,6 +23,10 @@ from config.settings.env import CsvList, PlatformEnv, load_env, load_feature_fla
 SECRET_KEY_MIN_LENGTH = 50
 SECRET_KEY_MIN_DISTINCT = 5
 SECRET_KEY_INSECURE_MARK = "django-insecure"  # noqa: S105 - a marker to reject, not a key
+# IDENTITY_BFF_CREDENTIALS (ADR-0004 §9, T-IDA-20): 32 characters at least, as long as a 192-bit
+# random value in base64url (openssl rand -base64 24), and never the public value of env.example.
+BFF_CREDENTIAL_MIN_LENGTH = 32
+PUBLIC_BFF_CREDENTIALS = frozenset({"dev-only-bff-credential-not-a-secret"})
 
 
 class ProdEnv(PlatformEnv):
@@ -44,6 +49,18 @@ class ProdEnv(PlatformEnv):
             raise PydanticCustomError("secret_key_few_characters", "too few distinct characters")
         if SECRET_KEY_INSECURE_MARK in key:
             raise PydanticCustomError("secret_key_insecure", "a generated development key")
+        return value
+
+    @field_validator("IDENTITY_BFF_CREDENTIALS")
+    @classmethod
+    def _bff_credentials_are_strong(cls, value: list[SecretStr]) -> list[SecretStr]:
+        # Empty is allowed: nobody is accepted and auth/bff/* answers 404.
+        for credential in value:
+            text = credential.get_secret_value()
+            if text in PUBLIC_BFF_CREDENTIALS:
+                raise PydanticCustomError("bff_credential_public", "the value of env.example")
+            if len(text) < BFF_CREDENTIAL_MIN_LENGTH:
+                raise PydanticCustomError("bff_credential_too_short", "the credential is too short")
         return value
 
     @field_validator("DJANGO_ALLOWED_HOSTS")
@@ -96,6 +113,9 @@ IDENTITY_OIDC_PROVIDER = _env.IDENTITY_OIDC_PROVIDER
 IDENTITY_GOOGLE_CLIENT_ID = _env.IDENTITY_GOOGLE_CLIENT_ID
 IDENTITY_GOOGLE_CLIENT_SECRET = _env.IDENTITY_GOOGLE_CLIENT_SECRET.get_secret_value()
 IDENTITY_GOOGLE_REDIRECT_URI = _env.IDENTITY_GOOGLE_REDIRECT_URI
+# Never the fake OIDC provider here (Q-122): apps.identity does not start with it, and
+# config.urls has no /dev-oidc/*. Set again, not only inherited from base.py, so it stays visible.
+IDENTITY_FAKE_OIDC_ALLOWED = False
 
 # Drop the env object: it must not outlive the settings it fed (C-06).
 del _env
