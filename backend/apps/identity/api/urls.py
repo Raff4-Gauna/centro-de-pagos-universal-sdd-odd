@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+from django.db import transaction
 from django.urls import URLPattern, URLResolver, path
 
-from apps.identity.api.views_bff import LoginStartView
+from apps.identity.api.views_bff import LoginStartView, RefreshView
 from apps.identity.api.views_me import MeView
 
 app_name = "identity"
@@ -13,4 +14,11 @@ urlpatterns: list[URLPattern | URLResolver] = [
     path("me/", MeView.as_view(), name="me"),
     # Only the BFF (X-Hub-Bff-Credential): for anybody else these routes do not exist.
     path("auth/bff/login/start/", LoginStartView.as_view(), name="bff-login-start"),
+    # Never inside a request-wide transaction (ATOMIC_REQUESTS): a refused refresh still commits
+    # the expiry or the revocation it found (services/refresh.py).
+    path(
+        "auth/bff/refresh/",
+        transaction.non_atomic_requests(RefreshView.as_view()),
+        name="bff-refresh",
+    ),
 ]
