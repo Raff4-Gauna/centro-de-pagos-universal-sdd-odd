@@ -459,12 +459,14 @@ módulos se aprueba en la misma pasada, después de `T-TEN-36`.
   - Precedencia: si llegan los dos, manda el refresh; el JWT solo si el refresh no encuentra sesión. Un JWT cuenta
     solo si su `sub` es el usuario de la sesión.
   - Sesión `active` ya vencida por plazo: se marca `expired` como haría el refresh y no se audita `logout` (ya había
-    terminado). Revocada o vencida: sin efectos.
+    terminado). Revocada o vencida: sin efectos. **Decisión del planner (2026-11-13):** confirmado.
   - Auditoría en la misma transacción que la revocación: `identity.logout` (actor `user`, org nula, `metadata.sid`)
     o `identity.session_revoked` con `reason=superseded`. Log `identity.logout` con `result`, `sid` y `user_id`;
     nunca el token ni su hash.
-  - Cuerpo inválido (tipo incorrecto o `reason` fuera de `logout`/`superseded`): `204` sin efectos y un `warning`
-    `identity.logout result=invalid_body` sin el cuerpo. Es un defecto del BFF, no del cliente.
+  - **Decisión del planner (2026-11-13):** un `reason` inválido o ausente revoca igual como `logout` (la persona
+    pidió salir; dejar la sesión viva es el fallo menos seguro); el inválido deja un `warning`
+    `identity.logout result=invalid_reason` sin el cuerpo. Un cuerpo del que no se puede sacar ningún token (no es
+    un objeto, o un token que no es texto): `204` sin efectos y `warning` `result=invalid_body`.
   - Sin throttle (`throttle_classes = ()`): el de la plataforma contaría a todos por la IP del BFF y daría `429`, que
     contradice el "`204` siempre" de `design.md §6.1`. Ruta dentro de `ATOMIC_REQUESTS`: no hay rechazo que confirmar.
 - **Archivos sumados:** `tokens/access_token.py` (`verify_access_token_ignoring_expiry`: todas las verificaciones
@@ -474,7 +476,7 @@ módulos se aprueba en la misma pasada, después de `T-TEN-36`.
   `LogoutReasonEnum` y no un `ReasonEnum` genérico), `tests/identity/api/test_login_start.py`,
   `test_login_complete_errors.py` y `test_refresh_view.py` (versión del contrato),
   `tests/identity/tokens/test_access_token.py` (la lectura nueva) y `tests/architecture/allowlists.py` (C-01:
-  `logout.py` lee entidades globales por hash + `sid` y por PK). `views_bff.py` queda en 299 líneas con las cuatro
+  `logout.py` lee entidades globales por hash + `sid` y por PK). `views_bff.py` queda en 307 líneas con las cuatro
   vistas: no hizo falta dividirlo (`C-14`).
 - **Pruebas:** `test_AC_IDA_17_logout_revokes_and_audits`, `test_AC_IDA_17_second_logout_no_effects`,
   `test_AC_IDA_35_expired_jwt_still_revokes`.

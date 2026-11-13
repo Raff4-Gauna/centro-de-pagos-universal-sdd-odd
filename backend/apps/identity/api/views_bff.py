@@ -21,11 +21,12 @@ person's JWT nor an ERP API key counts as a refresh (AC-IDA-22). The login flag 
 
 ``POST /api/auth/bff/logout/`` (RF-IDA-05, RN-IDA-14): the BFF sends what it holds of the session
 (the refresh token, the access JWT, or both) and ``reason`` (``superseded`` for the login over a
-previous session); the session ends (``services/logout.py``). ``204`` always, empty: with a session
-or without, with a body that names none or one that does not parse, so the answer says nothing of
-the tokens and the BFF clears its cookies the same. No throttle: the platform's default would key
-every person on the BFF's address and turn a logout into a ``429``; a logout reveals nothing and
-the credential already keeps everybody else out. The login flag does not apply either.
+previous session; a missing or unknown one is ``logout``); the session ends
+(``services/logout.py``). ``204`` always, empty: with a session or without, with a body that names
+none or one that does not parse, so the answer says nothing of the tokens and the BFF clears its
+cookies the same. No throttle: the platform's default would key every person on the BFF's address
+and turn a logout into a ``429``; a logout reveals nothing and the credential already keeps
+everybody else out. The login flag does not apply either.
 
 The shapes live in ``serializers.py``.
 
@@ -35,6 +36,7 @@ own: no rule explains it, so it is ``500 internal_error``, without detail nor pe
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any
 
 from django.utils import timezone
@@ -285,15 +287,21 @@ class LogoutView(BffAPIView):
         responses={204: OpenApiResponse(description="Siempre, sin cuerpo.")},
     )
     def post(self, request: Request) -> Response:
-        body = LogoutRequestSerializer(data=request.data)
-        if body.is_valid():
-            logout(
-                refresh_token=body.validated_data.get("refresh_token"),
-                access_token=body.validated_data.get("access_token"),
-                reason=RevokeReason(body.validated_data.get("reason", RevokeReason.LOGOUT)),
-                now=timezone.now(),
-            )
-        else:
-            # A BFF defect, not a client's: nothing ends, and the log says so without the body.
+        data = request.data
+        body = LogoutRequestSerializer(data=data)
+        if not body.is_valid() and isinstance(data, Mapping) and set(body.errors) == {"reason"}:
+            # Planner's decision (2026-11-13): the person asked to leave, so a bad reason still
+            # logs out; a session left alive is the less safe failure. Logged without the body.
+            logger.warning(LOGOUT_EVENT, result="invalid_reason")
+            body = LogoutRequestSerializer(data={k: v for k, v in data.items() if k != "reason"})
+        if not body.is_valid():
+            # No token to take from it (not an object, a token that is no text): nothing ends.
             logger.warning(LOGOUT_EVENT, result="invalid_body")
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        logout(
+            refresh_token=body.validated_data.get("refresh_token"),
+            access_token=body.validated_data.get("access_token"),
+            reason=RevokeReason(body.validated_data.get("reason", RevokeReason.LOGOUT)),
+            now=timezone.now(),
+        )
         return Response(status=status.HTTP_204_NO_CONTENT)

@@ -138,12 +138,30 @@ def test_anonymous_logout_is_204_without_effects(
     assert ports.audit.events == []
 
 
-@pytest.mark.parametrize("reason", ["user_revoked", "refresh_reuse", "", 7])
-def test_reason_outside_the_two_is_204_without_effects(
+@pytest.mark.parametrize("reason", ["user_revoked", "refresh_reuse", "", 7, None])
+def test_invalid_reason_still_logs_out(
     client: Client, opened: OpenedSession, ports: Ports, reason: object
 ) -> None:
-    assert_no_content(post(client, {"refresh_token": opened.refresh_token, "reason": reason}))
-    assert status_of(opened) == SessionStatus.ACTIVE
+    # Planner's decision (2026-11-13): the person asked to leave; a live session is the worse bug.
+    with capture_logs() as logs:
+        response = post(client, {"refresh_token": opened.refresh_token, "reason": reason})
+
+    assert_no_content(response)
+    session = AuthSession.objects.get(pk=opened.session.pk)
+    assert (session.status, session.revoke_reason) == (SessionStatus.REVOKED, RevokeReason.LOGOUT)
+    assert [event.action for event in ports.audit.events] == [IdentityAuditAction.LOGOUT]
+    [warning] = [entry for entry in logs if entry["log_level"] == "warning"]
+    assert (warning["event"], warning["result"]) == ("identity.logout", "invalid_reason")
+    assert opened.refresh_token not in str(logs)
+    assert set(warning) == {"event", "result", "log_level"}  # nothing of the body
+
+
+def test_missing_reason_is_logout(client: Client, opened: OpenedSession, ports: Ports) -> None:
+    with capture_logs() as logs:
+        post(client, {"refresh_token": opened.refresh_token})
+    session = AuthSession.objects.get(pk=opened.session.pk)
+    assert session.revoke_reason == RevokeReason.LOGOUT
+    assert all(entry["log_level"] != "warning" for entry in logs)
 
 
 def test_authorization_header_is_not_read(client: Client, opened: OpenedSession) -> None:
