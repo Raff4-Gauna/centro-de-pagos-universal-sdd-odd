@@ -356,7 +356,7 @@ módulos se aprueba en la misma pasada, después de `T-TEN-36`.
 - **Nota de T-IDA-11:** la diferencia entre `lower()` de Python y de PostgreSQL para algunos caracteres no ASCII
   puede hacer fallar `users_email_normalized` en el alta del caso (b). T-IDA-12 la maneja sin confundirla con la
   carrera; si hace falta una regla nueva, se abre un `Q-xxx`.
-- **Resultado (2026-11-12):** se abrió **Q-126** con valor provisional a): solo `UniqueViolation` es carrera o
+- **Resultado (2026-11-12):** se abrió **Q-126**, decidida a) por el dueño el 2026-11-13: solo `UniqueViolation` es carrera o
   colisión; la `CheckViolation` de `users_email_normalized` rechaza con `google_auth_failed` en los casos (a) y (b).
   El test de carrera quedó en `test_AC_IDA_02_concurrent_callbacks.py`. `InvitationsNoLongerValid` al aceptar →
   `not_invited`. El alta usa `User(...).save(force_insert=True)` y no `User.objects` (C-01, sin tocar la
