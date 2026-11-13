@@ -48,6 +48,12 @@ IDENTITY_BFF_CREDENTIALS = load_bff_credentials()
 # session ids, generous so that many tabs or a NAT never meet it. Read on every request.
 IDENTITY_REFRESH_IP_RATE = "60/min"
 
+# The fake OIDC provider (IDENTITY_OIDC_PROVIDER=fake, Q-122): off here and in prod.py, the settings
+# of prod and staging; only dev.py and test.py turn it on. With it off, apps.identity does not start
+# with the fake provider. Its base URL is where the browser and the backend reach /dev-oidc/*.
+IDENTITY_FAKE_OIDC_ALLOWED = False
+IDENTITY_FAKE_OIDC_BASE_URL = ""
+
 # RequestId first (T-PLT-12): every log event of the request carries its id. AccessLog (T-PLT-13)
 # right after Security, so it times and logs everything the rest of the chain answers.
 MIDDLEWARE = [
