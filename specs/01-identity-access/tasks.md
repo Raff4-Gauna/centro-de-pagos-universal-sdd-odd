@@ -74,7 +74,7 @@ El diseño se escribió antes de que existiera el código de SPEC-00. Donde difi
 | T-IDA-11 | Reglas del callback y usuario existente | AC-IDA-09 (callback), AC-IDA-29, AC-IDA-30 | Servicio | `domain/login_rules.py`, `services/user_provisioning.py` | T-IDA-03, T-IDA-05 | backend-dev | L | Sí | 🟡 | rama `task/T-IDA-11-callback-rules`, sin PR |
 | T-IDA-12 | Usuario nuevo por invitación y carrera de callbacks | AC-IDA-02, AC-IDA-03, AC-IDA-04, AC-IDA-05, AC-IDA-31 | Servicio | `services/user_provisioning.py` | T-IDA-11 | backend-dev | L | Sí | 🟡 | rama `task/T-IDA-12-invited-user`, sin PR |
 | T-IDA-13 | Completar login: orquestación y vista | AC-IDA-01, AC-IDA-03, AC-IDA-06, AC-IDA-08, AC-IDA-09, AC-IDA-20, AC-IDA-24 (login) | Servicio/API | `services/login_complete.py`, `api/views_bff.py` | T-IDA-10, T-IDA-12 | backend-dev | L | Sí | ☐ | |
-| T-IDA-14 | Refresh: rotación y vencimientos | AC-IDA-09 (refresh), AC-IDA-14, AC-IDA-16, AC-IDA-22 | Servicio/API | `services/refresh.py`, `api/views_bff.py` | T-IDA-06, T-IDA-09 | backend-dev | L | Sí | ☐ | |
+| T-IDA-14 | Refresh: rotación y vencimientos | AC-IDA-09 (refresh), AC-IDA-14, AC-IDA-16, AC-IDA-22 | Servicio/API | `services/refresh.py`, `api/views_bff.py`, `api/throttles.py`, `config/settings/base.py` | T-IDA-06, T-IDA-09 | backend-dev | L | Sí | 🟡 | rama `task/T-IDA-14-refresh`, sin PR |
 | T-IDA-15 | Refresh: gracia, reuso y concurrencia | AC-IDA-15, AC-IDA-20 (refresh), AC-IDA-28 | Servicio | `services/refresh.py` | T-IDA-14 | backend-dev | M | Sí | ☐ | |
 | T-IDA-16 | Logout | AC-IDA-17 (backend), AC-IDA-35 | Servicio/API | `services/logout.py`, `api/views_bff.py` | T-IDA-14 | backend-dev | M | Sí | ☐ | |
 | T-IDA-17 | Sesiones propias: listar y revocar | AC-IDA-25, AC-IDA-26, AC-IDA-33 (API) | Servicio/API | `services/sessions.py`, `api/views_sessions.py`, `domain/client_hint.py` | T-IDA-06, T-IDA-13 | backend-dev | L | Sí | ☐ | |
@@ -386,7 +386,28 @@ módulos se aprueba en la misma pasada, después de `T-TEN-36`.
 - **`sid`:** unificar el parseo local de `api/throttles.py` con `domain/secrets_format.py`.
 - **Tope por IP:** el refresh limita solo por `sid`; un `sid` aleatorio con formato válido estrena cupo y no hay tope por IP.
   Decidirlo acá (planner).
-- **Fuera:** gracia y reuso (`T-IDA-15`).
+- **Decisiones del planner (2026-11-13):**
+  - Tope por IP: además del `refresh_session` (30/min por `sid`), `RefreshIpThrottle` (`refresh_ip`) cuenta por IP real
+    del cliente (`client_ip_for`, clave `sha256(ip)[:16]`) con la tasa de `IDENTITY_REFRESH_IP_RATE`, `60/min` por
+    defecto, leída en cada request. Corre antes que el de `sid` y también cuenta los cuerpos sin token. `429
+    rate_limited` como el resto del BFF. Es un setting de `config/settings/base.py`, no una variable de entorno:
+    llevarla al entorno suma `env.py`, `dev/test/prod.py`, `env.example` y Compose (AC-PLT-05).
+  - `sid`: `api/throttles.py` lee el `<sid>` con `secrets_format.parse_refresh_token`; un `rt1.<uuid con
+    guiones>.<x>` ya no cuenta como sesión.
+  - Precondición de `issue_refresh_token` (no mira el estado de la sesión) documentada en su docstring
+    (`services/session_lifecycle.py`); el refresh la cumple: mira estado, vencimientos y usuario bajo `FOR UPDATE`
+    antes de rotar. `used_at`, `last_used_at`, vencimientos y JWT salen del mismo `now`.
+  - El servicio implementa las tres ramas de `decide_refresh` (rotar, gracia, reuso) como `design.md §4.5`: un
+    token usado no se rota ni se ignora. Quedan para `T-IDA-15` la carrera con dos conexiones
+    (`test_AC_IDA_28_two_concurrent_refreshes`) y el 31.º refresh por la ruta real (`test_AC_IDA_20_31st_refresh_is_429`).
+- **Archivos sumados:** `api/throttles.py` (parseo único y tope por IP), `config/settings/base.py`
+  (`IDENTITY_REFRESH_IP_RATE`), `services/session_lifecycle.py` (solo el docstring de la precondición),
+  `apps/common/api/schema.py` (`API_VERSION` 0.4.0: endpoint nuevo), `tests/identity/api/test_login_start.py`
+  (versión del contrato), `tests/identity/api/test_throttles.py` (tokens con el formato real),
+  `tests/architecture/allowlists.py` (C-01: `refresh.py` lee entidades globales por hash + `sid` y por PK) y
+  `api/urls.py` (la ruta, fuera de `ATOMIC_REQUESTS`: un refresh rechazado confirma el `expired` o la revocación). `api/serializers.py`
+  no se tocó: los serializers del BFF viven en `views_bff.py`, como los de `login/start`.
+- **Fuera:** carrera con dos conexiones y 31.º refresh por la ruta real (`T-IDA-15`).
 - **Pruebas:** `test_AC_IDA_14_rotation_new_pair`, `test_AC_IDA_16_idle_expired_refresh`,
   `test_AC_IDA_16_absolute_expired_refresh`, `test_AC_IDA_16_refresh_never_moves_absolute`,
   `test_AC_IDA_09_inactive_user_refresh`, `test_AC_IDA_22_api_key_on_refresh`.

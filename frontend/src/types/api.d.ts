@@ -24,6 +24,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/auth/bff/refresh/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Refresca la sesión (solo BFF)
+         * @description Rota el refresh token y devuelve un token de acceso nuevo. Dentro de la ventana de gracia refresh_token es null: el BFF conserva la cookie que ya tiene.
+         */
+        post: operations["auth_bff_refresh"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/me/": {
         parameters: {
             query?: never;
@@ -95,6 +115,15 @@ export interface components {
             /** @description Puede reflejar lo que envió el cliente: se muestra como texto plano, nunca se interpreta como HTML. */
             message: string;
         };
+        RefreshRequest: {
+            refresh_token: string;
+        };
+        RefreshResponse: {
+            readonly access_token: string;
+            readonly access_expires_in: number;
+            readonly refresh_token: string | null;
+            readonly session_expires_in: number;
+        };
     };
     responses: never;
     parameters: never;
@@ -136,6 +165,65 @@ export interface operations {
             };
             /** @description code: login_disabled */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Error del cliente */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Error del servidor */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    auth_bff_refresh: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RefreshRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RefreshResponse"];
+                };
+            };
+            /** @description code: token_invalid | session_revoked */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description code: rate_limited (con Retry-After) */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };

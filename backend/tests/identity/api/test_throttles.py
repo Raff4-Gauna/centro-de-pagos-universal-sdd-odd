@@ -11,6 +11,7 @@ import hashlib
 import json
 from collections.abc import Iterator
 from typing import Any
+from uuid import UUID
 
 import pytest
 from django.core.cache import cache
@@ -35,6 +36,7 @@ from apps.identity.api.throttles import (
     LoginStartIpThrottle,
     RefreshSessionThrottle,
 )
+from apps.identity.domain.secrets_format import generate_refresh_token
 from config import urls as public_urls
 from config.settings.env import PlatformEnv, load_bff_credentials, load_env
 
@@ -51,7 +53,7 @@ PREVIOUS = "previous-bff-value"
 BFF = {"X-Hub-Bff-Credential": CURRENT}
 SESSION_A = "3f2b8c1e-6d4a-4f0e-9b1a-1c2d3e4f5a6b"
 SESSION_B = "7a9e0d2c-1b3f-4c5d-8e6f-0a1b2c3d4e5f"
-TOKEN_TAIL = "tail-of-the-refresh"  # noqa: S105 - a stand-in, not a token
+SECRET_PART = "s" * 43  # the shape of the secret part of a refresh token
 
 reached_views: list[str] = []
 
@@ -277,7 +279,7 @@ def test_AC_IDA_20_key_is_per_ip_and_scope(client: Client) -> None:
 
 
 def test_AC_IDA_20_thirty_first_refresh_of_a_session_is_429(client: Client) -> None:
-    token = f"rt1.{SESSION_A}.{TOKEN_TAIL}"
+    token = generate_refresh_token(UUID(SESSION_A))
     statuses = [
         bff_post(client, REFRESH, "203.0.113.1", refresh_token=token).status_code for _ in range(30)
     ]
@@ -288,12 +290,13 @@ def test_AC_IDA_20_thirty_first_refresh_of_a_session_is_429(client: Client) -> N
     assert response.status_code == 429  # by session: another IP does not help
     assert problem(response)["code"] == "rate_limited"
     assert int(response["Retry-After"]) > 0
-    other = f"rt1.{SESSION_B}.{TOKEN_TAIL}"
+    other = generate_refresh_token(UUID(SESSION_B))
     assert bff_post(client, REFRESH, "203.0.113.1", refresh_token=other).status_code == 200
 
 
 def test_AC_IDA_20_refresh_key_is_the_session_and_never_the_secret() -> None:
-    body = json.dumps({"refresh_token": f"rt1.{SESSION_A}.{TOKEN_TAIL}"})
+    token = generate_refresh_token(UUID(SESSION_A))
+    body = json.dumps({"refresh_token": token})
     view = _Refresh()
     request = view.initialize_request(
         APIRequestFactory().post("/", body, content_type="application/json")
@@ -302,6 +305,7 @@ def test_AC_IDA_20_refresh_key_is_the_session_and_never_the_secret() -> None:
     key = RefreshSessionThrottle().get_cache_key(request, view)
 
     assert key == f"throttle_refresh_session_{SESSION_A}"
+    assert token.rsplit(".", 1)[1] not in key
 
 
 @pytest.mark.parametrize(
@@ -315,6 +319,8 @@ def test_AC_IDA_20_refresh_key_is_the_session_and_never_the_secret() -> None:
         f'{{"refresh_token": "rt2.{SESSION_A}.x"}}',
         '{"refresh_token": "rt1.not-a-session.x"}',
         f'{{"refresh_token": "rt1.{SESSION_A}"}}',
+        # A canonical UUID in place of its base64url: not the format, whatever the old parser took.
+        f'{{"refresh_token": "rt1.{SESSION_A}.{SECRET_PART}"}}',
     ],
 )
 def test_malformed_refresh_body_reaches_the_view(client: Client, body: str) -> None:

@@ -44,6 +44,10 @@ AUDIT_SINK = "apps.common.audit.sinks.StructlogAuditSink"
 # does not match their filter (C-06).
 IDENTITY_BFF_CREDENTIALS = load_bff_credentials()
 
+# Refreshes per client IP and minute (apps.identity.api.throttles, T-IDA-14): a ceiling for made-up
+# session ids, generous so that many tabs or a NAT never meet it. Read on every request.
+IDENTITY_REFRESH_IP_RATE = "60/min"
+
 # RequestId first (T-PLT-12): every log event of the request carries its id. AccessLog (T-PLT-13)
 # right after Security, so it times and logs everything the rest of the chain answers.
 MIDDLEWARE = [

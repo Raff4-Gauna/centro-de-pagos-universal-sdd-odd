@@ -50,7 +50,11 @@ def open_session(
 
 
 def issue_refresh_token(session: AuthSession, *, now: datetime) -> str:
-    """A new live token of ``session``; the database refuses it while another one is unused."""
+    """A new live token of ``session``; the database refuses it while another one is unused.
+
+    Precondition: ``session`` is ``active`` and within its deadlines. This does not look; its caller
+    has just created the session (``open_session``) or checked it under its lock (``refresh``).
+    """
     raw = generate_refresh_token(session.pk)
     RefreshToken.objects.create(session=session, token_hash=hash_secret(raw), issued_at=now)
     return raw
