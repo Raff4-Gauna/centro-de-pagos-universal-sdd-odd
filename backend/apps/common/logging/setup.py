@@ -21,6 +21,7 @@ access log (``middleware/access_log.py``) reports the same requests with the rou
 ``celery.task`` event (``celery_signals.py``) replaces it. ``celery.worker.consumer.consumer`` and
 ``celery.worker.strategy`` keep logging, minus the records that dump a message body
 (``celery_filters.py``, T-PLT-17 review B-1).
+The ``audit`` logger is held at INFO (T-IDA-11): its events go out with any ``LOG_LEVEL``.
 ``django.db.backends`` is held at INFO (T-PLT-14): with ``DEBUG`` on it logs every query with its
 parameters at DEBUG; its errors still propagate. ``django.security.DisallowedHost`` (an invalid
 ``Host`` header, what scanners send) goes out as one WARNING line without the traceback instead
@@ -60,6 +61,10 @@ SILENCED_LOGGERS = ("django.request", "django.security.csrf", "django.server", "
 SQL_LOGGERS = ("django.db.backends",)
 # Loggers whose records are noise from outside, not faults: WARNING, no traceback (N-a).
 DOWNGRADED_LOGGERS = ("django.security.DisallowedHost",)
+# The audit channel (SPEC-01 design.md §6.4, ``LogAuditPort``): its events are INFO and must go
+# out whatever LOG_LEVEL says, or WARNING would drop every audit event in silence. No handler of
+# its own: it propagates to the root handler, so each event is still one line.
+AUDIT_LOGGERS = ("audit",)
 RENDER_FAILED_EVENT = "log.render_failed"
 
 
@@ -182,6 +187,10 @@ def logging_config(level: str) -> dict[str, Any]:
             **{
                 name: {"handlers": [], "filters": ["warning_without_traceback"], "propagate": True}
                 for name in DOWNGRADED_LOGGERS
+            },
+            # A level of their own: INFO whatever the root's (audit events are never dropped).
+            **{
+                name: {"handlers": [], "level": "INFO", "propagate": True} for name in AUDIT_LOGGERS
             },
             # Their message-body dumps dropped or rewritten; everything else passes.
             **{
