@@ -84,6 +84,20 @@ def verify_access_token(token: str) -> AccessTokenIdentity:
     raise AccessTokenExpiredError
 
 
+def verify_access_token_ignoring_expiry(token: str) -> AccessTokenIdentity:
+    """The identity in ``token`` however long ago it expired, for logout only (RN-IDA-14).
+
+    Every check of ``verify_access_token`` but ``exp``: key by ``kid``, algorithm, signature,
+    ``iss``, ``aud``, ``typ``, ``nbf`` and the claims. It proves the caller held a token of the
+    session, not that the session is alive, so it never authenticates a request. Anything wrong is
+    ``AccessTokenInvalidError``.
+    """
+    try:
+        return _identity(_decode(token, _key_of(token), verify_exp=False))
+    except (InvalidTokenError, ValueError):
+        raise AccessTokenInvalidError from None
+
+
 def _key_of(token: str) -> EllipticCurvePublicKey:
     """By ``kid`` only: the header is unverified, so it never chooses the algorithm."""
     key = verification_key(jwt.get_unverified_header(token).get("kid", ""))

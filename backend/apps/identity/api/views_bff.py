@@ -19,6 +19,14 @@ know whether to clear the cookies. ``Authorization`` is not read (``BffAPIView``
 person's JWT nor an ERP API key counts as a refresh (AC-IDA-22). The login flag does not apply
 (ADR-0004 §14): sessions already open keep refreshing with it off.
 
+``POST /api/auth/bff/logout/`` (RF-IDA-05, RN-IDA-14): the BFF sends what it holds of the session
+(the refresh token, the access JWT, or both) and ``reason`` (``superseded`` for the login over a
+previous session); the session ends (``services/logout.py``). ``204`` always, empty: with a session
+or without, with a body that names none or one that does not parse, so the answer says nothing of
+the tokens and the BFF clears its cookies the same. No throttle: the platform's default would key
+every person on the BFF's address and turn a logout into a ``429``; a logout reveals nothing and
+the credential already keeps everybody else out. The login flag does not apply either.
+
 The shapes live in ``serializers.py``.
 
 The callback's codes keep the status of design.md §6.1. ``UserProvisioningError`` has none of its
@@ -39,12 +47,14 @@ from rest_framework.response import Response
 from apps.common.api.problems import PROBLEM_CONTENT_TYPE
 from apps.common.api.schema import BFF_CREDENTIAL_SCHEME, PROBLEM
 from apps.common.feature_flags import is_enabled
+from apps.common.logging import get_logger
 from apps.identity.api.bff_auth import BffAPIView
 from apps.identity.api.serializers import (
     LoginCompleteRequestSerializer,
     LoginCompleteResponseSerializer,
     LoginStartRequestSerializer,
     LoginStartResponseSerializer,
+    LogoutRequestSerializer,
     RefreshRequestSerializer,
     RefreshResponseSerializer,
 )
@@ -55,8 +65,10 @@ from apps.identity.api.throttles import (
     RefreshSessionThrottle,
 )
 from apps.identity.domain.errors import IdentityError, IdentityErrorCode
+from apps.identity.models import RevokeReason
 from apps.identity.services.login_complete import complete_login
 from apps.identity.services.login_start import LOGIN_FLAG, LoginDisabledError, start_login
+from apps.identity.services.logout import LOGOUT_EVENT, logout
 from apps.identity.services.refresh import refresh_session
 from apps.identity.tokens.access_token import ACCESS_TOKEN_TTL_SECONDS
 
@@ -66,6 +78,8 @@ _PROBLEM = {"$ref": f"#/components/schemas/{PROBLEM}"}
 # stubs type the argument as a list of names.
 _BFF_SECURITY: Any = [{BFF_CREDENTIAL_SCHEME: []}]
 _NO_STORE = {"Cache-Control": "no-store"}
+
+logger = get_logger(__name__)
 
 # Status and fixed detail of each code (spec §11): the detail says no more than the code, never an
 # email nor anything Google sent. A 5xx carries none (problems.py).
@@ -253,3 +267,33 @@ class RefreshView(BffAPIView):
         }
         # Tokens: no cache keeps a copy.
         return Response(payload, headers=_NO_STORE)
+
+
+class LogoutView(BffAPIView):
+    throttle_classes = ()  # see the module's docstring: a logout is never a 429
+
+    @extend_schema(
+        operation_id="auth_bff_logout",
+        summary="Cierra la sesión (solo BFF)",
+        description=(
+            "Revoca la sesión que nombran el refresh token o el token de acceso, este aunque haya "
+            "vencido. Responde 204 siempre, haya o no una sesión que cerrar."
+        ),
+        tags=[BFF_TAG],
+        auth=_BFF_SECURITY,
+        request=LogoutRequestSerializer,
+        responses={204: OpenApiResponse(description="Siempre, sin cuerpo.")},
+    )
+    def post(self, request: Request) -> Response:
+        body = LogoutRequestSerializer(data=request.data)
+        if body.is_valid():
+            logout(
+                refresh_token=body.validated_data.get("refresh_token"),
+                access_token=body.validated_data.get("access_token"),
+                reason=RevokeReason(body.validated_data.get("reason", RevokeReason.LOGOUT)),
+                now=timezone.now(),
+            )
+        else:
+            # A BFF defect, not a client's: nothing ends, and the log says so without the body.
+            logger.warning(LOGOUT_EVENT, result="invalid_body")
+        return Response(status=status.HTTP_204_NO_CONTENT)

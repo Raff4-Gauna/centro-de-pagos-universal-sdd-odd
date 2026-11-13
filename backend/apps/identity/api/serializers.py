@@ -14,6 +14,7 @@ from typing import Any
 from rest_framework import serializers
 
 from apps.identity.domain.secrets_format import is_login_binding
+from apps.identity.models import RevokeReason
 from apps.identity.ports.memberships import MembershipSummary
 
 BINDING_LENGTH = 43
@@ -141,3 +142,20 @@ class RefreshResponseSerializer(serializers.Serializer[dict[str, Any]]):
 
     class Meta:
         ref_name = "RefreshResponse"
+
+
+# Both optional: the BFF sends the cookies it has (design.md §4.6). access_token may be expired.
+# reason: superseded only for the login over a previous session (ADR-0004 §13); logout by default.
+class LogoutRequestSerializer(serializers.Serializer[dict[str, Any]]):
+    refresh_token = serializers.CharField(
+        required=False, allow_null=True, allow_blank=True, trim_whitespace=False
+    )
+    access_token = serializers.CharField(
+        required=False, allow_null=True, allow_blank=True, trim_whitespace=False
+    )
+    reason = serializers.ChoiceField(
+        choices=[RevokeReason.LOGOUT.value, RevokeReason.SUPERSEDED.value], required=False
+    )
+
+    class Meta:
+        ref_name = "Logout"  # published as LogoutRequest (split components)

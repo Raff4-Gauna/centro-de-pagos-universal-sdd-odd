@@ -16,7 +16,7 @@ from typing import Any
 
 from apps.common.api.problems import PROBLEM_CONTENT_TYPE
 
-API_VERSION = "0.5.0"
+API_VERSION = "0.6.0"
 PUBLIC_URLCONF = "config.urls"
 
 PROBLEM = "Problem"
@@ -104,6 +104,9 @@ def spectacular_settings() -> dict[str, Any]:
         # The dev-served schema (/api/dev/schema/) is the committed contract, not the dev routes.
         "SERVE_URLCONF": PUBLIC_URLCONF,
         "COMPONENT_SPLIT_REQUEST": True,
+        # An enum is named after its field by default: "reason" alone would be ReasonEnum, a name
+        # the next "reason" of another endpoint would take and rename (SPEC-01 logout, §6.1).
+        "ENUM_NAME_OVERRIDES": {"LogoutReasonEnum": ["logout", "superseded"]},
         "APPEND_COMPONENTS": {
             "schemas": {PROBLEM: _problem_schema(), FIELD_ERROR: _field_error_schema()},
             "securitySchemes": {
