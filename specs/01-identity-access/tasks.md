@@ -74,8 +74,8 @@ El diseño se escribió antes de que existiera el código de SPEC-00. Donde difi
 | T-IDA-11 | Reglas del callback y usuario existente | AC-IDA-09 (callback), AC-IDA-29, AC-IDA-30 | Servicio | `domain/login_rules.py`, `services/user_provisioning.py` | T-IDA-03, T-IDA-05 | backend-dev | L | Sí | 🟡 | rama `task/T-IDA-11-callback-rules`, sin PR |
 | T-IDA-12 | Usuario nuevo por invitación y carrera de callbacks | AC-IDA-02, AC-IDA-03, AC-IDA-04, AC-IDA-05, AC-IDA-31 | Servicio | `services/user_provisioning.py` | T-IDA-11 | backend-dev | L | Sí | 🟡 | rama `task/T-IDA-12-invited-user`, sin PR |
 | T-IDA-13 | Completar login: orquestación y vista | AC-IDA-01, AC-IDA-03, AC-IDA-06, AC-IDA-08, AC-IDA-09, AC-IDA-20, AC-IDA-24 (login) | Servicio/API | `services/login_complete.py`, `api/views_bff.py` | T-IDA-10, T-IDA-12 | backend-dev | L | Sí | ☐ | |
-| T-IDA-14 | Refresh: rotación y vencimientos | AC-IDA-09 (refresh), AC-IDA-14, AC-IDA-16, AC-IDA-22 | Servicio/API | `services/refresh.py`, `api/views_bff.py`, `api/throttles.py`, `config/settings/base.py` | T-IDA-06, T-IDA-09 | backend-dev | L | Sí | 🟡 | rama `task/T-IDA-14-refresh`, sin PR |
-| T-IDA-15 | Refresh: gracia, reuso y concurrencia | AC-IDA-15, AC-IDA-20 (refresh), AC-IDA-28 | Servicio | `services/refresh.py` | T-IDA-14 | backend-dev | M | Sí | ☐ | |
+| T-IDA-14 | Refresh: rotación y vencimientos | AC-IDA-09 (refresh), AC-IDA-14, AC-IDA-15, AC-IDA-16, AC-IDA-22, AC-IDA-28 (servicio) | Servicio/API | `services/refresh.py`, `api/views_bff.py`, `api/throttles.py`, `config/settings/base.py` | T-IDA-06, T-IDA-09 | backend-dev | L | Sí | 🟡 | rama `task/T-IDA-14-refresh`, sin PR |
+| T-IDA-15 | Refresh: concurrencia y 31.º refresh | AC-IDA-20 (refresh), AC-IDA-28 (carrera) | Servicio | `backend/tests/identity/test_refresh_concurrency.py` | T-IDA-14 | backend-dev | M | Sí | ☐ | |
 | T-IDA-16 | Logout | AC-IDA-17 (backend), AC-IDA-35 | Servicio/API | `services/logout.py`, `api/views_bff.py` | T-IDA-14 | backend-dev | M | Sí | ☐ | |
 | T-IDA-17 | Sesiones propias: listar y revocar | AC-IDA-25, AC-IDA-26, AC-IDA-33 (API) | Servicio/API | `services/sessions.py`, `api/views_sessions.py`, `domain/client_hint.py` | T-IDA-06, T-IDA-13 | backend-dev | L | Sí | ☐ | |
 | T-IDA-18 | Comandos de desactivar y reactivar usuario | AC-IDA-27, AC-IDA-32 (parte 01) | Comandos | `services/user_status.py`, `management/commands/*` | T-IDA-17 | backend-dev | M | Sí | ☐ | |
@@ -110,7 +110,7 @@ El diseño se escribió antes de que existiera el código de SPEC-00. Donde difi
 | AC-IDA-12 | T-IDA-04, T-IDA-06 |
 | AC-IDA-13 | T-IDA-04 |
 | AC-IDA-14 | T-IDA-03, T-IDA-14 |
-| AC-IDA-15 | T-IDA-02, T-IDA-15 |
+| AC-IDA-15 | T-IDA-02, T-IDA-14 |
 | AC-IDA-16 | T-IDA-02, T-IDA-03, T-IDA-14 |
 | AC-IDA-17 | T-IDA-16, T-IDA-25, T-IDA-31 |
 | AC-IDA-18 | T-IDA-22, T-IDA-24, T-IDA-27 |
@@ -123,7 +123,7 @@ El diseño se escribió antes de que existiera el código de SPEC-00. Donde difi
 | AC-IDA-25 | T-IDA-17 |
 | AC-IDA-26 | T-IDA-06, T-IDA-17, T-IDA-27 |
 | AC-IDA-27 | T-IDA-18 |
-| AC-IDA-28 | T-IDA-02, T-IDA-15, T-IDA-23, T-IDA-27 |
+| AC-IDA-28 | T-IDA-02, T-IDA-14, T-IDA-15, T-IDA-23, T-IDA-27 |
 | AC-IDA-29 | T-IDA-11 |
 | AC-IDA-30 | T-IDA-07, T-IDA-11, T-IDA-29 |
 | AC-IDA-31 | T-IDA-01, T-IDA-12, T-TEN-17 |
@@ -407,19 +407,26 @@ módulos se aprueba en la misma pasada, después de `T-TEN-36`.
   `tests/architecture/allowlists.py` (C-01: `refresh.py` lee entidades globales por hash + `sid` y por PK) y
   `api/urls.py` (la ruta, fuera de `ATOMIC_REQUESTS`: un refresh rechazado confirma el `expired` o la revocación). `api/serializers.py`
   no se tocó: los serializers del BFF viven en `views_bff.py`, como los de `login/start`.
+- **401 sin `WWW-Authenticate`** (decisión del planner, 2026-11-13): la credencial BFF no es un esquema Bearer, así que
+  los `401 token_invalid` / `session_revoked` del refresh no lo llevan. Por eso usan una `APIException` propia y no
+  `AuthenticationFailed`, que DRF pasaría a `403` en una vista sin autenticadores.
 - **Fuera:** carrera con dos conexiones y 31.º refresh por la ruta real (`T-IDA-15`).
 - **Pruebas:** `test_AC_IDA_14_rotation_new_pair`, `test_AC_IDA_16_idle_expired_refresh`,
   `test_AC_IDA_16_absolute_expired_refresh`, `test_AC_IDA_16_refresh_never_moves_absolute`,
   `test_AC_IDA_09_inactive_user_refresh`, `test_AC_IDA_22_api_key_on_refresh`.
 
-### T-IDA-15 — Refresh: gracia, reuso y concurrencia
-- **AC:** AC-IDA-15, AC-IDA-20 (refresh), AC-IDA-28. RN-IDA-10. **Zona roja:** sí.
-- **Archivos:** `services/refresh.py`, `api/views_bff.py`, `backend/tests/identity/test_refresh_concurrency.py`.
-- **Cambios:** gracia → solo access, `refresh=null`, sin auditar; reuso → revoca, audita `refresh_reuse_detected` con
-  alerta y confirma; throttle 30/min por `sid`.
+### T-IDA-15 — Refresh: concurrencia y 31.º refresh
+- **AC:** AC-IDA-20 (refresh), AC-IDA-28 (carrera real). RN-IDA-10. **Zona roja:** sí.
+- **Ya hecho en `T-IDA-14` (decisión del planner, 2026-11-13):** la gracia y el reuso (las tres ramas de
+  `decide_refresh`, auditoría `refresh_reuse_detected` con alerta) y sus pruebas de servicio de AC-IDA-15 y AC-IDA-28
+  en secuencia; el throttle 30/min por `sid` ya está declarado en la vista.
+- **Archivos:** `backend/tests/identity/test_refresh_concurrency.py`; `services/refresh.py` o `api/views_bff.py` solo
+  si la carrera destapa un defecto.
+- **Cambios:** probar con dos conexiones o hilos reales que el `FOR UPDATE` serializa dos refresh del mismo token
+  (uno rota, el otro cae en gracia, la sesión sigue `active`, sin `refresh_reuse_detected`) y el 31.º refresh de una
+  sesión por la ruta real.
 - **Fuera:** coalescencia del BFF (`T-IDA-23`).
-- **Pruebas:** `test_AC_IDA_15_reuse_revokes_session`, `test_AC_IDA_28_two_concurrent_refreshes` (hilos),
-  `test_AC_IDA_20_31st_refresh_is_429`.
+- **Pruebas:** `test_AC_IDA_28_two_concurrent_refreshes` (hilos), `test_AC_IDA_20_31st_refresh_is_429` (ruta real).
 - **División (`C-14`):** si `refresh.py` pasa de 250 líneas, la decisión queda en `session_policy.py` y el servicio solo
   orquesta.
 
