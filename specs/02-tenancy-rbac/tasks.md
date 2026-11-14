@@ -51,7 +51,7 @@ Donde el diseño y el código de SPEC-00, o el orden real, difieren, manda esta 
 
 ## Resumen
 
-> T-TEN-01, T-TEN-02, T-TEN-03 y T-TEN-10 en revisión; las demás sin empezar. La columna **Evidencia** es obligatoria para `✅` y la verifica `scripts/check_spec_state.py`.
+> T-TEN-01, T-TEN-02, T-TEN-03, T-TEN-05 y T-TEN-10 en revisión; las demás sin empezar. La columna **Evidencia** es obligatoria para `✅` y la verifica `scripts/check_spec_state.py`.
 
 | ID | Título | AC | Capa | Archivos esperados (ver detalle) | Depende de | Agente | Tamaño | Zona roja | Estado | Evidencia |
 |---|---|---|---|---|---|---|---|---|---|---|
@@ -59,7 +59,7 @@ Donde el diseño y el código de SPEC-00, o el orden real, difieren, manda esta 
 | T-TEN-02 | Queryset que falla cerrado + `Organization` + migración 0001 | AC-TEN-11 | DB | `apps/common/tenancy/querysets.py`, `apps/tenancy/models/organization.py` | T-TEN-01 | backend-dev | L | Sí | 🟡 | rama `task/T-TEN-02-organization`, sin PR |
 | T-TEN-03 | `TenantModel` y app de prueba `tenant_probe` | AC-TEN-07 (guarda), AC-TEN-11 | Base | `apps/common/tenancy/models.py`, `tests/testapps/tenant_probe/` | T-TEN-02 | backend-dev | M | Sí | 🟡 | rama `task/T-TEN-03-tenant-model`, sin PR |
 | T-TEN-04 | Test de arquitectura de accesos crudos | AC-TEN-10 | Arquitectura | `backend/tests/architecture/tenant_rules.py`, `test_tenant_queries.py` | T-TEN-03 | backend-dev | L | Sí | ☐ | |
-| T-TEN-05 | `Membership` + migración 0002 | — (RN-TEN-07, RN-TEN-21) | DB | `apps/tenancy/models/membership.py`, `apps/common/authz/roles.py` | T-TEN-03, T-IDA-01 | backend-dev | M | Sí | ☐ | |
+| T-TEN-05 | `Membership` + migración 0002 | — (RN-TEN-07, RN-TEN-21) | DB | `apps/tenancy/models/membership.py`, `apps/common/authz/roles.py` | T-TEN-03, T-IDA-01 | backend-dev | M | Sí | 🟡 | rama `task/T-TEN-05-membership`, sin PR |
 | T-TEN-06 | Matriz de permisos como código | AC-TEN-15, AC-TEN-16, AC-TEN-34 (matriz) | Dominio | `apps/common/authz/{actions,checks}.py`, `apps/tenancy/domain/permissions.py` | T-TEN-01, T-TEN-05 | backend-dev | L | Sí | ☐ | |
 | T-TEN-07 | Reglas de roles (`decide_*`) | AC-TEN-13, AC-TEN-15, AC-TEN-16, AC-TEN-27 (decisión) | Dominio | `apps/tenancy/domain/role_rules.py` | T-TEN-05 | backend-dev | L | Sí | ☐ | |
 | T-TEN-08 | Resolución de organización por request | AC-TEN-03, AC-TEN-04, AC-TEN-06, AC-TEN-33 | API | `apps/tenancy/api/{permissions,base}.py`, `apps/tenancy/selectors/resolution.py` | T-TEN-05, T-TEN-06, T-IDA-06 | backend-dev | L | Sí | ☐ | |
@@ -254,10 +254,26 @@ T-TEN-30 · suspendida → T-TEN-29.
 
 ### T-TEN-05 — `Membership` + migración 0002
 - **AC:** — (RN-TEN-07, RN-TEN-21, RNF-TEN-05). **Zona roja:** sí.
-- **Archivos:** `models/membership.py`, `migrations/0002_membership.py`, `apps/common/authz/roles.py`, tests.
+- **Archivos:** `models/membership.py`, `migrations/0002_membership.py`, `apps/common/authz/roles.py`, tests
+  (`backend/tests/tenancy/test_membership.py`, `test_roles.py`). Sumados, con su porqué:
+  - `apps/common/authz/__init__.py`: el paquete nuevo de `roles.py`.
+  - `apps/tenancy/models/__init__.py`: exporta `Membership`, como `Organization`.
+  - `apps/common/tenancy/context.py`: `UserActor.role` pasa de `str` a `Role` y se valida al construir, como el resto
+    del contexto (su docstring lo dejaba para esta tarea).
+  - `backend/tests/tenancy/test_{context,audit}.py`: construyen `UserActor` con `Role` en vez de `str`.
 - **Cambios:** constraints e índice parcial de §5; `source_invitation` entra en `T-TEN-14`.
+  - `membership_end_coherent` suma `ended_reason IS NOT NULL` en la rama `revoked`: tal como la escribe §5,
+    `ended_reason IN (...)` da NULL con un motivo NULL y el CHECK lo deja pasar (lo encontró
+    `test_RN_TEN_21_end_fields_are_coherent`).
+  - Las FK a usuario (`user`, `ended_by`, `invited_by`) son `PROTECT` con `related_name="+"`.
+  - `MembershipStatus` y `EndedReason` viven en `models/membership.py`; `Role` y `ROLE_RANK`, en `authz/roles.py`.
+- **Fuera:** el scope `Membership.for_user(user_id)` (§3.4) entra con su primer uso, `T-TEN-12`. El valor nuevo de
+  `SystemReason` y el `tenant_scope` por organización de la fila "Ajustes al diseño" entran en `T-TEN-15`, el primero
+  que escribe memberships de varias organizaciones: acá no hay quien los use (ADR-0011).
 - **Pruebas:** `test_RN_TEN_07_one_active_per_org_and_user`, `test_RN_TEN_21_end_fields_are_coherent`,
-  `test_RN_TEN_07_two_orgs_are_allowed`.
+  `test_RN_TEN_07_two_orgs_are_allowed`, más los rechazos de rol y estado, la membership revocada que se conserva y
+  no bloquea una nueva, sin borrado físico (de la membership ni del usuario), la guarda de `TenantModel`, el índice
+  parcial con `INCLUDE (role)` y `Role`/`ROLE_RANK`.
 
 ### T-TEN-06 — Matriz de permisos como código
 - **AC:** AC-TEN-15, 16, 34 (matriz). RN-TEN-09, Q-218, Q-221. **Zona roja:** sí.
@@ -336,6 +352,8 @@ T-TEN-30 · suspendida → T-TEN-29.
 - **Archivos:** `services/invitation_accept.py`, `api/invitations.py`, `api/serializers/invitations.py`, `api/urls.py`,
   `openapi.yaml`, `api.d.ts`, tests.
 - **Cambios:** `design.md §4.4`. Servicio único: lo reusan `T-TEN-16` y `T-TEN-17`.
+  Abre un `tenant_scope` por organización antes de escribir la membership y suma a `SystemReason` el valor de ese
+  caso ("Ajustes al diseño"; T-TEN-05 lo dejó acá).
 - **Pruebas:** `test_AC_TEN_17_accept_creates_membership`, `test_AC_TEN_17_double_accept_in_parallel` (hilos),
   `test_AC_TEN_18_other_email_keeps_pending`, `test_AC_TEN_19_expired_or_revoked`, `test_AC_TEN_25_at_seven_days`,
   `test_AC_TEN_35_case_and_alias`.

@@ -20,6 +20,7 @@ from django.test import override_settings
 
 from apps.common.audit.port import AuditActor, AuditActorKind, AuditEvent, emit, get_sink
 from apps.common.audit.sinks import RecordingSink, StructlogAuditSink
+from apps.common.authz.roles import Role
 from apps.common.tenancy.context import (
     ApiKeyActor,
     OrgStatus,
@@ -60,7 +61,7 @@ RNF_TEN_04 = {
 
 
 def user_ctx() -> TenantContext:
-    actor = UserActor(user_id=USER_ID, membership_id=uuid.uuid4(), role="owner")
+    actor = UserActor(user_id=USER_ID, membership_id=uuid.uuid4(), role=Role.OWNER)
     return TenantContext(ORG_ID, OrgStatus.ACTIVE, actor)
 
 
@@ -108,7 +109,7 @@ def test_AC_TEN_23_event_carries_actor_action_organization_and_date(
     ("actor", "expected"),
     [
         (
-            UserActor(user_id=USER_ID, membership_id=uuid.uuid4(), role="admin"),
+            UserActor(user_id=USER_ID, membership_id=uuid.uuid4(), role=Role.ADMIN),
             AuditActor(kind=AuditActorKind.USER, id=USER_ID),
         ),
         (

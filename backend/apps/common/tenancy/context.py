@@ -14,6 +14,8 @@ import uuid
 from dataclasses import dataclass
 from enum import StrEnum
 
+from apps.common.authz.roles import Role
+
 
 class OrgStatus(StrEnum):
     ACTIVE = "active"
@@ -31,11 +33,15 @@ class SystemReason(StrEnum):
 
 @dataclass(frozen=True, slots=True)
 class UserActor:
-    """A person through an active membership. ``role`` becomes ``authz.roles.Role`` in T-TEN-05."""
+    """A person through an active membership, with the role of that membership (RN-TEN-08)."""
 
     user_id: uuid.UUID
     membership_id: uuid.UUID
-    role: str
+    role: Role
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.role, Role):
+            raise TypeError("role must be a Role")
 
 
 @dataclass(frozen=True, slots=True)

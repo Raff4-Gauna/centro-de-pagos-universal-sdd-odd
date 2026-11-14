@@ -16,6 +16,7 @@ from rest_framework.exceptions import APIException
 from structlog.contextvars import bind_contextvars, get_contextvars
 
 from apps.common.api.exceptions import problem_exception_handler
+from apps.common.authz.roles import Role
 from apps.common.logging import context as log_context
 from apps.common.tenancy.context import (
     ApiKeyActor,
@@ -46,7 +47,7 @@ ORG_B = uuid.UUID("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb")
 
 
 def _ctx(organization_id: uuid.UUID = ORG_A) -> TenantContext:
-    actor = UserActor(user_id=uuid.uuid4(), membership_id=uuid.uuid4(), role="owner")
+    actor = UserActor(user_id=uuid.uuid4(), membership_id=uuid.uuid4(), role=Role.OWNER)
     return TenantContext(
         organization_id=organization_id, organization_status=OrgStatus.ACTIVE, actor=actor
     )
@@ -71,7 +72,7 @@ def test_RF_TEN_01_context_is_frozen() -> None:
         ctx.organization_id = ORG_B  # type: ignore[misc]
     assert isinstance(ctx.actor, UserActor)
     with pytest.raises(dataclasses.FrozenInstanceError):
-        ctx.actor.role = "viewer"  # type: ignore[misc]
+        ctx.actor.role = Role.VIEWER  # type: ignore[misc]
 
 
 def test_RF_TEN_01_context_has_no_dict_to_smuggle_attributes() -> None:
