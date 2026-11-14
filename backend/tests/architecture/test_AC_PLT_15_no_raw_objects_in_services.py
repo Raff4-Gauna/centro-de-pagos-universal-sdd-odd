@@ -92,12 +92,28 @@ def test_AC_PLT_15_services_module_and_nested_services_are_covered(
         ("charges/tests/services/test_rows.py", "Charge.objects.all()\n"),
         ("charges/services/rows.py", "Charge.for_organization(org).all()\n"),
         ("charges/services/rows.py", "getattr(Charge, 'status')\n"),
+        # Opened by a tenant scope (AC-TEN-10): the queryset fails closed without it.
+        ("charges/services/rows.py", "Charge.objects.for_tenant(ctx).filter(a=1)\n"),
+        ("charges/services/rows.py", "Charge.objects.unscoped(reason).count()\n"),
     ],
 )
 def test_AC_PLT_15_outside_services_or_without_raw_manager_passes(
     tmp_path: Path, relative: str, body: str
 ) -> None:
     assert module(tmp_path, relative, body) == []
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        # A scope after a clone, a scope name that is not called, a scope on another receiver.
+        "Charge.objects.filter(a=1).for_tenant(ctx)\n",
+        "Charge.objects.for_tenant\n",
+        "Charge.objects.get_queryset().for_tenant(ctx)\n",
+    ],
+)
+def test_AC_PLT_15_only_a_scope_call_opens_the_manager(tmp_path: Path, body: str) -> None:
+    assert [s for _, s in module(tmp_path, "charges/services/rows.py", body)] == ["Charge.objects"]
 
 
 def test_AC_PLT_15_allowlisted_manager_passes_and_dead_entry_fails() -> None:
