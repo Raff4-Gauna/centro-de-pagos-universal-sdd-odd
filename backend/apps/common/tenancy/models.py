@@ -10,8 +10,11 @@ they have their own guard (AC-TEN-07):
 - a tenant must be active (``tenant_scope``); without one they raise ``TenantScopeError``;
 - ``save()`` fills an empty ``organization`` with the active one and rejects another one;
 - ``organization`` and ``pk`` do not change once the row was read or saved;
-- the ``UPDATE`` of ``save()`` also filters by organization: a row of another organization with the
-  same ``pk`` is never written (the ``INSERT`` that Django tries next fails on the primary key);
+- the ``UPDATE`` and ``INSERT`` that ``save()`` runs (``_do_update``, ``_do_insert``) check the
+  active tenant again, also when reached through ``save_base()`` or after a ``pre_save`` receiver
+  changed the instance: the row must carry its organization and the ``UPDATE`` filters by it, so a
+  row of another organization with the same ``pk`` is never written (the ``INSERT`` that Django
+  tries next fails on the primary key);
 - ``delete()`` first checks that the row of that ``pk`` belongs to the active organization.
 
 ``Organization`` keeps its ``pk`` the same way (``guard_organization_save``): ``org.pk = other.pk``
@@ -115,9 +118,27 @@ class TenantModel(models.Model):
         update_fields: Iterable[str] | None,
         forced_update: bool,
     ) -> bool:
-        # Checked against the context by ``save()``: the UPDATE never reaches another organization.
-        scoped = base_qs.filter(organization_id=self.organization_id)
+        # The active tenant again, not ``self``: ``save_base()`` and ``pre_save`` skip ``save()``.
+        ctx = self._require_own_row("save")
+        scoped = base_qs.filter(organization_id=ctx.organization_id)
         return super()._do_update(scoped, using, pk_val, values, update_fields, forced_update)
+
+    def _do_insert(
+        self,
+        manager: models.Manager[Self],
+        using: str | None,
+        fields: Iterable[models.Field[Any, Any]],
+        returning_fields: Iterable[models.Field[Any, Any]],
+        raw: bool,
+    ) -> Any:
+        self._require_own_row("save")
+        return super()._do_insert(manager, using, fields, returning_fields, raw)  # type: ignore[misc]
+
+    def _require_own_row(self, operation: str) -> TenantContext:
+        ctx = self._require_tenant(operation)
+        if self.organization_id != ctx.organization_id:
+            raise TenantScopeError(f"{type(self).__name__}.{operation} for another organization")
+        return ctx
 
     def _require_tenant(self, operation: str) -> TenantContext:
         ctx = current_tenant()

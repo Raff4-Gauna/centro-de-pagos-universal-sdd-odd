@@ -35,6 +35,10 @@ empty one is filled with it (RN-TEN-04) and another one raises. For ``Organizati
 its ``pk``, which is never empty: a tenant scope inserts no organization, and new organizations go
 through ``unscoped(reason)``.
 
+The organization of a row never changes through ``update``, ``_update`` or ``bulk_update`` (and
+their ``a*`` variants), under any scope: ``organization``/``organization_id`` among the values or
+fields raise (RN-TEN-04).
+
 Assigning ``qs.query = ...`` replaces the filter with a query that may not have it, so it clears the
 scope: the queryset fails closed until it is scoped again.
 
@@ -227,6 +231,42 @@ class TenantQuerySet(models.QuerySet[_M]):
     _insert.alters_data = True  # type: ignore[attr-defined]  # as Django's
     _insert.queryset_only = False  # type: ignore[attr-defined]  # as Django's
 
+    def update(self, **kwargs: Any) -> int:
+        self._require_scope("update")
+        self._require_fixed_tenant(kwargs, "update")
+        return super().update(**kwargs)
+
+    update.alters_data = True  # type: ignore[attr-defined]  # as Django's
+
+    def _update(self, values: Any) -> Any:
+        """What ``update`` and ``Model.save()`` run underneath: (field, model, value) tuples."""
+        self._require_scope("_update")
+        self._require_fixed_tenant([field.name for field, _model, _value in values], "_update")
+        return super()._update(values)  # type: ignore[misc]
+
+    _update.alters_data = True  # type: ignore[attr-defined]  # as Django's
+    _update.queryset_only = False  # type: ignore[attr-defined]  # as Django's
+
+    def bulk_update(
+        self, objs: Iterable[_M], fields: Iterable[str], batch_size: int | None = None
+    ) -> int:
+        self._require_scope("bulk_update")
+        fields = list(fields)
+        self._require_fixed_tenant(fields, "bulk_update")
+        return super().bulk_update(objs, fields, batch_size=batch_size)
+
+    bulk_update.alters_data = True  # type: ignore[attr-defined]  # as Django's
+
+    def _require_fixed_tenant(self, names: Iterable[str], operation: str) -> None:
+        """``names`` (field names or attnames) must not include the organization of the row."""
+        if self.tenant_lookup == "pk":
+            return  # ``Organization``: the row is the organization
+        field = self.model._meta.get_field(self.tenant_lookup)
+        if {field.name, getattr(field, "attname", field.name)} & set(names):
+            raise TenantScopeError(
+                f"{self._model_name()}.{operation} cannot change the organization"
+            )
+
     def _pin_rows(self, objs: Iterable[_M], ctx: TenantContext, operation: str) -> None:
         """Rows inserted under ``ctx``: an empty ``tenant_lookup`` gets it, another one raises."""
         organization_id = ctx.organization_id
@@ -327,8 +367,8 @@ def _guard(name: str) -> Callable[..., Any]:
 
 # Set after the class so that callers keep Django's typed signatures (django-stubs) and each
 # wrapper keeps the attributes Django reads (``alters_data``, ``queryset_only`` via ``wraps``).
-# ``create``, ``bulk_create``, ``_insert`` and ``raw`` are defined on the class: they check the
-# scope themselves.
+# The methods defined on the class (``create``, ``update``, ``bulk_create``, ``_insert``, ``raw``
+# and the rest) check the scope themselves.
 for _name in GUARDED_METHODS:
     if _name not in vars(TenantQuerySet):
         setattr(TenantQuerySet, _name, _guard(_name))
