@@ -191,7 +191,9 @@ def test_AC_PLT_01_every_compose_variable_is_in_env_example() -> None:
     interpolated = set(_COMPOSE_VAR.findall(compose.read_text(encoding="utf-8")))
     assert interpolated, "no interpolation found in infra/docker-compose.yml"
     assert sorted(interpolated - set(root_vars())) == []
-    assert interpolated - set(PlatformEnv.model_fields) == COMPOSE_ONLY_VARS
+    # The frontend service gets the BFF's own (T-IDA-24); BACKEND_INTERNAL_URL is fixed there.
+    outside_settings = interpolated - set(PlatformEnv.model_fields)
+    assert outside_settings - FRONTEND_SERVER_VARS == COMPOSE_ONLY_VARS
 
 
 @pytest.mark.parametrize(
