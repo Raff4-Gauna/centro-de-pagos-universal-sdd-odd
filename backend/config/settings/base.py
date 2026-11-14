@@ -30,6 +30,8 @@ INSTALLED_APPS = [
 ]
 
 AUTH_USER_MODEL = "identity.User"
+# The tenant: target of the FK of every TenantModel (SPEC-02 design.md §3.1, ADR-0001).
+TENANT_MODEL = "tenancy.Organization"
 
 # Ports of apps.identity (design.md §6.4), resolved by ports/registry.py: identity never imports
 # tenancy nor audit. Fixed dotted paths, not environment variables; SPEC-02 and SPEC-10 change them.
