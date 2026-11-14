@@ -375,6 +375,9 @@ T-TEN-30 · suspendida → T-TEN-29.
   `env.example`, `backend/tests/tenancy/commands/test_create_org.py`.
 - **Cambios:** `design.md §4.5`: `--operator` en `PLATFORM_OPERATOR_EMAILS`, idempotente por `--key`, link una vez por
   stdout. **Q-124:** nunca crea membership; si el email ya tiene usuario, igual emite la invitación.
+- **También `deactivate_user` y `reactivate_user`** (`apps/identity`, `T-IDA-18`; decisión de planificación,
+  2026-11-14): aplicar la misma validación de `--operator` contra `PLATFORM_OPERATOR_EMAILS`, para que todos los
+  comandos de operador sean iguales. Hoy solo exigen un `--operator` no vacío de hasta 150 caracteres.
 - **Pruebas:** `test_AC_TEN_22_org_without_memberships_plus_invitation`, `test_AC_TEN_22_accept_gives_one_owner`,
   `test_AC_TEN_40_existing_user_gets_invitation_not_membership`, `test_AC_TEN_40_next_login_does_not_accept`,
   `test_AC_TEN_40_accept_from_session_gives_one_owner`, `test_AC_IDA_32_bootstrap_command_audited`,

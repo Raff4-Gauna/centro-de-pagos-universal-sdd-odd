@@ -80,7 +80,7 @@ El diseño se escribió antes de que existiera el código de SPEC-00. Donde difi
 | T-IDA-15 | Refresh: concurrencia y 31.º refresh | AC-IDA-20 (refresh), AC-IDA-28 (carrera) | Servicio | `backend/tests/identity/test_refresh_concurrency.py` | T-IDA-14 | backend-dev | M | Sí | 🟡 | rama `task/T-IDA-15-refresh-race`, sin PR |
 | T-IDA-16 | Logout | AC-IDA-17 (backend), AC-IDA-35 | Servicio/API | `services/logout.py`, `api/views_bff.py` | T-IDA-14 | backend-dev | M | Sí | 🟡 | rama `task/T-IDA-16-logout`, PR #97 |
 | T-IDA-17 | Sesiones propias: listar y revocar | AC-IDA-25, AC-IDA-26, AC-IDA-33 (API) | Servicio/API | `services/sessions.py`, `api/views_sessions.py`, `domain/client_hint.py` | T-IDA-06, T-IDA-13 | backend-dev | L | Sí | 🟡 | rama `task/T-IDA-17-own-sessions`, PR #98 |
-| T-IDA-18 | Comandos de desactivar y reactivar usuario | AC-IDA-27, AC-IDA-32 (parte 01) | Comandos | `services/user_status.py`, `management/commands/*` | T-IDA-17 | backend-dev | M | Sí | ☐ | |
+| T-IDA-18 | Comandos de desactivar y reactivar usuario | AC-IDA-27, AC-IDA-32 (parte 01) | Comandos | `services/user_status.py`, `management/commands/*` | T-IDA-17 | backend-dev | M | Sí | 🟡 | rama `task/T-IDA-18-user-status`, sin PR |
 | T-IDA-19 | Purga periódica | AC-IDA-38 | Asíncrono | `tasks.py`, `beat.py`, `services/purge.py` | T-IDA-10, T-IDA-14 | backend-dev | M | Sí | ☐ | |
 | T-IDA-20 | Chequeos de arranque y proveedor OIDC falso | — (RN-IDA-01, RN-IDA-16, RNF-IDA-06) | Config | `checks.py`, `apps.py`, `dev_oidc/*`, `oidc/provider.py` | T-IDA-08 | backend-dev | L | Sí | 🟡 | rama `task/T-IDA-20-startup-checks`, sin PR |
 | T-IDA-21 | Redacción de logs, métricas y catálogo completo | AC-IDA-23, AC-IDA-24 | Observabilidad | `apps/common/domain/redaction.py`, tests de identity | T-IDA-13, T-IDA-15, T-IDA-16, T-IDA-17, T-IDA-18 | backend-dev | M | Sí | ☐ | |
@@ -528,7 +528,7 @@ módulos se aprueba en la misma pasada, después de `T-TEN-36`.
   - **`client_hint`:** listas cerradas de navegadores y SO, sin versión ni modelo; un UA que no nombran queda `""`.
 - **Pendiente para `T-IDA-18`:** test de concurrencia de "cerrar las demás" contra un refresh de una de esas sesiones
   (dos conexiones, como `test_refresh_concurrency.py`): ninguno se bloquea y la sesión termina revocada sin token vivo
-  nuevo que sirva.
+  nuevo que sirva. **Cerrado en `T-IDA-18`** (`tests/identity/test_revocation_concurrency.py`).
 
 ### T-IDA-18 — Comandos de desactivar y reactivar usuario
 - **AC:** AC-IDA-27, AC-IDA-32 (parte 01). RF-IDA-08, RN-IDA-07, RN-IDA-23. **Zona roja:** sí.
@@ -539,6 +539,38 @@ módulos se aprueba en la misma pasada, después de `T-TEN-36`.
 - **Pruebas:** `test_AC_IDA_27_two_sessions_revoked_and_next_request_401`,
   `test_AC_IDA_27_reactivate_does_not_revive`, `test_AC_IDA_32_schema_has_no_provisioning_endpoints`,
   `test_AC_IDA_32_admin_does_not_answer`.
+- **Decisiones del backend-dev (2026-11-14), para el reviewer:**
+  - **Operador:** `--operator` obligatorio (1 a 150 caracteres tras recortar) más el usuario del SO
+    (`getpass.getuser()`, `unknown` si el proceso no tiene). Van en `metadata` (`operator`, `os_user`) de cada evento,
+    con `actor_type=platform_operator` y `actor_id` nulo: el operador no es un usuario del Hub. No se valida contra una
+    lista blanca: `PLATFORM_OPERATOR_EMAILS` es de SPEC-02 (`design.md §4.5` de 02) y no existe todavía; la suma
+    `T-TEN-18` a estos dos comandos (decisión de planificación, 2026-11-14).
+  - **`--reason`:** opcional, hasta 200 caracteres; va en `reason` de `identity.user_deactivated` /
+    `user_reactivated` (sus motivos no son una lista cerrada) y nunca a los logs.
+  - **Eventos:** `identity.user_deactivated` (`metadata`: `user_id`, operador, `outcome`, `revoked_sessions`) y un
+    `identity.session_revoked` (`user_deactivated`, `metadata`: `sid`, `user_id`, operador) por sesión que se movió;
+    `identity.user_reactivated`. Todo dentro de la transacción: si la auditoría falla, no cambia nada.
+  - **Repetido** (desactivar a un inactivo, reactivar a un activo): no cambia nada, lo informa y **se audita**
+    (decisión de planificación, 2026-11-14: RN-IDA-23 dice "cada ejecución auditada" y la spec manda sobre la analogía
+    con el bootstrap de SPEC-02). Mismo evento (`identity.user_deactivated` / `identity.user_reactivated`) con
+    `metadata.outcome="no_change"` (`"changed"` cuando cambió), sin revocar sesiones (`revoked_sessions=0`). El catálogo
+    no fija motivos para esos eventos, así que no hace falta otro. Prueba:
+    `test_AC_IDA_27_repeating_either_changes_nothing_and_is_audited`.
+  - **Bloqueos:** la fila del usuario `FOR UPDATE` y después las sesiones `active` de a una en orden ascendente de
+    `id`, como "cerrar las demás". El login bloquea la misma fila de usuario antes de abrir la sesión, así que no
+    queda una sesión `active` que una reactivación reviva.
+  - **Salida:** `0` cambió o ya estaba así; `1` ningún usuario coincide; `2` argumento inválido. Los mensajes nombran
+    al usuario solo por id, nunca repiten el email.
+- **Fuera de alcance:** que ningún endpoint cree owners por invitaciones (`POST /api/invitations/` con rol `owner`)
+  se verifica en SPEC-02 (decisión de planificación, 2026-11-14); acá solo el esquema y las rutas de 01.
+- **Archivos sumados:** `selectors/users.py` (`get_by_id`) y `selectors/auth_sessions.py` (`list_active_session_ids`,
+  ascendente): las lecturas van por selectors y el servicio no suma entradas a `ALLOWED_TENANT_MANAGERS`;
+  `management/__init__.py` y `management/commands/{__init__,_user_status}.py` (lo común a los dos comandos);
+  `backend/tests/identity/test_revocation_concurrency.py`: el pendiente de `T-IDA-17` ("cerrar las demás" contra un
+  refresh) y desactivar contra un refresh, en los dos órdenes, con dos conexiones y el orden forzado por
+  `pg_stat_activity`; va en un archivo propio porque prueba `T-IDA-17` y `T-IDA-18` juntas;
+  `specs/02-tenancy-rbac/tasks.md` (nota en la ficha de `T-TEN-18`: la lista blanca de operadores también para estos
+  comandos, decisión de planificación).
 
 ### T-IDA-19 — Purga periódica
 - **AC:** AC-IDA-38. RF-IDA-10, RN-IDA-25, RNF-IDA-04. **Zona roja:** sí.
