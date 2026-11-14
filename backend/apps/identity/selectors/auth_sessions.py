@@ -78,3 +78,8 @@ def get_own_session(*, user_id: UUID, session_id: UUID) -> AuthSession | None:
 def list_other_active_session_ids(*, user_id: UUID, keep: UUID) -> list[UUID]:
     """Ids of the user's ``active`` sessions but ``keep``, ascending: the order to lock them in."""
     return list(_active_of(user_id).exclude(pk=keep).order_by("pk").values_list("pk", flat=True))
+
+
+def list_active_session_ids(*, user_id: UUID) -> list[UUID]:
+    """Ids of every ``active`` session of the user, ascending: the order to lock them in."""
+    return list(_active_of(user_id).order_by("pk").values_list("pk", flat=True))
