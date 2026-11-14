@@ -50,12 +50,12 @@ Donde el diseño y el código de SPEC-00, o el orden real, difieren, manda esta 
 
 ## Resumen
 
-> T-TEN-01 y T-TEN-10 en revisión; las demás sin empezar. La columna **Evidencia** es obligatoria para `✅` y la verifica `scripts/check_spec_state.py`.
+> T-TEN-01, T-TEN-02 y T-TEN-10 en revisión; las demás sin empezar. La columna **Evidencia** es obligatoria para `✅` y la verifica `scripts/check_spec_state.py`.
 
 | ID | Título | AC | Capa | Archivos esperados (ver detalle) | Depende de | Agente | Tamaño | Zona roja | Estado | Evidencia |
 |---|---|---|---|---|---|---|---|---|---|---|
 | T-TEN-01 | `TenantContext`, `tenant_scope` y errores | — (RF-TEN-01, RF-TEN-08) | Base | `apps/common/tenancy/{context,current,middleware,errors}.py`, `.github/zona-roja-paths.txt` | — | backend-dev | M | Sí | 🟡 | rama `task/T-TEN-01-tenant-context`, sin PR |
-| T-TEN-02 | Queryset que falla cerrado + `Organization` + migración 0001 | AC-TEN-11 | DB | `apps/common/tenancy/querysets.py`, `apps/tenancy/models/organization.py` | T-TEN-01 | backend-dev | L | Sí | ☐ | |
+| T-TEN-02 | Queryset que falla cerrado + `Organization` + migración 0001 | AC-TEN-11 | DB | `apps/common/tenancy/querysets.py`, `apps/tenancy/models/organization.py` | T-TEN-01 | backend-dev | L | Sí | 🟡 | rama `task/T-TEN-02-organization`, sin PR |
 | T-TEN-03 | `TenantModel` y app de prueba `tenant_probe` | AC-TEN-07 (guarda), AC-TEN-11 | Base | `apps/common/tenancy/models.py`, `tests/testapps/tenant_probe/` | T-TEN-02 | backend-dev | M | Sí | ☐ | |
 | T-TEN-04 | Test de arquitectura de accesos crudos | AC-TEN-10 | Arquitectura | `backend/tests/architecture/tenant_rules.py`, `test_tenant_queries.py` | T-TEN-03 | backend-dev | L | Sí | ☐ | |
 | T-TEN-05 | `Membership` + migración 0002 | — (RN-TEN-07, RN-TEN-21) | DB | `apps/tenancy/models/membership.py`, `apps/common/authz/roles.py` | T-TEN-03, T-IDA-01 | backend-dev | M | Sí | ☐ | |
@@ -180,10 +180,13 @@ T-TEN-30 · suspendida → T-TEN-29.
 - **AC:** AC-TEN-11. RN-TEN-02, RNF-TEN-05. **Zona roja:** sí.
 - **Archivos:** `apps/common/tenancy/{querysets,models}.py` (`NoHardDeleteMixin`), `apps/tenancy/{__init__,apps}.py`,
   `models/{__init__,organization}.py`, `migrations/0001_organization.py`, `config/settings/base.py`,
-  `backend/tests/tenancy/test_AC_TEN_11_fail_closed.py`.
-- **Cambios:** `design.md §3.4` y tabla `tenancy_organization` de §5.
+  `backend/tests/tenancy/test_AC_TEN_11_fail_closed.py`, `backend/tests/tenancy/test_AC_TEN_11_scoped_writes.py`.
+- **Cambios:** `design.md §3.4` y tabla `tenancy_organization` de §5. Con scope de tenant, `bulk_create` con
+  `ignore_conflicts`/`update_conflicts`, o con instancias de otra organización, y `raw` fallan cerrado; asignar
+  `qs.query` limpia el scope.
 - **Pruebas:** `test_AC_TEN_11_every_terminal_method_raises` (parametrizado, sin ir a la BD),
-  `test_AC_TEN_11_clone_keeps_scope`, `test_hard_delete_is_forbidden`.
+  `test_AC_TEN_11_clone_keeps_scope`, `test_hard_delete_is_forbidden`,
+  `test_AC_TEN_11_bulk_create_under_a_tenant_leaves_other_organizations`.
 
 ### T-TEN-03 — `TenantModel` y app de prueba `tenant_probe`
 - **AC:** AC-TEN-07 (guarda), AC-TEN-11. RN-TEN-01, RN-TEN-04. **Zona roja:** sí.
@@ -192,6 +195,9 @@ T-TEN-30 · suspendida → T-TEN-29.
 - **Cambios:** FK `PROTECT`, `related_name="+"`, guarda de `save()`; `Widget` solo en settings de test.
 - **Pruebas:** `test_AC_TEN_07_save_rejects_other_org`, `test_AC_TEN_11_tenant_model_without_scope_raises`,
   `test_organization_id_is_immutable`.
+- **Pendiente heredado de T-TEN-02 (revisión del PR #89):** `Organization.save()` con el `pk` cambiado
+  (`org.pk = b.pk; org.save()`) sobrescribe la otra organización, porque `save()` usa `_base_manager`. La guarda de
+  `save()` de `TenantModel` no cubre a `Organization`: resolverlo acá o en los servicios de organización.
 
 ### T-TEN-04 — Test de arquitectura de accesos crudos
 - **AC:** AC-TEN-10. RN-TEN-02, RNF-TEN-01. **Zona roja:** sí.

@@ -42,6 +42,8 @@ def forwards(apps: object, schema_editor: object) -> None:
 
 # Destructive (reverts to zero): every run on hub_synthetic confirms it is throwaway.
 ROUNDTRIP = ("check_migrations_roundtrip", "--allow-data-loss")
+# The apps under ``apps.*`` with migrations: what a run without labels reverts.
+PROJECT_APPS = {"identity", "tenancy"}
 RUN_PYTHON_NO_REVERSE = migrations.RunPython(forwards)
 RUN_SQL_NO_REVERSE = migrations.RunSQL("UPDATE gizmo SET name = lower(name)")
 RUN_PYTHON_ERROR = irreversible_problem(RUN_PYTHON_NO_REVERSE)
@@ -253,6 +255,12 @@ def test_AC_PLT_17_reversible_migration_roundtrips_on_disposable_db(run_manage: 
     assert index == [(1,)]
 
 
+def reverted_apps(stdout: str) -> set[str]:
+    """App labels of the ``Unapplying <app>.<migration>...`` lines."""
+    lines = (line.strip() for line in stdout.splitlines())
+    return {line.split()[1].split(".")[0] for line in lines if line.startswith("Unapplying ")}
+
+
 @pytest.mark.integration
 @pytest.mark.usefixtures("fresh_synthetic_db")
 def test_AC_PLT_17_default_run_reverts_only_apps_modules(run_manage: RunDjango) -> None:
@@ -260,11 +268,11 @@ def test_AC_PLT_17_default_run_reverts_only_apps_modules(run_manage: RunDjango) 
     result = run_manage(*ROUNDTRIP)
 
     assert result.returncode == 0, output(result)
-    assert "Round trip passed for 1 app(s): identity" in result.stdout
-    # Migrated with the rest of the project; the only one reverted is the app under ``apps``.
+    assert "Round trip passed for 2 app(s): identity, tenancy" in result.stdout
+    # Migrated with the rest of the project; the only ones reverted are the apps under ``apps``.
     assert "Applying good_reversible.0004_part_code_index" in result.stdout
     assert "Unapplying identity.0001_users" in result.stdout
-    assert result.stdout.count("Unapplying") == result.stdout.count("Unapplying identity.")
+    assert reverted_apps(result.stdout) == PROJECT_APPS
 
 
 @pytest.mark.integration
@@ -324,6 +332,8 @@ def test_AC_PLT_17_real_apps_roundtrip(run_django: RunDjango, fresh_synthetic_db
     )
 
     assert result.returncode == 0, output(result)
-    assert "Round trip passed for 1 app(s): identity" in result.stdout
+    assert "Round trip passed for 2 app(s): identity, tenancy" in result.stdout
     assert "Unapplying identity.0001_users" in result.stdout
+    assert "Unapplying tenancy.0001_organization" in result.stdout
     assert result.stdout.index("Unapplying") < result.stdout.rindex("Applying identity.0001_users")
+    assert reverted_apps(result.stdout) == PROJECT_APPS
