@@ -53,6 +53,7 @@ El diseño se escribió antes de que existiera el código de SPEC-00. Donde difi
 | `app/api/[...path]/route.ts` como proxy nuevo | Se extiende el existente; la parte de sesión va en `lib/server/session-proxy.ts` | `backend-proxy.ts` tiene 277 líneas (`C-14`) |
 | `bootstrap_organization`, `tenancy.organization_bootstrapped` | `tenancy_create_org`, `organization.created` + `invitation.created` | Dueña SPEC-02; `design.md §6.5` y `§7.4` ya corregidos |
 | Códigos propios del BFF `csrf_failed`, `upstream_unavailable` (`§6.3`) | `bff.csrf_failed`, `bff.upstream_unavailable`, `bff.upstream_timeout` (`lib/server/problem.ts`) | Convención del catálogo de SPEC-00: los códigos del BFF llevan el prefijo `bff.` (`bff.bad_path`…); `api-client` y pantallas comparan con estos nombres |
+| Coalescencia del refresh por hash del token (`§3.2`, `§4.5`) | Clave `sha256(refresh token + IP del cliente + User-Agent)` (`lib/server/refresh.ts`) | Decisión del dueño (2026-11-14, ADR-0004 §3 enmendado): un token robado presentado durante un refresh legítimo no recibe el par rotado; `design.md` ya corregido |
 | E2E sin herramienta definida; SPEC-02 nombra Playwright | Script por HTTP sin navegador (`scripts/e2e_login.py`) | Playwright es dependencia nueva (`C-13`, ADR); no es necesaria para estos AC |
 
 ## Resumen
@@ -84,7 +85,7 @@ El diseño se escribió antes de que existiera el código de SPEC-00. Donde difi
 | T-IDA-20 | Chequeos de arranque y proveedor OIDC falso | — (RN-IDA-01, RN-IDA-16, RNF-IDA-06) | Config | `checks.py`, `apps.py`, `dev_oidc/*`, `oidc/provider.py` | T-IDA-08 | backend-dev | L | Sí | 🟡 | rama `task/T-IDA-20-startup-checks`, sin PR |
 | T-IDA-21 | Redacción de logs, métricas y catálogo completo | AC-IDA-23, AC-IDA-24 | Observabilidad | `apps/common/domain/redaction.py`, tests de identity | T-IDA-13, T-IDA-15, T-IDA-16, T-IDA-17, T-IDA-18 | backend-dev | M | Sí | ☐ | |
 | T-IDA-22 | BFF: cookies, IP, retorno y cliente a Django | AC-IDA-18, AC-IDA-19, AC-IDA-37 (BFF) | BFF | `src/lib/server/{cookies,client-ip,return-path,django,problem}.ts`, `.github/zona-roja-paths.txt` | T-IDA-10 | frontend-dev | L | Sí | 🟡 | rama `task/T-IDA-22-bff-lib`, sin PR |
-| T-IDA-23 | BFF: CSRF y refresh con coalescencia | AC-IDA-19 (CSRF), AC-IDA-28 (BFF) | BFF | `src/lib/server/{csrf,refresh}.ts` | T-IDA-14, T-IDA-22 | frontend-dev | M | Sí |🟡 | rama `task/T-IDA-23-bff-routes`, sin PR |
+| T-IDA-23 | BFF: CSRF y refresh con coalescencia | AC-IDA-19 (CSRF), AC-IDA-28 (BFF) | BFF | `src/lib/server/{csrf,refresh}.ts` | T-IDA-14, T-IDA-22 | frontend-dev | M | Sí | 🟡 | rama `task/T-IDA-23-bff-routes`, PR #99 |
 | T-IDA-24 | Route Handlers de inicio y callback | AC-IDA-01 (cookies), AC-IDA-18, AC-IDA-19 | BFF | `app/api/auth/google/{start,callback}/route.ts` | T-IDA-13, T-IDA-22 | frontend-dev | M | Sí | ☐ | |
 | T-IDA-25 | Route Handlers de logout y organización activa | AC-IDA-17 (cookies) | BFF | `app/api/auth/logout/route.ts`, `app/api/session/active-organization/route.ts` | T-IDA-16, T-IDA-23 | frontend-dev | M | Sí | ☐ | |
 | T-IDA-26 | Smoke: 3xx y URL de ejemplo (deuda de 00) | AC-PLT-29 (regresión) | CI | `scripts/smoke_stack.py`, `scripts/smoke_pages.py`, `scripts/tests/test_smoke_stack.py`, `scripts/tests/test_smoke_pages.py`, `scripts/tests/test_smoke_stack_wiring.py`, `scripts/tests/test_smoke_client_bundle.py` | — | backend-dev | M | Sí | 🟡 | PR abierto |
@@ -617,7 +618,7 @@ módulos se aprueba en la misma pasada, después de `T-TEN-36`.
   - **`refresh.ts`:** `refreshSession` devuelve `refreshed | rejected | rate_limited | unavailable` y nunca rechaza la
     promesa. La clave de coalescencia es el hash del token **más** IP y User-Agent del cliente: las pestañas de un
     navegador los comparten, y quien tenga una copia robada del token no recibe el par rotado por compartir la
-    promesa (decisión de implementación, más estricta que ADR-0004 §3; Django sigue resolviendo con gracia/reuso).
+    promesa (aceptado por el dueño el 2026-11-14: enmienda de ADR-0004 §3; Django sigue resolviendo con gracia/reuso).
     La llamada compartida no lleva la señal de ninguna pestaña. Todo `401` del refresh termina la sesión.
   - **Cookies:** `cookiesAfterRefresh` escribe solo `at` con `refresh_token=null`; con rotación escribe `rt` y renueva
     el `Max-Age` de `__Host-cpu_csrf` con el mismo valor (si falta o no tiene forma válida, acuña uno), porque la cookie

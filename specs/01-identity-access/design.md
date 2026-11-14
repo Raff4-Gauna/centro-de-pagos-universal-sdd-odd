@@ -1,7 +1,7 @@
 ---
 spec: SPEC-01
 estado: Aprobado         # Draft | Aprobado — aprobado por el dueño el 2026-11-06 (gate humano)
-actualizado: 2026-11-07
+actualizado: 2026-11-14
 ---
 # Diseño — Módulo de Identidad y Acceso (`01-identity-access`)
 
@@ -175,7 +175,7 @@ src/
 │       ├── csrf.ts                        # Origin/Sec-Fetch-Site + double-submit
 │       ├── client-ip.ts                   # IP real desde X-Forwarded-For con N saltos de confianza
 │       ├── django.ts                      # fetch a Django con credencial BFF, X-Request-ID, timeouts
-│       ├── refresh.ts                     # refresh con coalescencia por instancia (Map<hash, Promise>)
+│       ├── refresh.ts                     # refresh con coalescencia por instancia (Map<hash(token, IP, UA), Promise>)
 │       ├── return-path.ts                 # re-sanitiza antes de redirigir
 │       └── problem.ts                     # respuestas problem+json propias del BFF (csrf_failed, upstream_unavailable)
 └── modules/identity/
@@ -287,8 +287,10 @@ refresh_session(raw_rt, now):
 ```
 El BFF, si recibe `refresh=null`, actualiza solo la cookie de acceso: la cookie `__Host-cpu_rt` del navegador ya quedó
 con `rt'` por la respuesta de la pestaña que rotó (las cookies son del navegador, no de la pestaña). Además, cada
-instancia del BFF comparte en memoria la promesa de refresh por hash del token, así que las pestañas que caen en la
-misma instancia hacen un solo refresh.
+instancia del BFF comparte en memoria la promesa de refresh, así que las pestañas que caen en la misma instancia hacen
+un solo refresh. La clave es `sha256(refresh token + IP del cliente + User-Agent)`, no solo el hash del token
+(ADR-0004 §3, enmienda del 2026-11-14): un token robado presentado durante un refresh legítimo no recibe el par rotado;
+si la IP o el User-Agent difieren, cada pedido va a Django y decide la gracia.
 
 ### 4.6 Logout (RN-IDA-14, AC-IDA-17/35)
 `POST /api/auth/logout` (BFF; Origin + CSRF si hay sesión) → Django `auth/bff/logout {refresh_token?, access_token?}`:
@@ -599,3 +601,8 @@ Reemplazar el primer punto de §3.2 por:
 Y en el árbol de §3: `api/  # Route Handlers = BFF (ver 3.2 y ADR-0004)`. Mismo ajuste en `frontend/README.md`
 ("solo adjunta la cookie de sesión" → "BFF de sesión, ver `07 §3.2`"). En §5.3, fila "Mi perfil": quitar "idioma"
 (Q-115).
+
+## Historial de cambios
+| Fecha | Cambio | Motivo |
+|---|---|---|
+| 2026-11-14 | §3.2 y §4.5: la clave de coalescencia del refresh en el BFF es `sha256(refresh token + IP del cliente + User-Agent)`, no solo el hash del token | Decisión del dueño al revisar T-IDA-23 (PR #99), registrada como enmienda de ADR-0004 §3 |

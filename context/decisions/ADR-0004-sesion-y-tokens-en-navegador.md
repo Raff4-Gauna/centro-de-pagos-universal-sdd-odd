@@ -65,6 +65,12 @@ audita `refresh_reuse_detected` y alerta. Cumple AC-IDA-28 sin candado compartid
 aceptado: quien robe un refresh y lo use dentro de los 30 s posteriores a un uso legítimo obtiene solo un JWT de
 15 min, cortable por revocación (punto 4).
 
+**Enmienda (2026-11-14, decisión del dueño):** la clave de coalescencia del BFF es
+`sha256(refresh token + IP del cliente + User-Agent)`, no solo el hash del token. Así, un token robado que se presenta
+mientras corre un refresh legítimo no recibe el par rotado por compartir la promesa. Las pestañas de un mismo
+navegador comparten IP y User-Agent y siguen haciendo un solo refresh; si la IP o el User-Agent difieren, cada pedido
+va a Django y decide la ventana de gracia de arriba. Implementado en `frontend/src/lib/server/refresh.ts` (T-IDA-23).
+
 ### 4. Chequeo de sesión por request
 `HubJWTAuthentication` (DRF) verifica el JWT localmente y luego ejecuta **un** `SELECT` por PK de `auth_sessions` con
 `JOIN users`: `status='active'`, `idle_expires_at > now`, `absolute_expires_at > now`, `is_active`. Presupuesto:
@@ -188,3 +194,8 @@ audita: no es un rechazo del Hub). Respuestas de auth con `Cache-Control: no-sto
 - **Pendiente, sin bloquear la aceptación:** con SPEC-00, la lista de modelos globales exentos del test C-01, los throttles generales por usuario y que
   el access log del borde no registre la query del callback; aplicar el texto de `07 §3.2` (design §13). Q-124 y Q-125
   quedaron decididas el 2026-11-06 (`specs/01-identity-access/clarifications.md`).
+
+## Historial de cambios
+| Fecha | Cambio | Motivo |
+|---|---|---|
+| 2026-11-14 | §3: la clave de coalescencia del refresh en el BFF suma la IP del cliente y el User-Agent al hash del token | Decisión del dueño al revisar T-IDA-23 (PR #99): un token robado presentado durante un refresh legítimo no debe recibir el par rotado |
