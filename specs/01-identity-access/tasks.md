@@ -52,6 +52,7 @@ El diseño se escribió antes de que existiera el código de SPEC-00. Donde difi
 | `APP_ENV ∈ {local, test}` | Setting `IDENTITY_FAKE_OIDC_ALLOWED`: `True` solo en `dev.py` y `test.py` | `APP_ENV` no existe: el entorno lo da `DJANGO_SETTINGS_MODULE`, y staging corre `prod.py` |
 | `app/api/[...path]/route.ts` como proxy nuevo | Se extiende el existente; la parte de sesión va en `lib/server/session-proxy.ts` | `backend-proxy.ts` tiene 277 líneas (`C-14`) |
 | `bootstrap_organization`, `tenancy.organization_bootstrapped` | `tenancy_create_org`, `organization.created` + `invitation.created` | Dueña SPEC-02; `design.md §6.5` y `§7.4` ya corregidos |
+| Códigos propios del BFF `csrf_failed`, `upstream_unavailable` (`§6.3`) | `bff.csrf_failed`, `bff.upstream_unavailable`, `bff.upstream_timeout` (`lib/server/problem.ts`) | Convención del catálogo de SPEC-00: los códigos del BFF llevan el prefijo `bff.` (`bff.bad_path`…); `api-client` y pantallas comparan con estos nombres |
 | E2E sin herramienta definida; SPEC-02 nombra Playwright | Script por HTTP sin navegador (`scripts/e2e_login.py`) | Playwright es dependencia nueva (`C-13`, ADR); no es necesaria para estos AC |
 
 ## Resumen
@@ -82,7 +83,7 @@ El diseño se escribió antes de que existiera el código de SPEC-00. Donde difi
 | T-IDA-19 | Purga periódica | AC-IDA-38 | Asíncrono | `tasks.py`, `beat.py`, `services/purge.py` | T-IDA-10, T-IDA-14 | backend-dev | M | Sí | ☐ | |
 | T-IDA-20 | Chequeos de arranque y proveedor OIDC falso | — (RN-IDA-01, RN-IDA-16, RNF-IDA-06) | Config | `checks.py`, `apps.py`, `dev_oidc/*`, `oidc/provider.py` | T-IDA-08 | backend-dev | L | Sí | 🟡 | rama `task/T-IDA-20-startup-checks`, sin PR |
 | T-IDA-21 | Redacción de logs, métricas y catálogo completo | AC-IDA-23, AC-IDA-24 | Observabilidad | `apps/common/domain/redaction.py`, tests de identity | T-IDA-13, T-IDA-15, T-IDA-16, T-IDA-17, T-IDA-18 | backend-dev | M | Sí | ☐ | |
-| T-IDA-22 | BFF: cookies, IP, retorno y cliente a Django | AC-IDA-18, AC-IDA-19, AC-IDA-37 (BFF) | BFF | `src/lib/server/{cookies,client-ip,return-path,django,problem}.ts`, `.github/zona-roja-paths.txt` | T-IDA-10 | frontend-dev | L | Sí | ☐ | |
+| T-IDA-22 | BFF: cookies, IP, retorno y cliente a Django | AC-IDA-18, AC-IDA-19, AC-IDA-37 (BFF) | BFF | `src/lib/server/{cookies,client-ip,return-path,django,problem}.ts`, `.github/zona-roja-paths.txt` | T-IDA-10 | frontend-dev | L | Sí | 🟡 | rama `task/T-IDA-22-bff-lib`, sin PR |
 | T-IDA-23 | BFF: CSRF y refresh con coalescencia | AC-IDA-19 (CSRF), AC-IDA-28 (BFF) | BFF | `src/lib/server/{csrf,refresh}.ts` | T-IDA-14, T-IDA-22 | frontend-dev | M | Sí | ☐ | |
 | T-IDA-24 | Route Handlers de inicio y callback | AC-IDA-01 (cookies), AC-IDA-18, AC-IDA-19 | BFF | `app/api/auth/google/{start,callback}/route.ts` | T-IDA-13, T-IDA-22 | frontend-dev | M | Sí | ☐ | |
 | T-IDA-25 | Route Handlers de logout y organización activa | AC-IDA-17 (cookies) | BFF | `app/api/auth/logout/route.ts`, `app/api/session/active-organization/route.ts` | T-IDA-16, T-IDA-23 | frontend-dev | M | Sí | ☐ | |
@@ -528,6 +529,7 @@ módulos se aprueba en la misma pasada, después de `T-TEN-36`.
 - **AC:** AC-IDA-18, AC-IDA-19, AC-IDA-37 (BFF). RN-IDA-12, RN-IDA-13. **Zona roja:** sí.
 - **Archivos:** `frontend/src/lib/server/{cookies,client-ip,return-path,django,problem}.ts` y sus tests, `env.ts`,
   `env.example`, `backend/tests/config/test_AC_PLT_05_env_example_parity.py`, `.github/zona-roja-paths.txt`.
+  Se sumó al implementar `scripts/tests/test_AC_PLT_32_zona_roja_rules.py`: fijaba `backend-proxy.ts` como no roja.
 - **Cambios:** cookies de `design.md §7.1`; agrega `frontend/src/app/api/**`, `frontend/src/lib/server/**` y
   `frontend/src/proxy.ts` a la zona roja, como anuncia ese archivo. Variables `HUB_BFF_CREDENTIAL`, `HUB_APP_ORIGIN`, `HUB_TRUSTED_PROXY_HOPS`.
 - **`django.ts`:** envía `X-Forwarded-Proto: https` (Q-065); sin eso, `SECURE_SSL_REDIRECT` responde 301 en prod.
@@ -547,6 +549,10 @@ módulos se aprueba en la misma pasada, después de `T-TEN-36`.
 - **Archivos:** `src/app/api/auth/google/{start,callback}/route.ts` y sus tests.
 - **Cambios:** `design.md §6.3`: binding reusado, `no-store`, `Referrer-Policy: no-referrer`, allowlist de `error`,
   `logout(reason=superseded)` *best effort*.
+- **Redirección:** el `Location` es siempre el `.href` absoluto de `returnUrl(return_path, getAppOrigin())`
+  (`lib/server/return-path.ts`), nunca el `return_path` crudo: un path como `/..//evil.example` resuelve a `//evil.example`.
+- **Compose:** `infra/docker-compose.yml` pasa `HUB_BFF_CREDENTIAL`, `HUB_APP_ORIGIN` y `HUB_TRUSTED_PROXY_HOPS` al servicio
+  `frontend` (sumarlo a los archivos); sin eso, las rutas responden `unavailable`/`config` en el stack de desarrollo.
 - **Pruebas:** `test_AC_IDA_18` (ningún token en el cuerpo), `test_AC_IDA_19` (`return_to` hostil), `test_AC_IDA_01` (cookies
   seteadas y redirección interna).
 
@@ -581,6 +587,9 @@ módulos se aprueba en la misma pasada, después de `T-TEN-36`.
 - **Cambios:** `design.md §4.4` y `§6.3`; `404` para `auth/bff/**` y `auth/google/**`; `api-client` manda `X-CSRF-Token` y
   ante `401` va a `/login?error=session_expired`. Aplica `design.md §13` a `07 §3.2`.
 - **Compose:** `infra/docker-compose.yml` ya pasa `IDENTITY_BFF_CREDENTIALS` y `FEATURE_*` desde `T-IDA-10`; acá no se toca.
+- **Bundle:** `frontend/scripts/check-client-bundle.ts` (AC-PLT-29) busca también el valor de `HUB_BFF_CREDENTIAL` en el
+  bundle del navegador: se suma a `SERVER_ONLY_VARIABLES` y recibe un valor centinela en la etapa builder de
+  `frontend/Dockerfile`, como `BACKEND_INTERNAL_URL` (sumar ambos a los archivos; zona roja por `frontend/scripts/**`).
 - **Pruebas:** `test_AC_IDA_28` (reintento único tras `token_expired`), `test_AC_IDA_26` (`session_revoked` no reintenta y
   borra cookies), `test_AC_IDA_18` (denylist), cookies y `authorization` del navegador nunca se reenvían.
 
@@ -591,6 +600,8 @@ módulos se aprueba en la misma pasada, después de `T-TEN-36`.
 - **Cambios:** `design.md §3.4`. Primera ruta protegida: por eso depende de `T-IDA-26`. Agrega las páginas protegidas a
   `EXPECTED_REDIRECTS` de `smoke_pages.py`, con `/login` como destino. El smoke sigue un solo salto y compara el origen:
   `/` tiene que ir directo a `/login` o quedar listada con su destino real, y un `Location` absoluto con otro host falla.
+- **Redirección:** `proxy.ts` y la pantalla redirigen con el `.href` absoluto de `returnUrl` (`lib/server/return-path.ts`),
+  nunca con el `return_to` crudo.
 - **Pruebas:** `test_AC_IDA_19` en `login-errors.test.ts` (código desconocido → genérico), un caso por estado de §14.
 
 ### T-IDA-29 — Mi perfil, menú de usuario y "sin empresas"

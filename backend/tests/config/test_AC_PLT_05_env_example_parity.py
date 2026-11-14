@@ -41,7 +41,9 @@ FRONTEND_SRC = REPO_ROOT / "frontend" / "src"
 # Interpolated by infra/docker-compose.yml for the db service only; no Hub setting reads them.
 COMPOSE_ONLY_VARS = frozenset({"POSTGRES_USER", "POSTGRES_PASSWORD", "POSTGRES_DB"})
 # Read by the BFF on the server only (Q-050: never a NEXT_PUBLIC_ variable).
-FRONTEND_SERVER_VARS = frozenset({"BACKEND_INTERNAL_URL"})
+FRONTEND_SERVER_VARS = frozenset(
+    {"BACKEND_INTERNAL_URL", "HUB_BFF_CREDENTIAL", "HUB_APP_ORIGIN", "HUB_TRUSTED_PROXY_HOPS"}
+)
 
 PROVIDER_PATTERN = re.compile(r"^(MP|MERCADOPAGO|CLOVER|PAYWAY|DECIDIR|PRISMA)_", re.IGNORECASE)
 _PLACEHOLDER = re.compile(r"<ver \.env: (?P<name>[A-Z][A-Z0-9_]*)>")
@@ -168,6 +170,12 @@ def test_RN_PLT_04_spike_values_are_placeholders_only() -> None:
         if match is None or match.group("name") != name:
             bad.append(name)
     assert bad == []
+
+
+def test_RN_IDA_12_dev_bff_credential_is_one_django_accepts() -> None:
+    # Copied to .env as is, the BFF's credential must open /api/auth/bff/* in dev.
+    accepted = {value.strip() for value in root_vars()["IDENTITY_BFF_CREDENTIALS"].split(",")}
+    assert root_vars()["HUB_BFF_CREDENTIAL"] in accepted
 
 
 def test_AC_PLT_01_allowed_hosts_keep_localhost_and_backend() -> None:

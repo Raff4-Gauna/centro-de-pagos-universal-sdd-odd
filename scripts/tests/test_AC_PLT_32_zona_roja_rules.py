@@ -258,6 +258,11 @@ def test_AC_PLT_32_exception_does_not_shadow_another_line() -> None:
         "backend/apps/charges/domain/states.py",
         "backend/apps/webhooks/services/receive.py",
         "backend/apps/reconciliation/services/run.py",
+        "frontend/src/app/api/[...path]/route.ts",  # the BFF, from SPEC-01 on (T-IDA-22)
+        "frontend/src/app/api/auth/google/callback/route.ts",
+        "frontend/src/lib/server/backend-proxy.ts",
+        "frontend/src/lib/server/cookies.ts",
+        "frontend/src/proxy.ts",
     ],
 )
 def test_AC_PLT_32_red_zone_paths_are_red(path: str) -> None:
@@ -339,7 +344,8 @@ def test_Q058_paths_that_can_alter_the_gate_are_red(path: str) -> None:
         "README.md",
         "docs/AGENTS.md.bak",
         "frontend/src/components/EmptyState.tsx",
-        "frontend/src/lib/server/backend-proxy.ts",  # red from SPEC-01 on (design.md sec. 3.7.2)
+        "frontend/src/lib/api-client.ts",  # browser code, not the BFF
+        "frontend/src/app/(dashboard)/page.tsx",
         "frontend/src/pnpm-lock.yaml",
         "frontend/src/next.config.ts",
         "backend/apps/common/api/throttling.py",
