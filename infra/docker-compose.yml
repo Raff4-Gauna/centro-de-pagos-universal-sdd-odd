@@ -182,6 +182,11 @@ services:
       # Server side only (RN-PLT-16): the BFF reads it at runtime; the browser talks to the BFF
       # (same origin) and never to the backend. A fixed value, not from .env: the service name.
       BACKEND_INTERNAL_URL: http://backend:8000
+      # SPEC-01, server side only too: without the credential and the origin, the login routes
+      # (app/api/auth/google/*) answer /login?error=internal_error. env.example explains each one.
+      HUB_BFF_CREDENTIAL: ${HUB_BFF_CREDENTIAL:-}
+      HUB_APP_ORIGIN: ${HUB_APP_ORIGIN:-}
+      HUB_TRUSTED_PROXY_HOPS: ${HUB_TRUSTED_PROXY_HOPS:-}
       # A bind mount from Windows delivers no inotify events: the dev server polls (infra/README.md).
       WATCHPACK_POLLING: "true"
       NEXT_TELEMETRY_DISABLED: "1"

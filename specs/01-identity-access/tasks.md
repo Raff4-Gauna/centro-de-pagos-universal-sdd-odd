@@ -86,7 +86,7 @@ El diseño se escribió antes de que existiera el código de SPEC-00. Donde difi
 | T-IDA-21 | Redacción de logs, métricas y catálogo completo | AC-IDA-23, AC-IDA-24 | Observabilidad | `apps/common/domain/redaction.py`, tests de identity | T-IDA-13, T-IDA-15, T-IDA-16, T-IDA-17, T-IDA-18 | backend-dev | M | Sí | ☐ | |
 | T-IDA-22 | BFF: cookies, IP, retorno y cliente a Django | AC-IDA-18, AC-IDA-19, AC-IDA-37 (BFF) | BFF | `src/lib/server/{cookies,client-ip,return-path,django,problem}.ts`, `.github/zona-roja-paths.txt` | T-IDA-10 | frontend-dev | L | Sí | 🟡 | rama `task/T-IDA-22-bff-lib`, sin PR |
 | T-IDA-23 | BFF: CSRF y refresh con coalescencia | AC-IDA-19 (CSRF), AC-IDA-28 (BFF) | BFF | `src/lib/server/{csrf,refresh}.ts` | T-IDA-14, T-IDA-22 | frontend-dev | M | Sí | 🟡 | rama `task/T-IDA-23-bff-routes`, PR #99 |
-| T-IDA-24 | Route Handlers de inicio y callback | AC-IDA-01 (cookies), AC-IDA-18, AC-IDA-19 | BFF | `app/api/auth/google/{start,callback}/route.ts` | T-IDA-13, T-IDA-22 | frontend-dev | M | Sí | ☐ | |
+| T-IDA-24 | Route Handlers de inicio y callback | AC-IDA-01 (cookies), AC-IDA-18, AC-IDA-19 | BFF | `app/api/auth/google/{start,callback}/route.ts` | T-IDA-13, T-IDA-22 | frontend-dev | M | Sí | 🟡 | rama `task/T-IDA-24-login-routes`, sin PR |
 | T-IDA-25 | Route Handlers de logout y organización activa | AC-IDA-17 (cookies) | BFF | `app/api/auth/logout/route.ts`, `app/api/session/active-organization/route.ts` | T-IDA-16, T-IDA-23 | frontend-dev | M | Sí | ☐ | |
 | T-IDA-26 | Smoke: 3xx y URL de ejemplo (deuda de 00) | AC-PLT-29 (regresión) | CI | `scripts/smoke_stack.py`, `scripts/smoke_pages.py`, `scripts/tests/test_smoke_stack.py`, `scripts/tests/test_smoke_pages.py`, `scripts/tests/test_smoke_stack_wiring.py`, `scripts/tests/test_smoke_client_bundle.py` | — | backend-dev | M | Sí | 🟡 | PR abierto |
 | T-IDA-27 | Proxy con sesión: Bearer, CSRF y refresh transparente | AC-IDA-18, AC-IDA-26 (UX), AC-IDA-28 | BFF | `src/lib/server/session-proxy.ts`, `src/lib/api-client.ts`, `context/07-frontend-ui-guidelines.md` | T-IDA-23 | frontend-dev | L | Sí | ☐ | |
@@ -659,6 +659,13 @@ módulos se aprueba en la misma pasada, después de `T-TEN-36`.
 ### T-IDA-24 — Route Handlers de inicio y callback
 - **AC:** AC-IDA-01 (cookies), AC-IDA-18, AC-IDA-19. RF-IDA-01, RF-IDA-02. **Zona roja:** sí.
 - **Archivos:** `src/app/api/auth/google/{start,callback}/route.ts` y sus tests.
+  Se sumaron al implementar: `src/lib/server/login-flow.ts` (allowlist de `/login?error=`, lectura de cookies sobre
+  `requestCookieValues` de `csrf.ts` y forma de los `302`: lo comparten las dos rutas, y un `route.ts` solo puede exportar
+  los nombres de Next); `src/lib/server/django.ts` (`BffRequestBody` aceptaba solo `requestBody` obligatorio y el de
+  `logout` es opcional en el contrato: sin eso `logout(reason=superseded)` no tipa, y `T-IDA-25` lo necesita igual);
+  `backend/tests/config/test_AC_PLT_05_env_example_parity.py` (el chequeo de Compose solo admitía las `POSTGRES_*`
+  fuera de los settings); `infra/README.md` (las variables del BFF en `frontend` y el `\r` de un `.env` CRLF, no
+  bloqueante de #92).
 - **Cambios:** `design.md §6.3`: binding reusado, `no-store`, `Referrer-Policy: no-referrer`, allowlist de `error`,
   `logout(reason=superseded)` *best effort*.
 - **Redirección:** el `Location` es siempre el `.href` absoluto de `returnUrl(return_path, getAppOrigin())`
