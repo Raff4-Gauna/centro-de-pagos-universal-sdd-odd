@@ -543,25 +543,34 @@ módulos se aprueba en la misma pasada, después de `T-TEN-36`.
   - **Operador:** `--operator` obligatorio (1 a 150 caracteres tras recortar) más el usuario del SO
     (`getpass.getuser()`, `unknown` si el proceso no tiene). Van en `metadata` (`operator`, `os_user`) de cada evento,
     con `actor_type=platform_operator` y `actor_id` nulo: el operador no es un usuario del Hub. No se valida contra una
-    lista blanca: `PLATFORM_OPERATOR_EMAILS` es de SPEC-02 (`design.md §4.5` de 02) y no existe todavía.
+    lista blanca: `PLATFORM_OPERATOR_EMAILS` es de SPEC-02 (`design.md §4.5` de 02) y no existe todavía; la suma
+    `T-TEN-18` a estos dos comandos (decisión de planificación, 2026-11-14).
   - **`--reason`:** opcional, hasta 200 caracteres; va en `reason` de `identity.user_deactivated` /
     `user_reactivated` (sus motivos no son una lista cerrada) y nunca a los logs.
-  - **Eventos:** `identity.user_deactivated` (`metadata`: `user_id`, operador, `revoked_sessions`) y un
+  - **Eventos:** `identity.user_deactivated` (`metadata`: `user_id`, operador, `outcome`, `revoked_sessions`) y un
     `identity.session_revoked` (`user_deactivated`, `metadata`: `sid`, `user_id`, operador) por sesión que se movió;
     `identity.user_reactivated`. Todo dentro de la transacción: si la auditoría falla, no cambia nada.
-  - **Repetido** (desactivar a un inactivo, reactivar a un activo): no cambia ni audita nada y lo informa, como el
-    comando de bootstrap repetido (`design.md §4.5` de 02).
+  - **Repetido** (desactivar a un inactivo, reactivar a un activo): no cambia nada, lo informa y **se audita**
+    (decisión de planificación, 2026-11-14: RN-IDA-23 dice "cada ejecución auditada" y la spec manda sobre la analogía
+    con el bootstrap de SPEC-02). Mismo evento (`identity.user_deactivated` / `identity.user_reactivated`) con
+    `metadata.outcome="no_change"` (`"changed"` cuando cambió), sin revocar sesiones (`revoked_sessions=0`). El catálogo
+    no fija motivos para esos eventos, así que no hace falta otro. Prueba:
+    `test_AC_IDA_27_repeating_either_changes_nothing_and_is_audited`.
   - **Bloqueos:** la fila del usuario `FOR UPDATE` y después las sesiones `active` de a una en orden ascendente de
     `id`, como "cerrar las demás". El login bloquea la misma fila de usuario antes de abrir la sesión, así que no
     queda una sesión `active` que una reactivación reviva.
   - **Salida:** `0` cambió o ya estaba así; `1` ningún usuario coincide; `2` argumento inválido. Los mensajes nombran
     al usuario solo por id, nunca repiten el email.
+- **Fuera de alcance:** que ningún endpoint cree owners por invitaciones (`POST /api/invitations/` con rol `owner`)
+  se verifica en SPEC-02 (decisión de planificación, 2026-11-14); acá solo el esquema y las rutas de 01.
 - **Archivos sumados:** `selectors/users.py` (`get_by_id`) y `selectors/auth_sessions.py` (`list_active_session_ids`,
   ascendente): las lecturas van por selectors y el servicio no suma entradas a `ALLOWED_TENANT_MANAGERS`;
   `management/__init__.py` y `management/commands/{__init__,_user_status}.py` (lo común a los dos comandos);
   `backend/tests/identity/test_revocation_concurrency.py`: el pendiente de `T-IDA-17` ("cerrar las demás" contra un
   refresh) y desactivar contra un refresh, en los dos órdenes, con dos conexiones y el orden forzado por
-  `pg_stat_activity`; va en un archivo propio porque prueba `T-IDA-17` y `T-IDA-18` juntas.
+  `pg_stat_activity`; va en un archivo propio porque prueba `T-IDA-17` y `T-IDA-18` juntas;
+  `specs/02-tenancy-rbac/tasks.md` (nota en la ficha de `T-TEN-18`: la lista blanca de operadores también para estos
+  comandos, decisión de planificación).
 
 ### T-IDA-19 — Purga periódica
 - **AC:** AC-IDA-38. RF-IDA-10, RN-IDA-25, RNF-IDA-04. **Zona roja:** sí.

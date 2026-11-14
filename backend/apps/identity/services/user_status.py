@@ -9,8 +9,9 @@ operating system, and every audit event names them as the actor (design.md §6.5
 ``deactivated_at=now``, then every ``active`` session revoked (``user_deactivated``), so the next
 request with any JWT of that person answers ``401 session_revoked`` (AC-IDA-27). ``reactivate_user``
 clears both fields and leaves the sessions as they are: a revoked one never comes back, the person
-logs in again. Repeating either on a user already in that state changes nothing and audits nothing,
-as the bootstrap command does on a repetition (SPEC-02 design.md §4.5); the caller reports it.
+logs in again. Repeating either on a user already in that state changes nothing, and is still
+audited, since every run is (RN-IDA-23): the same event with ``outcome="no_change"`` instead of
+``"changed"``, and no session touched; the caller reports it.
 
 **Locks.** The user row first, then the sessions one at a time in ascending id, as "cerrar las
 demás" does (``sessions.py``). A login locks the same user row before it opens a session
@@ -49,6 +50,8 @@ DEACTIVATED_EVENT = "identity.user_deactivated"
 REACTIVATED_EVENT = "identity.user_reactivated"
 MAX_OPERATOR = 150
 MAX_NOTE = 200
+CHANGED = "changed"
+NO_CHANGE = "no_change"
 
 logger = get_logger(__name__)
 
@@ -108,6 +111,15 @@ def deactivate_user(
     with transaction.atomic():
         user = _locked(target)
         if not user.is_active:
+            _audit(
+                IdentityAuditAction.USER_DEACTIVATED,
+                user,
+                operator,
+                note,
+                now=now,
+                outcome=NO_CHANGE,
+                revoked_sessions=0,
+            )
             outcome = StatusChange(user_id=user.pk, changed=False)
         else:
             user.is_active = False
@@ -123,6 +135,7 @@ def deactivate_user(
                 operator,
                 note,
                 now=now,
+                outcome=CHANGED,
                 revoked_sessions=revoked,
             )
             outcome = StatusChange(user_id=user.pk, changed=True, revoked_sessions=revoked)
@@ -143,12 +156,22 @@ def reactivate_user(
     with transaction.atomic():
         user = _locked(target)
         if user.is_active:
+            _audit(
+                IdentityAuditAction.USER_REACTIVATED,
+                user,
+                operator,
+                note,
+                now=now,
+                outcome=NO_CHANGE,
+            )
             outcome = StatusChange(user_id=user.pk, changed=False)
         else:
             user.is_active = True
             user.deactivated_at = None
             user.save(update_fields=["is_active", "deactivated_at"])
-            _audit(IdentityAuditAction.USER_REACTIVATED, user, operator, note, now=now)
+            _audit(
+                IdentityAuditAction.USER_REACTIVATED, user, operator, note, now=now, outcome=CHANGED
+            )
             outcome = StatusChange(user_id=user.pk, changed=True)
     logger.info(
         REACTIVATED_EVENT,

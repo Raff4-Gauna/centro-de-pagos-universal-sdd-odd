@@ -107,7 +107,12 @@ def test_AC_IDA_27_two_sessions_revoked_and_next_request_401(
     assert deactivated.reason == "left the company"
     assert deactivated.actor_type == AuditActorType.PLATFORM_OPERATOR
     assert (deactivated.actor_id, deactivated.organization_id) == (None, None)
-    assert deactivated.metadata == {"user_id": str(ana.pk), "revoked_sessions": 2, **actor}
+    assert deactivated.metadata == {
+        "user_id": str(ana.pk),
+        "outcome": "changed",
+        "revoked_sessions": 2,
+        **actor,
+    }
     revoked = events(ports, IdentityAuditAction.SESSION_REVOKED)
     assert [event.metadata for event in revoked] == [
         {"sid": str(session_id), "user_id": str(ana.pk), **actor}
@@ -139,6 +144,7 @@ def test_AC_IDA_27_reactivate_does_not_revive(client: Client, ports: Ports, ana:
     assert reactivated.reason is None
     assert reactivated.metadata == {
         "user_id": str(ana.pk),
+        "outcome": "changed",
         "operator": OPERATOR,
         "os_user": "deploy",
     }
@@ -146,22 +152,40 @@ def test_AC_IDA_27_reactivate_does_not_revive(client: Client, ports: Ports, ana:
     assert client.get(ME, headers=Device(ana).headers).status_code == 200
 
 
-def test_AC_IDA_27_repeating_either_is_an_informed_noop(ports: Ports, ana: User) -> None:
+def test_AC_IDA_27_repeating_either_changes_nothing_and_is_audited(ports: Ports, ana: User) -> None:
     Device(ana)
     deactivate("--email", EMAIL)
     sessions = AuthSession.objects.filter(user=ana).order_by("pk")
-    before = (list(sessions.values_list("status", "ended_at")), len(ports.audit.events))
+    before = list(sessions.values_list("status", "ended_at"))
+    deactivated_at = User.objects.get(pk=ana.pk).deactivated_at
+    ports.audit.events.clear()
 
-    again = deactivate("--email", EMAIL)
+    again = deactivate("--email", EMAIL, "--reason", "double check")
 
     assert again.strip() == f"User {ana.pk} was already inactive; nothing changed."
-    assert (list(sessions.values_list("status", "ended_at")), len(ports.audit.events)) == before
+    assert list(sessions.values_list("status", "ended_at")) == before
+    assert User.objects.get(pk=ana.pk).deactivated_at == deactivated_at
+    # Every run is audited (RN-IDA-23): the same event, no session revoked.
+    [event] = ports.audit.events
+    assert event.action == IdentityAuditAction.USER_DEACTIVATED
+    assert (event.actor_type, event.reason) == (AuditActorType.PLATFORM_OPERATOR, "double check")
+    assert event.metadata == {
+        "user_id": str(ana.pk),
+        "outcome": "no_change",
+        "revoked_sessions": 0,
+        "operator": OPERATOR,
+        "os_user": "deploy",
+    }
+
     reactivate("--email", EMAIL)
-    audited = len(ports.audit.events)
+    ports.audit.events.clear()
     assert reactivate("--email", EMAIL).strip() == (
         f"User {ana.pk} was already active; nothing changed."
     )
-    assert len(ports.audit.events) == audited
+    [event] = ports.audit.events
+    assert event.action == IdentityAuditAction.USER_REACTIVATED
+    assert event.metadata["outcome"] == "no_change"
+    assert list(sessions.values_list("status", "ended_at")) == before
 
 
 def test_AC_IDA_27_unknown_user_exits_1_without_echoing(ports: Ports, ana: User) -> None:
