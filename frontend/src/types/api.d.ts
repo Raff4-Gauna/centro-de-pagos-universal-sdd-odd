@@ -84,6 +84,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/auth/sessions/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Las sesiones activas de la persona autenticada */
+        get: operations["auth_sessions_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/sessions/{session_id}/revoke/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cierra una sesión propia */
+        post: operations["auth_sessions_revoke"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/sessions/revoke-others/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cierra todas las sesiones propias salvo la actual */
+        post: operations["auth_sessions_revoke_others"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/me/": {
         parameters: {
             query?: never;
@@ -154,6 +205,21 @@ export interface components {
             readonly organization_name: string;
             readonly role: string;
         };
+        PaginatedSessionList: {
+            /** @example 123 */
+            count: number;
+            /**
+             * @description Ruta relativa con la query de la página, o null.
+             * @example /api/recurso/?page=4
+             */
+            next?: string | null;
+            /**
+             * @description Ruta relativa con la query de la página, o null.
+             * @example /api/recurso/?page=2
+             */
+            previous?: string | null;
+            results: components["schemas"]["Session"][];
+        };
         /** @description Sobre único de error (RFC 9457), media type application/problem+json. Sin trazas, hosts ni secretos. */
         Problem: {
             /** @example urn:hub:problem:validation_error */
@@ -190,6 +256,17 @@ export interface components {
             readonly refresh_token: string | null;
             readonly session_expires_in: number;
         };
+        Session: {
+            /** Format: uuid */
+            readonly id: string;
+            readonly browser: string | null;
+            readonly os: string | null;
+            /** Format: date-time */
+            readonly created_at: string;
+            /** Format: date-time */
+            readonly last_used_at: string;
+            readonly is_current: boolean;
+        };
     };
     responses: never;
     parameters: never;
@@ -202,7 +279,10 @@ export interface operations {
     auth_bff_login_complete: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description User-Agent del navegador de la persona. Solo se guardan el navegador y el sistema operativo resumidos, nunca el valor completo. */
+                "X-Hub-Client-UA"?: string;
+            };
             path?: never;
             cookie?: never;
         };
@@ -416,6 +496,158 @@ export interface operations {
             };
             /** @description code: rate_limited (con Retry-After) */
             429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Error del cliente */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Error del servidor */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    auth_sessions_list: {
+        parameters: {
+            query?: {
+                /** @description Un número de página dentro del conjunto de resultados paginado. */
+                page?: number;
+                /** @description Número de resultados a devolver por página. */
+                page_size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedSessionList"];
+                };
+            };
+            /** @description code: unauthenticated · token_expired · token_invalid · session_revoked (con WWW-Authenticate: Bearer realm="hub") */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Error del cliente */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Error del servidor */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    auth_sessions_revoke: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description La sesión quedó cerrada. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description code: unauthenticated · token_expired · token_invalid · session_revoked (con WWW-Authenticate: Bearer realm="hub") */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description code: not_found (también si la sesión es de otra persona o ya terminó) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Error del cliente */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Error del servidor */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    auth_sessions_revoke_others: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Solo queda activa la sesión actual. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description code: unauthenticated · token_expired · token_invalid · session_revoked (con WWW-Authenticate: Bearer realm="hub") */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };

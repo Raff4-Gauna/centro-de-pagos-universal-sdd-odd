@@ -12,6 +12,7 @@ from datetime import UTC, timedelta
 from typing import Any
 
 import pytest
+from django.db import connection
 from django.db.models import F
 from django.test import Client
 from django.utils import timezone
@@ -23,7 +24,12 @@ from apps.identity.ports.audit import AuditEvent
 from apps.identity.tokens.access_token import verify_access_token
 from tests.fakes import google
 from tests.identity.api.login_flow import (
+    BINDING,
+    CODE,
+    COMPLETE,
+    CREDENTIAL,
     EMAIL,
+    IP,
     OTHER_BINDING,
     Flow,
     make_user,
@@ -277,3 +283,43 @@ def test_RNF_IDA_04_conflict_alert_and_one_rejection_line(
     assert alert["existing_user_id"] == str(owner.pk)
     [rejected] = [line for line in lines if line.get("message") == "auth.login_rejected"]
     assert (rejected["outcome"], rejected["reason"]) == ("rejected", "identity_conflict")
+
+
+def test_RN_IDA_24_session_keeps_browser_and_os_only(flow: Flow) -> None:
+    make_user()
+    user_agent = (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/131.0.0.0 Safari/537.36"
+    )
+    state, nonce = flow.begin()
+    flow.google.next_id_token = flow.google.id_token(nonce=nonce)
+
+    response = flow.client.post(
+        COMPLETE,
+        {"state": state, "login_binding": BINDING, "code": CODE},
+        content_type="application/json",
+        headers={
+            "X-Hub-Bff-Credential": CREDENTIAL,
+            "X-Hub-Client-IP": IP,
+            "X-Hub-Client-UA": user_agent,
+        },
+    )
+
+    assert response.status_code == 200
+    session = AuthSession.objects.get()
+    assert (session.client_browser, session.client_os) == ("Chrome", "Windows")
+    with connection.cursor() as cursor:  # RNF-IDA-05: neither the raw agent nor the IP is kept
+        cursor.execute("SELECT row_to_json(t)::text FROM auth_sessions t")
+        (stored,) = cursor.fetchone()
+    assert "Mozilla" not in stored
+    assert "131.0" not in stored
+    assert IP not in stored
+
+
+def test_RN_IDA_24_session_without_user_agent_has_no_hint(flow: Flow) -> None:
+    make_user()
+
+    assert flow.login().status_code == 200
+
+    session = AuthSession.objects.get()
+    assert (session.client_browser, session.client_os) == ("", "")

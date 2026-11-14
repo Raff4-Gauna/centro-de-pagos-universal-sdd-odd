@@ -14,6 +14,8 @@ before this):
 6. ``evaluate_identity`` (``domain/login_rules.py``): ``email_not_verified`` and unusable claims.
 7. One ``atomic()``: ``provision_user`` (cases (a) and (b)), the session, the access token and the
    ``login_succeeded`` event, so a failure leaves no user, invitation, session nor success event.
+   The session keeps the browser and OS of the User-Agent the BFF relays, summarized
+   (``domain/client_hint.py``); the raw User-Agent is neither stored nor logged (RNF-IDA-05).
 
 **Audit** (design.md §7.4): success inside the transaction; a rejection after the rollback, in a
 write of its own, with the reason only (Q-125: never the email nor the ``sub``) and the user as the
@@ -43,6 +45,7 @@ from apps.identity.domain.audit_events import (
     AuditResult,
     IdentityAuditAction,
 )
+from apps.identity.domain.client_hint import summarize_user_agent
 from apps.identity.domain.errors import IdentityError, IdentityErrorCode
 from apps.identity.domain.login_rules import LoginRejectedError, evaluate_identity
 from apps.identity.domain.secrets_format import hash_secret
@@ -106,6 +109,7 @@ def complete_login(
     login_binding: str,
     code: str | None,
     error: str | None,
+    client_user_agent: str | None = None,
     now: datetime | None = None,
 ) -> CompletedLogin:
     """The session of the person Google vouches for, or the error of the first step that fails."""
@@ -114,7 +118,12 @@ def complete_login(
     moment = now or timezone.now()
     try:
         return _complete(
-            state=state, login_binding=login_binding, code=code, error=error, now=moment
+            state=state,
+            login_binding=login_binding,
+            code=code,
+            error=error,
+            client_user_agent=client_user_agent,
+            now=moment,
         )
     except LoginRejectedError as rejection:
         # Out of every transaction by now: the rollback already took what the login did.
@@ -135,7 +144,13 @@ def complete_login(
 
 
 def _complete(
-    *, state: str, login_binding: str, code: str | None, error: str | None, now: datetime
+    *,
+    state: str,
+    login_binding: str,
+    code: str | None,
+    error: str | None,
+    client_user_agent: str | None,
+    now: datetime,
 ) -> CompletedLogin:
     attempt = _consume_attempt(state=state, login_binding=login_binding, now=now)
     if error == ACCESS_DENIED:
@@ -156,9 +171,10 @@ def _complete(
         name=claims.name,
         picture=claims.picture,
     )
+    client = summarize_user_agent(client_user_agent)
     with transaction.atomic():
         user = provision_user(identity, now=now)
-        opened = open_session(user, now=now)
+        opened = open_session(user, now=now, client_browser=client.browser, client_os=client.os)
         session = opened.session
         access_token = issue_access_token(user_id=user.pk, session_id=session.pk, now=now)
         _record(

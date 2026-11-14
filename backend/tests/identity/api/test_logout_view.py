@@ -230,4 +230,4 @@ def test_contract_publishes_logout_as_bff_internal() -> None:
     reason = request["properties"]["reason"]["$ref"]
     assert reason == "#/components/schemas/LogoutReasonEnum"
     assert contract["components"]["schemas"]["LogoutReasonEnum"]["enum"] == ["logout", "superseded"]
-    assert contract["info"]["version"] == "0.6.0"
+    assert contract["info"]["version"] == "0.7.0"

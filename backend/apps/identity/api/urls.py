@@ -12,11 +12,28 @@ from apps.identity.api.views_bff import (
     RefreshView,
 )
 from apps.identity.api.views_me import MeView
+from apps.identity.api.views_sessions import (
+    RevokeOtherSessionsView,
+    SessionListView,
+    SessionRevokeView,
+)
 
 app_name = "identity"
 
 urlpatterns: list[URLPattern | URLResolver] = [
     path("me/", MeView.as_view(), name="me"),
+    # "Seguridad" (design.md §6.2): the authenticated person's own sessions only.
+    path("auth/sessions/", SessionListView.as_view(), name="sessions"),
+    path(
+        "auth/sessions/revoke-others/",
+        RevokeOtherSessionsView.as_view(),
+        name="sessions-revoke-others",
+    ),
+    path(
+        "auth/sessions/<uuid:session_id>/revoke/",
+        SessionRevokeView.as_view(),
+        name="sessions-revoke",
+    ),
     # Only the BFF (X-Hub-Bff-Credential): for anybody else these routes do not exist.
     path("auth/bff/login/start/", LoginStartView.as_view(), name="bff-login-start"),
     # Never inside a request-wide transaction (ATOMIC_REQUESTS): a refused login keeps its attempt
