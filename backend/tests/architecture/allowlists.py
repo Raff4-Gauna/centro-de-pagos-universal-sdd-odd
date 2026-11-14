@@ -47,3 +47,43 @@ ALLOWED_TENANT_MANAGERS: tuple[AllowEntry, ...] = (
 # Only for a value that is not money (a ratio, a metric) and cannot be a Decimal; never for an
 # amount. Provider adapters do not need entries: the rule skips integrations/providers/.
 FLOAT_ALLOWLIST: tuple[AllowEntry, ...] = ()
+
+# --- AC-TEN-10 (RN-TEN-02, design.md §3.4 and §9; tenant_rules.py) --------------------------------
+
+# Methods that scope a tenant queryset (``TenantQuerySet``). ``X.objects.<scope>(...)`` is the only
+# way into the manager of a tenant model, and C-01 lets it through in services. Scopes that a
+# model declares (``Membership.for_user``, ``Invitation.by_token_hash``...) are added with it.
+TENANT_SCOPES: frozenset[str] = frozenset({"for_tenant", "unscoped"})
+
+# ``unscoped(reason)`` outside the mechanism: the symbol is the whole call, so an entry pins the
+# model and the ``UnscopedReason``. design.md §3.3: ``selectors/resolution.py`` (T-TEN-08) and
+# ``services/platform_*.py`` (T-TEN-18) add theirs; none exists yet.
+UNSCOPED_ALLOWLIST: tuple[AllowEntry, ...] = ()
+
+# Raw SQL and Django's persistence internals in business code (tenant_rules.raw_access_violations).
+_NO_TABLES = "SELECT 1 de /readyz (AC-PLT-02): no lee ninguna tabla"
+_THROWAWAY_DB = "herramienta del operador sobre una BD descartable (AC-PLT-17), no es negocio"
+_LOGIN_ATTEMPT = (
+    "DELETE ... RETURNING de LoginAttempt (entidad global de SPEC-01, sin organization_id): "
+    "consume el intento en una sola sentencia"
+)
+TENANT_QUERY_ALLOWLIST: tuple[AllowEntry, ...] = (
+    AllowEntry("apps/common/health/checks.py", "connections['default'].cursor", _NO_TABLES),
+    AllowEntry(
+        "apps/common/management/commands/check_migrations_roundtrip.py",
+        "connection.cursor",
+        _THROWAWAY_DB,
+    ),
+    AllowEntry("apps/identity/services/login_complete.py", "connection.cursor", _LOGIN_ATTEMPT),
+)
+
+# Concrete models of ``apps/`` that do not inherit ``TenantModel`` (RN-TEN-01): an app label or a
+# model label, with its reason. An entry that matches no model fails. SPEC-10 adds auditoría.
+TENANT_EXEMPT_MODELS: dict[str, str] = {
+    "identity": (
+        "entidades globales de SPEC-01 (spec §9): la persona existe antes que su organización"
+    ),
+    "tenancy.Organization": (
+        "es el tenant: la raíz de RN-TEN-01, con su propio queryset que falla cerrado"
+    ),
+}
