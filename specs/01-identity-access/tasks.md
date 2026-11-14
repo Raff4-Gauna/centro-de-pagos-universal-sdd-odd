@@ -77,7 +77,7 @@ El diseño se escribió antes de que existiera el código de SPEC-00. Donde difi
 | T-IDA-13 | Completar login: orquestación y vista | AC-IDA-01, AC-IDA-03, AC-IDA-06, AC-IDA-08, AC-IDA-09, AC-IDA-20, AC-IDA-24 (login) | Servicio/API | `services/login_complete.py`, `api/views_bff.py` | T-IDA-10, T-IDA-12 | backend-dev | L | Sí | 🟡 | rama `task/T-IDA-13-login-complete`, sin PR |
 | T-IDA-14 | Refresh: rotación y vencimientos | AC-IDA-09 (refresh), AC-IDA-14, AC-IDA-15, AC-IDA-16, AC-IDA-22, AC-IDA-28 (servicio) | Servicio/API | `services/refresh.py`, `api/views_bff.py`, `api/throttles.py`, `config/settings/base.py` | T-IDA-06, T-IDA-09 | backend-dev | L | Sí | 🟡 | rama `task/T-IDA-14-refresh`, sin PR |
 | T-IDA-15 | Refresh: concurrencia y 31.º refresh | AC-IDA-20 (refresh), AC-IDA-28 (carrera) | Servicio | `backend/tests/identity/test_refresh_concurrency.py` | T-IDA-14 | backend-dev | M | Sí | 🟡 | rama `task/T-IDA-15-refresh-race`, sin PR |
-| T-IDA-16 | Logout | AC-IDA-17 (backend), AC-IDA-35 | Servicio/API | `services/logout.py`, `api/views_bff.py` | T-IDA-14 | backend-dev | M | Sí | ☐ | |
+| T-IDA-16 | Logout | AC-IDA-17 (backend), AC-IDA-35 | Servicio/API | `services/logout.py`, `api/views_bff.py` | T-IDA-14 | backend-dev | M | Sí | 🟡 | rama `task/T-IDA-16-logout`, PR #97 |
 | T-IDA-17 | Sesiones propias: listar y revocar | AC-IDA-25, AC-IDA-26, AC-IDA-33 (API) | Servicio/API | `services/sessions.py`, `api/views_sessions.py`, `domain/client_hint.py` | T-IDA-06, T-IDA-13 | backend-dev | L | Sí | ☐ | |
 | T-IDA-18 | Comandos de desactivar y reactivar usuario | AC-IDA-27, AC-IDA-32 (parte 01) | Comandos | `services/user_status.py`, `management/commands/*` | T-IDA-17 | backend-dev | M | Sí | ☐ | |
 | T-IDA-19 | Purga periódica | AC-IDA-38 | Asíncrono | `tasks.py`, `beat.py`, `services/purge.py` | T-IDA-10, T-IDA-14 | backend-dev | M | Sí | ☐ | |
@@ -451,6 +451,38 @@ módulos se aprueba en la misma pasada, después de `T-TEN-36`.
 - **Archivos:** `services/logout.py`, `api/views_bff.py`, `openapi.yaml`, `api.d.ts`, tests.
 - **Cambios:** busca por hash del refresh (vigente o usado) o por `sid` de un JWT con firma válida aunque vencido;
   `204` siempre; `reason=superseded` para el login sobre sesión previa.
+- **Orden de bloqueos (nota del reviewer de T-IDA-14):** el logout bloquea **solo la sesión** (`FOR UPDATE`) y lee el
+  token sin bloqueo (la sesión de un token no cambia); el refresh bloquea token y después sesión. Así nunca tienen
+  cada uno un bloqueo esperando el del otro. Si alguien suma un bloqueo, va en ese orden. Queda en el docstring de
+  `services/logout.py`.
+- **Decisiones del backend-dev (2026-11-13), para el reviewer:**
+  - Precedencia: si llegan los dos, manda el refresh; el JWT solo si el refresh no encuentra sesión. Un JWT cuenta
+    solo si su `sub` es el usuario de la sesión.
+  - Sesión `active` ya vencida por plazo: se marca `expired` como haría el refresh y no se audita `logout` (ya había
+    terminado). Revocada o vencida: sin efectos. **Decisión del planner (2026-11-13):** confirmado.
+  - Auditoría en la misma transacción que la revocación: `identity.logout` (actor `user`, org nula, `metadata.sid`)
+    o `identity.session_revoked` con `reason=superseded`, actor `system` sin `actor_id` y `sid` + `user_id` en
+    `metadata`, como la revocación por reuso (ADR-0004 §13; corregido por el veredicto del reviewer en el PR #97).
+    Log `identity.logout` con `result`, `sid` y `user_id`; nunca el token ni su hash.
+  - Cuerpos que no son JSON: DRF responde `400 parse_error` (mal formado) o `415` (otro content type) antes de la
+    vista; no se capturan, el contrato ya publica `4XX`. El "`204` siempre" vale para todo cuerpo JSON.
+  - **Decisión del planner (2026-11-13):** un `reason` inválido o ausente revoca igual como `logout` (la persona
+    pidió salir; dejar la sesión viva es el fallo menos seguro); el inválido deja un `warning`
+    `identity.logout result=invalid_reason` sin el cuerpo. Un cuerpo del que no se puede sacar ningún token (no es
+    un objeto, o un token que no es texto): `204` sin efectos y `warning` `result=invalid_body`.
+  - Sin throttle (`throttle_classes = ()`): el de la plataforma contaría a todos por la IP del BFF y daría `429`, que
+    contradice el "`204` siempre" de `design.md §6.1`. Ruta dentro de `ATOMIC_REQUESTS`: no hay rechazo que confirmar.
+- **Archivos sumados:** `tokens/access_token.py` (`verify_access_token_ignoring_expiry`: todas las verificaciones
+  salvo `exp`, para AC-IDA-35), `api/urls.py` (la ruta), `api/serializers.py` (`LogoutRequestSerializer`, junto a
+  los demás serializers del BFF desde `T-IDA-13`), `apps/common/api/schema.py` (`API_VERSION` 0.6.0 por el endpoint
+  nuevo, la minor siguiente a la 0.5.0 de `T-IDA-13`, y `ENUM_NAME_OVERRIDES` para que el enum se publique
+  `LogoutReasonEnum` y no un `ReasonEnum` genérico), `tests/identity/api/test_login_start.py`,
+  `test_login_complete_errors.py` y `test_refresh_view.py` (versión del contrato),
+  `tests/identity/tokens/test_access_token.py` (la lectura nueva), `tests/architecture/allowlists.py` (C-01:
+  `logout.py` lee entidades globales por hash + `sid` y por PK) y `tests/architecture/test_identity_boundaries.py`
+  (solo `services/logout.py` importa `verify_access_token_ignoring_expiry`: esa lectura nunca autentica; pedido del
+  reviewer). `views_bff.py` queda en 309 líneas con las cuatro
+  vistas: no hizo falta dividirlo (`C-14`).
 - **Pruebas:** `test_AC_IDA_17_logout_revokes_and_audits`, `test_AC_IDA_17_second_logout_no_effects`,
   `test_AC_IDA_35_expired_jwt_still_revokes`.
 
@@ -559,6 +591,9 @@ módulos se aprueba en la misma pasada, después de `T-TEN-36`.
 ### T-IDA-25 — Route Handlers de logout y organización activa
 - **AC:** AC-IDA-17 (cookies). RF-IDA-05, Q-119. **Zona roja:** sí.
 - **Archivos:** `src/app/api/auth/logout/route.ts`, `src/app/api/session/active-organization/route.ts` y sus tests.
+- **Logout y Django (nota de T-IDA-16):** el Route Handler borra `at`, `rt`, `csrf` y `org` **aunque Django no
+  responda `204`** (un `4XX` de parseo, un `5XX` o un error de red): Django devuelve `204` para todo cuerpo JSON, pero
+  DRF puede rechazar antes de la vista (`400 parse_error`, `415`).
 - **Pruebas:** `test_AC_IDA_17` (borra `at`, `rt`, `csrf`, `org`; sin sesión responde `204`), `test_Q_119_cookie_is_format_only`.
 
 ### T-IDA-26 — Smoke: 3xx y URL de ejemplo (deuda de 00)

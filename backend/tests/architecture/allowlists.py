@@ -29,6 +29,7 @@ ADAPTER_IMPORT_ALLOWLIST: tuple[AllowEntry, ...] = ()
 _GLOBAL_ENTITY = "entidad global, spec §9 (SPEC-01): sin organization_id, se filtra por PK"
 _SESSION_LIFECYCLE = "apps/identity/services/session_lifecycle.py"
 _REFRESH = "apps/identity/services/refresh.py"
+_LOGOUT = "apps/identity/services/logout.py"
 _BY_HASH_OR_PK = (
     "entidad global, spec §9 (SPEC-01): sin organization_id, se filtra por hash + sid o por PK"
 )
@@ -37,6 +38,8 @@ ALLOWED_TENANT_MANAGERS: tuple[AllowEntry, ...] = (
     AllowEntry(_SESSION_LIFECYCLE, "RefreshToken.objects", _GLOBAL_ENTITY),
     AllowEntry(_REFRESH, "AuthSession.objects", _BY_HASH_OR_PK),
     AllowEntry(_REFRESH, "RefreshToken.objects", _BY_HASH_OR_PK),
+    AllowEntry(_LOGOUT, "AuthSession.objects", _BY_HASH_OR_PK),
+    AllowEntry(_LOGOUT, "RefreshToken.objects", _BY_HASH_OR_PK),
     AllowEntry("apps/identity/services/login_start.py", "LoginAttempt.objects", _GLOBAL_ENTITY),
 )
 

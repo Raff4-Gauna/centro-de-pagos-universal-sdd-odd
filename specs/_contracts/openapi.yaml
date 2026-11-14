@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Centro de Pagos Universal API
-  version: 0.5.0
+  version: 0.6.0
 paths:
   /api/auth/bff/login/complete/:
     post:
@@ -104,6 +104,36 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: 'code: login_disabled'
+        4XX:
+          description: Error del cliente
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        5XX:
+          description: Error del servidor
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /api/auth/bff/logout/:
+    post:
+      operationId: auth_bff_logout
+      description: Revoca la sesión que nombran el refresh token o el token de acceso,
+        este aunque haya vencido. Responde 204 siempre, haya o no una sesión que cerrar.
+      summary: Cierra la sesión (solo BFF)
+      tags:
+      - bff-internal
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LogoutRequest'
+      security:
+      - BffCredential: []
+      responses:
+        '204':
+          description: Siempre, sin cuerpo.
         4XX:
           description: Error del cliente
           content:
@@ -271,6 +301,25 @@ components:
           readOnly: true
       required:
       - authorization_url
+    LogoutReasonEnum:
+      enum:
+      - logout
+      - superseded
+      type: string
+      description: |-
+        * `logout` - logout
+        * `superseded` - superseded
+    LogoutRequest:
+      type: object
+      properties:
+        refresh_token:
+          type: string
+          nullable: true
+        access_token:
+          type: string
+          nullable: true
+        reason:
+          $ref: '#/components/schemas/LogoutReasonEnum'
     Me:
       type: object
       properties:

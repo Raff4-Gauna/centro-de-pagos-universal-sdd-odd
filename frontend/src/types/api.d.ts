@@ -44,6 +44,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/auth/bff/logout/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cierra la sesión (solo BFF)
+         * @description Revoca la sesión que nombran el refresh token o el token de acceso, este aunque haya vencido. Responde 204 siempre, haya o no una sesión que cerrar.
+         */
+        post: operations["auth_bff_logout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/auth/bff/refresh/": {
         parameters: {
             query?: never;
@@ -107,6 +127,17 @@ export interface components {
         LoginStartResponse: {
             /** Format: uri */
             readonly authorization_url: string;
+        };
+        /**
+         * @description * `logout` - logout
+         *     * `superseded` - superseded
+         * @enum {string}
+         */
+        LogoutReasonEnum: "logout" | "superseded";
+        LogoutRequest: {
+            refresh_token?: string | null;
+            access_token?: string | null;
+            reason?: components["schemas"]["LogoutReasonEnum"];
         };
         Me: {
             /** Format: uuid */
@@ -292,6 +323,46 @@ export interface operations {
                 content: {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
+            };
+            /** @description Error del cliente */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Error del servidor */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    auth_bff_logout: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["LogoutRequest"];
+            };
+        };
+        responses: {
+            /** @description Siempre, sin cuerpo. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Error del cliente */
             "4XX": {

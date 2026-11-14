@@ -5,7 +5,12 @@ from __future__ import annotations
 from django.db import transaction
 from django.urls import URLPattern, URLResolver, path
 
-from apps.identity.api.views_bff import LoginCompleteView, LoginStartView, RefreshView
+from apps.identity.api.views_bff import (
+    LoginCompleteView,
+    LoginStartView,
+    LogoutView,
+    RefreshView,
+)
 from apps.identity.api.views_me import MeView
 
 app_name = "identity"
@@ -27,4 +32,5 @@ urlpatterns: list[URLPattern | URLResolver] = [
         transaction.non_atomic_requests(RefreshView.as_view()),
         name="bff-refresh",
     ),
+    path("auth/bff/logout/", LogoutView.as_view(), name="bff-logout"),
 ]

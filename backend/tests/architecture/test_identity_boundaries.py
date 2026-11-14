@@ -123,3 +123,45 @@ def test_domain_purity_rule_flags_impure_imports(tmp_path: Path, source: str, na
 def test_domain_purity_rule_is_only_about_domain(tmp_path: Path) -> None:
     tree = throwaway(tmp_path, "services/fine.py", "from django.db import transaction\n")
     assert impure_domain_imports(tree) == set()
+
+
+# --- The expired-JWT reading is logout's alone (RN-IDA-14, AC-IDA-35; reviewer of T-IDA-16) ------
+
+APPS = SourceTree(BACKEND / "apps", "apps")
+IGNORING_EXPIRY = "apps.identity.tokens.access_token.verify_access_token_ignoring_expiry"
+IGNORING_EXPIRY_USERS = frozenset({"apps/identity/services/logout.py"})
+
+
+def ignoring_expiry_imports(tree: SourceTree) -> set[str]:
+    """Modules that reach the reading of a JWT without ``exp``: it must never authenticate."""
+    return {
+        source.path
+        for source in iter_sources([tree])
+        for name in imported_names(source)
+        if name == IGNORING_EXPIRY or name.startswith(f"{IGNORING_EXPIRY}.")
+    }
+
+
+def test_only_logout_reads_a_jwt_ignoring_its_expiry() -> None:
+    assert ignoring_expiry_imports(APPS) == IGNORING_EXPIRY_USERS
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "from apps.identity.tokens.access_token import verify_access_token_ignoring_expiry\n",
+        "from ..tokens.access_token import verify_access_token_ignoring_expiry as read\n",
+        "from apps.identity.tokens import access_token\n"
+        "access_token.verify_access_token_ignoring_expiry('x')\n",
+        "import apps.identity.tokens.access_token as at\n"
+        "at.verify_access_token_ignoring_expiry('x')\n",
+    ],
+)
+def test_ignoring_expiry_rule_flags_every_import_form(tmp_path: Path, source: str) -> None:
+    tree = throwaway(tmp_path, "api/authentication.py", source)
+    assert ignoring_expiry_imports(tree) == {"apps/identity/api/authentication.py"}
+
+
+def test_ignoring_expiry_rule_lets_the_checked_reading_pass(tmp_path: Path) -> None:
+    source = "from apps.identity.tokens.access_token import verify_access_token\n"
+    assert ignoring_expiry_imports(throwaway(tmp_path, "api/authentication.py", source)) == set()

@@ -29,6 +29,7 @@ from apps.identity.tokens.access_token import (
     AccessTokenInvalidError,
     issue_access_token,
     verify_access_token,
+    verify_access_token_ignoring_expiry,
 )
 
 USER_ID = uuid.UUID("00000000-0000-4000-8000-000000000001")
@@ -284,3 +285,31 @@ def test_RN_IDA_08_no_signing_key_issues_nothing(settings: Any, setting: str) ->
     setattr(settings, setting, "")
     with pytest.raises(ImproperlyConfigured, match="IDENTITY_JWT_SIGNING"):
         issued_ago(0)
+
+
+# --- Logout's reading: everything but exp (RN-IDA-14, AC-IDA-35) ---------------------------------
+
+
+def test_AC_IDA_35_ignoring_expiry_reads_a_long_expired_token() -> None:
+    identity = verify_access_token_ignoring_expiry(issued_ago(40 * 24 * 3600))
+    assert (identity.user_id, identity.session_id) == (USER_ID, SESSION_ID)
+
+
+@pytest.mark.parametrize(
+    "make",
+    [
+        lambda: forge(expired_claims(), key=other_key()),
+        lambda: forge(expired_claims(aud="other")),
+        lambda: forge(expired_claims(iss="other")),
+        lambda: forge(expired_claims(), typ="JWT"),
+        lambda: forge(expired_claims(), kid="unknown"),
+        lambda: forge(claims(nbf=int(time.time()) + 3600)),
+        lambda: "not-a-jwt",
+        lambda: "",
+    ],
+    ids=["other-key", "aud", "iss", "typ", "kid", "nbf", "garbage", "empty"],
+)
+def test_AC_IDA_35_ignoring_expiry_still_checks_the_rest(make: Callable[[], str]) -> None:
+    with pytest.raises(AccessTokenInvalidError) as info:
+        verify_access_token_ignoring_expiry(make())
+    assert str(info.value) == ""
