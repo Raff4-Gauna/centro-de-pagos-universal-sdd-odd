@@ -15,9 +15,10 @@ use. Order:
    the other: a logout waits for a refresh in flight, or the refresh for the logout, and then finds
    the session revoked. Whoever adds a lock here takes it in that same order: token, then session.
 3. **What it does.** An ``active`` session within its deadlines is revoked with ``reason`` and
-   audited in the same transaction: ``identity.logout`` for ``logout``, ``identity.session_revoked``
-   with ``superseded`` for the login over a previous session (ADR-0004 §13). One already past a
-   deadline is marked ``expired``, as a refresh would, and is not audited: it had already ended.
+   audited in the same transaction: ``identity.logout`` (actor ``user``) for ``logout``,
+   ``identity.session_revoked`` with ``superseded`` (actor ``system``) for the login over a previous
+   session (ADR-0004 §13). One already past a deadline is marked ``expired``, as a refresh would,
+   and is not audited: it had already ended.
    Anything else (revoked, expired, unknown) is left as it is: the second logout has no effects.
 
 Nothing logged carries a token or its hash (RNF-IDA-03): the ``sid``, the ``user_id``, the result.
@@ -140,23 +141,31 @@ def _end_locked(
 
 
 def _audit(session: AuthSession, *, reason: RevokeReason, now: datetime) -> None:
-    """Inside the transaction of the revocation (design.md §7.4): both happen or neither."""
+    """Inside the transaction of the revocation (design.md §7.4): both happen or neither.
+
+    ``logout`` is the person's own act: actor ``user``. ``superseded`` is the Hub ending the
+    previous session of a browser on a new login (ADR-0004 §13): actor ``system``, with no
+    ``actor_id`` and the ids in ``metadata``, as the reuse revocation of ``services/refresh.py``.
+    """
     if reason == RevokeReason.LOGOUT:
-        action, audit_reason = IdentityAuditAction.LOGOUT, None
-    else:
-        action = IdentityAuditAction.SESSION_REVOKED
-        audit_reason = SessionRevocationReason.SUPERSEDED.value
-    get_audit_port().record(
-        AuditEvent(
-            action=action,
+        event = AuditEvent(
+            action=IdentityAuditAction.LOGOUT,
             result=AuditResult.SUCCESS,
-            reason=audit_reason,
             actor_type=AuditActorType.USER,
             actor_id=session.user_id,
             occurred_at=now,
             metadata={"sid": str(session.pk)},
         )
-    )
+    else:
+        event = AuditEvent(
+            action=IdentityAuditAction.SESSION_REVOKED,
+            result=AuditResult.SUCCESS,
+            reason=SessionRevocationReason.SUPERSEDED.value,
+            actor_type=AuditActorType.SYSTEM,
+            occurred_at=now,
+            metadata=dict(_ids(session.pk, session.user_id)),
+        )
+    get_audit_port().record(event)
 
 
 def _ids(session_id: UUID, user_id: UUID) -> dict[str, str]:

@@ -22,9 +22,11 @@ person's JWT nor an ERP API key counts as a refresh (AC-IDA-22). The login flag 
 ``POST /api/auth/bff/logout/`` (RF-IDA-05, RN-IDA-14): the BFF sends what it holds of the session
 (the refresh token, the access JWT, or both) and ``reason`` (``superseded`` for the login over a
 previous session; a missing or unknown one is ``logout``); the session ends
-(``services/logout.py``). ``204`` always, empty: with a session or without, with a body that names
-none or one that does not parse, so the answer says nothing of the tokens and the BFF clears its
-cookies the same. No throttle: the platform's default would key every person on the BFF's address
+(``services/logout.py``). ``204``, empty, for every JSON body: with a session or without, or with a
+body that names none, so the answer says nothing of the tokens. A body that is not JSON never gets
+that far: DRF answers ``400 parse_error`` (malformed) or ``415`` (another content type) before the
+view, as the contract's ``4XX`` says. The BFF clears its cookies whatever Django answers
+(``T-IDA-25``). No throttle: the platform's default would key every person on the BFF's address
 and turn a logout into a ``429``; a logout reveals nothing and the credential already keeps
 everybody else out. The login flag does not apply either.
 

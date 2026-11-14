@@ -193,7 +193,9 @@ def test_superseded_is_audited_as_session_revoked(opened: OpenedSession, ports: 
     assert session_of(opened).revoke_reason == RevokeReason.SUPERSEDED
     [event] = ports.audit.events
     assert (event.action, event.reason) == (IdentityAuditAction.SESSION_REVOKED, "superseded")
-    assert (event.actor_type, event.actor_id) == (AuditActorType.USER, opened.session.user_id)
+    # ADR-0004 §13: the Hub ends the previous session on a new login, not the person.
+    assert (event.actor_type, event.actor_id) == (AuditActorType.SYSTEM, None)
+    assert event.metadata == {"sid": str(opened.session.pk), "user_id": str(opened.session.user_id)}
     assert event.organization_id is None
 
 

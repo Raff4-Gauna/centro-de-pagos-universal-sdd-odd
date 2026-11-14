@@ -164,6 +164,18 @@ def test_missing_reason_is_logout(client: Client, opened: OpenedSession, ports: 
     assert all(entry["log_level"] != "warning" for entry in logs)
 
 
+def test_a_body_that_is_not_json_is_refused_before_the_view(
+    client: Client, opened: OpenedSession
+) -> None:
+    # DRF parses before the view: a 4XX, not the 204 of a JSON body (the BFF clears its cookies).
+    malformed = client.post(LOGOUT, "{not json", content_type="application/json", headers=BFF)
+    assert malformed.status_code == 400
+    assert malformed.json()["code"] == "parse_error"
+    other_type = client.post(LOGOUT, "refresh_token=x", content_type="text/plain", headers=BFF)
+    assert other_type.status_code == 415
+    assert status_of(opened) == SessionStatus.ACTIVE
+
+
 def test_authorization_header_is_not_read(client: Client, opened: OpenedSession) -> None:
     access = issue_access_token(user_id=opened.session.user_id, session_id=opened.session.pk)
     assert_no_content(post(client, {}, {**BFF, "Authorization": f"Bearer {access}"}))
