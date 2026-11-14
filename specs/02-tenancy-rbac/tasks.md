@@ -51,14 +51,14 @@ Donde el diseño y el código de SPEC-00, o el orden real, difieren, manda esta 
 
 ## Resumen
 
-> T-TEN-01, T-TEN-02, T-TEN-03 y T-TEN-10 en revisión; las demás sin empezar. La columna **Evidencia** es obligatoria para `✅` y la verifica `scripts/check_spec_state.py`.
+> T-TEN-01, T-TEN-02, T-TEN-03, T-TEN-04 y T-TEN-10 en revisión; las demás sin empezar. La columna **Evidencia** es obligatoria para `✅` y la verifica `scripts/check_spec_state.py`.
 
 | ID | Título | AC | Capa | Archivos esperados (ver detalle) | Depende de | Agente | Tamaño | Zona roja | Estado | Evidencia |
 |---|---|---|---|---|---|---|---|---|---|---|
 | T-TEN-01 | `TenantContext`, `tenant_scope` y errores | — (RF-TEN-01, RF-TEN-08) | Base | `apps/common/tenancy/{context,current,middleware,errors}.py`, `.github/zona-roja-paths.txt` | — | backend-dev | M | Sí | 🟡 | rama `task/T-TEN-01-tenant-context`, sin PR |
 | T-TEN-02 | Queryset que falla cerrado + `Organization` + migración 0001 | AC-TEN-11 | DB | `apps/common/tenancy/querysets.py`, `apps/tenancy/models/organization.py` | T-TEN-01 | backend-dev | L | Sí | 🟡 | rama `task/T-TEN-02-organization`, sin PR |
 | T-TEN-03 | `TenantModel` y app de prueba `tenant_probe` | AC-TEN-07 (guarda), AC-TEN-11 | Base | `apps/common/tenancy/models.py`, `tests/testapps/tenant_probe/` | T-TEN-02 | backend-dev | M | Sí | 🟡 | rama `task/T-TEN-03-tenant-model`, sin PR |
-| T-TEN-04 | Test de arquitectura de accesos crudos | AC-TEN-10 | Arquitectura | `backend/tests/architecture/tenant_rules.py`, `test_tenant_queries.py` | T-TEN-03 | backend-dev | L | Sí | ☐ | |
+| T-TEN-04 | Test de arquitectura de accesos crudos | AC-TEN-10 | Arquitectura | `backend/tests/architecture/tenant_rules.py`, `test_tenant_queries.py` | T-TEN-03 | backend-dev | L | Sí | 🟡 | rama `task/T-TEN-04-raw-access-rules`, sin PR |
 | T-TEN-05 | `Membership` + migración 0002 | — (RN-TEN-07, RN-TEN-21) | DB | `apps/tenancy/models/membership.py`, `apps/common/authz/roles.py` | T-TEN-03, T-IDA-01 | backend-dev | M | Sí | ☐ | |
 | T-TEN-06 | Matriz de permisos como código | AC-TEN-15, AC-TEN-16, AC-TEN-34 (matriz) | Dominio | `apps/common/authz/{actions,checks}.py`, `apps/tenancy/domain/permissions.py` | T-TEN-01, T-TEN-05 | backend-dev | L | Sí | ☐ | |
 | T-TEN-07 | Reglas de roles (`decide_*`) | AC-TEN-13, AC-TEN-15, AC-TEN-16, AC-TEN-27 (decisión) | Dominio | `apps/tenancy/domain/role_rules.py` | T-TEN-05 | backend-dev | L | Sí | ☐ | |
@@ -251,6 +251,17 @@ T-TEN-30 · suspendida → T-TEN-29.
   le asignó el `pk`.
 - **Pruebas:** `test_AC_TEN_10_raw_manager_fails_naming_the_file` (archivo sintético), `test_AC_TEN_10_scoped_call_passes`,
   `test_AC_TEN_10_unscoped_outside_allowlist_fails`.
+- **Implementado:** `tenant_rules.py` revisa `apps/**` salvo `tests/`, `migrations/` y los dos módulos del mecanismo
+  (`common/tenancy/{models,querysets}.py`). Prohíbe `X.objects` de un modelo tenant que no abra un scope
+  (`allowlists.TENANT_SCOPES`; cubre las subconsultas `__in=`/`Subquery`/`Exists`/`Prefetch` sin scope), los internos de
+  persistencia de Django, SQL crudo (`raw`, `extra`, `cursor`, `RawSQL`), `refresh_from_db()` tras re-apuntar el `pk`
+  en la misma función y `TenantContext(` fuera de `common/tenancy/` y `tenancy/api/permissions.py`. `unscoped(` va
+  contra `UNSCOPED_ALLOWLIST` (la entrada fija modelo y motivo) y la herencia de `TenantModel` se lee del registro de
+  Django contra `TENANT_EXEMPT_MODELS`. Los límites que no detecta el AST están en el docstring de `tenant_rules.py`
+  (quedan para RLS). C-01 (`ast_rules.py`) deja pasar `X.objects.<scope>(`. Pruebas extra:
+  `test_AC_TEN_10_{manager_without_scope,persistence_internals,raw_sql,refresh_after_repointing_the_pk,tenant_context_built_outside_resolution}_fails`,
+  `test_AC_TEN_10_unscoped_entry_pins_the_reason`, `test_AC_TEN_10_real_code_has_no_violations`,
+  `test_RN_TEN_01_every_business_model_is_a_tenant_model` y `test_AC_PLT_15_only_a_scope_call_opens_the_manager`.
 
 ### T-TEN-05 — `Membership` + migración 0002
 - **AC:** — (RN-TEN-07, RN-TEN-21, RNF-TEN-05). **Zona roja:** sí.

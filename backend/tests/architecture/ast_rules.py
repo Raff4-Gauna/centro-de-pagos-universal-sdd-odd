@@ -12,7 +12,9 @@ so the synthetic trees of the tests can name packages that do not exist.
   below ``apps/<app>/`` (nested ones included, paths with a ``tests`` segment excluded), any
   ``.objects``/``._default_manager``/``._base_manager``, whatever the receiver (an alias such as
   ``M = Charge; M.objects`` included), ``getattr``/``attrgetter`` with those names as literals, and
-  ``._meta.default_manager``/``base_manager``/``managers``/``managers_map``.
+  ``._meta.default_manager``/``base_manager``/``managers``/``managers_map``. ``X.objects`` opened
+  by a tenant scope (``X.objects.for_tenant(ctx)``, ``allowlists.TENANT_SCOPES``) passes: the
+  queryset fails closed and ``tenant_rules`` checks the rest (AC-TEN-10).
 
 Known gaps (not cheap on the AST): dynamic imports with computed names, ``__import__`` with
 ``level``, names built at runtime (``getattr(M, "obj" + "ects")``, ``vars(M)``, ``M.__dict__``), a
@@ -27,7 +29,7 @@ from collections.abc import Iterable, Iterator, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
-from tests.architecture.allowlists import AllowEntry
+from tests.architecture.allowlists import TENANT_SCOPES, AllowEntry
 
 PROVIDERS = "apps.integrations.providers"
 DYNAMIC_IMPORTERS = frozenset({"import_module", "__import__", "import_string"})
@@ -254,6 +256,19 @@ def manager_access(node: ast.Attribute | ast.Call) -> bool:
     return False
 
 
+def scoped_managers(tree: ast.Module) -> set[int]:
+    """ids of the ``<x>.objects`` that a scope call opens: ``X.objects.for_tenant(ctx)``."""
+    return {
+        id(node.func.value)
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr in TENANT_SCOPES
+        and isinstance(node.func.value, ast.Attribute)
+        and node.func.value.attr == "objects"
+    }
+
+
 def raw_manager_violations(
     trees: Iterable[SourceTree], allowlist: Sequence[AllowEntry]
 ) -> list[Violation]:
@@ -267,7 +282,10 @@ def raw_manager_violations(
         )
         for source in iter_sources(trees)
         if is_service(source.module)
+        for scoped in [scoped_managers(source.tree)]
         for node in ast.walk(source.tree)
-        if isinstance(node, ast.Attribute | ast.Call) and manager_access(node)
+        if isinstance(node, ast.Attribute | ast.Call)
+        and manager_access(node)
+        and id(node) not in scoped
     ]
     return apply_allowlist(sorted(set(violations)), allowlist, "C-01")
