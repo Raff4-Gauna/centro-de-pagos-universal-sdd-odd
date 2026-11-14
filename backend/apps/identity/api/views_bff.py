@@ -3,7 +3,8 @@
 ``POST /api/auth/bff/login/start/`` (RF-IDA-01): the BFF sends the binding it keeps in
 ``__Host-cpu_login`` and where the person was going; it gets Google's authorization URL.
 ``POST /api/auth/bff/login/complete/`` (RF-IDA-02): the BFF relays Google's redirect (``state``,
-``code`` or ``error``) with that binding; it gets the session's tokens and where to go.
+``code`` or ``error``) with that binding; it gets the session's tokens and where to go. The
+person's User-Agent comes in ``X-Hub-Client-UA``: only its browser and OS reach the session.
 
 Order of design.md §4.1: credential (``BffAPIView``, ``404`` without it), 10/min per client IP
 (``429 rate_limited``, before anything else runs, so before Google), flag (``503
@@ -42,7 +43,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from django.utils import timezone
-from drf_spectacular.utils import OpenApiResponse, extend_schema
+from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema
 from rest_framework import status
 from rest_framework.exceptions import APIException
 from rest_framework.request import Request
@@ -77,6 +78,7 @@ from apps.identity.services.refresh import refresh_session
 from apps.identity.tokens.access_token import ACCESS_TOKEN_TTL_SECONDS
 
 BFF_TAG = "bff-internal"
+CLIENT_UA_HEADER = "X-Hub-Client-UA"
 _PROBLEM = {"$ref": f"#/components/schemas/{PROBLEM}"}
 # A security requirement, which is what drf-spectacular writes to the operation as it comes; its
 # stubs type the argument as a list of names.
@@ -189,6 +191,18 @@ class LoginCompleteView(BffAPIView):
         ),
         tags=[BFF_TAG],
         auth=_BFF_SECURITY,
+        parameters=[
+            OpenApiParameter(
+                name=CLIENT_UA_HEADER,
+                location=OpenApiParameter.HEADER,
+                required=False,
+                type=str,
+                description=(
+                    "User-Agent del navegador de la persona. Solo se guardan el navegador y el "
+                    "sistema operativo resumidos, nunca el valor completo."
+                ),
+            )
+        ],
         request=LoginCompleteRequestSerializer,
         responses={
             200: LoginCompleteResponseSerializer,
@@ -214,6 +228,8 @@ class LoginCompleteView(BffAPIView):
                 login_binding=data["login_binding"],
                 code=data.get("code"),
                 error=data.get("error"),
+                # Only this view's caller has the BFF credential (BffAPIView): nobody else's counts.
+                client_user_agent=request.headers.get(CLIENT_UA_HEADER),
             )
         except IdentityError as error:
             if error.code not in _LOGIN_ERRORS:

@@ -78,7 +78,7 @@ El diseño se escribió antes de que existiera el código de SPEC-00. Donde difi
 | T-IDA-14 | Refresh: rotación y vencimientos | AC-IDA-09 (refresh), AC-IDA-14, AC-IDA-15, AC-IDA-16, AC-IDA-22, AC-IDA-28 (servicio) | Servicio/API | `services/refresh.py`, `api/views_bff.py`, `api/throttles.py`, `config/settings/base.py` | T-IDA-06, T-IDA-09 | backend-dev | L | Sí | 🟡 | rama `task/T-IDA-14-refresh`, sin PR |
 | T-IDA-15 | Refresh: concurrencia y 31.º refresh | AC-IDA-20 (refresh), AC-IDA-28 (carrera) | Servicio | `backend/tests/identity/test_refresh_concurrency.py` | T-IDA-14 | backend-dev | M | Sí | 🟡 | rama `task/T-IDA-15-refresh-race`, sin PR |
 | T-IDA-16 | Logout | AC-IDA-17 (backend), AC-IDA-35 | Servicio/API | `services/logout.py`, `api/views_bff.py` | T-IDA-14 | backend-dev | M | Sí | 🟡 | rama `task/T-IDA-16-logout`, PR #97 |
-| T-IDA-17 | Sesiones propias: listar y revocar | AC-IDA-25, AC-IDA-26, AC-IDA-33 (API) | Servicio/API | `services/sessions.py`, `api/views_sessions.py`, `domain/client_hint.py` | T-IDA-06, T-IDA-13 | backend-dev | L | Sí | ☐ | |
+| T-IDA-17 | Sesiones propias: listar y revocar | AC-IDA-25, AC-IDA-26, AC-IDA-33 (API) | Servicio/API | `services/sessions.py`, `api/views_sessions.py`, `domain/client_hint.py` | T-IDA-06, T-IDA-13 | backend-dev | L | Sí | 🟡 | rama `task/T-IDA-17-own-sessions`, PR #98 |
 | T-IDA-18 | Comandos de desactivar y reactivar usuario | AC-IDA-27, AC-IDA-32 (parte 01) | Comandos | `services/user_status.py`, `management/commands/*` | T-IDA-17 | backend-dev | M | Sí | ☐ | |
 | T-IDA-19 | Purga periódica | AC-IDA-38 | Asíncrono | `tasks.py`, `beat.py`, `services/purge.py` | T-IDA-10, T-IDA-14 | backend-dev | M | Sí | ☐ | |
 | T-IDA-20 | Chequeos de arranque y proveedor OIDC falso | — (RN-IDA-01, RN-IDA-16, RNF-IDA-06) | Config | `checks.py`, `apps.py`, `dev_oidc/*`, `oidc/provider.py` | T-IDA-08 | backend-dev | L | Sí | 🟡 | rama `task/T-IDA-20-startup-checks`, sin PR |
@@ -494,6 +494,40 @@ módulos se aprueba en la misma pasada, después de `T-TEN-36`.
   `open_session` guarda navegador y SO.
 - **Pruebas:** `test_AC_IDA_25_foreign_session_is_404`, `test_AC_IDA_26_revoked_from_security_next_request`,
   `test_AC_IDA_33_revoke_others_keeps_current`, `test_AC_IDA_33_list_has_no_ip`.
+- **Sumados al implementar:** `api/serializers.py` (`SessionSerializer`, junto a las otras formas de la API);
+  `apps/common/api/pagination.py` (`HubPageNumberPagination`: no existía clase de paginación; opt-in por vista);
+  `services/login_complete.py` y `api/views_bff.py` (pedido del reviewer de #96: el login lee `X-Hub-Client-UA`, lo
+  publica en el contrato como header opcional y la sesión nace con navegador y SO resumidos);
+  `apps/common/api/schema.py` (`API_VERSION` 0.7.0: endpoints nuevos, después del 0.6.0 de `T-IDA-16`);
+  `tests/identity/api/test_{login_start,refresh_view,logout_view,login_complete_errors}.py` (versión del contrato y el
+  header);
+  `tests/identity/api/test_login_complete.py` (la sesión guarda navegador y SO, nunca el UA crudo ni la IP);
+  `tests/identity/domain/test_client_hint.py` y `tests/identity/api/test_sessions.py`.
+- **Resultado:**
+  - **Bloqueos:** revocar toca solo filas de `auth_sessions` (`UPDATE … WHERE status='active'`), nunca
+    `refresh_tokens`. El refresh bloquea token → sesión y el logout solo la sesión, así que ninguno retiene lo que el
+    otro espera. "Cerrar las demás" toma las sesiones de a una en orden ascendente de `id`, en una transacción: dos
+    "cerrar las demás" de la misma persona no se bloquean entre sí. `deactivate_user` (`T-IDA-18`) debería usar el
+    mismo orden.
+  - **Dos "cerrar las demás" simultáneos** desde dos dispositivos de la misma persona pueden revocarse mutuamente y
+    dejarla sin sesiones: cada uno conserva la suya y revoca la del otro. Comportamiento aceptado (decisión de
+    planificación, 2026-11-13): cada dispositivo recibe `401 session_revoked` y vuelve a ingresar.
+  - **404:** sesión ajena, ya terminada o inexistente dan el mismo `404 not_found` (un id que no es UUID también:
+    no matchea la ruta). Se puede revocar la sesión actual: la request siguiente con su JWT da `401 session_revoked`.
+    Si otra request la terminó entre la lectura y el `UPDATE`, responde `204` sin auditar dos veces.
+  - **Listado:** solo `active` dentro de ambos vencimientos, orden `last_used_at desc`; `browser`/`os` en `null` si el
+    User-Agent no nombró ninguno. Paginado como las listas de SPEC-02 (`design.md §6` de 02: SPEC-00 no fija
+    paginación): `PageNumberPagination` de 50, `page_size` hasta 200, sobre `{count, next, previous, results}` y
+    enlaces relativos (el navegador llega por el proxy del BFF, nunca al host interno de Django). Lo que acota las
+    sesiones activas es el vencimiento absoluto de 30 días, no la purga (decisión de planificación, 2026-11-13).
+    "Cerrar las demás" revoca todas las `active` salvo la actual, también las vencidas que la purga aún no marcó.
+  - **Auditoría:** un `identity.session_revoked` por sesión que se movió (`user_revoked` / `revoked_others`), actor el
+    usuario, `metadata={"sid"}`, dentro de la transacción. Logs `auth.session_revoked` y
+    `auth.other_sessions_revoked` con ids y motivo, sin tokens.
+  - **`client_hint`:** listas cerradas de navegadores y SO, sin versión ni modelo; un UA que no nombran queda `""`.
+- **Pendiente para `T-IDA-18`:** test de concurrencia de "cerrar las demás" contra un refresh de una de esas sesiones
+  (dos conexiones, como `test_refresh_concurrency.py`): ninguno se bloquea y la sesión termina revocada sin token vivo
+  nuevo que sirva.
 
 ### T-IDA-18 — Comandos de desactivar y reactivar usuario
 - **AC:** AC-IDA-27, AC-IDA-32 (parte 01). RF-IDA-08, RN-IDA-07, RN-IDA-23. **Zona roja:** sí.

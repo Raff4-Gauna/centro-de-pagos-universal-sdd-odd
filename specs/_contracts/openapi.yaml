@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Centro de Pagos Universal API
-  version: 0.6.0
+  version: 0.7.0
 paths:
   /api/auth/bff/login/complete/:
     post:
@@ -10,6 +10,13 @@ paths:
         código con Google, valida el ID token y abre la sesión. Los tokens son solo
         para el BFF.
       summary: Completa un login con Google (solo BFF)
+      parameters:
+      - in: header
+        name: X-Hub-Client-UA
+        schema:
+          type: string
+        description: User-Agent del navegador de la persona. Solo se guardan el navegador
+          y el sistema operativo resumidos, nunca el valor completo.
       tags:
       - bff-internal
       requestBody:
@@ -194,6 +201,127 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
+  /api/auth/sessions/:
+    get:
+      operationId: auth_sessions_list
+      summary: Las sesiones activas de la persona autenticada
+      parameters:
+      - name: page
+        required: false
+        in: query
+        description: Un número de página dentro del conjunto de resultados paginado.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Número de resultados a devolver por página.
+        schema:
+          type: integer
+      tags:
+      - identity
+      security:
+      - HubBearer: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedSessionList'
+          description: ''
+        '401':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: 'code: unauthenticated · token_expired · token_invalid · session_revoked
+            (con WWW-Authenticate: Bearer realm="hub")'
+        4XX:
+          description: Error del cliente
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        5XX:
+          description: Error del servidor
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /api/auth/sessions/{session_id}/revoke/:
+    post:
+      operationId: auth_sessions_revoke
+      summary: Cierra una sesión propia
+      parameters:
+      - in: path
+        name: session_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - identity
+      security:
+      - HubBearer: []
+      responses:
+        '204':
+          description: La sesión quedó cerrada.
+        '401':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: 'code: unauthenticated · token_expired · token_invalid · session_revoked
+            (con WWW-Authenticate: Bearer realm="hub")'
+        '404':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: 'code: not_found (también si la sesión es de otra persona o
+            ya terminó)'
+        4XX:
+          description: Error del cliente
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        5XX:
+          description: Error del servidor
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /api/auth/sessions/revoke-others/:
+    post:
+      operationId: auth_sessions_revoke_others
+      summary: Cierra todas las sesiones propias salvo la actual
+      tags:
+      - identity
+      security:
+      - HubBearer: []
+      responses:
+        '204':
+          description: Solo queda activa la sesión actual.
+        '401':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: 'code: unauthenticated · token_expired · token_invalid · session_revoked
+            (con WWW-Authenticate: Bearer realm="hub")'
+        4XX:
+          description: Error del cliente
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        5XX:
+          description: Error del servidor
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
   /api/me/:
     get:
       operationId: me_retrieve
@@ -366,6 +494,29 @@ components:
       - organization_id
       - organization_name
       - role
+    PaginatedSessionList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          description: Ruta relativa con la query de la página, o null.
+          example: /api/recurso/?page=4
+        previous:
+          type: string
+          nullable: true
+          description: Ruta relativa con la query de la página, o null.
+          example: /api/recurso/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Session'
     Problem:
       type: object
       description: Sobre único de error (RFC 9457), media type application/problem+json.
@@ -450,6 +601,39 @@ components:
       - access_token
       - refresh_token
       - session_expires_in
+    Session:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        browser:
+          type: string
+          readOnly: true
+          nullable: true
+        os:
+          type: string
+          readOnly: true
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        last_used_at:
+          type: string
+          format: date-time
+          readOnly: true
+        is_current:
+          type: boolean
+          readOnly: true
+      required:
+      - browser
+      - created_at
+      - id
+      - is_current
+      - last_used_at
+      - os
   securitySchemes:
     BffCredential:
       type: apiKey

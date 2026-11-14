@@ -319,4 +319,4 @@ def test_contract_publishes_start_as_bff_internal() -> None:
     request = contract["components"]["schemas"]["LoginStartRequest"]
     assert request["required"] == ["login_binding"]
     assert set(request["properties"]) == {"login_binding", "return_path"}
-    assert contract["info"]["version"] == "0.6.0"
+    assert contract["info"]["version"] == "0.7.0"

@@ -231,6 +231,9 @@ def test_contract_publishes_complete_as_bff_internal() -> None:
     assert operation["tags"] == ["bff-internal"]
     assert operation["security"] == [{"BffCredential": []}]
     assert {"200", "400", "403", "409", "429", "503"} <= set(operation["responses"])
+    [user_agent] = [p for p in operation["parameters"] if p["name"] == "X-Hub-Client-UA"]
+    assert user_agent["in"] == "header"
+    assert not user_agent.get("required", False)
     schemas = contract["components"]["schemas"]
     request = schemas["LoginCompleteRequest"]
     assert set(request["required"]) == {"state", "login_binding"}
@@ -244,4 +247,4 @@ def test_contract_publishes_complete_as_bff_internal() -> None:
         "session_expires_in",
         "return_path",
     }
-    assert contract["info"]["version"] == "0.6.0"
+    assert contract["info"]["version"] == "0.7.0"

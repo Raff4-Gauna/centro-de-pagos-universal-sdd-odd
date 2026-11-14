@@ -1,7 +1,8 @@
 """Shapes of the identity API (design.md §6.1, §6.2).
 
-``/api/me/`` takes no input. ``MembershipSerializer`` mirrors ``MembershipSummary``, whose final
-shape SPEC-02 fixes (``T-TEN-12``); identity passes the list along as the selector returns it.
+``/api/me/`` and ``/api/auth/sessions/*`` take no input. ``MembershipSerializer`` mirrors
+``MembershipSummary``, whose final shape SPEC-02 fixes (``T-TEN-12``); identity passes the list
+along as the selector returns it.
 
 The ``auth/bff/*`` ones are the BFF's, not the browser's (tag ``bff-internal``). Their errors never
 echo the input (design.md §7.5): a length or type message names the limit, never the value.
@@ -49,6 +50,21 @@ class MeSerializer(serializers.Serializer[dict[str, Any]]):
     def get_avatar_url(self, me: dict[str, Any]) -> str | None:
         avatar_url: str = me["avatar_url"]
         return avatar_url or None
+
+
+# One session in "Seguridad" (RN-IDA-24): the summarized browser and OS (null when the User-Agent
+# named none) and its dates, never an IP nor the raw User-Agent (RNF-IDA-05). is_current marks the
+# session of the request.
+class SessionSerializer(serializers.Serializer[dict[str, Any]]):
+    id = serializers.UUIDField(read_only=True)
+    browser = serializers.CharField(read_only=True, allow_null=True)
+    os = serializers.CharField(read_only=True, allow_null=True)
+    created_at = serializers.DateTimeField(read_only=True)
+    last_used_at = serializers.DateTimeField(read_only=True)
+    is_current = serializers.BooleanField(read_only=True)
+
+    class Meta:
+        ref_name = "Session"
 
 
 def _login_binding(value: str) -> None:
