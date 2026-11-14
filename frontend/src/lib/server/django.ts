@@ -37,8 +37,9 @@ const NOT_HEADER_SAFE = /[^\t\x20-\x7e\xa0-\xff]/;
 
 type BffPath = Extract<keyof paths, `/api/auth/bff/${string}`>;
 type PostOf<P extends BffPath> = paths[P] extends { post: infer O } ? O : never;
+// `requestBody?`: logout's body is optional in the contract (every field is), and still sent.
 export type BffRequestBody<P extends BffPath> =
-  PostOf<P> extends { requestBody: { content: { "application/json": infer B } } } ? B : never;
+  PostOf<P> extends { requestBody?: { content: { "application/json": infer B } } } ? B : never;
 
 export type DjangoBffCall<P extends BffPath> = Readonly<{
   path: P;
