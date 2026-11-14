@@ -24,12 +24,20 @@ guards. Combine first and slice the result, or use ``union``.
 Under a tenant scope (``for_tenant``) some writes and reads do not carry the organization filter, so
 they fail closed and are only allowed with ``unscoped(reason)``:
 
-- ``bulk_create`` (and ``abulk_create``) with ``ignore_conflicts`` or ``update_conflicts``: the
-  ``INSERT ... ON CONFLICT`` has no ``WHERE`` and would touch the conflicting row of another
-  organization. Each instance must also carry the organization of the scope in ``tenant_lookup``,
-  checked without SQL; for ``Organization`` that is its ``pk``, so a tenant scope can only insert
-  its own organization and new organizations go through ``unscoped(reason)``.
+- ``bulk_create`` (and ``abulk_create``) with ``ignore_conflicts`` or ``update_conflicts``, and
+  ``_insert`` with any ``on_conflict``: the ``INSERT ... ON CONFLICT`` has no ``WHERE`` and would
+  touch the conflicting row of another organization.
 - ``raw``: the SQL is written by hand and ignores the filter.
+
+What a tenant scope inserts (``create``, ``get_or_create``, ``update_or_create``, ``bulk_create``,
+``_insert``) belongs to the organization of the scope, checked without SQL on ``tenant_lookup``: an
+empty one is filled with it (RN-TEN-04) and another one raises. For ``Organization`` the lookup is
+its ``pk``, which is never empty: a tenant scope inserts no organization, and new organizations go
+through ``unscoped(reason)``.
+
+The organization of a row never changes through ``update``, ``_update`` or ``bulk_update`` (and
+their ``a*`` variants), under any scope: ``organization``/``organization_id`` among the values or
+fields raise (RN-TEN-04).
 
 Assigning ``qs.query = ...`` replaces the filter with a query that may not have it, so it clears the
 scope: the queryset fails closed until it is scoped again.
@@ -38,7 +46,9 @@ Known gap: an unscoped queryset used as a subquery (``__in=qs``) never runs by i
 architecture test catches it, and later RLS (ADR-0001).
 
 Django's internals (forward FKs, ``refresh_from_db``, ``save``) use the model's base manager, which
-stays a plain ``Manager``: the guard is for business code, which goes through ``objects``.
+stays a plain ``Manager``: the guard is for business code, which goes through ``objects``
+(``TenantManager``). ``save`` and ``delete`` of an instance have their own guard, in
+``TenantModel`` (``apps.common.tenancy.models``) and ``Organization``.
 
 ``TenantScopeError`` is a bug, never data: the API handler answers it with a generic 500.
 """
@@ -164,9 +174,7 @@ class TenantQuerySet(models.QuerySet[_M]):
                 raise TenantScopeError(
                     f"{self._model_name()}.bulk_create on conflict needs unscoped(reason)"
                 )
-            organization_id = self._scope.organization_id
-            if any(getattr(obj, self.tenant_lookup) != organization_id for obj in objs):
-                raise TenantScopeError(f"{self._model_name()}.bulk_create for another organization")
+            self._pin_rows(objs, self._scope, "bulk_create")
         return super().bulk_create(
             objs,
             batch_size=batch_size,
@@ -177,6 +185,96 @@ class TenantQuerySet(models.QuerySet[_M]):
         )
 
     bulk_create.alters_data = True  # type: ignore[attr-defined]  # as Django's
+
+    def create(self, **kwargs: Any) -> _M:
+        self._require_scope("create")
+        if isinstance(self._scope, TenantContext):
+            # Built once to read ``tenant_lookup`` as Django resolves it (``organization`` or
+            # ``organization_id``, a default ``pk``); Django builds it again from ``kwargs``.
+            probe = self.model(**kwargs)
+            if getattr(probe, self.tenant_lookup) is None:
+                kwargs[self.tenant_lookup] = self._scope.organization_id
+            else:
+                self._pin_rows([probe], self._scope, "create")
+        return super().create(**kwargs)
+
+    create.alters_data = True  # type: ignore[attr-defined]  # as Django's
+
+    def _insert(
+        self,
+        objs: list[_M],
+        fields: Any,
+        returning_fields: Any = None,
+        raw: bool = False,
+        using: str | None = None,
+        on_conflict: Any = None,
+        update_fields: Any = None,
+        unique_fields: Any = None,
+    ) -> Any:
+        """What ``bulk_create`` runs underneath, and anyone reaching past it."""
+        self._require_scope("_insert")
+        if isinstance(self._scope, TenantContext):
+            if on_conflict is not None:
+                raise TenantScopeError(f"{self._model_name()}._insert on conflict needs unscoped")
+            self._pin_rows(objs, self._scope, "_insert")
+        return super()._insert(  # type: ignore[misc]
+            objs,
+            fields,
+            returning_fields=returning_fields,
+            raw=raw,
+            using=using,
+            on_conflict=on_conflict,
+            update_fields=update_fields,
+            unique_fields=unique_fields,
+        )
+
+    _insert.alters_data = True  # type: ignore[attr-defined]  # as Django's
+    _insert.queryset_only = False  # type: ignore[attr-defined]  # as Django's
+
+    def update(self, **kwargs: Any) -> int:
+        self._require_scope("update")
+        self._require_fixed_tenant(kwargs, "update")
+        return super().update(**kwargs)
+
+    update.alters_data = True  # type: ignore[attr-defined]  # as Django's
+
+    def _update(self, values: Any) -> Any:
+        """What ``update`` and ``Model.save()`` run underneath: (field, model, value) tuples."""
+        self._require_scope("_update")
+        self._require_fixed_tenant([field.name for field, _model, _value in values], "_update")
+        return super()._update(values)  # type: ignore[misc]
+
+    _update.alters_data = True  # type: ignore[attr-defined]  # as Django's
+    _update.queryset_only = False  # type: ignore[attr-defined]  # as Django's
+
+    def bulk_update(
+        self, objs: Iterable[_M], fields: Iterable[str], batch_size: int | None = None
+    ) -> int:
+        self._require_scope("bulk_update")
+        fields = list(fields)
+        self._require_fixed_tenant(fields, "bulk_update")
+        return super().bulk_update(objs, fields, batch_size=batch_size)
+
+    bulk_update.alters_data = True  # type: ignore[attr-defined]  # as Django's
+
+    def _require_fixed_tenant(self, names: Iterable[str], operation: str) -> None:
+        """``names`` (field names or attnames) must not include the organization of the row."""
+        if self.tenant_lookup == "pk":
+            return  # ``Organization``: the row is the organization
+        field = self.model._meta.get_field(self.tenant_lookup)
+        if {field.name, getattr(field, "attname", field.name)} & set(names):
+            raise TenantScopeError(
+                f"{self._model_name()}.{operation} cannot change the organization"
+            )
+
+    def _pin_rows(self, objs: Iterable[_M], ctx: TenantContext, operation: str) -> None:
+        """Rows inserted under ``ctx``: an empty ``tenant_lookup`` gets it, another one raises."""
+        organization_id = ctx.organization_id
+        for obj in objs:
+            if getattr(obj, self.tenant_lookup) is None:
+                setattr(obj, self.tenant_lookup, organization_id)
+            elif getattr(obj, self.tenant_lookup) != organization_id:
+                raise TenantScopeError(f"{self._model_name()}.{operation} for another organization")
 
     def raw(
         self,
@@ -269,7 +367,11 @@ def _guard(name: str) -> Callable[..., Any]:
 
 # Set after the class so that callers keep Django's typed signatures (django-stubs) and each
 # wrapper keeps the attributes Django reads (``alters_data``, ``queryset_only`` via ``wraps``).
-# ``bulk_create`` and ``raw`` are defined on the class: they check the scope themselves.
+# The methods defined on the class (``create``, ``update``, ``bulk_create``, ``_insert``, ``raw``
+# and the rest) check the scope themselves.
 for _name in GUARDED_METHODS:
     if _name not in vars(TenantQuerySet):
         setattr(TenantQuerySet, _name, _guard(_name))
+
+# ``objects`` of every ``TenantModel`` (design.md §3.4): its querysets start unscoped.
+TenantManager = models.Manager.from_queryset(TenantQuerySet)

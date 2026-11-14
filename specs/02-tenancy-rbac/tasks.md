@@ -47,16 +47,17 @@ Donde el diseño y el código de SPEC-00, o el orden real, difieren, manda esta 
 | `admin.py` de solo lectura | **Sin tarea** | Q-228 decidida (2026-11-07): sin admin en el MVP |
 | `TENANT_MODEL`, `PLATFORM_OPERATOR_EMAILS`, etc. | Campos en `PlatformEnv` los que vienen del entorno; constantes en `base.py` los demás | `env.py` es el único que lee el entorno (RN-PLT-02) |
 | Auditoría `apps/common/audit` y `AuditPort` de identity | Conviven; los dos escriben al canal `audit` | El diseño aprobado define ambos; unificarlos queda para SPEC-10, que aporta el sink real |
+| `TenantModel.save()` exige que coincida con el `TenantContext` activo | Sin tenant activo, `save()`, `delete()` y el `UPDATE`/`INSERT` de `save_base()` de un `TenantModel` fallan cerrado (T-TEN-03). Aceptar una invitación desde la sesión (§4.4) y el puerto `accept_invitations` de SPEC-01, que cruzan organizaciones, abren un `tenant_scope` por organización antes de escribir, y `SystemReason` suma un valor para ese caso | Lo resuelven T-TEN-05 y T-TEN-15. El diseño no lo contradice: el `ContextVar` es justamente lo que lee la guarda de `save()` (ADR-0001) |
 
 ## Resumen
 
-> T-TEN-01, T-TEN-02 y T-TEN-10 en revisión; las demás sin empezar. La columna **Evidencia** es obligatoria para `✅` y la verifica `scripts/check_spec_state.py`.
+> T-TEN-01, T-TEN-02, T-TEN-03 y T-TEN-10 en revisión; las demás sin empezar. La columna **Evidencia** es obligatoria para `✅` y la verifica `scripts/check_spec_state.py`.
 
 | ID | Título | AC | Capa | Archivos esperados (ver detalle) | Depende de | Agente | Tamaño | Zona roja | Estado | Evidencia |
 |---|---|---|---|---|---|---|---|---|---|---|
 | T-TEN-01 | `TenantContext`, `tenant_scope` y errores | — (RF-TEN-01, RF-TEN-08) | Base | `apps/common/tenancy/{context,current,middleware,errors}.py`, `.github/zona-roja-paths.txt` | — | backend-dev | M | Sí | 🟡 | rama `task/T-TEN-01-tenant-context`, sin PR |
 | T-TEN-02 | Queryset que falla cerrado + `Organization` + migración 0001 | AC-TEN-11 | DB | `apps/common/tenancy/querysets.py`, `apps/tenancy/models/organization.py` | T-TEN-01 | backend-dev | L | Sí | 🟡 | rama `task/T-TEN-02-organization`, sin PR |
-| T-TEN-03 | `TenantModel` y app de prueba `tenant_probe` | AC-TEN-07 (guarda), AC-TEN-11 | Base | `apps/common/tenancy/models.py`, `tests/testapps/tenant_probe/` | T-TEN-02 | backend-dev | M | Sí | ☐ | |
+| T-TEN-03 | `TenantModel` y app de prueba `tenant_probe` | AC-TEN-07 (guarda), AC-TEN-11 | Base | `apps/common/tenancy/models.py`, `tests/testapps/tenant_probe/` | T-TEN-02 | backend-dev | M | Sí | 🟡 | rama `task/T-TEN-03-tenant-model`, sin PR |
 | T-TEN-04 | Test de arquitectura de accesos crudos | AC-TEN-10 | Arquitectura | `backend/tests/architecture/tenant_rules.py`, `test_tenant_queries.py` | T-TEN-03 | backend-dev | L | Sí | ☐ | |
 | T-TEN-05 | `Membership` + migración 0002 | — (RN-TEN-07, RN-TEN-21) | DB | `apps/tenancy/models/membership.py`, `apps/common/authz/roles.py` | T-TEN-03, T-IDA-01 | backend-dev | M | Sí | ☐ | |
 | T-TEN-06 | Matriz de permisos como código | AC-TEN-15, AC-TEN-16, AC-TEN-34 (matriz) | Dominio | `apps/common/authz/{actions,checks}.py`, `apps/tenancy/domain/permissions.py` | T-TEN-01, T-TEN-05 | backend-dev | L | Sí | ☐ | |
@@ -190,14 +191,52 @@ T-TEN-30 · suspendida → T-TEN-29.
 
 ### T-TEN-03 — `TenantModel` y app de prueba `tenant_probe`
 - **AC:** AC-TEN-07 (guarda), AC-TEN-11. RN-TEN-01, RN-TEN-04. **Zona roja:** sí.
-- **Archivos:** `apps/common/tenancy/models.py`, `backend/tests/testapps/tenant_probe/{models,views,tasks}.py` y migración,
-  `config/settings/test.py`, tests.
+- **Archivos:** `apps/common/tenancy/models.py`, `backend/tests/testapps/__init__.py`,
+  `backend/tests/testapps/tenant_probe/{__init__,apps,models}.py` y `migrations/0001_widget.py`,
+  `config/settings/test.py`, `backend/tests/tenancy/test_AC_TEN_07_{tenant_model,tenant_updates}.py`. Sumados, con su
+  porqué:
+  - `apps/common/tenancy/querysets.py`: `TenantManager` (el primero que lo usa es `TenantModel`); `create` y `_insert`
+    bajo scope de tenant con la misma regla que `bulk_create` (revisión de T-TEN-02).
+  - `apps/tenancy/models/organization.py`: guarda de `save()` del pendiente heredado (abajo).
+  - `config/settings/base.py`: `TENANT_MODEL = "tenancy.Organization"` (constante, tabla "Ajustes al diseño").
+  - `backend/tests/migrations/test_AC_PLT_17_reversibility.py`: revertir `tenancy` a `zero` también desaplica
+    `tenant_probe`, que depende de ella; el conjunto esperado de apps revertidas la suma.
+  - `views.py` y `tasks.py` de `tenant_probe` **no** entran acá: los traen `T-TEN-08`/`T-TEN-09` (vista con
+    `resolve_branch_filter`) y `T-TEN-11` (`TenantTask`), que son quienes los usan.
 - **Cambios:** FK `PROTECT`, `related_name="+"`, guarda de `save()`; `Widget` solo en settings de test.
+  - `TenantModel.save()` exige un tenant activo (`tenant_scope`), completa `organization` vacía con el activo y
+    rechaza otro; `organization` y `pk` no cambian después de leer o guardar; el `UPDATE` también filtra por
+    organización. `delete()` exige tenant activo y verifica que la fila de ese `pk` sea de la organización activa.
+  - `organization` lleva `editable=False`: queda fuera de formularios y de `ModelSerializer` (RN-TEN-04).
+  - Bajo `for_tenant(ctx)`, `create`/`get_or_create`/`update_or_create`/`bulk_create`/`_insert` completan
+    `organization_id` vacío con el del scope y rechazan otro; `_insert` con `on_conflict` falla cerrado. Para
+    `Organization` el campo es el `pk`, que nunca está vacío: un scope de tenant no crea organizaciones, se crean con
+    `unscoped(reason)`.
+  - `for_tenant(ctx).create(...)` además pasa por `save()`, que exige `tenant_scope` activo; `bulk_create` no llama a
+    `save()` y solo valida contra el scope del queryset.
+  - Revisión del PR #100: `update`/`aupdate`/`_update` con `organization` u `organization_id` entre los valores, y
+    `bulk_update`/`abulk_update` con esos campos, fallan cerrado bajo cualquier scope: la organización de una fila no
+    cambia nunca por esas vías. `_do_update` y `_do_insert` vuelven a leer `current_tenant()` (sin tenant fallan
+    cerrado), exigen que la fila sea de esa organización y el `UPDATE` filtra por ella: cubre `save_base()` directo y un
+    receptor `pre_save` que cambie organización y `pk`.
 - **Pruebas:** `test_AC_TEN_07_save_rejects_other_org`, `test_AC_TEN_11_tenant_model_without_scope_raises`,
-  `test_organization_id_is_immutable`.
-- **Pendiente heredado de T-TEN-02 (revisión del PR #89):** `Organization.save()` con el `pk` cambiado
-  (`org.pk = b.pk; org.save()`) sobrescribe la otra organización, porque `save()` usa `_base_manager`. La guarda de
-  `save()` de `TenantModel` no cubre a `Organization`: resolverlo acá o en los servicios de organización.
+  `test_organization_id_is_immutable`, más `test_AC_TEN_07_save_takes_the_active_organization`,
+  `test_AC_TEN_07_create_under_a_tenant_takes_its_organization`,
+  `test_AC_TEN_07_bulk_create_under_a_tenant_takes_its_organization`,
+  `test_AC_TEN_07_save_with_a_changed_pk_leaves_other_org`, `test_AC_TEN_07_delete_never_reaches_another_org`,
+  `test_AC_TEN_11_insert_on_conflict_under_a_tenant_raises`,
+  `test_AC_TEN_07_organization_save_with_a_changed_pk_leaves_the_other`, `test_AC_TEN_07_update_never_moves_a_row`
+  (una vía por caso, con scope de tenant y `unscoped`), `test_AC_TEN_07_async_update_never_moves_a_row`,
+  `test_AC_TEN_07_update_of_other_fields_still_works`, `test_AC_TEN_07_save_base_never_writes_another_org`,
+  `test_AC_TEN_07_save_base_without_tenant_raises` y `test_AC_TEN_07_pre_save_receiver_never_writes_another_org`.
+- **Pendiente heredado de T-TEN-02 (revisión del PR #89), resuelto acá:** `Organization.save()` con el `pk` cambiado
+  (`org.pk = b.pk; org.save()`) sobrescribía la otra organización, porque `save()` usa `_base_manager`. Ahora
+  `Organization.save()` rechaza un `pk` distinto del leído y, con un tenant activo, cualquier organización que no sea
+  la suya; sin tenant (comandos del operador) crea y actualiza cualquiera.
+- **Queda para T-TEN-04:** un queryset sin scope usado como subconsulta (`__in=`), el uso de `_base_manager` /
+  `_default_manager`, la llamada directa a `save_base()`, `_save_table()` o `_do_update()`, y `refresh_from_db()` después
+  de cambiar el `pk` (lee la fila de otra organización) desde código de negocio no tienen guarda completa en tiempo de
+  ejecución: los atrapa el test de arquitectura.
 
 ### T-TEN-04 — Test de arquitectura de accesos crudos
 - **AC:** AC-TEN-10. RN-TEN-02, RNF-TEN-01. **Zona roja:** sí.
@@ -207,6 +246,9 @@ T-TEN-30 · suspendida → T-TEN-29.
   `money_rules.py`.
 - **Cambios:** `X.objects.<attr>` solo con scopes permitidos; `unscoped(` y `TenantContext(` fuera de lista blanca fallan;
   todo modelo de negocio hereda `TenantModel` (exentos: `Organization`, `identity`, auditoría). AC-PLT-15 sigue en verde.
+  Desde la revisión del PR #100 (T-TEN-03), la regla también prohíbe en código de negocio `_base_manager`,
+  `_default_manager`, `save_base(`, `_save_table(`, `_do_update(` y `refresh_from_db()` sobre una instancia a la que se
+  le asignó el `pk`.
 - **Pruebas:** `test_AC_TEN_10_raw_manager_fails_naming_the_file` (archivo sintético), `test_AC_TEN_10_scoped_call_passes`,
   `test_AC_TEN_10_unscoped_outside_allowlist_fails`.
 

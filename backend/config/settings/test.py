@@ -14,10 +14,14 @@ from cryptography.hazmat.primitives.asymmetric import ec
 from apps.common.feature_flags import REGISTRY as FEATURE_REGISTRY
 from apps.common.logging.setup import logging_config
 from config.settings.base import *  # noqa: F403
-from config.settings.base import CACHE_KEY_PREFIX, REST_FRAMEWORK
+from config.settings.base import CACHE_KEY_PREFIX, INSTALLED_APPS, REST_FRAMEWORK
 from config.settings.env import PlatformEnv, load_env, load_feature_flags
 
 ROOT_URLCONF = "config.urls_dev"
+
+# Test-only app (SPEC-02 design.md §9): ``Widget(TenantModel)`` exercises the tenant base before any
+# business module exists. Never in base, dev or prod: its table only exists in test databases.
+INSTALLED_APPS = [*INSTALLED_APPS, "tests.testapps.tenant_probe"]
 
 _env = load_env(PlatformEnv)
 

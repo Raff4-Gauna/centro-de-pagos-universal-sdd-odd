@@ -5,18 +5,28 @@ It is not a ``TenantModel`` (it *is* the tenant), but its manager fails closed a
 operator's commands and the request resolution (AC-TEN-11). Enums are ``varchar`` plus a
 ``CheckConstraint``. ``timezone`` and the CUIT check digit are validated by the services that
 write them (design.md §5); the database only keeps the CUIT as 11 digits or empty.
+
+``save()`` goes through the base manager, without scope: it keeps the ``pk`` the instance was read
+from (``org.pk = other.pk`` would overwrite the other organization) and, under a tenant, saves only
+that organization (``guard_organization_save``). Without a tenant, the operator's commands create
+and update any of them.
 """
 
 from __future__ import annotations
 
 import uuid
-from typing import ClassVar
+from collections.abc import Collection
+from typing import Any, ClassVar, Self
 
 from django.db import models
 from django.db.models import Q
 
 from apps.common.tenancy.context import OrgStatus
-from apps.common.tenancy.models import NoHardDeleteMixin
+from apps.common.tenancy.models import (
+    NoHardDeleteMixin,
+    guard_organization_save,
+    remember_saved_pk,
+)
 from apps.common.tenancy.querysets import TenantQuerySet
 
 DEFAULT_TIMEZONE = "America/Argentina/Buenos_Aires"
@@ -60,3 +70,14 @@ class Organization(NoHardDeleteMixin, models.Model):
 
     def __str__(self) -> str:
         return str(self.pk)
+
+    def save(self, *args: Any, **kwargs: Any) -> None:
+        guard_organization_save(self)
+        super().save(*args, **kwargs)
+        remember_saved_pk(self)
+
+    @classmethod
+    def from_db(cls, db: str | None, field_names: Collection[str], values: Collection[Any]) -> Self:
+        organization = super().from_db(db, field_names, values)
+        remember_saved_pk(organization)
+        return organization
