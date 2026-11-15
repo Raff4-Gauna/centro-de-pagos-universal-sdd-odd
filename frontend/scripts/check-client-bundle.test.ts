@@ -18,7 +18,8 @@ import {
 // Fictitious, like the builder stage of frontend/Dockerfile: never a real backend address.
 const SENTINEL = "http://bundle-sentinel-backend-internal-url.invalid:8000";
 const SENTINEL_HOST = "bundle-sentinel-backend-internal-url.invalid";
-const ENV = { BACKEND_INTERNAL_URL: SENTINEL };
+const CREDENTIAL_SENTINEL = "bundle-sentinel-hub-bff-credential";
+const ENV = { BACKEND_INTERNAL_URL: SENTINEL, HUB_BFF_CREDENTIAL: CREDENTIAL_SENTINEL };
 const SCRIPT = fileURLToPath(new URL("./check-client-bundle.ts", import.meta.url));
 const CLEAN_CHUNK = 'self.__next_f.push([1,"ok"]);if("production"!==process.env.NODE_ENV){}';
 
@@ -143,9 +144,28 @@ describe("check-client-bundle (AC-PLT-29)", () => {
   });
 
   it("test_AC_PLT_29_non_url_sentinel_is_matched_whole", () => {
-    expect(readSentinels({ BACKEND_INTERNAL_URL: "not a url" })).toEqual([
+    expect(readSentinels({ ...ENV, BACKEND_INTERNAL_URL: "not a url" })).toEqual([
       { name: "BACKEND_INTERNAL_URL", value: "not a url", hostname: undefined },
+      { name: "HUB_BFF_CREDENTIAL", value: CREDENTIAL_SENTINEL, hostname: undefined },
     ]);
+  });
+
+  it("test_AC_IDA_18_bundle_with_the_bff_credential_fails", () => {
+    put("static/chunks/leak.js", `headers["x-hub-bff-credential"]="${CREDENTIAL_SENTINEL}"`);
+    put("static/chunks/name.js", 'const k="HUB_BFF_CREDENTIAL";');
+
+    const result = checkClientBundle(nextDir, ENV);
+
+    expect(result.code).toBe(1);
+    expect(result.messages).toEqual([
+      "client bundle: static/chunks/leak.js contains the sentinel value of HUB_BFF_CREDENTIAL",
+      "client bundle: static/chunks/name.js contains the server-only variable name HUB_BFF_CREDENTIAL",
+    ]);
+    expect(result.messages.join("\n")).not.toContain(CREDENTIAL_SENTINEL);
+    // Unset, it is an error and not a pass, like the backend URL.
+    expect(checkClientBundle(nextDir, { BACKEND_INTERNAL_URL: SENTINEL }).messages[0]).toContain(
+      "HUB_BFF_CREDENTIAL is not set",
+    );
   });
 
   it("test_AC_PLT_29_cli_entrypoint_runs_the_check", () => {

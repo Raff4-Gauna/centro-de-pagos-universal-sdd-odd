@@ -68,6 +68,8 @@ def test_AC_PLT_29_clean_pages_and_chunks_pass(frontend: FakeFrontend) -> None:
         "backend:8000",
         "bundle-sentinel-backend-internal-url.invalid",
         "BACKEND_INTERNAL_URL",
+        "bundle-sentinel-hub-bff-credential",
+        "HUB_BFF_CREDENTIAL",
         "process.env.DJANGO_SECRET_KEY",
         'env["REDIS_URL"]',
     ],
@@ -204,6 +206,7 @@ def test_AC_PLT_29_chunks_listed_in_the_link_header_are_scanned(frontend: FakeFr
 def test_AC_PLT_29_sentinel_and_variables_match_the_frontend() -> None:
     dockerfile = (REPO_ROOT / "frontend" / "Dockerfile").read_text(encoding="utf-8")
     assert f"BACKEND_INTERNAL_URL=http://{smoke_leaks.BUNDLE_SENTINEL_HOST}:8000" in dockerfile
+    assert f"ENV HUB_BFF_CREDENTIAL={smoke_leaks.CREDENTIAL_SENTINEL}" in dockerfile.splitlines()
     check = (REPO_ROOT / "frontend" / "scripts" / "check-client-bundle.ts").read_text(
         encoding="utf-8"
     )

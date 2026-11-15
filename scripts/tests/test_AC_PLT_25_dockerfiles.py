@@ -261,13 +261,16 @@ def test_AC_PLT_29_builder_checks_the_bundle_built_with_sentinels(
     listed = re.search(r"SERVER_ONLY_VARIABLES: readonly string\[\] = \[([^\]]*)\]", script)
     assert listed, "SERVER_ONLY_VARIABLES not found"
     server_only = set(re.findall(r'"([A-Z][A-Z0-9_]*)"', listed[1]))
-    assert server_only == {"BACKEND_INTERNAL_URL"}
+    assert server_only == {"BACKEND_INTERNAL_URL", "HUB_BFF_CREDENTIAL"}
     builder = frontend_stages["builder"]
     assert builder.image == "deps"
     env = builder.env()
-    for name in sorted(server_only):
-        # A sentinel under the reserved .invalid TLD: recognizable, never a real address.
-        assert re.fullmatch(r"https?://bundle-sentinel-[a-z0-9-]+\.invalid(:\d+)?", env[name]), name
+    # A sentinel under the reserved .invalid TLD: recognizable, never a real address. The
+    # credential is not a URL: a recognizable token, never a real secret.
+    assert re.fullmatch(
+        r"https?://bundle-sentinel-[a-z0-9-]+\.invalid(:\d+)?", env["BACKEND_INTERNAL_URL"]
+    )
+    assert re.fullmatch(r"bundle-sentinel-[a-z0-9-]+", env["HUB_BFF_CREDENTIAL"])
     # Exit 0 is not enough: the clean line proves the entrypoint really ran the check.
     assert builder.args("RUN") == [
         'pnpm build && output="$(node scripts/check-client-bundle.ts .next)" && echo "$output" '

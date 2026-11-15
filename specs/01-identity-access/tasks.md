@@ -89,7 +89,7 @@ El diseño se escribió antes de que existiera el código de SPEC-00. Donde difi
 | T-IDA-24 | Route Handlers de inicio y callback | AC-IDA-01 (cookies), AC-IDA-18, AC-IDA-19 | BFF | `app/api/auth/google/{start,callback}/route.ts` | T-IDA-13, T-IDA-22 | frontend-dev | M | Sí | 🟡 | rama `task/T-IDA-24-login-routes`, PR #103 |
 | T-IDA-25 | Route Handlers de logout y organización activa | AC-IDA-17 (cookies) | BFF | `app/api/auth/logout/route.ts`, `app/api/session/active-organization/route.ts` | T-IDA-16, T-IDA-23 | frontend-dev | M | Sí | ☐ | |
 | T-IDA-26 | Smoke: 3xx y URL de ejemplo (deuda de 00) | AC-PLT-29 (regresión) | CI | `scripts/smoke_stack.py`, `scripts/smoke_pages.py`, `scripts/tests/test_smoke_stack.py`, `scripts/tests/test_smoke_pages.py`, `scripts/tests/test_smoke_stack_wiring.py`, `scripts/tests/test_smoke_client_bundle.py` | — | backend-dev | M | Sí | 🟡 | PR abierto |
-| T-IDA-27 | Proxy con sesión: Bearer, CSRF y refresh transparente | AC-IDA-18, AC-IDA-26 (UX), AC-IDA-28 | BFF | `src/lib/server/session-proxy.ts`, `src/lib/api-client.ts`, `context/07-frontend-ui-guidelines.md` | T-IDA-23 | frontend-dev | L | Sí | ☐ | |
+| T-IDA-27 | Proxy con sesión: Bearer, CSRF y refresh transparente | AC-IDA-18, AC-IDA-26 (UX), AC-IDA-28 | BFF | `src/lib/server/{session-proxy,backend-proxy,problem}.ts`, `app/api/[...path]/route.ts`, `src/lib/api-client.ts`, `frontend/scripts/check-client-bundle.ts`, `frontend/Dockerfile`, `context/07-frontend-ui-guidelines.md` | T-IDA-23 | frontend-dev | L | Sí | 🟡 | rama `task/T-IDA-27-session-proxy`, sin PR |
 | T-IDA-28 | Pantalla "Ingresar" y protección de rutas | AC-IDA-19 (UI) | UI | `src/proxy.ts`, `app/(auth)/login/page.tsx`, `src/modules/identity/components/{LoginCard,LoginErrorAlert}.tsx`, `src/modules/identity/lib/login-errors.ts`, `scripts/smoke_pages.py`, `scripts/tests/test_smoke_pages.py` | T-IDA-24, T-IDA-26, T-IDA-27 | frontend-dev | M | Sí | ☐ | |
 | T-IDA-29 | Mi perfil, menú de usuario y "sin empresas" | AC-IDA-30 (UI) | UI | `src/modules/identity/components/{ProfileCard,UserMenu,NoOrganizationState}.tsx` | T-IDA-07, T-IDA-25, T-IDA-28 | frontend-dev | M | No | ☐ | |
 | T-IDA-30 | Pantalla "Seguridad" | AC-IDA-33 (UI) | UI | `app/(dashboard)/configuracion/seguridad/page.tsx`, `src/modules/identity/components/SessionsTable.tsx` | T-IDA-17, T-IDA-29 | frontend-dev | L | No | ☐ | |
@@ -711,7 +711,12 @@ módulos se aprueba en la misma pasada, después de `T-TEN-36`.
 ### T-IDA-27 — Proxy con sesión: Bearer, CSRF y refresh transparente
 - **AC:** AC-IDA-18, AC-IDA-26 (UX), AC-IDA-28. Spec §14 (sesión vencida). **Zona roja:** sí.
 - **Archivos:** `src/lib/server/session-proxy.ts` (nuevo) y su test, `backend-proxy.ts`, `src/lib/api-client.ts`,
-  `context/07-frontend-ui-guidelines.md`, `frontend/README.md`.
+  `context/07-frontend-ui-guidelines.md`, `frontend/README.md`. Sumados al implementar:
+  `app/api/[...path]/route.ts` (el catch-all pasa a llamar a `session-proxy.ts`);
+  `src/lib/server/problem.ts` (`404 not_found`, `401 session_revoked` y `429 rate_limited` que el proxy responde en
+  lugar de Django); `frontend/scripts/check-client-bundle.ts` y su test, `frontend/Dockerfile` (ver **Bundle**);
+  `scripts/smoke_leaks.py`, `scripts/tests/test_smoke_client_bundle.py` y `scripts/tests/test_AC_PLT_25_dockerfiles.py`
+  (fijan la lista `SERVER_ONLY_VARIABLES` y los centinelas del Dockerfile, así que la variable nueva los rompe).
 - **División (`C-14`), obligatoria:** `backend-proxy.ts` tiene 277 líneas; solo gana `x-organization-id` en la allowlist y un
   punto de enganche. La sesión, el reintento y la denylist van en `session-proxy.ts`.
 - **Cambios:** `design.md §4.4` y `§6.3`; `404` para `auth/bff/**` y `auth/google/**`; `api-client` manda `X-CSRF-Token` y
