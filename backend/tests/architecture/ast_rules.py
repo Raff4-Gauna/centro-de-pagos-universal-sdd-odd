@@ -85,17 +85,21 @@ def iter_sources(trees: Iterable[SourceTree]) -> Iterator[SourceFile]:
 def apply_allowlist(
     violations: list[Violation], allowlist: Sequence[AllowEntry], rule: str
 ) -> list[Violation]:
-    """Drop the allowlisted violations; an entry without a reason or that matches nothing fails."""
+    """Drop the allowlisted violations; an entry without a reason, that matches nothing or (with
+    ``count``) another number of occurrences fails."""
 
     def matches(entry: AllowEntry, violation: Violation) -> bool:
         return (entry.path, entry.symbol) == (violation.path, violation.symbol)
 
     kept = [v for v in violations if not any(matches(entry, v) for entry in allowlist)]
     for entry in allowlist:
+        found = sum(matches(entry, v) for v in violations)
         if not entry.reason.strip():
             msg = "allowlist entry without a reason"
-        elif not any(matches(entry, v) for v in violations):
+        elif not found:
             msg = "dead allowlist entry: matches no violation"
+        elif entry.count is not None and found != entry.count:
+            msg = f"allowlist entry expects {entry.count} occurrence(s), found {found}"
         else:
             continue
         kept.append(Violation(entry.path, 0, rule, entry.symbol, msg))

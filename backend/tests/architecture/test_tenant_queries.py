@@ -1,9 +1,10 @@
-"""AC-TEN-10 (RN-TEN-02, RN-TEN-01, design.md §9): raw access to tenant data fails the build.
+"""AC-TEN-10 (RN-TEN-02, design.md §9): raw access to tenant data fails the build.
 
-The rules (``tenant_rules``) run on the real ``apps/``, on the synthetic tree under ``synthetic/``
-(which stands for ``apps/``) and on one-off modules written to ``tmp_path``; nothing of those trees
-is imported. The real run takes the tenant models and the concrete models from Django's registry
-(no database): a tenant model is one whose ``objects`` builds a ``TenantQuerySet``.
+The AST rules (``tenant_rules``, ``tenant_instance_rules``) run on the real ``apps/`` and
+``config/``, on the synthetic tree under ``synthetic/`` (which stands for ``apps/``) and on one-off
+modules written to ``tmp_path``; nothing of those trees is imported. The real run takes the tenant
+models and their managers from Django's registry (no database). The registry rules (every business
+model is a tenant model, every manager of one fails closed) are in ``test_tenant_models.py``.
 """
 
 from __future__ import annotations
@@ -14,45 +15,23 @@ import pytest
 from django.apps import apps as registry
 from django.db import models
 
-from apps.common.tenancy.models import TenantModel
 from apps.common.tenancy.querysets import TenantQuerySet
 from tests.architecture.allowlists import (
-    TENANT_EXEMPT_MODELS,
     TENANT_QUERY_ALLOWLIST,
     TENANT_SCOPES,
     UNSCOPED_ALLOWLIST,
     AllowEntry,
 )
-from tests.architecture.ast_rules import SourceTree, iter_sources
-from tests.architecture.tenant_rules import (
-    ModelInfo,
-    tenant_query_violations,
-    unscoped_violations,
-    untenanted_models,
-)
+from tests.architecture.ast_rules import SourceTree, iter_sources, real_trees
+from tests.architecture.tenant_model_rules import tenant_names
+from tests.architecture.tenant_rules import tenant_query_violations, unscoped_violations
 
 BACKEND = Path(__file__).resolve().parents[2]
-APPS = SourceTree(BACKEND / "apps", "apps")
 SYNTHETIC = SourceTree(Path(__file__).resolve().parent / "synthetic", "apps")
 BAD_OBJECTS = "apps/charges/services/bad_objects.py"
 MODELS = frozenset({"Charge", "Widget", "Organization"})
+MANAGERS = frozenset({"objects", "all_objects"})
 SERVICE = "charges/services/rows.py"
-
-
-def tenant_model_names() -> frozenset[str]:
-    return frozenset(
-        model.__name__
-        for model in registry.get_models()
-        if isinstance(manager := getattr(model, "objects", None), models.Manager)
-        and isinstance(manager.get_queryset(), TenantQuerySet)
-    )
-
-
-def registry_models() -> list[ModelInfo]:
-    return [
-        ModelInfo(model._meta.label, model.__module__, issubclass(model, TenantModel))
-        for model in registry.get_models()
-    ]
 
 
 def write(tmp_path: Path, relative: str, body: str) -> SourceTree:
@@ -65,7 +44,7 @@ def write(tmp_path: Path, relative: str, body: str) -> SourceTree:
 def symbols(tmp_path: Path, body: str, relative: str = SERVICE) -> list[str]:
     """Symbols the tenant rule flags in ``body`` written as ``apps/<relative>``."""
     tree = write(tmp_path, relative, body)
-    return [v.symbol for v in tenant_query_violations([tree], MODELS, allowlist=())]
+    return [v.symbol for v in tenant_query_violations([tree], MODELS, (), MANAGERS)]
 
 
 def test_AC_TEN_10_raw_manager_fails_naming_the_file() -> None:
@@ -85,6 +64,12 @@ def test_AC_TEN_10_raw_manager_fails_naming_the_file() -> None:
         ("models.Widget.objects.get(pk=1)\n", "models.Widget.objects.get"),
         ("getattr(Widget, 'objects').all()\n", "getattr(Widget, 'objects')"),
         ("Organization.objects.get(pk=1)\n", "Organization.objects.get"),
+        # Every manager of a tenant model, and the names a module binds to the model.
+        ("Widget.all_objects.filter(a=1)\n", "Widget.all_objects.filter"),
+        ("from apps.p.models import Widget as W\nW.objects.all()\n", "W.objects.all"),
+        ("M = Widget\nM.objects.all()\n", "M.objects.all"),
+        ("attrgetter('objects')(Widget)\n", "attrgetter('objects')"),
+        ("attrgetter('all_objects')(Widget).all()\n", "attrgetter('all_objects')"),
         # Scope first: after a clone the AST cannot tell (documented in tenant_rules).
         ("Widget.objects.filter(a=1).for_tenant(ctx)\n", "Widget.objects.filter"),
         # Unscoped subqueries (design.md §3.4, known gap of the runtime guard).
@@ -142,6 +127,14 @@ def test_AC_TEN_10_persistence_internals_fail(tmp_path: Path, body: str, symbol:
         ("connections['default'].cursor()\n", "connections['default'].cursor"),
         ("qs.annotate(n=RawSQL('SELECT 1', []))\n", "RawSQL"),
         ("qs.annotate(n=expressions.RawSQL('SELECT 1', []))\n", "expressions.RawSQL"),
+        ("connection.chunked_cursor()\n", "connection.chunked_cursor"),
+        ("connection.connection.execute('SELECT 1')\n", "connection.connection"),
+        ("connections['default'].connection\n", "connections['default'].connection"),
+        ("RawQuerySet('SELECT * FROM w', model=Widget)\n", "RawQuerySet"),
+        ("QuerySet(Widget).all()\n", "QuerySet"),
+        ("models.QuerySet(model=Widget)\n", "models.QuerySet"),
+        ("qs.annotate(n=Func(F('a'), template='(SELECT 1)'))\n", "Func"),
+        ("class Leak(models.Func):\n    template = '(SELECT %(expressions)s)'\n", "Leak"),
     ],
 )
 def test_AC_TEN_10_raw_sql_fails(tmp_path: Path, body: str, symbol: str) -> None:
@@ -175,17 +168,24 @@ def test_AC_TEN_10_refresh_after_repointing_the_pk_fails(
 
 
 @pytest.mark.parametrize(
-    "body",
+    ("body", "flagged"),
     [
-        "TenantContext(organization_id=o, organization_status=s, actor=a)\n",
-        "from apps.common.tenancy.context import TenantContext as Ctx\nCtx(o, s, a)\n",
-        "from apps.common.tenancy import context\ncontext.TenantContext(o, s, a)\n",
+        ("TenantContext(organization_id=o, organization_status=s, actor=a)\n", ["TenantContext"]),
+        ("from apps.common.tenancy.context import TenantContext as Ctx\nCtx(o)\n", ["Ctx"]),
+        (
+            "from apps.common.tenancy import context\ncontext.TenantContext(o)\n",
+            ["context.TenantContext"],
+        ),
+        ("B = TenantContext\nB(o, s, a)\n", ["B", "TenantContext"]),
+        ("partial(TenantContext, organization_id=o)\n", ["TenantContext"]),
+        ("type(ctx)(o, s, a)\n", ["type(ctx)"]),
+        ("ctx.__class__(o, s, a)\n", ["ctx.__class__"]),
     ],
 )
-def test_AC_TEN_10_tenant_context_built_outside_resolution_fails(tmp_path: Path, body: str) -> None:
-    found = symbols(tmp_path, body)
-    assert len(found) == 1
-    assert found[0].endswith(("TenantContext", "Ctx"))
+def test_AC_TEN_10_tenant_context_built_outside_resolution_fails(
+    tmp_path: Path, body: str, flagged: list[str]
+) -> None:
+    assert sorted(symbols(tmp_path, body)) == flagged
 
 
 @pytest.mark.parametrize(
@@ -208,6 +208,9 @@ def test_AC_TEN_10_tenant_context_built_outside_resolution_fails(tmp_path: Path,
             "    def run(self):\n        self._update()\n",
         ),
         (SERVICE, "def f(ctx: TenantContext) -> TenantContext:\n    return ctx\n"),
+        (SERVICE, "def f(ctx):\n    assert isinstance(ctx, TenantContext)\n"),
+        (SERVICE, "Widget.all_objects.for_tenant(ctx).count()\n"),
+        (SERVICE, "db.connection\nqs.annotate(n=Func(F('a'), function='LOWER'))\n"),
         ("common/tenancy/celery.py", "TenantContext(o, s, a)\n"),
         ("tenancy/api/permissions.py", "TenantContext(o, s, a)\n"),
         # The mechanism, migrations and tests are not business code.
@@ -219,6 +222,22 @@ def test_AC_TEN_10_tenant_context_built_outside_resolution_fails(tmp_path: Path,
 )
 def test_AC_TEN_10_scoped_call_passes(tmp_path: Path, relative: str, body: str) -> None:
     assert symbols(tmp_path, body, relative) == []
+
+
+def test_AC_TEN_10_own_method_is_exempt_only_in_its_class(tmp_path: Path) -> None:
+    body = (
+        "class S:\n    def _update(self):\n        pass\n\n"
+        "class W(TenantModel):\n    def run(self):\n        self._update()\n"
+    )
+    assert symbols(tmp_path, body) == ["self._update"]
+
+
+def test_AC_TEN_10_config_is_scanned(tmp_path: Path) -> None:
+    file = tmp_path / "config" / "settings" / "x.py"
+    file.parent.mkdir(parents=True)
+    file.write_text("from django.db import connection\nconnection.cursor()\n", encoding="utf-8")
+    tree = SourceTree(tmp_path / "config", "config")
+    assert [v.path for v in tenant_query_violations([tree], MODELS, ())] == ["config/settings/x.py"]
 
 
 def test_AC_TEN_10_allowlisted_access_passes_and_dead_entry_fails(tmp_path: Path) -> None:
@@ -236,6 +255,16 @@ def test_AC_TEN_10_allowlisted_access_passes_and_dead_entry_fails(tmp_path: Path
     )
 
 
+def test_AC_TEN_10_allowlist_counts_occurrences(tmp_path: Path) -> None:
+    tree = write(tmp_path, SERVICE, "connection.cursor()\n\nconnection.cursor()\n")
+    entry = AllowEntry(f"apps/{SERVICE}", "connection.cursor", "synthetic: SELECT 1", count=1)
+    assert [v.msg for v in tenant_query_violations([tree], MODELS, (entry,))] == [
+        "allowlist entry expects 1 occurrence(s), found 2"
+    ]
+    twice = AllowEntry(f"apps/{SERVICE}", "connection.cursor", "synthetic: SELECT 1", count=2)
+    assert tenant_query_violations([tree], MODELS, (twice,)) == []
+
+
 @pytest.mark.parametrize(
     ("body", "symbol"),
     [
@@ -245,6 +274,10 @@ def test_AC_TEN_10_allowlisted_access_passes_and_dead_entry_fails(tmp_path: Path
         ),
         ("qs.unscoped(reason)\n", "qs.unscoped(reason)"),
         ("getattr(qs, 'unscoped')(reason)\n", "getattr(qs, 'unscoped')"),
+        ("f = qs.unscoped\nf(reason)\n", "qs.unscoped"),
+        ("methodcaller('unscoped', reason)(qs)\n", "methodcaller('unscoped', reason)"),
+        # A function of the module with that name does not exempt another receiver.
+        ("def unscoped(self):\n    pass\n\nqs.unscoped(r)\n", "qs.unscoped(r)"),
     ],
 )
 def test_AC_TEN_10_unscoped_outside_allowlist_fails(tmp_path: Path, body: str, symbol: str) -> None:
@@ -252,6 +285,14 @@ def test_AC_TEN_10_unscoped_outside_allowlist_fails(tmp_path: Path, body: str, s
     assert [v.symbol for v in unscoped_violations([tree], allowlist=())] == [symbol]
     # The manager rule lets ``X.objects.unscoped(...)`` through: this rule is the one that decides.
     assert symbols(tmp_path, body) == []
+
+
+def test_AC_TEN_10_unscoped_own_method_passes(tmp_path: Path) -> None:
+    body = (
+        "class S:\n    def unscoped(self):\n        pass\n\n"
+        "    def run(self):\n        self.unscoped()\n"
+    )
+    assert unscoped_violations([write(tmp_path, SERVICE, body)], allowlist=()) == []
 
 
 def test_AC_TEN_10_unscoped_entry_pins_the_reason(tmp_path: Path) -> None:
@@ -274,36 +315,9 @@ def test_AC_TEN_10_scopes_are_tenant_queryset_methods() -> None:
 
 
 def test_AC_TEN_10_real_code_has_no_violations() -> None:
-    tenant_models = tenant_model_names()
-    assert "Organization" in tenant_models, "the registry gave no tenant model"
-    assert any(True for _ in iter_sources([APPS])), "the rule scanned nothing"
-    assert tenant_query_violations([APPS], tenant_models, TENANT_QUERY_ALLOWLIST) == []
-    assert unscoped_violations([APPS], UNSCOPED_ALLOWLIST) == []
-
-
-# --- RN-TEN-01: every business model inherits TenantModel (design.md §9) -------------------------
-
-
-def test_RN_TEN_01_every_business_model_is_a_tenant_model() -> None:
-    found = registry_models()
-    assert any(m.label == "tenancy.Organization" for m in found)
-    assert untenanted_models(found, TENANT_EXEMPT_MODELS) == []
-
-
-def test_RN_TEN_01_rule_flags_a_model_without_tenant_model() -> None:
-    found = [
-        ModelInfo("charges.Charge", "apps.charges.models", is_tenant=False),
-        ModelInfo("charges.Refund", "apps.charges.models", is_tenant=True),
-        ModelInfo("identity.User", "apps.identity.models.user", is_tenant=False),
-        ModelInfo("tenancy.Organization", "apps.tenancy.models.organization", is_tenant=False),
-        ModelInfo("auth.Group", "django.contrib.auth.models", is_tenant=False),
-    ]
-    exempt = {"identity": "global", "tenancy.Organization": "root"}
-    assert [(v.path, v.symbol) for v in untenanted_models(found, exempt)] == [
-        ("apps.charges.models", "charges.Charge")
-    ]
-    dead = {**exempt, "charges.Charge": "x", "audit": "SPEC-10", "tenancy.Organization": ""}
-    assert [(v.symbol, v.msg) for v in untenanted_models(found, dead)] == [
-        ("audit", "dead exemption: no model"),
-        ("tenancy.Organization", "exemption without a reason"),
-    ]
+    tenant_models, managers = tenant_names(registry.get_models())
+    assert {"Organization", "Membership"} <= tenant_models, "the registry gave no tenant model"
+    trees = real_trees(BACKEND)
+    assert {s.path.split("/")[0] for s in iter_sources(trees)} == {"apps", "config"}
+    assert tenant_query_violations(trees, tenant_models, TENANT_QUERY_ALLOWLIST, managers) == []
+    assert unscoped_violations(trees, UNSCOPED_ALLOWLIST) == []

@@ -58,7 +58,7 @@ Donde el diseño y el código de SPEC-00, o el orden real, difieren, manda esta 
 | T-TEN-01 | `TenantContext`, `tenant_scope` y errores | — (RF-TEN-01, RF-TEN-08) | Base | `apps/common/tenancy/{context,current,middleware,errors}.py`, `.github/zona-roja-paths.txt` | — | backend-dev | M | Sí | 🟡 | rama `task/T-TEN-01-tenant-context`, sin PR |
 | T-TEN-02 | Queryset que falla cerrado + `Organization` + migración 0001 | AC-TEN-11 | DB | `apps/common/tenancy/querysets.py`, `apps/tenancy/models/organization.py` | T-TEN-01 | backend-dev | L | Sí | 🟡 | rama `task/T-TEN-02-organization`, sin PR |
 | T-TEN-03 | `TenantModel` y app de prueba `tenant_probe` | AC-TEN-07 (guarda), AC-TEN-11 | Base | `apps/common/tenancy/models.py`, `tests/testapps/tenant_probe/` | T-TEN-02 | backend-dev | M | Sí | 🟡 | rama `task/T-TEN-03-tenant-model`, sin PR |
-| T-TEN-04 | Test de arquitectura de accesos crudos | AC-TEN-10 | Arquitectura | `backend/tests/architecture/tenant_rules.py`, `test_tenant_queries.py` | T-TEN-03 | backend-dev | L | Sí | 🟡 | rama `task/T-TEN-04-raw-access-rules`, sin PR |
+| T-TEN-04 | Test de arquitectura de accesos crudos | AC-TEN-10 | Arquitectura | `backend/tests/architecture/tenant_rules.py`, `test_tenant_queries.py` | T-TEN-03 | backend-dev | L | Sí | 🟡 | rama `task/T-TEN-04-raw-access-rules`, PR #104 |
 | T-TEN-05 | `Membership` + migración 0002 | — (RN-TEN-07, RN-TEN-21) | DB | `apps/tenancy/models/membership.py`, `apps/common/authz/roles.py` | T-TEN-03, T-IDA-01 | backend-dev | M | Sí | 🟡 | rama `task/T-TEN-05-membership`, sin PR |
 | T-TEN-06 | Matriz de permisos como código | AC-TEN-15, AC-TEN-16, AC-TEN-34 (matriz) | Dominio | `apps/common/authz/{actions,checks}.py`, `apps/tenancy/domain/permissions.py` | T-TEN-01, T-TEN-05 | backend-dev | L | Sí | 🟡 | rama `task/T-TEN-06-permission-matrix`, PR #105 |
 | T-TEN-07 | Reglas de roles (`decide_*`) | AC-TEN-13, AC-TEN-15, AC-TEN-16, AC-TEN-27 (decisión) | Dominio | `apps/tenancy/domain/role_rules.py` | T-TEN-05 | backend-dev | L | Sí | 🟡 | rama `task/T-TEN-07-role-rules`, sin PR |
@@ -241,7 +241,12 @@ T-TEN-30 · suspendida → T-TEN-29.
 ### T-TEN-04 — Test de arquitectura de accesos crudos
 - **AC:** AC-TEN-10. RN-TEN-02, RNF-TEN-01. **Zona roja:** sí.
 - **Archivos:** `backend/tests/architecture/tenant_rules.py` (nuevo), `ast_rules.py`, `allowlists.py`,
-  `test_tenant_queries.py`, `test_AC_PLT_15_no_raw_objects_in_services.py`, `synthetic/charges/services/`.
+  `test_tenant_queries.py`, `test_AC_PLT_15_no_raw_objects_in_services.py`, `synthetic/charges/services/`. Sumados
+  en la revisión del PR #104, por `C-14` (`tenant_rules.py` iba a pasar las 400 líneas):
+  `tenant_instance_rules.py` (`refresh_from_db` y `TenantContext`), `tenant_model_rules.py` (reglas sobre el registro
+  de Django: herencia y managers) y `test_tenant_models.py` (sus pruebas, con modelos sintéticos en `isolate_apps`).
+- **Desvío de tamaño:** el diff queda en unas 1100 líneas contra L ≤ 300. Son solo tests de arquitectura, coherentes
+  entre sí; el reviewer del PR #104 no pidió dividirlo, pero pidió dejar el desvío registrado acá.
 - **División (`C-14`), obligatoria:** `ast_rules.py` tiene 273 líneas; las reglas nuevas van en `tenant_rules.py`, como
   `money_rules.py`.
 - **Cambios:** `X.objects.<attr>` solo con scopes permitidos; `unscoped(` y `TenantContext(` fuera de lista blanca fallan;
@@ -262,6 +267,17 @@ T-TEN-30 · suspendida → T-TEN-29.
   `test_AC_TEN_10_{manager_without_scope,persistence_internals,raw_sql,refresh_after_repointing_the_pk,tenant_context_built_outside_resolution}_fails`,
   `test_AC_TEN_10_unscoped_entry_pins_the_reason`, `test_AC_TEN_10_real_code_has_no_violations`,
   `test_RN_TEN_01_every_business_model_is_a_tenant_model` y `test_AC_PLT_15_only_a_scope_call_opens_the_manager`.
+- **Revisión del PR #104 (rechazado sobre `ad7b325`):** un manager plano en un modelo tenant (`all_objects =
+  models.Manager()`, o `objects` pisado) saltaba todas las reglas. Ahora un modelo es tenant por herencia (`TenantModel`
+  o `settings.TENANT_MODEL`), no por su manager; todo manager de uno (`_meta.managers` y `_default_manager`) debe
+  construir un `TenantQuerySet` (`test_AC_TEN_10_extra_plain_manager_on_a_tenant_model_fails`,
+  `test_AC_TEN_10_overridden_objects_on_a_tenant_model_fails`), y la regla AST mira todos sus managers. Además:
+  `chunked_cursor()`, `<connection>.connection`, `RawQuerySet(`, `QuerySet(`, `Func`/`Aggregate(template=...)` y
+  subclases con `template`; `unscoped` sin llamar y `methodcaller('unscoped', ...)`; `TenantContext` como valor (alias,
+  `partial`) y `type(x)(...)`/`x.__class__(...)`; alias de import y asignados de modelos tenant y `attrgetter('objects')`;
+  la exención de métodos propios vale solo dentro de su clase; `count` en las entradas de la lista blanca (un segundo
+  `cursor()` en el mismo archivo falla); las etiquetas de `identity` quedan fijadas en un test; se revisa también
+  `config/`. `tenancy.Organization` sale de `TENANT_EXEMPT_MODELS`: ya es tenant por `TENANT_MODEL`.
 
 ### T-TEN-05 — `Membership` + migración 0002
 - **AC:** — (RN-TEN-07, RN-TEN-21, RNF-TEN-05). **Zona roja:** sí.
@@ -359,6 +375,10 @@ T-TEN-30 · suspendida → T-TEN-29.
 - **Cambios:** tabla de §5; `normalize_email` comparte contrato con el de identity, sin importarlo (`domain` puro).
 - **Pruebas:** `test_AC_TEN_25_expiry_edge_with_injected_clock`, `test_AC_TEN_35_normalization`,
   `test_RNF_TEN_03_only_hash_is_stored`, `test_one_pending_per_org_and_email`.
+- **Nota de T-TEN-04 (revisión del PR #104):** `allowlists.TENANT_SCOPES` es global y
+  `test_AC_TEN_10_scopes_are_tenant_queryset_methods` exige que cada scope sea método de `TenantQuerySet`. Los scopes
+  declarados por modelo (`Invitation.by_token_hash`, `pending_for_email`, y `Membership.for_user`) necesitan pasar a
+  scopes por modelo (modelo → scopes) en la regla y en ese test antes de sumarse; si no, cualquier modelo podría usarlos.
 
 ### T-TEN-15 — Aceptar invitación con token
 - **AC:** AC-TEN-17, 18, 19, 25, 35. RN-TEN-11, RN-TEN-12. **Zona roja:** sí.
@@ -379,7 +399,8 @@ T-TEN-30 · suspendida → T-TEN-29.
 - **Cambios:** `GET /api/invitations/mine/` y `POST /api/invitations/{id}/accept/` (`design.md §4.4`, con su orden de
   tres pasos); exentas de organización activa. Sin token en ninguna respuesta. `for_session_accept` **no** entra en la
   lista general de scopes de `T-TEN-04`: se permite solo en `services/invitation_accept.py`, con una entrada que cite el
-  motivo. Si al releer bajo lock el email ya no coincide, responde `not_found`, sin membership y con `invitation.rejected`
+  motivo (nota de T-TEN-04, PR #104: hoy `TENANT_SCOPES` es global; este scope necesita una regla por modelo y por
+  archivo, como `UNSCOPED_ALLOWLIST`). Si al releer bajo lock el email ya no coincide, responde `not_found`, sin membership y con `invitation.rejected`
   fuera del `atomic`.
 - **Fuera:** UI (`T-TEN-30`).
 - **Pruebas:** `test_AC_TEN_39_lists_only_my_email`, `test_AC_TEN_39_response_has_no_token`,
