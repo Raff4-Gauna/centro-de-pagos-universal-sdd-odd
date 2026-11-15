@@ -51,7 +51,7 @@ Donde el diseño y el código de SPEC-00, o el orden real, difieren, manda esta 
 
 ## Resumen
 
-> T-TEN-01, T-TEN-02, T-TEN-03, T-TEN-05, T-TEN-07 y T-TEN-10 en revisión; las demás sin empezar. La columna **Evidencia** es obligatoria para `✅` y la verifica `scripts/check_spec_state.py`.
+> T-TEN-01, T-TEN-02, T-TEN-03, T-TEN-05, T-TEN-06, T-TEN-07 y T-TEN-10 en revisión; las demás sin empezar. La columna **Evidencia** es obligatoria para `✅` y la verifica `scripts/check_spec_state.py`.
 
 | ID | Título | AC | Capa | Archivos esperados (ver detalle) | Depende de | Agente | Tamaño | Zona roja | Estado | Evidencia |
 |---|---|---|---|---|---|---|---|---|---|---|
@@ -60,7 +60,7 @@ Donde el diseño y el código de SPEC-00, o el orden real, difieren, manda esta 
 | T-TEN-03 | `TenantModel` y app de prueba `tenant_probe` | AC-TEN-07 (guarda), AC-TEN-11 | Base | `apps/common/tenancy/models.py`, `tests/testapps/tenant_probe/` | T-TEN-02 | backend-dev | M | Sí | 🟡 | rama `task/T-TEN-03-tenant-model`, sin PR |
 | T-TEN-04 | Test de arquitectura de accesos crudos | AC-TEN-10 | Arquitectura | `backend/tests/architecture/tenant_rules.py`, `test_tenant_queries.py` | T-TEN-03 | backend-dev | L | Sí | ☐ | |
 | T-TEN-05 | `Membership` + migración 0002 | — (RN-TEN-07, RN-TEN-21) | DB | `apps/tenancy/models/membership.py`, `apps/common/authz/roles.py` | T-TEN-03, T-IDA-01 | backend-dev | M | Sí | 🟡 | rama `task/T-TEN-05-membership`, sin PR |
-| T-TEN-06 | Matriz de permisos como código | AC-TEN-15, AC-TEN-16, AC-TEN-34 (matriz) | Dominio | `apps/common/authz/{actions,checks}.py`, `apps/tenancy/domain/permissions.py` | T-TEN-01, T-TEN-05 | backend-dev | L | Sí | ☐ | |
+| T-TEN-06 | Matriz de permisos como código | AC-TEN-15, AC-TEN-16, AC-TEN-34 (matriz) | Dominio | `apps/common/authz/{actions,checks}.py`, `apps/tenancy/domain/permissions.py` | T-TEN-01, T-TEN-05 | backend-dev | L | Sí | 🟡 | rama `task/T-TEN-06-permission-matrix`, PR #105 |
 | T-TEN-07 | Reglas de roles (`decide_*`) | AC-TEN-13, AC-TEN-15, AC-TEN-16, AC-TEN-27 (decisión) | Dominio | `apps/tenancy/domain/role_rules.py` | T-TEN-05 | backend-dev | L | Sí | 🟡 | rama `task/T-TEN-07-role-rules`, sin PR |
 | T-TEN-08 | Resolución de organización por request | AC-TEN-03, AC-TEN-04, AC-TEN-06, AC-TEN-33 | API | `apps/tenancy/api/{permissions,base}.py`, `apps/tenancy/selectors/resolution.py` | T-TEN-05, T-TEN-06, T-IDA-06 | backend-dev | L | Sí | ☐ | |
 | T-TEN-09 | Suite cross-tenant parametrizada | AC-TEN-12, AC-TEN-33 | Aislamiento | `backend/tests/cross_tenant/*` | T-TEN-08 | backend-dev | L | Sí | ☐ | |
@@ -279,6 +279,7 @@ T-TEN-30 · suspendida → T-TEN-29.
 - **AC:** AC-TEN-15, 16, 34 (matriz). RN-TEN-09, Q-218, Q-221. **Zona roja:** sí.
 - **Archivos:** `apps/common/authz/{actions,checks}.py`, `apps/tenancy/domain/permissions.py`,
   `backend/tests/tenancy/domain/test_permission_matrix_active.py`, `test_permission_matrix_suspended.py`.
+  `backend/tests/tenancy/domain/__init__.py` (vacío): el paquete de tests nuevo, como `tests/identity/domain/`.
 - **División (`C-14`):** la tabla literal se parte en dos archivos, `active` y `suspended`.
 - **Cambios:** `design.md §3.8`; `SUSPENDED_ALLOWED_KINDS` en un solo lugar.
 - **Pruebas:** `test_AC_TEN_15_matrix_admin_owner_actions`, `test_AC_TEN_16_matrix_operator_viewer`,
