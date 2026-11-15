@@ -81,7 +81,7 @@ El diseño se escribió antes de que existiera el código de SPEC-00. Donde difi
 | T-IDA-16 | Logout | AC-IDA-17 (backend), AC-IDA-35 | Servicio/API | `services/logout.py`, `api/views_bff.py` | T-IDA-14 | backend-dev | M | Sí | 🟡 | rama `task/T-IDA-16-logout`, PR #97 |
 | T-IDA-17 | Sesiones propias: listar y revocar | AC-IDA-25, AC-IDA-26, AC-IDA-33 (API) | Servicio/API | `services/sessions.py`, `api/views_sessions.py`, `domain/client_hint.py` | T-IDA-06, T-IDA-13 | backend-dev | L | Sí | 🟡 | rama `task/T-IDA-17-own-sessions`, PR #98 |
 | T-IDA-18 | Comandos de desactivar y reactivar usuario | AC-IDA-27, AC-IDA-32 (parte 01) | Comandos | `services/user_status.py`, `management/commands/*` | T-IDA-17 | backend-dev | M | Sí | 🟡 | rama `task/T-IDA-18-user-status`, sin PR |
-| T-IDA-19 | Purga periódica | AC-IDA-38 | Asíncrono | `tasks.py`, `beat.py`, `services/purge.py` | T-IDA-10, T-IDA-14 | backend-dev | M | Sí | ☐ | |
+| T-IDA-19 | Purga periódica | AC-IDA-38 | Asíncrono | `tasks.py`, `beat.py`, `services/purge.py` | T-IDA-10, T-IDA-14 | backend-dev | M | Sí | 🟡 | rama `task/T-IDA-19-purge`, sin PR |
 | T-IDA-20 | Chequeos de arranque y proveedor OIDC falso | — (RN-IDA-01, RN-IDA-16, RNF-IDA-06) | Config | `checks.py`, `apps.py`, `dev_oidc/*`, `oidc/provider.py` | T-IDA-08 | backend-dev | L | Sí | 🟡 | rama `task/T-IDA-20-startup-checks`, sin PR |
 | T-IDA-21 | Redacción de logs, métricas y catálogo completo | AC-IDA-23, AC-IDA-24 | Observabilidad | `apps/common/domain/redaction.py`, tests de identity | T-IDA-13, T-IDA-15, T-IDA-16, T-IDA-17, T-IDA-18 | backend-dev | M | Sí | ☐ | |
 | T-IDA-22 | BFF: cookies, IP, retorno y cliente a Django | AC-IDA-18, AC-IDA-19, AC-IDA-37 (BFF) | BFF | `src/lib/server/{cookies,client-ip,return-path,django,problem}.ts`, `.github/zona-roja-paths.txt` | T-IDA-10 | frontend-dev | L | Sí | 🟡 | rama `task/T-IDA-22-bff-lib`, sin PR |
@@ -578,6 +578,17 @@ módulos se aprueba en la misma pasada, después de `T-TEN-36`.
 - **Cambios:** `design.md §3.3`: materializa `expired`, borra intentos vencidos y sesiones terminales de más de 90 días en
   lotes de 1000; gauge `auth.sessions_active`.
 - **Pruebas:** `test_AC_IDA_38_91_days_purged_89_kept`, `test_AC_IDA_38_user_is_never_deleted`, `test_purge_is_idempotent`.
+- **Sumados al implementar:** `backend/tests/architecture/allowlists.py` (C-01: `purge.py` usa los managers de
+  `AuthSession`, `RefreshToken` y `LoginAttempt`, entidades globales que se filtran por plazo, como T-IDA-10/14/16).
+- **Notas de implementación:**
+  - **Candados:** los pasos 1, 2 y el borrado de sesiones bloquean con `SKIP LOCKED` (no esperan a un refresh, logout o
+    login en curso; la fila queda para la corrida siguiente). Los refresh tokens se borran antes que su sesión, en orden
+    de id ascendente, y ahí la purga sí espera: bloquea solo tokens (orden token → sesión, el de `refresh.py`) y así no
+    deja un token que apunte a uno borrado. Pruebas: `test_purge_concurrency.py`.
+  - **Cota por corrida:** como mucho 100 lotes por paso (100 000 filas); lo que sobra lo toma la hora siguiente. La
+    entrada de beat vence a los 55 min, para que un worker caído no acumule corridas.
+  - **Logs:** `auth.purge_completed` con los conteos y `auth.sessions_active` con `value`; las claves evitan
+    "session" y "token", que la redacción tapa (C-06).
 
 ### T-IDA-20 — Chequeos de arranque y proveedor OIDC falso
 - **AC:** — (RN-IDA-01, RN-IDA-16, RNF-IDA-06, Q-122). **Zona roja:** sí.

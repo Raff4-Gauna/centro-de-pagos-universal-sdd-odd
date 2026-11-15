@@ -33,6 +33,8 @@ _LOGOUT = "apps/identity/services/logout.py"
 _BY_HASH_OR_PK = (
     "entidad global, spec §9 (SPEC-01): sin organization_id, se filtra por hash + sid o por PK"
 )
+_PURGE = "apps/identity/services/purge.py"
+_BY_DEADLINE = "entidad global, spec §9 (SPEC-01): sin organization_id, la purga filtra por plazo"
 ALLOWED_TENANT_MANAGERS: tuple[AllowEntry, ...] = (
     AllowEntry(_SESSION_LIFECYCLE, "AuthSession.objects", _GLOBAL_ENTITY),
     AllowEntry(_SESSION_LIFECYCLE, "RefreshToken.objects", _GLOBAL_ENTITY),
@@ -41,6 +43,9 @@ ALLOWED_TENANT_MANAGERS: tuple[AllowEntry, ...] = (
     AllowEntry(_LOGOUT, "AuthSession.objects", _BY_HASH_OR_PK),
     AllowEntry(_LOGOUT, "RefreshToken.objects", _BY_HASH_OR_PK),
     AllowEntry("apps/identity/services/login_start.py", "LoginAttempt.objects", _GLOBAL_ENTITY),
+    AllowEntry(_PURGE, "AuthSession.objects", _BY_DEADLINE),
+    AllowEntry(_PURGE, "RefreshToken.objects", _BY_DEADLINE),
+    AllowEntry(_PURGE, "LoginAttempt.objects", _BY_DEADLINE),
 )
 
 # C-02: ``FloatField`` in models and ``float`` in domain/services/selectors/api (money_rules.py).

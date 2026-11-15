@@ -25,6 +25,8 @@ from typing import Any
 from celery import Celery
 from celery.signals import setup_logging
 
+from apps.identity import beat as identity_beat
+
 # Like wsgi.py: without an explicit module, the strictest settings (fail closed).
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings.prod")
 
@@ -56,6 +58,8 @@ class CelerySettings(Mapping[str, Any]):
 app = Celery("config")
 app.config_from_object(CelerySettings(), namespace="CELERY")
 app.autodiscover_tasks()
+# Each app's beat entries (design.md §3.3 of SPEC-01); its ``beat.py`` imports only Celery.
+app.conf.beat_schedule = {**identity_beat.SCHEDULE}
 
 
 @setup_logging.connect(weak=False, dispatch_uid="config.celery.setup_logging")
