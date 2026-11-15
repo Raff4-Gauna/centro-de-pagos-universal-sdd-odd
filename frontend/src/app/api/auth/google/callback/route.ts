@@ -61,22 +61,27 @@ function isToken(value: unknown): value is string {
   return typeof value === "string" && value !== "";
 }
 
-async function sessionOf(response: Response): Promise<LoginSession | null> {
+type LoginReply = Partial<Record<keyof LoginSession, unknown>>;
+
+async function replyOf(response: Response): Promise<LoginReply | null> {
   try {
     const body: unknown = await response.json();
-    if (typeof body !== "object" || body === null) {
-      return null;
-    }
-    const session = body as Partial<Record<keyof LoginSession, unknown>>;
-    const valid =
-      isToken(session.access_token) &&
-      isToken(session.refresh_token) &&
-      isSeconds(session.access_expires_in) &&
-      isSeconds(session.session_expires_in);
-    return valid ? (body as LoginSession) : null;
+    return typeof body === "object" && body !== null ? (body as LoginReply) : null;
   } catch {
     return null;
   }
+}
+
+function sessionOf(reply: LoginReply | null): LoginSession | null {
+  if (reply === null) {
+    return null;
+  }
+  const valid =
+    isToken(reply.access_token) &&
+    isToken(reply.refresh_token) &&
+    isSeconds(reply.access_expires_in) &&
+    isSeconds(reply.session_expires_in);
+  return valid ? (reply as LoginSession) : null;
 }
 
 function sessionCookies(session: LoginSession): BffCookie[] | null {
@@ -93,8 +98,21 @@ function sessionCookies(session: LoginSession): BffCookie[] | null {
   }
 }
 
+// Ends a session best effort (ADR-0004 §13): whatever Django answers, or if it does not, the
+// login goes on. No browser signal: the logout must not be cut short if the person leaves.
+async function supersede(refreshToken: string, accessToken: string | null, requestId: string) {
+  const outcome = await callDjangoBff({
+    path: "/api/auth/bff/logout/",
+    body: { refresh_token: refreshToken, access_token: accessToken, reason: "superseded" },
+    requestId,
+  });
+  if (outcome.kind === "response") {
+    await outcome.response.body?.cancel();
+  }
+}
+
 // The session this browser had before ends, so a login over another one leaves no orphan behind
-// (design.md §6.3). Best effort: whatever happens, the new session stands.
+// (design.md §6.3). An absent or repeated `__Host-cpu_rt` names none.
 async function endPreviousSession(request: Request, session: LoginSession, requestId: string) {
   const previousRefresh = readCookie(request, COOKIE_NAMES.refresh);
   if (previousRefresh === null || previousRefresh === "") {
@@ -104,18 +122,7 @@ async function endPreviousSession(request: Request, session: LoginSession, reque
     return;
   }
   const previousAccess = readCookie(request, COOKIE_NAMES.access);
-  const outcome = await callDjangoBff({
-    path: "/api/auth/bff/logout/",
-    body: {
-      refresh_token: previousRefresh,
-      access_token: previousAccess === "" ? null : previousAccess,
-      reason: "superseded",
-    },
-    requestId,
-  });
-  if (outcome.kind === "response") {
-    await outcome.response.body?.cancel();
-  }
+  await supersede(previousRefresh, previousAccess === "" ? null : previousAccess, requestId);
 }
 
 export async function GET(request: Request): Promise<Response> {
@@ -167,9 +174,15 @@ export async function GET(request: Request): Promise<Response> {
     // An over-long `state` or `code` in the URL: what Google sent is not valid.
     return fail(code === "validation_error" ? "google_auth_failed" : loginErrorCode(code));
   }
-  const session = await sessionOf(response);
+  const reply = await replyOf(response);
+  const session = sessionOf(reply);
   const cookies = session === null ? null : sessionCookies(session);
   if (session === null || cookies === null) {
+    // Django opened a session this browser cannot hold: if its refresh token is readable, the
+    // same logout ends it (ADR-0004 §13); if not, it expires by inactivity.
+    if (reply !== null && isToken(reply.refresh_token)) {
+      await supersede(reply.refresh_token, null, requestId);
+    }
     return fail("internal_error");
   }
 

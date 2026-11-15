@@ -182,6 +182,19 @@ describe("GET /api/auth/google/callback (RF-IDA-02, design.md §6.3)", () => {
   });
 
   it.each([
+    ["the same as the new one", `__Host-cpu_rt=${REFRESH}`],
+    ["repeated", "__Host-cpu_rt=rt1.old; __Host-cpu_rt=rt1.other"],
+    ["empty", "__Host-cpu_rt="],
+  ])("test_RF_IDA_02_previous_refresh_%s_is_not_logged_out", async (_name, previous) => {
+    const calls = mockDjango();
+
+    const response = await callback(undefined, `__Host-cpu_login=${BINDING}; ${previous}`);
+
+    expect(calls.map((call) => call.path)).toEqual(["/api/auth/bff/login/complete/"]);
+    expect(response.headers.get("location")).toBe(`${APP}/cobros`);
+  });
+
+  it.each([
     [400, "login_cancelled", "login_cancelled"],
     [400, "google_auth_failed", "google_auth_failed"],
     [400, "validation_error", "google_auth_failed"],
@@ -248,12 +261,33 @@ describe("GET /api/auth/google/callback (RF-IDA-02, design.md §6.3)", () => {
   });
 
   it.each([
-    ["not json", () => new Response("<html>", { status: 200 })],
-    ["no refresh token", () => Response.json({ ...SESSION, refresh_token: "" })],
-    ["negative lifetime", () => Response.json({ ...SESSION, access_expires_in: -1 })],
-    ["token with a separator", () => Response.json({ ...SESSION, access_token: "a;b" })],
-  ])("test_AC_IDA_18_unusable_session_sets_no_session_cookie_%s", async (_name, reply) => {
-    mockDjango(reply);
+    ["not json", () => new Response("<html>", { status: 200 }), false],
+    ["no refresh token", () => Response.json({ ...SESSION, refresh_token: "" }), false],
+    ["negative lifetime", () => Response.json({ ...SESSION, access_expires_in: -1 }), true],
+    ["token with a separator", () => Response.json({ ...SESSION, access_token: "a;b" }), true],
+  ])("test_AC_IDA_18_unusable_session_sets_no_session_cookie_%s", async (_name, reply, ends) => {
+    const calls = mockDjango(reply);
+
+    const response = await callback();
+
+    expect(response.headers.get("location")).toBe(`${APP}/login?error=internal_error`);
+    expect(setCookies(response)).toEqual({ "__Host-cpu_login": CLEARED_LOGIN });
+    // ADR-0004 §13: a session the browser cannot hold is ended with its own refresh token.
+    const logouts = calls.filter((call) => call.path === "/api/auth/bff/logout/");
+    expect(logouts.map((call) => call.body)).toEqual(
+      ends ? [{ refresh_token: REFRESH, access_token: null, reason: "superseded" }] : [],
+    );
+  });
+
+  it("test_RF_IDA_02_failed_orphan_logout_still_goes_to_internal_error", async () => {
+    let first = true;
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () => {
+      if (first) {
+        first = false;
+        return Response.json({ ...SESSION, access_expires_in: -1 });
+      }
+      throw new TypeError("fetch failed");
+    });
 
     const response = await callback();
 
