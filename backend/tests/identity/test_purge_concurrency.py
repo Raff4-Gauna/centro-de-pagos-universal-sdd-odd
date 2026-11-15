@@ -9,6 +9,7 @@ each with its own connection and transaction, as in ``test_revocation_concurrenc
 from __future__ import annotations
 
 import json
+import threading
 from collections.abc import Iterator
 from datetime import timedelta
 from typing import Any
@@ -23,6 +24,7 @@ from pytest_django.fixtures import Settings as SettingsWrapper
 from apps.identity.models import AuthSession, RefreshToken, RevokeReason, SessionStatus, User
 from apps.identity.services import logout as logout_service
 from apps.identity.services import purge as purge_service
+from apps.identity.services import refresh as refresh_service
 from apps.identity.services.logout import logout
 from apps.identity.services.purge import purge_auth_data
 from apps.identity.services.session_lifecycle import OpenedSession, open_session, revoke
@@ -73,6 +75,47 @@ def test_AC_IDA_38_refresh_of_a_purged_session_waits_and_finds_nothing(
 
     assert purge.result.deleted_sessions == 1
     assert (tab.result.status_code, tab.result.json()["code"]) == (401, "token_invalid")
+    assert not AuthSession.objects.filter(pk=opened.session.pk).exists()
+    assert not RefreshToken.objects.filter(session_id=opened.session.pk).exists()
+
+
+class SessionLockGate:
+    """Stops a refresh between its two locks: the token is held, the session not yet.
+
+    ``services/refresh.py`` reaches ``AuthSession.objects`` only to lock the session, right after
+    locking the token; standing in for the model there holds the refresh at that point, for the
+    thread ``race`` names first. Same attributes as ``Hold``.
+    """
+
+    def __init__(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        self.reached = threading.Event()
+        self.go_on = threading.Event()
+        self.first: Worker | None = None
+        monkeypatch.setattr(refresh_service, "AuthSession", self)
+
+    @property
+    def objects(self) -> Any:
+        if threading.current_thread() is self.first and not self.reached.is_set():
+            self.reached.set()
+            assert self.go_on.wait(PATIENCE)
+        return AuthSession.objects
+
+
+def test_AC_IDA_38_purge_waits_for_a_refresh_holding_a_token(
+    monkeypatch: pytest.MonkeyPatch, ana: User
+) -> None:
+    """The refresh has the token and then takes the session; the purge waits on the token."""
+    opened = ended_long_ago(ana)
+    gate = SessionLockGate(monkeypatch)
+    tab, purge = (
+        Worker(lambda: refresh(opened.refresh_token)),
+        Worker(lambda: purge_auth_data(now=timezone.now())),
+    )
+
+    race(gate, tab, purge)  # type: ignore[arg-type]  # a Hold in all but its patch
+
+    assert (tab.result.status_code, tab.result.json()["code"]) == (401, "session_revoked")
+    assert (purge.result.deleted_refresh_tokens, purge.result.deleted_sessions) == (1, 1)
     assert not AuthSession.objects.filter(pk=opened.session.pk).exists()
     assert not RefreshToken.objects.filter(session_id=opened.session.pk).exists()
 

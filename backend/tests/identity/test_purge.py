@@ -114,6 +114,8 @@ def test_AC_IDA_38_exactly_90_days_is_kept(ana: User) -> None:
     purge_auth_data(now=NOW)
 
     assert exists(on_the_edge)
+    # The token step uses the same strict cutoff: at exactly 90 days the chain stays whole.
+    assert token_count(on_the_edge) == 3
 
 
 def test_AC_IDA_38_user_is_never_deleted(ana: User) -> None:
