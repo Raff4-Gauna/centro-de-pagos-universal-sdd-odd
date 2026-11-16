@@ -48,6 +48,7 @@ from apps.identity.services.session_lifecycle import revoke
 
 REVOKED_EVENT = "auth.session_revoked"
 REVOKED_OTHERS_EVENT = "auth.other_sessions_revoked"
+REVOKED = "revoked"
 
 logger = get_logger(__name__)
 
@@ -65,6 +66,7 @@ def revoke_own_session(*, user_id: UUID, session_id: UUID, now: datetime) -> Non
     if moved:
         logger.info(
             REVOKED_EVENT,
+            outcome=REVOKED,
             reason=SessionRevocationReason.USER_REVOKED.value,
             sid=str(session_id),
             user_id=str(user_id),
@@ -82,6 +84,7 @@ def revoke_other_sessions(*, user_id: UUID, current_session_id: UUID, now: datet
         )
     logger.info(
         REVOKED_OTHERS_EVENT,
+        outcome=REVOKED,
         reason=SessionRevocationReason.REVOKED_OTHERS.value,
         revoked=revoked,
         sid=str(current_session_id),

@@ -310,11 +310,11 @@ class LogoutView(BffAPIView):
         if not body.is_valid() and isinstance(data, Mapping) and set(body.errors) == {"reason"}:
             # Planner's decision (2026-11-13): the person asked to leave, so a bad reason still
             # logs out; a session left alive is the less safe failure. Logged without the body.
-            logger.warning(LOGOUT_EVENT, result="invalid_reason")
+            logger.warning(LOGOUT_EVENT, outcome="invalid_reason")
             body = LogoutRequestSerializer(data={k: v for k, v in data.items() if k != "reason"})
         if not body.is_valid():
             # No token to take from it (not an object, a token that is no text): nothing ends.
-            logger.warning(LOGOUT_EVENT, result="invalid_body")
+            logger.warning(LOGOUT_EVENT, outcome="invalid_body")
             return Response(status=status.HTTP_204_NO_CONTENT)
         logout(
             refresh_token=body.validated_data.get("refresh_token"),

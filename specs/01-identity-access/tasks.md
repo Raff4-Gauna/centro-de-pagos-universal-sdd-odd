@@ -84,7 +84,7 @@ El diseño se escribió antes de que existiera el código de SPEC-00. Donde difi
 | T-IDA-18 | Comandos de desactivar y reactivar usuario | AC-IDA-27, AC-IDA-32 (parte 01) | Comandos | `services/user_status.py`, `management/commands/*` | T-IDA-17 | backend-dev | M | Sí | 🟡 | rama `task/T-IDA-18-user-status`, sin PR |
 | T-IDA-19 | Purga periódica | AC-IDA-38 | Asíncrono | `tasks.py`, `beat.py`, `services/purge.py` | T-IDA-10, T-IDA-14 | backend-dev | M | Sí | 🟡 | PR #107 |
 | T-IDA-20 | Chequeos de arranque y proveedor OIDC falso | — (RN-IDA-01, RN-IDA-16, RNF-IDA-06) | Config | `checks.py`, `apps.py`, `dev_oidc/*`, `oidc/provider.py` | T-IDA-08 | backend-dev | L | Sí | 🟡 | rama `task/T-IDA-20-startup-checks`, sin PR |
-| T-IDA-21 | Redacción de logs, métricas y catálogo completo | AC-IDA-23, AC-IDA-24 | Observabilidad | `apps/common/domain/redaction.py`, tests de identity | T-IDA-13, T-IDA-15, T-IDA-16, T-IDA-17, T-IDA-18 | backend-dev | M | Sí | ☐ | |
+| T-IDA-21 | Redacción de logs, métricas y catálogo completo | AC-IDA-23, AC-IDA-24 | Observabilidad | `apps/common/domain/redaction.py`, tests de identity | T-IDA-13, T-IDA-15, T-IDA-16, T-IDA-17, T-IDA-18 | backend-dev | M | Sí | 🟡 | rama `task/T-IDA-21-redaction`, sin PR |
 | T-IDA-22 | BFF: cookies, IP, retorno y cliente a Django | AC-IDA-18, AC-IDA-19, AC-IDA-37 (BFF) | BFF | `src/lib/server/{cookies,client-ip,return-path,django,problem}.ts`, `.github/zona-roja-paths.txt` | T-IDA-10 | frontend-dev | L | Sí | 🟡 | rama `task/T-IDA-22-bff-lib`, sin PR |
 | T-IDA-23 | BFF: CSRF y refresh con coalescencia | AC-IDA-19 (CSRF), AC-IDA-28 (BFF) | BFF | `src/lib/server/{csrf,refresh}.ts` | T-IDA-14, T-IDA-22 | frontend-dev | M | Sí | 🟡 | rama `task/T-IDA-23-bff-routes`, PR #99 |
 | T-IDA-24 | Route Handlers de inicio y callback | AC-IDA-01 (cookies), AC-IDA-18, AC-IDA-19 | BFF | `app/api/auth/google/{start,callback}/route.ts` | T-IDA-13, T-IDA-22 | frontend-dev | M | Sí | 🟡 | rama `task/T-IDA-24-login-routes`, PR #103 |
@@ -635,6 +635,35 @@ módulos se aprueba en la misma pasada, después de `T-TEN-36`.
 - **Pruebas:** `test_AC_IDA_23_no_secret_in_logs_or_errors` (login, refresh, logout, rechazo),
   `test_AC_IDA_24_every_event_is_emitted`, `test_AC_IDA_24_429_is_not_audited`.
 - **Aviso de `T-IDA-05`:** el logger `audit` hereda el nivel del root, así que con `LOG_LEVEL=WARNING` se pierden los eventos `info`: darle nivel propio en `apps/common/logging/setup.py` (sumarlo a los archivos). Una clave de `metadata` con `session` o `token` sale `[REDACTED]` en ese canal.
+- **Sumados al implementar:** los servicios que emitían con otro nombre o sin `outcome` (`login_start`, `refresh`,
+  `logout`, `sessions`, `user_status`); `api/views_bff.py` (sus dos avisos de `logout` usan `auth.logout` y pasan de
+  `result` a `outcome`); y los tests de identity que fijaban los nombres viejos (`test_logout.py`, `test_refresh.py`,
+  `api/test_logout_view.py`, `test_AC_IDA_27_deactivate.py`). Los de AC-IDA-23 y 24 que pasan por las rutas del BFF
+  van en `tests/identity/api/`, donde está el fixture `flow`; el de las claves, en `tests/identity/`.
+- **Notas de implementación:**
+  - **Redacción (`§7.5`):** `code` y `state` como clave exacta (así `status_code`, `error_code` o `state_changed`
+    quedan), y `nonce`, `verifier` y `binding` como parte del nombre. En texto, `code=` y `state=` (forma de query o de
+    formulario) pierden el valor; `code: 1` o el `"code"` de un problem quedan. Un evento nombra un código del catálogo
+    como `reason`, nunca `code`. Las demás claves del diseño ya las cubrían `token`, `secret`, `credential` y las exactas.
+  - **Eventos operativos:** todos `auth.*` con `outcome` y, si es un rechazo, `reason`: `auth.login_started`,
+    `auth.login_*`, `auth.refresh_succeeded` (`decision`), `auth.refresh_rejected`, `auth.refresh_reuse_detected`
+    (`alert=true`, como `auth.identity_conflict`), `auth.logout`, `auth.session_revoked`, `auth.other_sessions_revoked`,
+    `auth.user_deactivated`/`auth.user_reactivated`. `auth.purge_completed` y `auth.sessions_active` (`T-IDA-19`) son
+    conteos y no llevan `outcome`. Los de detalle de `oidc/` (`identity.google.*`) quedan como estaban: el resumen por
+    callback es `auth.login_*`.
+  - **Métrica de `429` por endpoint (RNF-IDA-04):** sale del access log (`http.request` con `route` y `status=429`);
+    no se agrega un evento propio, porque `throttled` de DRF no dice qué throttle cortó.
+  - **Comando sobre un usuario inexistente (RN-IDA-23, nota de la revisión de `T-IDA-18`):** se audita. Mismo evento
+    (`user_deactivated`/`user_reactivated`) con `result=failure`, `outcome="not_found"`, el operador y `target`
+    (`email` o `user_id`, este con `requested_user_id`), escrito después del rollback; nunca el email tipeado, que
+    puede ser de otra persona (RNF-IDA-05). Sigue saliendo con código 1. Un argumento inválido (código 2) no se
+    audita: no hay operador válido que nombrar.
+  - **Callback sin `__Host-cpu_login` (nota de `T-IDA-24`):** no se audita, y queda así. Sin binding no hay intento que
+    consumir ni login que rechazar: cualquiera puede generar esos pedidos sin costo y antes del throttle de Django, así
+    que auditarlos dejaría llenar el canal de auditoría desde afuera. Lo que corresponde es un log operativo del BFF.
+  - **Logs del BFF (fuera de esta ficha, frontend):** `frontend/src/lib/server/log.ts` tiene fija la ruta
+    `/api/[...path]`, así que las rutas de login, callback y logout no dejan log operativo (`C-16`). Queda para una
+    tarea del BFF.
 
 ### T-IDA-22 — BFF: cookies, IP, retorno y cliente a Django
 - **AC:** AC-IDA-18, AC-IDA-19, AC-IDA-37 (BFF). RN-IDA-12, RN-IDA-13. **Zona roja:** sí.

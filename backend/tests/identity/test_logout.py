@@ -244,5 +244,5 @@ def test_logout_logs_ids_never_tokens(opened: OpenedSession, ports: Ports) -> No
     text = str(logs)
     for secret in (opened.refresh_token, access, opened.refresh_token.rsplit(".", 1)[1]):
         assert secret not in text
-    assert [entry["event"] for entry in logs] == ["identity.logout", "identity.logout"]
-    assert [entry["result"] for entry in logs] == ["revoked", "no_session"]
+    assert [entry["event"] for entry in logs] == ["auth.logout", "auth.logout"]
+    assert [entry["outcome"] for entry in logs] == ["revoked", "no_session"]

@@ -23,8 +23,8 @@ of design.md §4.5, all inside one transaction:
      (AC-IDA-15). The live token of the session dies with it: a revoked session refreshes nothing.
 
 A rejection is raised only after the transaction commits, so an ``expired`` or a revocation stays.
-Nothing logged carries the token or its hash (RNF-IDA-03): ids (``sid``, ``user_id``), the outcome
-and the code only.
+Nothing logged carries the token or its hash (RNF-IDA-03): ids (``sid``, ``user_id``), the
+``outcome`` and the ``reason`` only, on ``auth.refresh_*`` (RNF-IDA-04; the reuse with ``alert``).
 """
 
 from __future__ import annotations
@@ -61,9 +61,10 @@ from apps.identity.ports.registry import get_audit_port
 from apps.identity.services.session_lifecycle import expire, issue_refresh_token, revoke
 from apps.identity.tokens.access_token import issue_access_token
 
-REFRESHED_EVENT = "identity.refresh_succeeded"
-REJECTED_EVENT = "identity.refresh_rejected"
-REUSE_EVENT = "identity.refresh_reuse_detected"
+REFRESHED_EVENT = "auth.refresh_succeeded"
+REJECTED_EVENT = "auth.refresh_rejected"
+REUSE_EVENT = "auth.refresh_reuse_detected"
+REJECTED = "rejected"
 
 logger = get_logger(__name__)
 
@@ -87,16 +88,17 @@ def refresh_session(raw_token: str, *, now: datetime) -> RefreshedSession:
     try:
         session_id = parse_refresh_token(raw_token)
     except MalformedRefreshTokenError:
-        logger.info(REJECTED_EVENT, reason=IdentityErrorCode.TOKEN_INVALID.value)
+        logger.info(REJECTED_EVENT, outcome=REJECTED, reason=IdentityErrorCode.TOKEN_INVALID.value)
         raise
     with transaction.atomic():
         outcome = _refresh_locked(raw_token, session_id, now=now)
     if isinstance(outcome, IdentityErrorCode):
-        logger.info(REJECTED_EVENT, reason=outcome.value)
+        logger.info(REJECTED_EVENT, outcome=REJECTED, reason=outcome.value)
         raise RefreshRejectedError(outcome)
     logger.info(
         REFRESHED_EVENT,
-        result=outcome.decision.value,
+        outcome="succeeded",
+        decision=outcome.decision.value,
         sid=str(session_id),
         user_id=str(outcome.user_id),
     )
@@ -198,4 +200,5 @@ def _revoke_for_reuse(session: AuthSession, *, now: datetime) -> None:
             metadata=dict(ids),
         )
     )
-    logger.warning(REUSE_EVENT, alert=True, **ids)
+    reason = SessionRevocationReason.REFRESH_REUSE.value
+    logger.warning(REUSE_EVENT, outcome=REJECTED, reason=reason, alert=True, **ids)

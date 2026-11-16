@@ -151,9 +151,9 @@ def test_invalid_reason_still_logs_out(
     assert (session.status, session.revoke_reason) == (SessionStatus.REVOKED, RevokeReason.LOGOUT)
     assert [event.action for event in ports.audit.events] == [IdentityAuditAction.LOGOUT]
     [warning] = [entry for entry in logs if entry["log_level"] == "warning"]
-    assert (warning["event"], warning["result"]) == ("identity.logout", "invalid_reason")
+    assert (warning["event"], warning["outcome"]) == ("auth.logout", "invalid_reason")
     assert opened.refresh_token not in str(logs)
-    assert set(warning) == {"event", "result", "log_level"}  # nothing of the body
+    assert set(warning) == {"event", "outcome", "log_level"}  # nothing of the body
 
 
 def test_missing_reason_is_logout(client: Client, opened: OpenedSession, ports: Ports) -> None:

@@ -5,16 +5,20 @@
 - **Keys.** The value of a secret-like key becomes ``"[REDACTED]"``, whatever its type. Keys are
   compared without case, ``-`` nor ``_`` (``Set-Cookie``/``set_cookie``), and the WSGI form of a
   header (``HTTP_AUTHORIZATION``) is the header. Exact: ``authorization``, ``proxy-authorization``,
-  ``cookie``, ``set-cookie``, ``x-api-key``, ``auth`` and ``location`` (a redirect target or a
-  cache location, ``CACHES["default"]["LOCATION"]`` is the Redis URL; T-PLT-12 review).
-  Containing: ``token``, ``secret``, ``password``, ``passwd``, ``api_key``/``apikey``,
-  ``credential``, ``signature``, ``private_key``, ``session`` (``sessionid``) and ``jwt``.
+  ``cookie``, ``set-cookie``, ``x-api-key``, ``auth``, ``location`` (a redirect target or a
+  cache location, ``CACHES["default"]["LOCATION"]`` is the Redis URL; T-PLT-12 review), and the
+  OAuth ``code`` and ``state`` (SPEC-01 design.md §7.5): exact only, so ``status_code`` or a
+  ``state`` inside a longer name stay. Containing: ``token``, ``secret``, ``password``,
+  ``passwd``, ``api_key``/``apikey``, ``credential``, ``signature``, ``private_key``, ``session``
+  (``sessionid``), ``jwt``, ``nonce``, ``verifier`` (``code_verifier``) and ``binding``
+  (``login_binding``). An event names a catalog code ``reason``, never ``code``.
 - **Text** (every string, the message and a rendered traceback included): a URL loses its
   ``user:password@``, query string and fragment; a secret-like key followed by ``=`` or ``:``
   (with blanks and quotes around: ``password = x``, ``token: x``, ``{"access_token": "x"}``, a
   query string without a URL, a libpq DSN, a header line) loses its value, after an auth scheme if
-  there is one (``Authorization: Bearer x``); ``Bearer``/``Basic <credential>`` loses the
-  credential anywhere.
+  there is one (``Authorization: Bearer x``); ``code=`` and ``state=`` (a query string or a form
+  body, never ``code: 1``) lose theirs; ``Bearer``/``Basic <credential>`` loses the credential
+  anywhere.
   Best effort: a secret written into free text in any other shape is not recognised, which is why
   the rule stays "never log it" (RN-PLT-06) and this is the net under it.
 - **Linear time** (T-PLT-14 review B-1): records are rendered inside ``Handler.emit``, under the
@@ -50,7 +54,17 @@ MAX_TEXT = 8192  # characters of one string kept before redaction (B-1)
 
 # Compact form: lower case, no "-" nor "_".
 _EXACT_KEYS = frozenset(
-    {"authorization", "proxyauthorization", "cookie", "setcookie", "xapikey", "location", "auth"}
+    {
+        "authorization",
+        "proxyauthorization",
+        "cookie",
+        "setcookie",
+        "xapikey",
+        "location",
+        "auth",
+        "code",
+        "state",
+    }
 )
 _KEY_PARTS = (
     "token",
@@ -63,6 +77,9 @@ _KEY_PARTS = (
     "privatekey",
     "session",
     "jwt",
+    "nonce",
+    "verifier",
+    "binding",
 )
 _WSGI_HEADER_PREFIX = "http"
 
@@ -77,6 +94,7 @@ _URL = re.compile(r"(?<![A-Za-z0-9+.\-])[A-Za-z][A-Za-z0-9+.\-]{0,31}://[^\s\"'<
 # The value runs to a blank, a quote or a separator of query strings, DSNs, JSON and cookies.
 _PAIR_KEY_PARTS = (
     r"token|secret|password|passwd|api[_\-]?key|credential|signature|private[_\-]?key|session|jwt"
+    r"|nonce|verifier|binding"
 )
 _PAIR_WHOLE_KEYS = r"auth|(?:proxy[_\-]?)?authorization|(?:set[_\-]?)?cookie"
 _SECRET_PAIR = re.compile(
@@ -86,6 +104,9 @@ _SECRET_PAIR = re.compile(
     r"(?:(?:bearer|basic|token)\s{1,16})?"
     r")[^\s&;,\"'}\]]+"
 )
+# OAuth's code and state as a query string or a form body has them (design.md §7.5 of SPEC-01):
+# with "=" only, since "code: 1" or a problem's "code": "x" are no secret.
+_FORM_PAIR = re.compile(r"(?i)(?<![\w.\-])((?:code|state)=)[^\s&;,\"'}\]]+")
 # A credential after an HTTP auth scheme, anywhere in a text.
 _AUTH_SCHEME = re.compile(r"(?i)(?<!\w)((?:bearer|basic)\s{1,16})[A-Za-z0-9\-._~+/]+=*")
 _NON_FINITE = {math.inf: "Infinity", -math.inf: "-Infinity"}
@@ -137,6 +158,7 @@ def redact_text(text: str) -> str:
     text = _URL.sub(_redact_url, _cut(text))
     # Pairs before the bare scheme rule: a pair keeps "Bearer" in group 1 and redacts the rest.
     text = _SECRET_PAIR.sub(lambda match: match.group(1) + REDACTED, text)
+    text = _FORM_PAIR.sub(lambda match: match.group(1) + REDACTED, text)
     return _AUTH_SCHEME.sub(lambda match: match.group(1) + REDACTED, text)
 
 
