@@ -313,4 +313,4 @@ def test_contract_publishes_the_sessions_routes() -> None:
         "results",
     }
     assert {parameter["name"] for parameter in listing["parameters"]} == {"page", "page_size"}
-    assert contract["info"]["version"] == "0.8.0"
+    assert contract["info"]["version"] == "0.9.0"

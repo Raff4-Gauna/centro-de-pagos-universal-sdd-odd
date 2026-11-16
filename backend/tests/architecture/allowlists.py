@@ -58,9 +58,15 @@ FLOAT_ALLOWLIST: tuple[AllowEntry, ...] = ()
 # --- AC-TEN-10 (RN-TEN-02, design.md §3.4 and §9; tenant_rules.py) --------------------------------
 
 # Methods that scope a tenant queryset (``TenantQuerySet``). ``X.objects.<scope>(...)`` is the only
-# way into the manager of a tenant model, and C-01 lets it through in services. Scopes that a
-# model declares (``Membership.for_user``, ``Invitation.by_token_hash``...) are added with it.
+# way into the manager of a tenant model, and C-01 lets it through in services.
 TENANT_SCOPES: frozenset[str] = frozenset({"for_tenant", "unscoped"})
+
+# Scopes that one model declares on its own queryset (design.md §3.4): they open the manager of
+# that model only, by model label. ``Invitation.by_token_hash``/``pending_for_email`` join with
+# ``Invitation`` (T-TEN-14); ``for_session_accept`` is per file too (T-TEN-16).
+MODEL_SCOPES: dict[str, frozenset[str]] = {
+    "tenancy.Membership": frozenset({"for_user"}),
+}
 
 # ``unscoped(reason)`` outside the mechanism: the symbol is the whole call, so an entry pins the
 # model and the ``UnscopedReason``. design.md §3.3: ``selectors/resolution.py`` (T-TEN-08) and

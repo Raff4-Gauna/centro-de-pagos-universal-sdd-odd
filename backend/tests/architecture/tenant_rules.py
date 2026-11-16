@@ -12,7 +12,8 @@ them:
 - **Manager of a tenant model** (``tenant_query_violations``): ``X.<manager>`` with ``X`` a tenant
   model (or a name the module binds to one: ``import X as Y``, ``Y = X``) and ``<manager>`` one of
   its managers (both from the registry, ``tenant_model_rules.tenant_names``) must be opened by a
-  scope, ``X.objects.<scope>(...)`` (``allowlists.TENANT_SCOPES``). ``X.objects.filter``, a bare
+  scope, ``X.objects.<scope>(...)`` (``allowlists.TENANT_SCOPES``, or one of ``X``'s own scopes in
+  ``allowlists.MODEL_SCOPES``: ``Widget.objects.for_user`` fails). ``X.objects.filter``, a bare
   ``X.objects``, ``getattr(X, "objects")`` and ``attrgetter("objects")`` fail. So does an unscoped
   subquery: ``__in=X.objects.values("pk")``, ``Subquery``/``Exists``/``Prefetch`` of ``X.objects``.
 - **Django's persistence internals** (any receiver): ``_base_manager``, ``_default_manager``,
@@ -24,6 +25,8 @@ them:
   ``RawQuerySet(...)``, ``QuerySet(...)`` (a plain queryset of any model), and SQL templates:
   ``Func(template=...)``/``Aggregate(template=...)`` and a ``Func``/``Aggregate``/``Transform``
   subclass that sets ``template``.
+- ``_model_scope`` (the builder of a model's own scope, ``TenantQuerySet``) outside a ``models``
+  module: called on a scoped chain it would relabel the scope (``scope_builders``).
 - ``refresh_from_db`` after re-pointing the ``pk`` and ``TenantContext`` used as a value outside
   tenant resolution: ``tenant_instance_rules``.
 
@@ -59,7 +62,7 @@ from __future__ import annotations
 import ast
 from collections.abc import Iterable, Iterator, Sequence
 
-from tests.architecture.allowlists import TENANT_SCOPES, AllowEntry
+from tests.architecture.allowlists import MODEL_SCOPES, TENANT_SCOPES, AllowEntry
 from tests.architecture.ast_rules import (
     ATTRIBUTE_GETTERS,
     META_MANAGER_ATTRS,
@@ -108,6 +111,8 @@ INTERNAL_MSG = "Django persistence internal in business code: it skips the tenan
 RAW_SQL_MSG = "raw SQL or a plain queryset ignores the organization filter: use a scoped queryset"
 MANAGER_MSG = "manager of a tenant model without a scope: open it with X.objects.for_tenant(ctx)"
 UNSCOPED_MSG = "unscoped(reason) outside UNSCOPED_ALLOWLIST"
+SCOPE_BUILDER = "_model_scope"
+BUILDER_MSG = "_model_scope outside a models module: declare the scope on the model's queryset"
 
 
 def is_business(source: SourceFile) -> bool:
@@ -204,16 +209,30 @@ def raw_access(source: SourceFile, own: set[int]) -> Iterator[Violation]:
                 yield found(source, node, RULE, ast.unparse(func), RAW_SQL_MSG)
 
 
+def own_scopes(tree: ast.Module) -> dict[str, frozenset[str]]:
+    """The names the module binds to each model of ``MODEL_SCOPES``, with that model's scopes."""
+    scopes: dict[str, frozenset[str]] = {}
+    for label, names in MODEL_SCOPES.items():
+        for alias in aliases(tree, frozenset({label.rsplit(".", 1)[1]})):
+            scopes[alias] = scopes.get(alias, frozenset()) | names
+    return scopes
+
+
 def opened_managers(tree: ast.Module, managers: frozenset[str]) -> set[int]:
-    """ids of the ``X.<manager>`` that a scope call opens: ``X.objects.for_tenant(ctx)``."""
+    """ids of the ``X.<manager>`` that a scope call opens: ``X.objects.for_tenant(ctx)``, or
+    ``X.objects.<own scope>(...)`` when ``X`` is the model that declares it."""
+    declared = own_scopes(tree)
     return {
         id(node.func.value)
         for node in ast.walk(tree)
         if isinstance(node, ast.Call)
         and isinstance(node.func, ast.Attribute)
-        and node.func.attr in TENANT_SCOPES
         and isinstance(node.func.value, ast.Attribute)
         and node.func.value.attr in managers
+        and (
+            node.func.attr in TENANT_SCOPES
+            or node.func.attr in declared.get(terminal_name(node.func.value.value) or "", ())
+        )
     }
 
 
@@ -241,6 +260,16 @@ def tenant_managers(
                 yield found(source, node, RULE, ast.unparse(node), MANAGER_MSG)
 
 
+def scope_builders(source: SourceFile) -> Iterator[Violation]:
+    if "models" in source.module.split("."):
+        return
+    for node in ast.walk(source.tree):
+        if (isinstance(node, ast.Attribute) and node.attr == SCOPE_BUILDER) or (
+            isinstance(node, ast.Call) and SCOPE_BUILDER in literal_names(node)
+        ):
+            yield found(source, node, RULE, ast.unparse(node), BUILDER_MSG)
+
+
 def tenant_query_violations(
     trees: Iterable[SourceTree],
     tenant_models: frozenset[str],
@@ -255,6 +284,7 @@ def tenant_query_violations(
         violations.update(tenant_managers(source, tenant_models, managers))
         violations.update(stale_refreshes(source, tenant_models))
         violations.update(context_builds(source))
+        violations.update(scope_builders(source))
     return apply_allowlist(sorted(violations), allowlist, RULE)
 
 

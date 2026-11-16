@@ -36,7 +36,7 @@ TENANT_MODEL = "tenancy.Organization"
 # Ports of apps.identity (design.md §6.4), resolved by ports/registry.py: identity never imports
 # tenancy nor audit. Fixed dotted paths, not environment variables; SPEC-02 and SPEC-10 change them.
 IDENTITY_INVITATION_PORT = "apps.identity.ports.stubs.NullInvitationPort"
-IDENTITY_MEMBERSHIP_SELECTOR = "apps.identity.ports.stubs.EmptyMembershipSelector"
+IDENTITY_MEMBERSHIP_SELECTOR = "apps.tenancy.services.membership_selector.TenancyMembershipSelector"
 IDENTITY_AUDIT_PORT = "apps.identity.ports.stubs.LogAuditPort"
 
 # Sink of apps.common.audit (SPEC-02 design.md §3.1): a stub until SPEC-10 brings the transactional

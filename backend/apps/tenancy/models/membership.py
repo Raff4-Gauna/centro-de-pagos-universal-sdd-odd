@@ -16,6 +16,10 @@ A ``TenantModel``: its manager fails closed and ``save()`` writes only in the ac
 "my organizations" with it (``INCLUDE (role)``, RNF-TEN-07). Every FK is ``PROTECT`` without
 reverse accessor: a membership is never deleted (``NoHardDeleteMixin``), nor is the user it names.
 ``source_invitation`` arrives with ``Invitation`` (T-TEN-14).
+
+``Membership.objects.for_user(user_id)`` is the scope of "my organizations" (design.md §3.4): every
+membership of one user, across organizations, read only (``scopes.ModelScope``). It is the only
+scope besides ``for_tenant``/``unscoped`` that opens this manager (``allowlists.MODEL_SCOPES``).
 """
 
 from __future__ import annotations
@@ -30,6 +34,7 @@ from django.db.models import Q
 
 from apps.common.authz.roles import Role
 from apps.common.tenancy.models import NoHardDeleteMixin, TenantModel
+from apps.common.tenancy.querysets import TenantQuerySet
 
 
 class MembershipStatus(StrEnum):
@@ -46,6 +51,16 @@ class EndedReason(StrEnum):
 
 def _values(enum: type[StrEnum]) -> list[str]:
     return [member.value for member in enum]
+
+
+class MembershipQuerySet(TenantQuerySet["Membership"]):
+    def for_user(self, user_id: uuid.UUID) -> MembershipQuerySet:
+        if not isinstance(user_id, uuid.UUID):
+            raise TypeError("for_user needs the UUID of a user")
+        return self._model_scope("for_user", user_id, user_id=user_id)
+
+
+MembershipManager = models.Manager.from_queryset(MembershipQuerySet)
 
 
 class Membership(NoHardDeleteMixin, TenantModel):
@@ -72,6 +87,8 @@ class Membership(NoHardDeleteMixin, TenantModel):
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    objects: ClassVar[MembershipManager] = MembershipManager()
 
     class Meta:
         constraints: ClassVar[list[models.BaseConstraint]] = [

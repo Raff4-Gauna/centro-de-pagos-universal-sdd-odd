@@ -20,4 +20,6 @@ urlpatterns: list[URLPattern | URLResolver] = [
     path("readyz", health_views.readyz, name="readyz"),
     # SPEC-01: /api/me/ (T-IDA-07); the sessions and auth/bff/* routes join it in the same urlconf.
     path("api/", include("apps.identity.api.urls")),
+    # SPEC-02: /api/organizations/ (T-TEN-12); the tenant-scoped routes join it.
+    path("api/", include("apps.tenancy.api.urls")),
 ]

@@ -152,6 +152,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/organizations/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Las organizaciones de la persona autenticada y su rol en cada una */
+        get: operations["organizations_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -205,6 +222,34 @@ export interface components {
             readonly organization_name: string;
             readonly role: string;
         };
+        MyOrganization: {
+            /** Format: uuid */
+            readonly id: string;
+            readonly name: string;
+            readonly status: components["schemas"]["OrganizationStatusEnum"];
+            readonly role: components["schemas"]["RoleEnum"];
+        };
+        /**
+         * @description * `active` - active
+         *     * `suspended` - suspended
+         * @enum {string}
+         */
+        OrganizationStatusEnum: "active" | "suspended";
+        PaginatedMyOrganizationList: {
+            /** @example 123 */
+            count: number;
+            /**
+             * @description Ruta relativa con la query de la página, o null.
+             * @example /api/recurso/?page=4
+             */
+            next?: string | null;
+            /**
+             * @description Ruta relativa con la query de la página, o null.
+             * @example /api/recurso/?page=2
+             */
+            previous?: string | null;
+            results: components["schemas"]["MyOrganization"][];
+        };
         PaginatedSessionList: {
             /** @example 123 */
             count: number;
@@ -256,6 +301,14 @@ export interface components {
             readonly refresh_token: string | null;
             readonly session_expires_in: number;
         };
+        /**
+         * @description * `owner` - owner
+         *     * `admin` - admin
+         *     * `operator` - operator
+         *     * `viewer` - viewer
+         * @enum {string}
+         */
+        RoleEnum: "owner" | "admin" | "operator" | "viewer";
         Session: {
             /** Format: uuid */
             readonly id: string;
@@ -690,6 +743,57 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Me"];
+                };
+            };
+            /** @description code: unauthenticated · token_expired · token_invalid · session_revoked (con WWW-Authenticate: Bearer realm="hub") */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Error del cliente */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Error del servidor */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    organizations_list: {
+        parameters: {
+            query?: {
+                /** @description Un número de página dentro del conjunto de resultados paginado. */
+                page?: number;
+                /** @description Número de resultados a devolver por página. */
+                page_size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedMyOrganizationList"];
                 };
             };
             /** @description code: unauthenticated · token_expired · token_invalid · session_revoked (con WWW-Authenticate: Bearer realm="hub") */
