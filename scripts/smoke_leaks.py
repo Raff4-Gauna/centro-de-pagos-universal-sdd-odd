@@ -17,7 +17,9 @@ import re
 BACKEND_HOST = "backend"  # BACKEND_INTERNAL_URL in infra/docker-compose.yml
 BACKEND_PORT = "8000"
 BUNDLE_SENTINEL_HOST = "bundle-sentinel-backend-internal-url.invalid"  # frontend/Dockerfile
-SERVER_ONLY_VARIABLES = ("BACKEND_INTERNAL_URL",)  # frontend/scripts/check-client-bundle.ts
+CREDENTIAL_SENTINEL = "bundle-sentinel-hub-bff-credential"  # frontend/Dockerfile
+# frontend/scripts/check-client-bundle.ts
+SERVER_ONLY_VARIABLES = ("BACKEND_INTERNAL_URL", "HUB_BFF_CREDENTIAL")
 ENV_REFERENCE = re.compile(
     r"""\benv(?:\.([A-Z][A-Z0-9_]*)\b|\[\s*["'`]([A-Z][A-Z0-9_]*)["'`]\s*\])"""
 )
@@ -30,6 +32,7 @@ LEAKS = (
         "the internal backend URL",
     ),
     (re.compile(re.escape(BUNDLE_SENTINEL_HOST), re.I), "the build sentinel"),
+    (re.compile(re.escape(CREDENTIAL_SENTINEL), re.I), "the build sentinel of the BFF credential"),
     *((re.compile(name), f"the name {name}") for name in SERVER_ONLY_VARIABLES),
 )
 STATIC_ASSET = re.compile(r"""/_next/static/[^"'\s\\<>?,;]+\.(?:js|css)""")

@@ -11,8 +11,14 @@ import { REQUEST_ID_HEADER, resolveRequestId } from "./request-id";
 // `Set-Cookie` never returned. Unsafe paths and upstream failures become problem+json responses
 // (design §6.2) that always carry the X-Request-ID; every request, failed or not, logs one line.
 
-// Request headers sent upstream besides X-Request-ID (06 adds `idempotency-key`).
-export const REQUEST_HEADER_ALLOWLIST = ["accept", "accept-language", "content-type"] as const;
+// Request headers sent upstream besides X-Request-ID (06 adds `idempotency-key`). The tab's active
+// organization travels as sent; session-proxy.ts drops a value that is not a UUID (design.md §7.2).
+export const REQUEST_HEADER_ALLOWLIST = [
+  "accept",
+  "accept-language",
+  "content-type",
+  "x-organization-id",
+] as const;
 
 // Always sent to the backend, with this constant value (Q-065, design §3.2.2): the internal hop is
 // plain HTTP and `SECURE_SSL_REDIRECT` would answer every request with a 301 to
@@ -65,7 +71,11 @@ const PROBLEMS: Record<ProblemCode, { status: number; title: string; detail?: st
 };
 
 // `duplex` is required by Node's fetch to stream a request body but is missing from RequestInit.
-type StreamingRequestInit = RequestInit & { duplex?: "half" };
+export type StreamingRequestInit = RequestInit & { duplex?: "half"; headers: Headers };
+
+// The hook of the session (session-proxy.ts, SPEC-01): it sends the prepared upstream request and
+// may add the Bearer, refresh and retry. Its errors are read like fetch's (timeout, network).
+export type UpstreamSend = (target: URL, init: StreamingRequestInit) => Promise<Response>;
 
 function pickHeaders(source: Headers, allowlist: readonly string[], requestId: string): Headers {
   const picked = new Headers();
@@ -193,6 +203,7 @@ async function forward(
   request: Request,
   pathSegments: readonly string[],
   requestId: string,
+  send: UpstreamSend,
 ): Promise<Response | Problem> {
   const path = backendPath(request, pathSegments);
   if (path === null) {
@@ -216,7 +227,7 @@ async function forward(
 
   let upstream: Response;
   try {
-    upstream = await fetch(target, upstreamInit(request, requestId));
+    upstream = await send(target, upstreamInit(request, requestId));
   } catch (error) {
     if (isTimeout(error)) {
       return { code: "bff.upstream_timeout" };
@@ -255,11 +266,12 @@ function problemResponse(code: ProblemCode, requestId: string): Response {
 export async function proxyToBackend(
   request: Request,
   pathSegments: readonly string[],
+  send: UpstreamSend = (target, init) => fetch(target, init),
 ): Promise<Response> {
   const startedAt = performance.now();
   const requestId = resolveRequestId(request.headers.get(REQUEST_ID_HEADER));
 
-  const outcome = await forward(request, pathSegments, requestId);
+  const outcome = await forward(request, pathSegments, requestId, send);
   const problem = outcome instanceof Response ? undefined : outcome;
   const response = outcome instanceof Response ? outcome : problemResponse(outcome.code, requestId);
 

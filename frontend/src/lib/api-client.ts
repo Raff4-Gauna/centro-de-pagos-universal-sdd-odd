@@ -11,10 +11,53 @@ import { apiErrorFromResponse, networkApiError } from "./problem";
 // the browser; server code reaches Django through lib/server, not through this client.
 // Every non-2xx response is thrown as an `ApiError` (lib/problem.ts), so TanStack Query sees a
 // failed query or mutation, never `{ error }` data to forget to check.
+//
+// The session (SPEC-01, design.md §4.4, §7.2): the BFF holds the tokens in HttpOnly cookies the
+// client never sees. The client only echoes the readable `__Host-cpu_csrf` cookie in X-CSRF-Token
+// on every unsafe method (double submit, RN-IDA-13), and on a `401` (the BFF could not refresh the
+// session) it sends the browser to "Ingresar", keeping only the internal path to come back to.
 
 export const API_BASE_URL = "";
 
 const API_PATH_PREFIX = "/api/";
+
+export const CSRF_COOKIE = "__Host-cpu_csrf";
+export const CSRF_HEADER = "X-CSRF-Token";
+const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+const LOGIN_PATH = "/login";
+
+// The one value of cookie `name` in a `document.cookie` string; absent, empty or repeated → null.
+export function cookieValue(cookieString: string, name: string): string | null {
+  const values: string[] = [];
+  for (const pair of cookieString.split(";")) {
+    const separator = pair.indexOf("=");
+    if (separator !== -1 && pair.slice(0, separator).trim() === name) {
+      values.push(pair.slice(separator + 1).trim());
+    }
+  }
+  return values.length === 1 && values[0] !== "" ? values[0]! : null;
+}
+
+function readCsrfCookie(): string | null {
+  return typeof document === "undefined" ? null : cookieValue(document.cookie, CSRF_COOKIE);
+}
+
+// Where a `401` sends the browser: "Ingresar" with `session_expired` and the current path and
+// query (never the origin or the fragment; the BFF sanitizes it again). `null` on "Ingresar".
+export function sessionExpiredUrl(location: Pick<Location, "pathname" | "search">): string | null {
+  if (location.pathname === LOGIN_PATH || location.pathname.startsWith(`${LOGIN_PATH}/`)) {
+    return null;
+  }
+  const query = new URLSearchParams({
+    error: "session_expired",
+    return_to: `${location.pathname}${location.search}`,
+  });
+  return `${LOGIN_PATH}?${query.toString()}`;
+}
+
+function goToLogin(url: string): void {
+  window.location.assign(url);
+}
 
 // A per-request `baseUrl` (or an absolute path) could point the client somewhere else: anything
 // that does not resolve to `/api/...` on the page's origin is refused before it is sent.
@@ -51,12 +94,44 @@ export const problemMiddleware: Middleware = {
   },
 };
 
+// Registered after `problemMiddleware`: openapi-fetch runs `onResponse` in reverse order, so this
+// one sees the `401` before it is thrown as an `ApiError`.
+export function sessionMiddleware(
+  readCsrfToken: () => string | null,
+  onSessionExpired: (url: string) => void,
+): Middleware {
+  return {
+    onRequest({ request }) {
+      if (!SAFE_METHODS.has(request.method.toUpperCase())) {
+        const token = readCsrfToken();
+        if (token !== null) {
+          request.headers.set(CSRF_HEADER, token);
+        }
+      }
+    },
+    onResponse({ response }) {
+      if (response.status === 401) {
+        const url = sessionExpiredUrl(window.location);
+        if (url !== null) {
+          onSessionExpired(url);
+        }
+      }
+    },
+  };
+}
+
 export type ApiClient = Client<paths>;
 
-// `fetch`/`Request` are injectable for tests only; production uses the browser's.
-export function createApiClient(options: Pick<ClientOptions, "fetch" | "Request"> = {}): ApiClient {
-  const client = createClient<paths>({ ...options, baseUrl: API_BASE_URL });
-  client.use(problemMiddleware);
+export type ApiClientOptions = Pick<ClientOptions, "fetch" | "Request"> & {
+  readCsrfToken?: () => string | null;
+  onSessionExpired?: (url: string) => void;
+};
+
+// Everything is injectable for tests only; production uses the browser's.
+export function createApiClient(options: ApiClientOptions = {}): ApiClient {
+  const { readCsrfToken = readCsrfCookie, onSessionExpired = goToLogin, ...fetchOptions } = options;
+  const client = createClient<paths>({ ...fetchOptions, baseUrl: API_BASE_URL });
+  client.use(problemMiddleware, sessionMiddleware(readCsrfToken, onSessionExpired));
   return client;
 }
 

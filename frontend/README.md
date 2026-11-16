@@ -7,7 +7,7 @@
 ```
 frontend/src/
 ├── app/                       # rutas: (auth)/login, (dashboard)/{cobrar,cobros,integraciones,conciliacion,reportes}
-│                               #   + app/api/ (Route Handlers = BFF liviano, solo adjunta la cookie de sesión)
+│                               #   + app/api/ (Route Handlers = BFF de sesión, ver `07 §3.2`)
 ├── modules/                   # por dominio: charges/, integrations/, reconciliation/ … (components, hooks propios)
 ├── components/                # compartidos genéricos: PageSkeleton, EmptyState, StatusChip…
 ├── lib/                       # api-client (tipos generados de OpenAPI), design-tokens.ts, query-client.ts

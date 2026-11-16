@@ -45,6 +45,7 @@ COPY . .
 # that the check finds it if the build ever inlines it into client code. The BFF reads the real
 # value at runtime (src/lib/server/env.ts); this stage is never shipped.
 ENV BACKEND_INTERNAL_URL=http://bundle-sentinel-backend-internal-url.invalid:8000
+ENV HUB_BFF_CREDENTIAL=bundle-sentinel-hub-bff-credential
 # The clean line is required, not just exit 0: an entrypoint guard that stopped matching would
 # exit 0 without checking anything.
 RUN pnpm build \

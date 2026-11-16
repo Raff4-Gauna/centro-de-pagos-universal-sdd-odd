@@ -29,7 +29,11 @@ import { pathToFileURL } from "node:url";
 
 // Read by the BFF on the server only (src/lib/server/env.ts). A new server-only variable of the
 // frontend is added here, and frontend/Dockerfile gives it a sentinel in the builder stage.
-export const SERVER_ONLY_VARIABLES: readonly string[] = ["BACKEND_INTERNAL_URL"];
+// HUB_BFF_CREDENTIAL is the secret the BFF shows Django's `auth/bff/*` (ADR-0004 §9).
+export const SERVER_ONLY_VARIABLES: readonly string[] = [
+  "BACKEND_INTERNAL_URL",
+  "HUB_BFF_CREDENTIAL",
+];
 
 const PUBLIC_PREFIX = "NEXT_PUBLIC_";
 const ALLOWED_ENV_NAMES = new Set(["NODE_ENV"]);

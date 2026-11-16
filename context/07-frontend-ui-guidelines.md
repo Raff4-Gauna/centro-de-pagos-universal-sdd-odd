@@ -58,7 +58,7 @@ frontend/src/
 │   │   ├── integraciones/    # Alta/gestión de integraciones por proveedor
 │   │   ├── conciliacion/
 │   │   └── reportes/
-│   └── api/                  # Route Handlers = BFF liviano (ver 3.2)
+│   └── api/                  # Route Handlers = BFF (ver 3.2 y ADR-0004)
 ├── modules/                  # Un folder por dominio: components + hooks propios de ese módulo
 │   ├── charges/
 │   ├── integrations/
@@ -84,9 +84,17 @@ frontend/src/
   no un `WebSocket` ni `SSE` en el MVP — es la opción más simple que ya cumple el requisito.
 
 ### 3.2. Qué hace el Route Handler de Next.js (BFF) y qué no
-- Su único trabajo es: adjuntar la cookie `httpOnly` de sesión (ADR-0004, Q-013) como header `Authorization`
-  hacia el backend Django, y nada más. **No** reimplementa lógica de negocio, **no** transforma la respuesta del
-  backend: es un *pass-through* fino.
+- **Qué hace (ADR-0004):** (1) **termina el navegador** del login con Google: inicia el intento, recibe el callback,
+  lo reenvía a Django y guarda los tokens que Django le entrega **solo a él** en cookies `__Host-` `httpOnly`
+  (`SameSite=Lax`, `Secure`); (2) en cada request a `/api/*` traduce la cookie a `Authorization: Bearer` hacia
+  Django, hace el **refresh transparente** (rota y borra cookies) y reintenta una vez ante `token_expired`;
+  (3) aplica **CSRF** a toda mutación (`Origin`/`Sec-Fetch-Site` + `X-CSRF-Token` = cookie `__Host-cpu_csrf`);
+  (4) **reenvía** el header `X-Organization-Id` que manda cada pestaña (nunca lo inventa) y guarda la última empresa
+  elegida en la cookie `__Host-cpu_org` solo como valor inicial para pestañas nuevas; (5) informa a Django la IP
+  real del cliente en los endpoints de login (credencial BFF). Rutas: `app/api/auth/*`, `app/api/session/*` y el
+  proxy `app/api/[...path]`; código servidor en `lib/server/` (`server-only`).
+- **Qué no hace:** no reimplementa reglas de negocio, no transforma cuerpos de respuesta, no valida memberships ni
+  roles, no expone tokens al JavaScript, no habilita CORS, no usa Server Actions para mutaciones.
 - Esto mantiene una sola fuente de verdad de reglas de negocio (el backend) y un frontend que es, a propósito,
   "tonto": pide datos, los pinta, manda acciones.
 
@@ -156,7 +164,7 @@ a la del proveedor y en qué módulo vive:
 
 | Sección del Hub | Equivalente visto en el proveedor | Qué muestra en el Hub | Módulo que la implementa |
 |---|---|---|---|
-| **Mi perfil** | "Información de tu perfil" | Datos de la persona logueada (nombre, email de Google, idioma) | `01-identity-access` |
+| **Mi perfil** | "Información de tu perfil" | Datos de la persona logueada (nombre, email de Google) | `01-identity-access` |
 | **Seguridad** | "Seguridad" | Sesiones activas, revocar sesión; sin contraseña propia en el MVP (`Q-012`) | `01-identity-access` |
 | **Colaboradores** | "Colaboradores" | Miembros de la empresa actual, su rol (`owner`/`admin`/`operator`/`viewer`), invitar por email | `02-tenancy-rbac` |
 | **Datos de la empresa** | "Datos de tu negocio" | Razón social, rubro, datos fiscales que el Hub necesita (no facturación propia, fuera de MVP) | `02-tenancy-rbac` |
