@@ -88,7 +88,7 @@ El diseño se escribió antes de que existiera el código de SPEC-00. Donde difi
 | T-IDA-22 | BFF: cookies, IP, retorno y cliente a Django | AC-IDA-18, AC-IDA-19, AC-IDA-37 (BFF) | BFF | `src/lib/server/{cookies,client-ip,return-path,django,problem}.ts`, `.github/zona-roja-paths.txt` | T-IDA-10 | frontend-dev | L | Sí | 🟡 | rama `task/T-IDA-22-bff-lib`, sin PR |
 | T-IDA-23 | BFF: CSRF y refresh con coalescencia | AC-IDA-19 (CSRF), AC-IDA-28 (BFF) | BFF | `src/lib/server/{csrf,refresh}.ts` | T-IDA-14, T-IDA-22 | frontend-dev | M | Sí | 🟡 | rama `task/T-IDA-23-bff-routes`, PR #99 |
 | T-IDA-24 | Route Handlers de inicio y callback | AC-IDA-01 (cookies), AC-IDA-18, AC-IDA-19 | BFF | `app/api/auth/google/{start,callback}/route.ts` | T-IDA-13, T-IDA-22 | frontend-dev | M | Sí | 🟡 | rama `task/T-IDA-24-login-routes`, PR #103 |
-| T-IDA-25 | Route Handlers de logout y organización activa | AC-IDA-17 (cookies) | BFF | `app/api/auth/logout/route.ts`, `app/api/session/active-organization/route.ts` | T-IDA-16, T-IDA-23 | frontend-dev | M | Sí | ☐ | |
+| T-IDA-25 | Route Handlers de logout y organización activa | AC-IDA-17 (cookies) | BFF | `app/api/auth/logout/route.ts`, `app/api/session/active-organization/route.ts` | T-IDA-16, T-IDA-23 | frontend-dev | M | Sí | 🟡 | PR #109 |
 | T-IDA-26 | Smoke: 3xx y URL de ejemplo (deuda de 00) | AC-PLT-29 (regresión) | CI | `scripts/smoke_stack.py`, `scripts/smoke_pages.py`, `scripts/tests/test_smoke_stack.py`, `scripts/tests/test_smoke_pages.py`, `scripts/tests/test_smoke_stack_wiring.py`, `scripts/tests/test_smoke_client_bundle.py` | — | backend-dev | M | Sí | 🟡 | PR abierto |
 | T-IDA-27 | Proxy con sesión: Bearer, CSRF y refresh transparente | AC-IDA-18, AC-IDA-26 (UX), AC-IDA-28 | BFF | `src/lib/server/{session-proxy,backend-proxy,problem}.ts`, `app/api/[...path]/route.ts`, `src/lib/api-client.ts`, `frontend/scripts/check-client-bundle.ts`, `frontend/Dockerfile`, `context/07-frontend-ui-guidelines.md` | T-IDA-23 | frontend-dev | L | Sí | 🟡 | rama `task/T-IDA-27-session-proxy`, sin PR |
 | T-IDA-28 | Pantalla "Ingresar" y protección de rutas | AC-IDA-19 (UI) | UI | `src/proxy.ts`, `app/(auth)/login/page.tsx`, `src/modules/identity/components/{LoginCard,LoginErrorAlert}.tsx`, `src/modules/identity/lib/login-errors.ts`, `scripts/smoke_pages.py`, `scripts/tests/test_smoke_pages.py` | T-IDA-24, T-IDA-26, T-IDA-27 | frontend-dev | M | Sí | ☐ | |
@@ -702,6 +702,18 @@ módulos se aprueba en la misma pasada, después de `T-TEN-36`.
   responda `204`** (un `4XX` de parseo, un `5XX` o un error de red): Django devuelve `204` para todo cuerpo JSON, pero
   DRF puede rechazar antes de la vista (`400 parse_error`, `415`).
 - **Pruebas:** `test_AC_IDA_17` (borra `at`, `rt`, `csrf`, `org`; sin sesión responde `204`), `test_Q_119_cookie_is_format_only`.
+- **Al implementar:**
+  - **CSRF del logout:** con una cookie `at` o `rt` (aunque esté repetida) van los dos chequeos; sin ninguna, solo
+    `checkOrigin`, porque no hay cookie CSRF con qué comparar. Sin sesión no se llama a Django. La llamada a Django
+    no lleva la señal del navegador, como el `superseded` de `T-IDA-24`. `__Host-cpu_login` no se borra.
+  - **Errores de `active-organization`:** cuerpo que no es un objeto JSON de hasta 1 KiB → `400 parse_error`;
+    `organization_id` ausente o sin forma de UUID → `400 validation_error` con `errors[]`. Son códigos y títulos del
+    catálogo de SPEC-00 (`00 design.md §6.2`), no códigos `bff.` nuevos; el sobre se arma en la ruta para no tocar
+    `problem.ts`, que cambia `T-IDA-27`. El UUID se guarda en minúsculas.
+- **Limitaciones conocidas (revisión de #109):**
+  - Con `rt` o `at` presentes y sin `__Host-cpu_csrf`, el logout responde `403 bff.csrf_failed` y no borra nada. No
+    debería pasar (las dos cookies tienen la misma vida), pero `T-IDA-28` y el `UserMenu` (`T-IDA-29`) **no** deben
+    tratar un `403` del logout como sesión cerrada.
 
 ### T-IDA-26 — Smoke: 3xx y URL de ejemplo (deuda de 00)
 - **AC:** AC-PLT-29 (regresión). **Zona roja:** sí (`scripts/**`).
