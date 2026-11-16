@@ -62,7 +62,8 @@ async function revoke(refreshToken: string | null, accessToken: string | null, r
     requestId,
   });
   if (outcome.kind === "response") {
-    await outcome.response.body?.cancel();
+    // Discarding the reply must not fail the logout: the cookies are cleared whatever happens.
+    await outcome.response.body?.cancel().catch(() => {});
   }
 }
 

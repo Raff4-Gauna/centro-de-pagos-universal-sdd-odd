@@ -138,6 +138,20 @@ describe("POST /api/auth/logout", () => {
     expect(setCookies(response)).toEqual(CLEARED);
   });
 
+  it("test_AC_IDA_17_cookies_are_cleared_even_if_discarding_the_reply_fails", async () => {
+    const body = new ReadableStream<Uint8Array>({
+      cancel() {
+        throw new Error("cancel failed");
+      },
+    });
+    mockDjango(() => new Response(body, { status: 400 }));
+
+    const response = await logout();
+
+    expect(response.status).toBe(204);
+    expect(setCookies(response)).toEqual(CLEARED);
+  });
+
   it("test_AC_IDA_17_without_a_session_answers_204_and_does_not_call_django", async () => {
     const calls = mockDjango();
 
