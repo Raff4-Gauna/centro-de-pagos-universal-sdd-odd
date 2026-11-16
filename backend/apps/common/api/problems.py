@@ -42,6 +42,11 @@ TITLES: Mapping[str, str] = {
     "not_invited": "Sin invitación",
     "user_inactive": "Usuario desactivado",
     "identity_conflict": "Conflicto de identidad",
+    # SPEC-02 (spec §11, design.md §3.5): the active organization and the role.
+    "organization_required": "Falta la organización activa",
+    "organization_not_found": "Organización no encontrada",
+    "organization_suspended": "Organización suspendida",
+    "forbidden": "Acción no permitida",
     INTERNAL_ERROR: "Error interno",
 }
 

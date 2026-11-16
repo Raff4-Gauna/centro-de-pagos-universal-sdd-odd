@@ -51,7 +51,7 @@ Donde el diseño y el código de SPEC-00, o el orden real, difieren, manda esta 
 
 ## Resumen
 
-> T-TEN-01, T-TEN-02, T-TEN-03, T-TEN-04, T-TEN-05, T-TEN-06, T-TEN-07 y T-TEN-10 en revisión; las demás sin empezar. La columna **Evidencia** es obligatoria para `✅` y la verifica `scripts/check_spec_state.py`.
+> T-TEN-01, T-TEN-02, T-TEN-03, T-TEN-04, T-TEN-05, T-TEN-06, T-TEN-07, T-TEN-08 y T-TEN-10 en revisión; las demás sin empezar. La columna **Evidencia** es obligatoria para `✅` y la verifica `scripts/check_spec_state.py`.
 
 | ID | Título | AC | Capa | Archivos esperados (ver detalle) | Depende de | Agente | Tamaño | Zona roja | Estado | Evidencia |
 |---|---|---|---|---|---|---|---|---|---|---|
@@ -62,7 +62,7 @@ Donde el diseño y el código de SPEC-00, o el orden real, difieren, manda esta 
 | T-TEN-05 | `Membership` + migración 0002 | — (RN-TEN-07, RN-TEN-21) | DB | `apps/tenancy/models/membership.py`, `apps/common/authz/roles.py` | T-TEN-03, T-IDA-01 | backend-dev | M | Sí | 🟡 | rama `task/T-TEN-05-membership`, sin PR |
 | T-TEN-06 | Matriz de permisos como código | AC-TEN-15, AC-TEN-16, AC-TEN-34 (matriz) | Dominio | `apps/common/authz/{actions,checks}.py`, `apps/tenancy/domain/permissions.py` | T-TEN-01, T-TEN-05 | backend-dev | L | Sí | 🟡 | rama `task/T-TEN-06-permission-matrix`, PR #105 |
 | T-TEN-07 | Reglas de roles (`decide_*`) | AC-TEN-13, AC-TEN-15, AC-TEN-16, AC-TEN-27 (decisión) | Dominio | `apps/tenancy/domain/role_rules.py` | T-TEN-05 | backend-dev | L | Sí | 🟡 | rama `task/T-TEN-07-role-rules`, sin PR |
-| T-TEN-08 | Resolución de organización por request | AC-TEN-03, AC-TEN-04, AC-TEN-06, AC-TEN-33 | API | `apps/tenancy/api/{permissions,base}.py`, `apps/tenancy/selectors/resolution.py` | T-TEN-05, T-TEN-06, T-IDA-06 | backend-dev | L | Sí | ☐ | |
+| T-TEN-08 | Resolución de organización por request | AC-TEN-03, AC-TEN-04, AC-TEN-06, AC-TEN-33 | API | `apps/tenancy/api/{permissions,base}.py`, `apps/tenancy/selectors/resolution.py` | T-TEN-05, T-TEN-06, T-IDA-06 | backend-dev | L | Sí | 🟡 | rama `task/T-TEN-08-org-resolution`, sin PR |
 | T-TEN-09 | Suite cross-tenant parametrizada | AC-TEN-12, AC-TEN-33 | Aislamiento | `backend/tests/cross_tenant/*` | T-TEN-08 | backend-dev | L | Sí | ☐ | |
 | T-TEN-10 | Puerto de auditoría y catálogo | AC-TEN-23 (base) | Base | `apps/common/audit/{port,sinks}.py`, `apps/tenancy/domain/audit_events.py` | T-TEN-01 | backend-dev | M | Sí | 🟡 | rama `task/T-TEN-10-audit-port`, sin PR |
 | T-TEN-11 | Locks y tareas por organización | AC-TEN-28 (s2s) | Base | `apps/common/tenancy/{locks,celery}.py`, `apps/tenancy/selectors/locks.py` | T-TEN-08 | backend-dev | L | Sí | ☐ | |
@@ -324,10 +324,32 @@ T-TEN-30 · suspendida → T-TEN-29.
 - **AC:** AC-TEN-03, 04, 06, 33. RF-TEN-01, RN-TEN-03, 06, 08, 20, RNF-TEN-02, RNF-TEN-07. **Zona roja:** sí.
 - **Archivos:** `apps/tenancy/api/{permissions,base}.py`, `selectors/resolution.py`, `apps/common/api/problems.py`,
   `backend/tests/tenancy/api/test_resolution.py`.
+  - `apps/tenancy/{api,selectors}/__init__.py`: los paquetes no existían.
+  - `backend/tests/tenancy/api/{__init__,probe,test_action_permission}.py`: la ruta de prueba (`ProbeViewSet`) y los
+    tests de `ActionPermission`/`TenantViewSet`, aparte para que `test_resolution.py` no pase de 400 líneas (`C-14`).
 - **Cambios:** `design.md §3.5`; cuerpo constante en el `404`.
+  - `X-Organization-Id` es la constante `TENANT_HEADER` de `api/permissions.py`, no un setting: es parte del contrato
+    (`design.md §6`) y `config/settings/base.py` no está en esta tarea.
+  - El selector lee con `values_list` (una consulta, `JOIN` con `tenancy_organization`) en vez de
+    `select_related().only()`; convierte con `Role(...)`/`OrgStatus(...)` y una fila fuera del enum da `None` (`404`)
+    y el evento `tenancy.resolution_invalid_row`: falla cerrado.
+  - Un header vacío es `400 organization_required`; uno que no es UUID, `404` con el cuerpo de inexistente. El log de
+    denegación (`tenancy.access_denied`) lleva `reason`, `user_id` y `requested_organization_id` (solo un UUID ya
+    parseado, nunca el header crudo); también lo emiten los `403`/`409` de `ActionPermission`, con `action`.
+  - `ActionPermission`: acción sin `ActionSpec` (p. ej. `OPTIONS`, la acción `metadata` de DRF) → `403`; método que
+    el viewset no mapea → `405`.
+  - `TenantViewSet` declara `X-Organization-Id` como header requerido en el esquema (`TenantAutoSchema`, `design.md
+    §6`). Todavía no hay rutas reales: `openapi.yaml` no cambia.
+  - `User` no tiene `is_superuser`/`is_staff` (Q-228): AC-TEN-33 los pone con `monkeypatch` y verifica que la
+    resolución no los mira.
+  - Cuando se mergee `T-TEN-04` (PR #104), `allowlists.UNSCOPED_ALLOWLIST` necesita la entrada de
+    `apps/tenancy/selectors/resolution.py` (`Membership.objects.unscoped(UnscopedReason.TENANT_RESOLUTION)`): la
+    agrega la que se mergee segunda (en `main` la lista todavía no existe y una entrada muerta falla).
 - **Pruebas:** `test_AC_TEN_03_foreign_equals_nonexistent`, `test_AC_TEN_04_revoked_membership_with_valid_jwt`,
   `test_AC_TEN_06_missing_header`, `test_AC_TEN_33_superuser_without_membership`,
-  `test_RNF_TEN_07_one_query_per_request`, `test_RNF_TEN_02_denial_is_logged`.
+  `test_RNF_TEN_07_one_query_per_request`, `test_RNF_TEN_02_denial_is_logged`, más
+  `test_RN_TEN_03_unknown_role_or_status_is_not_found`, `test_RN_TEN_09_role_outside_the_spec_is_forbidden`,
+  `test_RN_TEN_18_write_on_a_suspended_org_is_409`, `test_RN_TEN_09_action_without_spec_fails_at_import`.
 
 ### T-TEN-09 — Suite cross-tenant parametrizada
 - **AC:** AC-TEN-12, AC-TEN-33. RNF-TEN-01. **Zona roja:** sí.
