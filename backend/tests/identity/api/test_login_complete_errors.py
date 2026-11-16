@@ -144,8 +144,7 @@ def test_complete_without_credential_is_a_missing_route(flow: Flow, client: Clie
 @pytest.mark.parametrize(
     "body",
     [
-        {"login_binding": "short"},
-        {"login_binding": None},
+        {"login_binding": "short"},  # a null or empty one is Q-128's (test_AC_IDA_24_events.py)
         {"state": None},
         {"state": "s" * 513},
         {"code": "c" * 2049},
@@ -236,7 +235,8 @@ def test_contract_publishes_complete_as_bff_internal() -> None:
     assert not user_agent.get("required", False)
     schemas = contract["components"]["schemas"]
     request = schemas["LoginCompleteRequest"]
-    assert set(request["required"]) == {"state", "login_binding"}
+    assert set(request["required"]) == {"state"}  # login_binding may be missing (Q-128)
+    assert request["properties"]["login_binding"]["nullable"] is True
     assert set(request["properties"]) == {"state", "login_binding", "code", "error"}
     response = schemas["LoginCompleteResponse"]
     assert set(response["properties"]) == {
@@ -247,4 +247,4 @@ def test_contract_publishes_complete_as_bff_internal() -> None:
         "session_expires_in",
         "return_path",
     }
-    assert contract["info"]["version"] == "0.7.0"
+    assert contract["info"]["version"] == "0.8.0"

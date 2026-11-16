@@ -72,12 +72,16 @@ def _login_binding(value: str) -> None:
         raise serializers.ValidationError("Formato inválido.", code="invalid")
 
 
-def _binding_field() -> serializers.CharField:
+def _binding_field(*, optional: bool = False) -> serializers.CharField:
+    """``optional``: absent, null or empty is accepted (the callback without a binding, Q-128)."""
     return serializers.CharField(
         min_length=BINDING_LENGTH,
         max_length=BINDING_LENGTH,
         trim_whitespace=False,
         validators=[_login_binding],
+        required=not optional,
+        allow_null=optional,
+        allow_blank=optional,
     )
 
 
@@ -102,12 +106,14 @@ class LoginStartResponseSerializer(serializers.Serializer[dict[str, Any]]):
 
 
 # What Google's redirect brought to the BFF, plus the binding of __Host-cpu_login. A state that
-# matches no attempt is google_auth_failed, not a validation error: an empty one too.
+# matches no attempt is google_auth_failed, not a validation error: an empty one too. So is a
+# callback without binding (the browser had no usable __Host-cpu_login): the BFF relays it with
+# login_binding null so that Django audits the rejection (Q-128).
 class LoginCompleteRequestSerializer(serializers.Serializer[dict[str, Any]]):
     state = serializers.CharField(
         max_length=MAX_STATE_LENGTH, allow_blank=True, trim_whitespace=False
     )
-    login_binding = _binding_field()
+    login_binding = _binding_field(optional=True)
     code = serializers.CharField(
         required=False,
         allow_blank=True,

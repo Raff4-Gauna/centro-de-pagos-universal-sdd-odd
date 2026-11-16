@@ -225,7 +225,7 @@ class LoginCompleteView(BffAPIView):
         try:
             login = complete_login(
                 state=data["state"],
-                login_binding=data["login_binding"],
+                login_binding=data.get("login_binding"),
                 code=data.get("code"),
                 error=data.get("error"),
                 # Only this view's caller has the BFF credential (BffAPIView): nobody else's counts.

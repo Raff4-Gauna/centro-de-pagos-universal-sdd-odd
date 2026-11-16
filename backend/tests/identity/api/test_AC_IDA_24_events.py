@@ -24,7 +24,7 @@ from apps.identity.domain.audit_events import (
     LoginRejectionReason,
     SessionRevocationReason,
 )
-from apps.identity.models import RevokeReason, User
+from apps.identity.models import LoginAttempt, RevokeReason, User
 from apps.identity.ports.audit import AuditEvent
 from apps.identity.services.logout import logout
 from apps.identity.services.refresh import RefreshRejectedError, refresh_session
@@ -36,7 +36,7 @@ from apps.identity.services.user_status import (
     deactivate_user,
     reactivate_user,
 )
-from tests.identity.api.login_flow import COMPLETE, EMAIL, START, Flow, make_user
+from tests.identity.api.login_flow import CODE, COMPLETE, EMAIL, START, Flow, make_user
 
 pytestmark = pytest.mark.django_db
 
@@ -155,3 +155,36 @@ def test_AC_IDA_24_429_is_not_audited(flow: Flow, capsys: pytest.CaptureFixture[
         if line.get("message") == "http.request" and line.get("status") == 429
     ]
     assert limited == ["api/auth/bff/login/start/", "api/auth/bff/login/complete/"]
+
+
+@pytest.mark.parametrize("binding", ["absent", None, ""])
+def test_AC_IDA_24_callback_without_binding_is_audited(flow: Flow, binding: object) -> None:
+    # Q-128 (owner, 2026-11-16): the BFF relays a callback without __Host-cpu_login, or with an
+    # ambiguous one, and Django rejects it as step 2 of design.md §4.2: google_auth_failed, audited.
+    state, _ = flow.begin()
+    body: dict[str, object] = {"state": state, "code": CODE}
+    if binding != "absent":
+        body["login_binding"] = binding
+
+    response = flow.post(COMPLETE, body)
+
+    assert (response.status_code, response.json()["code"]) == (400, "google_auth_failed")
+    assert state not in response.content.decode()
+    assert CODE not in response.content.decode()
+    [event] = flow.ports.audit.events
+    assert (event.action, event.reason, event.actor_type, event.actor_id) == (
+        IdentityAuditAction.LOGIN_REJECTED,
+        LoginRejectionReason.GOOGLE_AUTH_FAILED,
+        AuditActorType.ANONYMOUS,
+        None,
+    )
+    assert flow.gateway_calls == []  # Google is never asked
+    assert LoginAttempt.objects.count() == 1  # nobody else's attempt is spent by its state
+
+
+def test_AC_IDA_24_flood_without_binding_meets_the_throttle(flow: Flow) -> None:
+    body: dict[str, object] = {"state": "s" * 43, "code": CODE}
+    answers = [flow.post(COMPLETE, body).status_code for _ in range(11)]
+
+    assert answers == [400] * 10 + [429]
+    assert len(flow.ports.audit.events) == 10  # the 429 is not audited (Q-111)

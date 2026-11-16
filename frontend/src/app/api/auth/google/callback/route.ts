@@ -136,11 +136,11 @@ export async function GET(request: Request): Promise<Response> {
     return fail("internal_error");
   }
 
-  // Without the binding no attempt can be consumed: the callback was not started by this browser.
-  const binding = readCookie(request, COOKIE_NAMES.login);
-  if (!isLoginBinding(binding)) {
-    return fail("google_auth_failed");
-  }
+  // Without a usable binding (absent, repeated or of another shape) no attempt can be consumed, but
+  // the callback still goes to Django with `login_binding: null`: it answers google_auth_failed and
+  // audits the rejection, under its `login_complete_ip` throttle (design.md §4.2 step 2, Q-128).
+  const cookie = readCookie(request, COOKIE_NAMES.login);
+  const binding = isLoginBinding(cookie) ? cookie : null;
 
   let clientIp: string | null;
   try {
@@ -153,7 +153,8 @@ export async function GET(request: Request): Promise<Response> {
   const outcome = await callDjangoBff({
     path: "/api/auth/bff/login/complete/",
     body: {
-      // An empty state matches no attempt: Django answers google_auth_failed (and audits it).
+      // An empty state, or no binding, matches no attempt: Django answers google_auth_failed (and
+      // audits it).
       state: params.get("state") ?? "",
       login_binding: binding,
       code: params.get("code"),
