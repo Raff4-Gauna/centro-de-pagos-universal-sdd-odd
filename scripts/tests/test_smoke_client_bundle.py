@@ -41,6 +41,12 @@ class FakeFrontend:
         return self.responses[url]
 
 
+@pytest.fixture(autouse=True)
+def root_redirect_only(monkeypatch: pytest.MonkeyPatch) -> None:
+    """These tests are about leaks; which pages redirect is ``test_smoke_pages.py``'s."""
+    monkeypatch.setattr(smoke_pages, "EXPECTED_REDIRECTS", {"/": "/inicio"})
+
+
 @pytest.fixture
 def frontend(monkeypatch: pytest.MonkeyPatch) -> FakeFrontend:
     fake = FakeFrontend()

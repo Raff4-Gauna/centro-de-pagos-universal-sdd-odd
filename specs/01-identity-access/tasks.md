@@ -55,6 +55,7 @@ El diseño se escribió antes de que existiera el código de SPEC-00. Donde difi
 | Códigos propios del BFF `csrf_failed`, `upstream_unavailable` (`§6.3`) | `bff.csrf_failed`, `bff.upstream_unavailable`, `bff.upstream_timeout` (`lib/server/problem.ts`) | Convención del catálogo de SPEC-00: los códigos del BFF llevan el prefijo `bff.` (`bff.bad_path`…); `api-client` y pantallas comparan con estos nombres |
 | Coalescencia del refresh por hash del token (`§3.2`, `§4.5`) | Clave `sha256(refresh token + IP del cliente + User-Agent)` (`lib/server/refresh.ts`) | Decisión del dueño (2026-11-14, ADR-0004 §3 enmendado): un token robado presentado durante un refresh legítimo no recibe el par rotado; `design.md` ya corregido |
 | Purga: "refresh tokens en cascada" al borrar la sesión (`§3.3`) | Los refresh tokens se borran en un paso previo, en lotes por id ascendente y bloqueando solo tokens; después, las sesiones sin tokens con `SKIP LOCKED` (`services/purge.py`) | Respeta el orden de bloqueo del refresh (token → sesión) y no deja un token apuntando a otro borrado; la cascada del ORM bloquearía la sesión antes que sus tokens y cargaría la cadena entera (T-IDA-19) |
+| `proxy.ts` protege las rutas `(dashboard)` (`§3.2`) | Protege toda página salvo `/login`, la raíz incluida; deja pasar `/api/*` y `/_next/*` (`src/proxy.ts`) | Falla cerrado: una página nueva queda protegida sin tocar el proxy, y `/` va directo a `/login`, como pide el smoke de un solo salto (T-IDA-28) |
 | E2E sin herramienta definida; SPEC-02 nombra Playwright | Script por HTTP sin navegador (`scripts/e2e_login.py`) | Playwright es dependencia nueva (`C-13`, ADR); no es necesaria para estos AC |
 
 ## Resumen
@@ -91,7 +92,7 @@ El diseño se escribió antes de que existiera el código de SPEC-00. Donde difi
 | T-IDA-25 | Route Handlers de logout y organización activa | AC-IDA-17 (cookies) | BFF | `app/api/auth/logout/route.ts`, `app/api/session/active-organization/route.ts` | T-IDA-16, T-IDA-23 | frontend-dev | M | Sí | 🟡 | PR #109 |
 | T-IDA-26 | Smoke: 3xx y URL de ejemplo (deuda de 00) | AC-PLT-29 (regresión) | CI | `scripts/smoke_stack.py`, `scripts/smoke_pages.py`, `scripts/tests/test_smoke_stack.py`, `scripts/tests/test_smoke_pages.py`, `scripts/tests/test_smoke_stack_wiring.py`, `scripts/tests/test_smoke_client_bundle.py` | — | backend-dev | M | Sí | 🟡 | PR abierto |
 | T-IDA-27 | Proxy con sesión: Bearer, CSRF y refresh transparente | AC-IDA-18, AC-IDA-26 (UX), AC-IDA-28 | BFF | `src/lib/server/{session-proxy,backend-proxy,problem}.ts`, `app/api/[...path]/route.ts`, `src/lib/api-client.ts`, `frontend/scripts/check-client-bundle.ts`, `frontend/Dockerfile`, `context/07-frontend-ui-guidelines.md` | T-IDA-23 | frontend-dev | L | Sí | 🟡 | rama `task/T-IDA-27-session-proxy`, sin PR |
-| T-IDA-28 | Pantalla "Ingresar" y protección de rutas | AC-IDA-19 (UI) | UI | `src/proxy.ts`, `app/(auth)/login/page.tsx`, `src/modules/identity/components/{LoginCard,LoginErrorAlert}.tsx`, `src/modules/identity/lib/login-errors.ts`, `scripts/smoke_pages.py`, `scripts/tests/test_smoke_pages.py` | T-IDA-24, T-IDA-26, T-IDA-27 | frontend-dev | M | Sí | ☐ | |
+| T-IDA-28 | Pantalla "Ingresar" y protección de rutas | AC-IDA-19 (UI) | UI | `src/proxy.ts`, `app/(auth)/login/page.tsx`, `src/modules/identity/components/{LoginCard,LoginErrorAlert}.tsx`, `src/modules/identity/lib/login-errors.ts`, `scripts/smoke_pages.py`, `scripts/tests/test_smoke_pages.py` | T-IDA-24, T-IDA-26, T-IDA-27 | frontend-dev | M | Sí | 🟡 | PR #112 |
 | T-IDA-29 | Mi perfil, menú de usuario y "sin empresas" | AC-IDA-30 (UI) | UI | `src/modules/identity/components/{ProfileCard,UserMenu,NoOrganizationState}.tsx` | T-IDA-07, T-IDA-25, T-IDA-28 | frontend-dev | M | No | ☐ | |
 | T-IDA-30 | Pantalla "Seguridad" | AC-IDA-33 (UI) | UI | `app/(dashboard)/configuracion/seguridad/page.tsx`, `src/modules/identity/components/SessionsTable.tsx` | T-IDA-17, T-IDA-29 | frontend-dev | L | No | ☐ | |
 | T-IDA-31 | E2E de login con proveedor falso | AC-IDA-01, AC-IDA-17, AC-IDA-33 | E2E | `scripts/e2e_login.py`, `scripts/tests/test_e2e_login.py` | T-IDA-20, T-IDA-29, T-IDA-30 | backend-dev | M | Sí | ☐ | |
@@ -808,12 +809,32 @@ módulos se aprueba en la misma pasada, después de `T-TEN-36`.
 - **AC:** AC-IDA-19 (UI). Spec §14. **Zona roja:** sí (`src/proxy.ts` decide acceso).
 - **Archivos:** `src/proxy.ts`, `src/app/(auth)/login/page.tsx`, `src/modules/identity/components/{LoginCard,LoginErrorAlert}.tsx`,
   `src/modules/identity/lib/login-errors.ts` y sus tests, `scripts/smoke_pages.py` y `scripts/tests/test_smoke_pages.py`.
+  Se sumaron al implementar: `scripts/tests/smoke_stack_fakes.py` (el stack falso respondía `/inicio` con 200 y ahora la
+  imagen la redirige) y `scripts/tests/test_smoke_client_bundle.py` (sus tests de fugas leían la lista real de
+  redirecciones; fijan la suya). Por la revisión de #112: `infra/docker-compose.ci.yml` (`HUB_APP_ORIGIN` del frontend
+  igual al origen que pide el smoke; con el de `env.example` el `Location` iba a otro origen y el smoke fallaba) e
+  `infra/README.md` (el frente HTTPS de Q-065 no cachea HTML).
 - **Cambios:** `design.md §3.4`. Primera ruta protegida: por eso depende de `T-IDA-26`. Agrega las páginas protegidas a
   `EXPECTED_REDIRECTS` de `smoke_pages.py`, con `/login` como destino. El smoke sigue un solo salto y compara el origen:
   `/` tiene que ir directo a `/login` o quedar listada con su destino real, y un `Location` absoluto con otro host falla.
 - **Redirección:** `proxy.ts` y la pantalla redirigen con el `.href` absoluto de `returnUrl` (`lib/server/return-path.ts`),
   nunca con el `return_to` crudo.
 - **Pruebas:** `test_AC_IDA_19` en `login-errors.test.ts` (código desconocido → genérico), un caso por estado de §14.
+- **Notas de implementación:**
+  - **Textos:** los de `design.md §3.4` más `google_unavailable` y `login_disabled` (Q-127 a), dueño, 2026-11-15).
+    `login-errors.ts` tipa el mapa con `Record<LoginErrorCode, …>` importando solo el tipo de `lib/server/login-flow.ts`:
+    el compilador exige un texto por código de la allowlist y ninguno más. `login_cancelled` y `session_expired` usan
+    `severity="info"`; el resto, `error`.
+  - **`proxy.ts`:** falla cerrado: protege toda página salvo `/login` (la raíz incluida); deja pasar `/api/*` y `/_next/*`.
+    Sesión = exactamente una cookie `__Host-cpu_rt` (repetida cuenta como ausente). `302` con `no-store` al `.href` de
+    `/login` sobre `HUB_APP_ORIGIN`, con `return_to` ya pasado por `returnUrl`; sin origen válido redirige a `/login` fijo.
+  - **"Ingresar" con sesión:** se muestra igual; el callback cierra la sesión anterior (ADR-0004 §13).
+  - **Limitación conocida:** las páginas estáticas que pasan el proxy salen con `s-maxage` de Next: un CDN delante las
+    serviría sin pasar por el proxy. Solo es el shell sin datos (los datos van por `/api/*` con sesión), pero el borde de
+    Q-065 no debe cachear HTML (anotado en `infra/README.md`).
+  - **Matcher anclado (revisión de #112):** `_next/static/`, `_next/image$` y `favicon\.ico$`; `/favicon.icoX` pasa por el
+    proxy y pide sesión. `/_next/staticX` también llega al proxy, que deja pasar todo `/_next/*` (el HMR y el overlay de
+    `next dev` cuelgan de ahí y la pantalla "Ingresar" los necesita sin sesión).
 
 ### T-IDA-29 — Mi perfil, menú de usuario y "sin empresas"
 - **AC:** AC-IDA-30 (UI). Spec §14. **Zona roja:** no (reviewer recomendado).

@@ -14,6 +14,8 @@ import smoke_pages
 from smoke_http import HttpResponse, SmokeError
 
 FRONTEND = "http://127.0.0.1:3000"
+# The list the image is checked against (T-IDA-28), read before any test replaces it.
+REAL_REDIRECTS = dict(smoke_pages.EXPECTED_REDIRECTS)
 CHUNK = "/_next/static/chunks/app.js"
 PAGE = HttpResponse(200, {}, f'<html><script src="{CHUNK}"></script></html>')
 QUERY = "token=abc"
@@ -48,6 +50,12 @@ class Frontend:
             smoke_pages.check_client_bundle(FRONTEND, self.pages)
         assert caught.value.check == "client-bundle"
         return caught.value.detail
+
+
+@pytest.fixture(autouse=True)
+def mechanism_list(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The mechanism is tested on its own list; the real one has its tests at the end."""
+    monkeypatch.setattr(smoke_pages, "EXPECTED_REDIRECTS", {"/": "/inicio"})
 
 
 @pytest.fixture
@@ -234,3 +242,46 @@ def test_AC_PLT_29_destination_with_an_error_fails(protected: Frontend) -> None:
 def test_AC_PLT_29_zero_reviewed_pages_fail(frontend: Frontend) -> None:
     frontend.pages = []
     assert "no page reviewed" in frontend.error()
+
+
+def test_AC_PLT_29_every_protected_page_redirects_to_login() -> None:
+    # T-IDA-28: proxy.ts sends every page but "Ingresar" to /login, the root included.
+    assert REAL_REDIRECTS == {"/": "/login", "/inicio": "/login", "/configuracion": "/login"}
+
+
+def test_AC_PLT_29_login_page_is_reviewed_not_redirected() -> None:
+    assert "/login" not in REAL_REDIRECTS
+
+
+def test_AC_PLT_29_real_list_matches_the_pages_of_the_image(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(smoke_pages, "EXPECTED_REDIRECTS", REAL_REDIRECTS)
+    manifest = {
+        "/page": "/",
+        "/(dashboard)/inicio/page": "/inicio",
+        "/(dashboard)/configuracion/page": "/configuracion",
+        "/(auth)/login/page": "/login",
+        "/api/health/route": "/api/health",
+    }
+    assert smoke_pages.page_paths(json.dumps(manifest)) == [
+        "/",
+        "/configuracion",
+        "/inicio",
+        "/login",
+    ]
+
+
+def test_AC_PLT_29_protected_stack_reviews_login_once(
+    monkeypatch: pytest.MonkeyPatch, frontend: Frontend, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(smoke_pages, "EXPECTED_REDIRECTS", REAL_REDIRECTS)
+    login = "/login?return_to=%2Finicio"
+    frontend.pages = ["/", "/configuracion", "/inicio", "/login"]
+    frontend.responses.update(
+        {"/": to(login, 302), "/inicio": to(login, 302), "/configuracion": to(login, 302)}
+    )
+    frontend.responses["/login"] = PAGE
+    smoke_pages.check_client_bundle(FRONTEND, frontend.pages)
+    assert frontend.requested.count(f"{FRONTEND}/login") == 1
+    assert "1 pages reviewed, 3 redirected" in capsys.readouterr().out
