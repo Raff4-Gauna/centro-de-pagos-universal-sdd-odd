@@ -49,10 +49,11 @@ Donde el diseño y el código de SPEC-00, o el orden real, difieren, manda esta 
 | Auditoría `apps/common/audit` y `AuditPort` de identity | Conviven; los dos escriben al canal `audit` | El diseño aprobado define ambos; unificarlos queda para SPEC-10, que aporta el sink real |
 | `TenantModel.save()` exige que coincida con el `TenantContext` activo | Sin tenant activo, `save()`, `delete()` y el `UPDATE`/`INSERT` de `save_base()` de un `TenantModel` fallan cerrado (T-TEN-03). Aceptar una invitación desde la sesión (§4.4) y el puerto `accept_invitations` de SPEC-01, que cruzan organizaciones, abren un `tenant_scope` por organización antes de escribir, y `SystemReason` suma un valor para ese caso | Lo resuelven T-TEN-05 y T-TEN-15. El diseño no lo contradice: el `ContextVar` es justamente lo que lee la guarda de `save()` (ADR-0001) |
 | `TENANT_HEADER = "X-Organization-Id"` entre los settings nuevos (`design.md §3.1`) | Constante `TENANT_HEADER` en `apps/tenancy/api/permissions.py` | El nombre del header es contrato (`design.md §6`), no configuración: un setting permitiría cambiarlo sin cambiar el contrato ni el frontend |
+| `GET /api/organizations/` → `200 [{id, name, status, role}]` (`design.md §6`, una lista) | La página de SPEC-00: `{count, next, previous, results: [{id, name, status, role}]}` con `HubPageNumberPagination` (T-TEN-12) | La cabecera de §6 fija la paginación por defecto de SPEC-00 para las listas, como `/api/auth/sessions/`; la tabla de §6 muestra solo la forma de cada fila |
 
 ## Resumen
 
-> T-TEN-01, T-TEN-02, T-TEN-03, T-TEN-04, T-TEN-05, T-TEN-06, T-TEN-07, T-TEN-08 y T-TEN-10 en revisión; las demás sin empezar. La columna **Evidencia** es obligatoria para `✅` y la verifica `scripts/check_spec_state.py`.
+> T-TEN-01, T-TEN-02, T-TEN-03, T-TEN-04, T-TEN-05, T-TEN-06, T-TEN-07, T-TEN-08, T-TEN-10 y T-TEN-12 en revisión; las demás sin empezar. La columna **Evidencia** es obligatoria para `✅` y la verifica `scripts/check_spec_state.py`.
 
 | ID | Título | AC | Capa | Archivos esperados (ver detalle) | Depende de | Agente | Tamaño | Zona roja | Estado | Evidencia |
 |---|---|---|---|---|---|---|---|---|---|---|
@@ -67,7 +68,7 @@ Donde el diseño y el código de SPEC-00, o el orden real, difieren, manda esta 
 | T-TEN-09 | Suite cross-tenant parametrizada | AC-TEN-12, AC-TEN-33 | Aislamiento | `backend/tests/cross_tenant/*` | T-TEN-08 | backend-dev | L | Sí | ☐ | |
 | T-TEN-10 | Puerto de auditoría y catálogo | AC-TEN-23 (base) | Base | `apps/common/audit/{port,sinks}.py`, `apps/tenancy/domain/audit_events.py` | T-TEN-01 | backend-dev | M | Sí | 🟡 | rama `task/T-TEN-10-audit-port`, sin PR |
 | T-TEN-11 | Locks y tareas por organización | AC-TEN-28 (s2s) | Base | `apps/common/tenancy/{locks,celery}.py`, `apps/tenancy/selectors/locks.py` | T-TEN-08 | backend-dev | L | Sí | ☐ | |
-| T-TEN-12 | `GET /api/organizations/` y selector para `/api/me` | AC-TEN-08, AC-TEN-21, AC-IDA-21 | API | `apps/tenancy/api/organizations.py`, `selectors/memberships.py`, `services/membership_selector.py` | T-TEN-08, T-IDA-07 | backend-dev | M | Sí | 🟡 | rama `task/T-TEN-12-organizations-list`, sin PR |
+| T-TEN-12 | `GET /api/organizations/` y selector para `/api/me` | AC-TEN-08, AC-TEN-21, AC-IDA-21 | API | `apps/tenancy/api/organizations.py`, `selectors/memberships.py`, `services/membership_selector.py` | T-TEN-08, T-IDA-07 | backend-dev | M | Sí | 🟡 | rama `task/T-TEN-12-organizations-list`, PR #113 |
 | T-TEN-13 | Datos de la organización activa | AC-TEN-29 (API) | API | `apps/tenancy/api/organizations.py`, `services/organizations.py`, `domain/tax_id.py` | T-TEN-10, T-TEN-11, T-TEN-12 | backend-dev | L | Sí | ☐ | |
 | T-TEN-14 | `Invitation` + migración 0003 + reglas puras | AC-TEN-25, AC-TEN-35 (unidad) | DB | `apps/tenancy/models/invitation.py`, `domain/invitations.py` | T-TEN-05 | backend-dev | L | Sí | ☐ | |
 | T-TEN-15 | Aceptar invitación con token | AC-TEN-17, AC-TEN-18, AC-TEN-19, AC-TEN-25, AC-TEN-35 | Servicio/API | `services/invitation_accept.py`, `api/invitations.py` | T-TEN-10, T-TEN-11, T-TEN-14 | backend-dev | L | Sí | ☐ | |
@@ -392,13 +393,15 @@ T-TEN-30 · suspendida → T-TEN-29.
     (`C-14`); `querysets.py` reexporta `UnscopedReason`.
   - `apps/tenancy/models/membership.py`: `MembershipQuerySet.for_user(user_id)` (`design.md §3.4`, primer uso).
   - `backend/tests/architecture/{allowlists,tenant_rules}.py`: `MODEL_SCOPES` (modelo → scopes), la regla por modelo
-    que pide la nota de T-TEN-04 (PR #104) antes de sumar `for_user`.
+    que pide la nota de T-TEN-04 (PR #104) antes de sumar `for_user`. Revisión del PR #113: la regla también marca
+    `_model_scope` fuera de un módulo `models` (encadenado a un scope le cambiaría la etiqueta), y un test exige que
+    ningún otro modelo defina un nombre de `MODEL_SCOPES` (la regla confía en el nombre de la clase).
   - `config/urls.py`: monta `apps.tenancy.api.urls` bajo `/api/`.
-  - `apps/common/api/schema.py`: `API_VERSION` 0.8.0 (endpoint nuevo) y nombres fijos para los enums `RoleEnum` y
+  - `apps/common/api/schema.py`: `API_VERSION` 0.9.0 (endpoint nuevo) y nombres fijos para los enums `RoleEnum` y
     `OrganizationStatusEnum`, que vuelven en memberships e invitaciones.
   - `backend/tests/identity/test_ports.py`: el selector por defecto deja de ser el stub.
   - `backend/tests/identity/api/test_{login_complete_errors,login_start,logout_view,refresh_view,sessions}.py`: fijan
-    `info.version` del contrato, que pasa a 0.8.0.
+    `info.version` del contrato, que pasa a 0.9.0 (#111 tomó la 0.8.0).
 - **Cambios:** implementa `MembershipSelectorPort`; fija `MembershipSummary`; `POST/PUT/DELETE` → `405`.
   - `MembershipSummary` queda como estaba (`organization_id`, `organization_name`, `role`): el estado de la
     organización lo da `GET /api/organizations/`, la fuente del selector (`design.md §3.9`). `/api/me` no cambia.

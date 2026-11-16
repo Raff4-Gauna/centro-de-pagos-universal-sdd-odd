@@ -25,6 +25,8 @@ them:
   ``RawQuerySet(...)``, ``QuerySet(...)`` (a plain queryset of any model), and SQL templates:
   ``Func(template=...)``/``Aggregate(template=...)`` and a ``Func``/``Aggregate``/``Transform``
   subclass that sets ``template``.
+- ``_model_scope`` (the builder of a model's own scope, ``TenantQuerySet``) outside a ``models``
+  module: called on a scoped chain it would relabel the scope (``scope_builders``).
 - ``refresh_from_db`` after re-pointing the ``pk`` and ``TenantContext`` used as a value outside
   tenant resolution: ``tenant_instance_rules``.
 
@@ -109,6 +111,8 @@ INTERNAL_MSG = "Django persistence internal in business code: it skips the tenan
 RAW_SQL_MSG = "raw SQL or a plain queryset ignores the organization filter: use a scoped queryset"
 MANAGER_MSG = "manager of a tenant model without a scope: open it with X.objects.for_tenant(ctx)"
 UNSCOPED_MSG = "unscoped(reason) outside UNSCOPED_ALLOWLIST"
+SCOPE_BUILDER = "_model_scope"
+BUILDER_MSG = "_model_scope outside a models module: declare the scope on the model's queryset"
 
 
 def is_business(source: SourceFile) -> bool:
@@ -256,6 +260,16 @@ def tenant_managers(
                 yield found(source, node, RULE, ast.unparse(node), MANAGER_MSG)
 
 
+def scope_builders(source: SourceFile) -> Iterator[Violation]:
+    if "models" in source.module.split("."):
+        return
+    for node in ast.walk(source.tree):
+        if (isinstance(node, ast.Attribute) and node.attr == SCOPE_BUILDER) or (
+            isinstance(node, ast.Call) and SCOPE_BUILDER in literal_names(node)
+        ):
+            yield found(source, node, RULE, ast.unparse(node), BUILDER_MSG)
+
+
 def tenant_query_violations(
     trees: Iterable[SourceTree],
     tenant_models: frozenset[str],
@@ -270,6 +284,7 @@ def tenant_query_violations(
         violations.update(tenant_managers(source, tenant_models, managers))
         violations.update(stale_refreshes(source, tenant_models))
         violations.update(context_builds(source))
+        violations.update(scope_builders(source))
     return apply_allowlist(sorted(violations), allowlist, RULE)
 
 

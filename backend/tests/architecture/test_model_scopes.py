@@ -22,8 +22,8 @@ MODELS = frozenset({"Membership", "Widget"})
 SERVICE = "tenancy/selectors/rows.py"
 
 
-def symbols(tmp_path: Path, body: str) -> list[str]:
-    file = tmp_path / SERVICE
+def symbols(tmp_path: Path, body: str, relative: str = SERVICE) -> list[str]:
+    file = tmp_path / relative
     file.parent.mkdir(parents=True, exist_ok=True)
     file.write_text(body, encoding="utf-8")
     tree = SourceTree(tmp_path, "apps")
@@ -66,3 +66,27 @@ def test_AC_TEN_10_model_scope_on_another_model_fails(
     tmp_path: Path, body: str, symbol: str
 ) -> None:
     assert symbols(tmp_path, body) == [symbol]
+
+
+def test_AC_TEN_10_no_other_model_defines_a_model_scope() -> None:
+    """The AST rule trusts the class name (``Membership``): no other model may answer the same
+    scope, or ``import Widget as Membership`` would open it."""
+    names = {scope for scopes in MODEL_SCOPES.values() for scope in scopes}
+    for model in registry.get_models():
+        own = MODEL_SCOPES.get(model._meta.label, frozenset())
+        querysets = {type(manager.get_queryset()) for manager in model._meta.managers}
+        for name in names - own:
+            assert not hasattr(model, name), (model._meta.label, name)
+            assert not any(hasattr(qs, name) for qs in querysets), (model._meta.label, name)
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "Membership.objects.for_tenant(ctx)._model_scope('for_user', u, user_id=u)\n",
+        "getattr(qs, '_model_scope')('x', 1)\n",
+    ],
+)
+def test_AC_TEN_10_model_scope_builder_outside_models_fails(tmp_path: Path, body: str) -> None:
+    assert len(symbols(tmp_path / "selectors", body)) == 1
+    assert symbols(tmp_path / "models", body, "tenancy/models/thing.py") == []
