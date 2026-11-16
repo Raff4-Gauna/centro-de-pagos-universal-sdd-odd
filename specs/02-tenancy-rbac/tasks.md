@@ -48,6 +48,7 @@ Donde el diseño y el código de SPEC-00, o el orden real, difieren, manda esta 
 | `TENANT_MODEL`, `PLATFORM_OPERATOR_EMAILS`, etc. | Campos en `PlatformEnv` los que vienen del entorno; constantes en `base.py` los demás | `env.py` es el único que lee el entorno (RN-PLT-02) |
 | Auditoría `apps/common/audit` y `AuditPort` de identity | Conviven; los dos escriben al canal `audit` | El diseño aprobado define ambos; unificarlos queda para SPEC-10, que aporta el sink real |
 | `TenantModel.save()` exige que coincida con el `TenantContext` activo | Sin tenant activo, `save()`, `delete()` y el `UPDATE`/`INSERT` de `save_base()` de un `TenantModel` fallan cerrado (T-TEN-03). Aceptar una invitación desde la sesión (§4.4) y el puerto `accept_invitations` de SPEC-01, que cruzan organizaciones, abren un `tenant_scope` por organización antes de escribir, y `SystemReason` suma un valor para ese caso | Lo resuelven T-TEN-05 y T-TEN-15. El diseño no lo contradice: el `ContextVar` es justamente lo que lee la guarda de `save()` (ADR-0001) |
+| `TENANT_HEADER = "X-Organization-Id"` entre los settings nuevos (`design.md §3.1`) | Constante `TENANT_HEADER` en `apps/tenancy/api/permissions.py` | El nombre del header es contrato (`design.md §6`), no configuración: un setting permitiría cambiarlo sin cambiar el contrato ni el frontend |
 
 ## Resumen
 
@@ -62,7 +63,7 @@ Donde el diseño y el código de SPEC-00, o el orden real, difieren, manda esta 
 | T-TEN-05 | `Membership` + migración 0002 | — (RN-TEN-07, RN-TEN-21) | DB | `apps/tenancy/models/membership.py`, `apps/common/authz/roles.py` | T-TEN-03, T-IDA-01 | backend-dev | M | Sí | 🟡 | rama `task/T-TEN-05-membership`, sin PR |
 | T-TEN-06 | Matriz de permisos como código | AC-TEN-15, AC-TEN-16, AC-TEN-34 (matriz) | Dominio | `apps/common/authz/{actions,checks}.py`, `apps/tenancy/domain/permissions.py` | T-TEN-01, T-TEN-05 | backend-dev | L | Sí | 🟡 | rama `task/T-TEN-06-permission-matrix`, PR #105 |
 | T-TEN-07 | Reglas de roles (`decide_*`) | AC-TEN-13, AC-TEN-15, AC-TEN-16, AC-TEN-27 (decisión) | Dominio | `apps/tenancy/domain/role_rules.py` | T-TEN-05 | backend-dev | L | Sí | 🟡 | rama `task/T-TEN-07-role-rules`, sin PR |
-| T-TEN-08 | Resolución de organización por request | AC-TEN-03, AC-TEN-04, AC-TEN-06, AC-TEN-33 | API | `apps/tenancy/api/{permissions,base}.py`, `apps/tenancy/selectors/resolution.py` | T-TEN-05, T-TEN-06, T-IDA-06 | backend-dev | L | Sí | 🟡 | rama `task/T-TEN-08-org-resolution`, sin PR |
+| T-TEN-08 | Resolución de organización por request | AC-TEN-03, AC-TEN-04, AC-TEN-06, AC-TEN-33 | API | `apps/tenancy/api/{permissions,base}.py`, `apps/tenancy/selectors/resolution.py` | T-TEN-05, T-TEN-06, T-IDA-06 | backend-dev | L | Sí | 🟡 | PR #110 |
 | T-TEN-09 | Suite cross-tenant parametrizada | AC-TEN-12, AC-TEN-33 | Aislamiento | `backend/tests/cross_tenant/*` | T-TEN-08 | backend-dev | L | Sí | ☐ | |
 | T-TEN-10 | Puerto de auditoría y catálogo | AC-TEN-23 (base) | Base | `apps/common/audit/{port,sinks}.py`, `apps/tenancy/domain/audit_events.py` | T-TEN-01 | backend-dev | M | Sí | 🟡 | rama `task/T-TEN-10-audit-port`, sin PR |
 | T-TEN-11 | Locks y tareas por organización | AC-TEN-28 (s2s) | Base | `apps/common/tenancy/{locks,celery}.py`, `apps/tenancy/selectors/locks.py` | T-TEN-08 | backend-dev | L | Sí | ☐ | |
@@ -338,6 +339,9 @@ T-TEN-30 · suspendida → T-TEN-29.
     parseado, nunca el header crudo); también lo emiten los `403`/`409` de `ActionPermission`, con `action`.
   - `ActionPermission`: acción sin `ActionSpec` (p. ej. `OPTIONS`, la acción `metadata` de DRF) → `403`; método que
     el viewset no mapea → `405`.
+  - Revisión del PR #110: `TenantViewSet.__init_subclass__` también exige `ActionSpec` para cada
+    `@<acción>.mapping.<método>` y rechaza un `permission_classes` sin `ResolveTenant` seguido de `ActionPermission` y
+    un `get_permissions` propio.
   - `TenantViewSet` declara `X-Organization-Id` como header requerido en el esquema (`TenantAutoSchema`, `design.md
     §6`). Todavía no hay rutas reales: `openapi.yaml` no cambia.
   - `User` no tiene `is_superuser`/`is_staff` (Q-228): AC-TEN-33 los pone con `monkeypatch` y verifica que la

@@ -165,3 +165,49 @@ def test_RN_TEN_03_schema_requires_the_organization_header() -> None:
         (header,) = [p for p in operation["parameters"] if p["in"] == "header"]
         assert (header["name"], header["required"]) == ("X-Organization-Id", True)
         assert header["schema"] == {"type": "string", "format": "uuid"}
+
+
+def test_RN_TEN_09_mapped_method_without_spec_fails_at_import() -> None:
+    """``@x.mapping.delete`` is dispatched as its own action: it needs its own ``ActionSpec``."""
+    with pytest.raises(ImproperlyConfigured, match="undo_deactivate"):
+
+        class _MissingMapped(TenantViewSet):
+            action_specs = {"deactivate": READ_SPEC}  # noqa: RUF012
+
+            @action(detail=True, methods=["post"])
+            def deactivate(self, request: Request, pk: str) -> Response:
+                return Response()
+
+            @deactivate.mapping.delete
+            def undo_deactivate(self, request: Request, pk: str) -> Response:
+                return Response()
+
+
+@pytest.mark.parametrize(
+    "classes",
+    [
+        [IsAuthenticated],
+        [IsAuthenticated, ResolveTenant],
+        [IsAuthenticated, ActionPermission],
+        [IsAuthenticated, ActionPermission, ResolveTenant],
+    ],
+    ids=["neither", "no-action-permission", "no-resolve-tenant", "out-of-order"],
+)
+def test_RN_TEN_09_permission_classes_must_resolve_then_check(classes: list[Any]) -> None:
+    with pytest.raises(ImproperlyConfigured, match="ResolveTenant, then ActionPermission"):
+        type("_Weakened", (TenantViewSet,), {"permission_classes": classes})
+
+
+def test_RN_TEN_09_extra_permission_after_the_pair_is_valid() -> None:
+    class _Stricter(TenantViewSet):
+        permission_classes = [*TenantViewSet.permission_classes, IsAuthenticated]  # noqa: RUF012
+
+    assert _Stricter.permission_classes[-1] is IsAuthenticated
+
+
+def test_RN_TEN_09_overriding_get_permissions_fails_at_import() -> None:
+    with pytest.raises(ImproperlyConfigured, match="get_permissions"):
+
+        class _Bypass(TenantViewSet):
+            def get_permissions(self) -> list[Any]:
+                return []

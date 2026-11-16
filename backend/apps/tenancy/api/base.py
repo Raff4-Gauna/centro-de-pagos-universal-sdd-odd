@@ -4,11 +4,14 @@ Its permissions run in the order of the errors (design.md §3.5): ``IsAuthentica
 ``401``) → ``ResolveTenant`` (``400``/``404`` organization) → ``ActionPermission`` (``403`` role,
 ``409`` suspended). ``self.tenant`` is the validated ``TenantContext`` of the request.
 
-``action_specs`` maps every action of the viewset (the standard ones it defines and each
-``@action``) to its ``ActionSpec``. A subclass that leaves one out, or maps it to something that is
-not an ``ActionSpec``, fails when the class is created (``ImproperlyConfigured``), so no route of
-any module ships without a role list and an ``ActionKind`` (design.md §3.7: the suspension is
-applied by the kind).
+``action_specs`` maps every action of the viewset (the standard ones it defines, each ``@action``
+and each method bound with ``@<action>.mapping.<method>``, which DRF dispatches under its own
+name) to its ``ActionSpec``. A subclass that leaves one out, or maps it to something that is not an
+``ActionSpec``, fails when the class is created (``ImproperlyConfigured``), so no route of any
+module ships without a role list and an ``ActionKind`` (design.md §3.7: the suspension is applied
+by the kind). So does a subclass whose ``permission_classes`` drop ``ResolveTenant`` or
+``ActionPermission`` or put them out of order, or that overrides ``get_permissions``: either would
+let a request reach the view without a validated tenant or without its role check.
 
 The schema declares ``X-Organization-Id`` as a required header of every operation (design.md §6),
 so the frontend's generated types demand it.
@@ -53,8 +56,26 @@ class TenantAutoSchema(AutoSchema):
 
 def _actions_of(cls: type[viewsets.GenericViewSet[Any]]) -> list[str]:
     standard = [name for name in STANDARD_ACTIONS if callable(getattr(cls, name, None))]
-    extra = [method.__name__ for method in cls.get_extra_actions()]
+    extra: list[str] = []
+    for method in cls.get_extra_actions():
+        # ``mapping`` names the action itself and every ``@<action>.mapping.<method>``.
+        mapping: Mapping[str, str] = getattr(method, "mapping", {})
+        names = (method.__name__, *mapping.values())
+        extra.extend(name for name in names if name not in extra)
     return [*standard, *extra]
+
+
+def _permission_errors(cls: type[viewsets.GenericViewSet[Any]]) -> list[str]:
+    errors: list[str] = []
+    if "get_permissions" in vars(cls):
+        errors.append("overrides get_permissions")
+    classes = list(cls.permission_classes)
+    required = (ResolveTenant, ActionPermission)
+    if not all(permission in classes for permission in required) or classes.index(
+        ResolveTenant
+    ) > classes.index(ActionPermission):
+        errors.append("permission_classes must include ResolveTenant, then ActionPermission")
+    return errors
 
 
 class TenantViewSet(viewsets.GenericViewSet):
@@ -65,6 +86,8 @@ class TenantViewSet(viewsets.GenericViewSet):
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
+        if errors := _permission_errors(cls):
+            raise ImproperlyConfigured(f"{cls.__name__}: {'; '.join(errors)}")
         wrong = [
             name
             for name in _actions_of(cls)
