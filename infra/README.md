@@ -121,6 +121,9 @@ recargan solos: `docker compose -f infra/docker-compose.yml --env-file .env rest
   `X-Forwarded-Proto: https` al backend y, con `config.settings.prod`, Django confía en esa cabecera; quien llegue
   directo podría falsificarla. Este Compose publica `8000` solo en `127.0.0.1`: no cambiar ese bind por `0.0.0.0`.
   Un túnel (ngrok/cloudflared, Q-020) que apunte a ese puerto también lo expone.
+- **El frente HTTPS (Q-065) no cachea respuestas HTML:** Next sirve las páginas estáticas con
+  `Cache-Control: s-maxage=…`, y una copia en el borde se entregaría sin pasar por `proxy.ts`, que pide sesión
+  (`T-IDA-28`). Solo se cachea `/_next/static/*`.
 - `next dev` reescribe `frontend/next-env.d.ts` (apunta a `.next/dev/types`): no commitear ese cambio
   (`git checkout frontend/next-env.d.ts`). Como en `backend`, el target `dev` corre como root.
 

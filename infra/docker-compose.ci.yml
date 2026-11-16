@@ -64,5 +64,9 @@ services:
     build: !reset null
     environment:
       WATCHPACK_POLLING: !reset null
+      # The origin scripts/smoke_stack.py requests (`--frontend-url`, default http://127.0.0.1:3000).
+      # proxy.ts redirects to /login on this origin and the smoke refuses another one, so with other
+      # ports the override file sets this too. env.example's localhost:3000 would not match.
+      HUB_APP_ORIGIN: http://127.0.0.1:3000
     command: ["node", "server.js"]
     volumes: !reset []

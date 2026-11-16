@@ -113,7 +113,35 @@ describe("proxy.ts: pages need a session (AC-IDA-19, design.md §3.2)", () => {
     },
   );
 
-  it("test_AC_IDA_19_matcher_skips_only_static_assets", () => {
-    expect(config.matcher).toEqual(["/((?!_next/static|_next/image|favicon.ico).*)"]);
+  // Next turns each matcher into a regular expression anchored at both ends.
+  const matched = (path: string) => new RegExp(`^${config.matcher[0]}$`).test(path);
+
+  it.each(["/_next/static/chunks/app.js", "/_next/image", "/favicon.ico"])(
+    "test_AC_IDA_19_matcher_skips_static_asset_%s",
+    (path) => {
+      expect(matched(path)).toBe(false);
+    },
+  );
+
+  it.each([
+    "/",
+    "/inicio",
+    "/login",
+    "/api/me",
+    "/favicon.icoX",
+    "/favicon.ico/x",
+    "/_next/staticX",
+    "/_next/static",
+    "/_next/imageX",
+    "/_next/data/x.json",
+  ])("test_AC_IDA_19_matcher_runs_the_proxy_on_%s", (path) => {
+    expect(matched(path)).toBe(true);
   });
+
+  it.each(["/favicon.icoX", "/favicon.ico/x"])(
+    "test_AC_IDA_19_lookalike_asset_%s_without_session_redirects",
+    (path) => {
+      expect(call(path).status).toBe(302);
+    },
+  );
 });

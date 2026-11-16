@@ -48,7 +48,10 @@ export function proxy(request: NextRequest): Response {
   });
 }
 
-// Static files skip the proxy; everything else is decided above, where it is tested.
+// Static files skip the proxy; everything else is decided above, where it is tested. Anchored, so
+// `/favicon.icoX` is a page like any other and needs a session, and `/_next/staticX` reaches the
+// code above (which leaves Next's own `/_next/*` alone). A literal: Next reads `config` at build
+// time and ignores a variable.
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  matcher: ["/((?!_next/static/|_next/image$|favicon\\.ico$).*)"],
 };
