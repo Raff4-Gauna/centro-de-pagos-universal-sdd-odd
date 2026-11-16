@@ -106,7 +106,12 @@ def spectacular_settings() -> dict[str, Any]:
         "COMPONENT_SPLIT_REQUEST": True,
         # An enum is named after its field by default: "reason" alone would be ReasonEnum, a name
         # the next "reason" of another endpoint would take and rename (SPEC-01 logout, §6.1).
-        "ENUM_NAME_OVERRIDES": {"LogoutReasonEnum": ["logout", "superseded"]},
+        # "role" and "status" come back in memberships and invitations (SPEC-02): named here once.
+        "ENUM_NAME_OVERRIDES": {
+            "LogoutReasonEnum": ["logout", "superseded"],
+            "RoleEnum": ["owner", "admin", "operator", "viewer"],
+            "OrganizationStatusEnum": ["active", "suspended"],
+        },
         "APPEND_COMPONENTS": {
             "schemas": {PROBLEM: _problem_schema(), FIELD_ERROR: _field_error_schema()},
             "securitySchemes": {

@@ -5,17 +5,19 @@ A ``TenantQuerySet`` starts **unscoped**. It reaches the database only after one
 - ``for_tenant(ctx)``: filters by ``tenant_lookup`` (``organization_id``; ``pk`` for the
   organization itself) and, if a tenant is active (``current_tenant()``), it must be the same one;
 - ``unscoped(reason)``: deliberately global, with an ``UnscopedReason`` that the architecture test
-  (T-TEN-04) only accepts in a whitelist of files.
+  (T-TEN-04) only accepts in a whitelist of files;
+- a scope the model declares (``Membership.for_user``), built with ``_model_scope``: a read only, so
+  every write and ``raw`` raise under it (``scopes.ModelScope``).
 
 Every method that runs SQL (``GUARDED_METHODS``; iteration, ``len``, ``bool`` and slicing go through
 ``_fetch_all``, the ``a*`` variants through their sync method) raises ``TenantScopeError`` before
 touching the database when the queryset has neither. The scope survives ``filter``, ``values`` and
-any other clone.
+any other clone. The scopes themselves are in ``scopes.py``.
 
 Two querysets combined into one query (``|``, ``&``, ``^``, ``union``, ``intersection``,
 ``difference``) run under the scope of the left one, so both must carry a scope and the two must
-agree (the same organization, or both global). Anything else raises when combined: an unscoped
-operand on either side, a plain queryset of the base manager, another organization.
+agree (``scopes.same_scope``). Anything else raises when combined: an unscoped operand on either
+side, a plain queryset of the base manager, another organization, another model scope.
 
 ``|``, ``&`` and ``^`` also reject a sliced operand: Django rebuilds it as
 ``_base_manager.filter(pk__in=...)``, a plain queryset that carries neither the scope nor these
@@ -57,7 +59,6 @@ from __future__ import annotations
 
 import functools
 from collections.abc import Callable, Collection, Iterable
-from enum import StrEnum
 from typing import Any, Self, TypeVar
 
 from django.db import models
@@ -66,19 +67,25 @@ from django.db.models.sql.query import Query
 
 from apps.common.tenancy.context import TenantContext
 from apps.common.tenancy.current import current_tenant
+from apps.common.tenancy.scopes import (
+    READ_ONLY_REJECTED,
+    ModelScope,
+    Scope,
+    UnscopedReason,
+    same_scope,
+)
+
+# ``UnscopedReason`` is re-exported: every caller imports it from here.
+__all__ = [
+    "GUARDED_METHODS",
+    "HardDeleteForbidden",
+    "TenantManager",
+    "TenantQuerySet",
+    "TenantScopeError",
+    "UnscopedReason",
+]
 
 _M = TypeVar("_M", bound=models.Model)
-
-
-class UnscopedReason(StrEnum):
-    """Why a query is deliberately global (design.md §3.3, §3.5, §3.6)."""
-
-    TENANT_RESOLUTION = "tenant_resolution"
-    PLATFORM_COMMAND = "platform_command"
-    SYSTEM_FANOUT = "system_fanout"
-
-
-Scope = TenantContext | UnscopedReason
 
 
 class TenantScopeError(RuntimeError):
@@ -147,6 +154,12 @@ class TenantQuerySet(models.QuerySet[_M]):
             raise TypeError("unscoped needs an UnscopedReason")
         clone = self.all()
         clone._scope = reason
+        return clone
+
+    def _model_scope(self, name: str, value: object, **filters: Any) -> Self:
+        """A model's own read scope (``scopes.ModelScope``): ``filters`` are all it reads."""
+        clone = self.filter(**filters)
+        clone._scope = ModelScope(name, value)
         return clone
 
     @property
@@ -293,6 +306,10 @@ class TenantQuerySet(models.QuerySet[_M]):
             raise TenantScopeError(
                 f"{self._model_name()}.{operation} without for_tenant(ctx) or unscoped(reason)"
             )
+        if isinstance(self._scope, ModelScope) and operation in READ_ONLY_REJECTED:
+            raise TenantScopeError(
+                f"{self._model_name()}.{operation} under {self._scope.name}: a read-only scope"
+            )
 
     def _model_name(self) -> str:
         return getattr(self.model, "__name__", "?")
@@ -308,7 +325,7 @@ class TenantQuerySet(models.QuerySet[_M]):
         if not isinstance(other, TenantQuerySet):
             raise TenantScopeError(f"{self._model_name()}.{operation} with an unscoped queryset")
         other._require_scope(operation)
-        if not _same_scope(self._scope, other._scope):
+        if not same_scope(self._scope, other._scope):
             raise TenantScopeError(f"{self._model_name()}.{operation} with a different scope")
 
     def _require_operands(self, other: Any, operation: str) -> None:
@@ -343,12 +360,6 @@ class TenantQuerySet(models.QuerySet[_M]):
         if self._scope is None:
             return f"<{type(self).__name__} {self._model_name()} unscoped>"
         return super().__repr__()
-
-
-def _same_scope(left: Scope | None, right: Scope | None) -> bool:
-    if isinstance(left, TenantContext) and isinstance(right, TenantContext):
-        return left.organization_id == right.organization_id
-    return isinstance(left, UnscopedReason) and isinstance(right, UnscopedReason)
 
 
 def _guard(name: str) -> Callable[..., Any]:

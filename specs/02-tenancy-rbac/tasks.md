@@ -67,7 +67,7 @@ Donde el diseño y el código de SPEC-00, o el orden real, difieren, manda esta 
 | T-TEN-09 | Suite cross-tenant parametrizada | AC-TEN-12, AC-TEN-33 | Aislamiento | `backend/tests/cross_tenant/*` | T-TEN-08 | backend-dev | L | Sí | ☐ | |
 | T-TEN-10 | Puerto de auditoría y catálogo | AC-TEN-23 (base) | Base | `apps/common/audit/{port,sinks}.py`, `apps/tenancy/domain/audit_events.py` | T-TEN-01 | backend-dev | M | Sí | 🟡 | rama `task/T-TEN-10-audit-port`, sin PR |
 | T-TEN-11 | Locks y tareas por organización | AC-TEN-28 (s2s) | Base | `apps/common/tenancy/{locks,celery}.py`, `apps/tenancy/selectors/locks.py` | T-TEN-08 | backend-dev | L | Sí | ☐ | |
-| T-TEN-12 | `GET /api/organizations/` y selector para `/api/me` | AC-TEN-08, AC-TEN-21, AC-IDA-21 | API | `apps/tenancy/api/organizations.py`, `selectors/memberships.py`, `services/membership_selector.py` | T-TEN-08, T-IDA-07 | backend-dev | M | Sí | ☐ | |
+| T-TEN-12 | `GET /api/organizations/` y selector para `/api/me` | AC-TEN-08, AC-TEN-21, AC-IDA-21 | API | `apps/tenancy/api/organizations.py`, `selectors/memberships.py`, `services/membership_selector.py` | T-TEN-08, T-IDA-07 | backend-dev | M | Sí | 🟡 | rama `task/T-TEN-12-organizations-list`, sin PR |
 | T-TEN-13 | Datos de la organización activa | AC-TEN-29 (API) | API | `apps/tenancy/api/organizations.py`, `services/organizations.py`, `domain/tax_id.py` | T-TEN-10, T-TEN-11, T-TEN-12 | backend-dev | L | Sí | ☐ | |
 | T-TEN-14 | `Invitation` + migración 0003 + reglas puras | AC-TEN-25, AC-TEN-35 (unidad) | DB | `apps/tenancy/models/invitation.py`, `domain/invitations.py` | T-TEN-05 | backend-dev | L | Sí | ☐ | |
 | T-TEN-15 | Aceptar invitación con token | AC-TEN-17, AC-TEN-18, AC-TEN-19, AC-TEN-25, AC-TEN-35 | Servicio/API | `services/invitation_accept.py`, `api/invitations.py` | T-TEN-10, T-TEN-11, T-TEN-14 | backend-dev | L | Sí | ☐ | |
@@ -386,10 +386,36 @@ T-TEN-30 · suspendida → T-TEN-29.
 ### T-TEN-12 — `GET /api/organizations/` y selector para `/api/me`
 - **AC:** AC-TEN-08, AC-TEN-21, AC-IDA-21. RF-TEN-02, RF-IDA-06. **Zona roja:** sí.
 - **Archivos:** `api/organizations.py`, `api/urls.py`, `selectors/memberships.py`, `services/membership_selector.py`,
-  `config/settings/base.py`, `openapi.yaml`, `api.d.ts`, tests.
+  `config/settings/base.py`, `openapi.yaml`, `api.d.ts`, tests. Sumados, con su porqué:
+  - `apps/common/tenancy/scopes.py` (nuevo) y `querysets.py`: el `ModelScope` que declara un modelo, de solo lectura.
+    `UnscopedReason` y la comparación de scopes pasan a `scopes.py` para que `querysets.py` no pase de 400 líneas
+    (`C-14`); `querysets.py` reexporta `UnscopedReason`.
+  - `apps/tenancy/models/membership.py`: `MembershipQuerySet.for_user(user_id)` (`design.md §3.4`, primer uso).
+  - `backend/tests/architecture/{allowlists,tenant_rules}.py`: `MODEL_SCOPES` (modelo → scopes), la regla por modelo
+    que pide la nota de T-TEN-04 (PR #104) antes de sumar `for_user`.
+  - `config/urls.py`: monta `apps.tenancy.api.urls` bajo `/api/`.
+  - `apps/common/api/schema.py`: `API_VERSION` 0.8.0 (endpoint nuevo) y nombres fijos para los enums `RoleEnum` y
+    `OrganizationStatusEnum`, que vuelven en memberships e invitaciones.
+  - `backend/tests/identity/test_ports.py`: el selector por defecto deja de ser el stub.
+  - `backend/tests/identity/api/test_{login_complete_errors,login_start,logout_view,refresh_view,sessions}.py`: fijan
+    `info.version` del contrato, que pasa a 0.8.0.
 - **Cambios:** implementa `MembershipSelectorPort`; fija `MembershipSummary`; `POST/PUT/DELETE` → `405`.
+  - `MembershipSummary` queda como estaba (`organization_id`, `organization_name`, `role`): el estado de la
+    organización lo da `GET /api/organizations/`, la fuente del selector (`design.md §3.9`). `/api/me` no cambia.
+  - `for_user` es un `ModelScope`: lee las memberships de un usuario en todas sus organizaciones y rechaza toda
+    escritura, `raw` y la combinación con otro scope (`TenantScopeError`). La regla de arquitectura lo deja pasar solo
+    en `Membership.objects` (`MODEL_SCOPES`); `TENANT_SCOPES` sigue global (`for_tenant`, `unscoped`).
+  - `GET /api/organizations/` es una vista de usuario (`ListAPIView`), no un `TenantViewSet`: es ruta exenta
+    (`design.md §3.5`) e ignora `X-Organization-Id`. Usa la sesión del Hub (`RequestAuthContext`, como `/api/me`),
+    pagina con `HubPageNumberPagination`, responde `Cache-Control: no-store`, ordena por nombre y después por id, e
+    incluye las organizaciones `suspended` con su `status`.
+  - La exención de `/api/organizations/` en la suite cross-tenant la registra `T-TEN-09` (`cases/tenancy.py`,
+    `EXEMPT`), o esta tarea si `T-TEN-09` se mergea antes.
 - **Pruebas:** `test_AC_TEN_08_exactly_my_orgs_and_roles`, `test_AC_TEN_21_no_org_creation_via_api`,
-  `test_AC_IDA_21_me_uses_real_selector`.
+  `test_AC_IDA_21_me_uses_real_selector`, más `test_AC_TEN_08_{header_is_ignored,without_memberships_is_an_empty_list,
+  is_paginated,anonymous_is_401}`, `test_AC_TEN_11_for_user_is_read_only`,
+  `test_AC_TEN_11_for_user_does_not_mix_with_other_scopes`, `test_AC_TEN_10_model_scope_on_another_model_fails` y
+  `test_RF_TEN_02_selector_lists_active_ones_by_name_in_one_query`.
 
 ### T-TEN-13 — Datos de la organización activa
 - **AC:** AC-TEN-29 (API). RF-TEN-03, Q-209. **Zona roja:** sí.

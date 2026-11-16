@@ -12,7 +12,8 @@ them:
 - **Manager of a tenant model** (``tenant_query_violations``): ``X.<manager>`` with ``X`` a tenant
   model (or a name the module binds to one: ``import X as Y``, ``Y = X``) and ``<manager>`` one of
   its managers (both from the registry, ``tenant_model_rules.tenant_names``) must be opened by a
-  scope, ``X.objects.<scope>(...)`` (``allowlists.TENANT_SCOPES``). ``X.objects.filter``, a bare
+  scope, ``X.objects.<scope>(...)`` (``allowlists.TENANT_SCOPES``, or one of ``X``'s own scopes in
+  ``allowlists.MODEL_SCOPES``: ``Widget.objects.for_user`` fails). ``X.objects.filter``, a bare
   ``X.objects``, ``getattr(X, "objects")`` and ``attrgetter("objects")`` fail. So does an unscoped
   subquery: ``__in=X.objects.values("pk")``, ``Subquery``/``Exists``/``Prefetch`` of ``X.objects``.
 - **Django's persistence internals** (any receiver): ``_base_manager``, ``_default_manager``,
@@ -59,7 +60,7 @@ from __future__ import annotations
 import ast
 from collections.abc import Iterable, Iterator, Sequence
 
-from tests.architecture.allowlists import TENANT_SCOPES, AllowEntry
+from tests.architecture.allowlists import MODEL_SCOPES, TENANT_SCOPES, AllowEntry
 from tests.architecture.ast_rules import (
     ATTRIBUTE_GETTERS,
     META_MANAGER_ATTRS,
@@ -204,16 +205,30 @@ def raw_access(source: SourceFile, own: set[int]) -> Iterator[Violation]:
                 yield found(source, node, RULE, ast.unparse(func), RAW_SQL_MSG)
 
 
+def own_scopes(tree: ast.Module) -> dict[str, frozenset[str]]:
+    """The names the module binds to each model of ``MODEL_SCOPES``, with that model's scopes."""
+    scopes: dict[str, frozenset[str]] = {}
+    for label, names in MODEL_SCOPES.items():
+        for alias in aliases(tree, frozenset({label.rsplit(".", 1)[1]})):
+            scopes[alias] = scopes.get(alias, frozenset()) | names
+    return scopes
+
+
 def opened_managers(tree: ast.Module, managers: frozenset[str]) -> set[int]:
-    """ids of the ``X.<manager>`` that a scope call opens: ``X.objects.for_tenant(ctx)``."""
+    """ids of the ``X.<manager>`` that a scope call opens: ``X.objects.for_tenant(ctx)``, or
+    ``X.objects.<own scope>(...)`` when ``X`` is the model that declares it."""
+    declared = own_scopes(tree)
     return {
         id(node.func.value)
         for node in ast.walk(tree)
         if isinstance(node, ast.Call)
         and isinstance(node.func, ast.Attribute)
-        and node.func.attr in TENANT_SCOPES
         and isinstance(node.func.value, ast.Attribute)
         and node.func.value.attr in managers
+        and (
+            node.func.attr in TENANT_SCOPES
+            or node.func.attr in declared.get(terminal_name(node.func.value.value) or "", ())
+        )
     }
 
 

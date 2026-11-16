@@ -51,6 +51,8 @@ REJECTIONS = {
 }
 REVOCATIONS = {"user_revoked", "revoked_others", "user_deactivated", "refresh_reuse", "superseded"}
 NOT_AUDITED = {"rate_limited", "google_unavailable", "login_cancelled"}
+TENANCY = "apps.tenancy.services."
+TENANCY_SELECTOR = f"{TENANCY}membership_selector.TenancyMembershipSelector"
 PORT_SETTINGS = ("IDENTITY_INVITATION_PORT", "IDENTITY_MEMBERSHIP_SELECTOR", "IDENTITY_AUDIT_PORT")
 
 
@@ -168,8 +170,13 @@ def test_RF_IDA_06_empty_selector_has_no_memberships() -> None:
 
 def test_RF_IDA_09_registry_defaults_to_the_stubs() -> None:
     assert isinstance(get_invitation_port(), NullInvitationPort)
-    assert isinstance(get_membership_selector(), EmptyMembershipSelector)
     assert isinstance(get_audit_port(), LogAuditPort)
+
+
+def test_RF_IDA_09_membership_selector_is_the_one_of_spec_02() -> None:
+    # SPEC-02 registers its selector by settings (T-TEN-12), without touching identity.
+    assert django_settings.IDENTITY_MEMBERSHIP_SELECTOR == TENANCY_SELECTOR
+    assert type(get_membership_selector()).__name__ == "TenancyMembershipSelector"
 
 
 @override_settings(IDENTITY_AUDIT_PORT=f"{__name__}.RecordingAuditPort")
@@ -179,7 +186,7 @@ def test_RF_IDA_09_registry_resolves_by_settings() -> None:
 
 def test_RF_IDA_09_ports_never_come_from_the_environment() -> None:
     for name in PORT_SETTINGS:
-        assert getattr(django_settings, name).startswith("apps.identity.ports.stubs.")
+        assert getattr(django_settings, name).startswith(("apps.identity.ports.stubs.", TENANCY))
         assert name not in PlatformEnv.model_fields
 
 
