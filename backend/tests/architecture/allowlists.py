@@ -64,8 +64,16 @@ TENANT_SCOPES: frozenset[str] = frozenset({"for_tenant", "unscoped"})
 
 # ``unscoped(reason)`` outside the mechanism: the symbol is the whole call, so an entry pins the
 # model and the ``UnscopedReason``. design.md §3.3: ``selectors/resolution.py`` (T-TEN-08) and
-# ``services/platform_*.py`` (T-TEN-18) add theirs; none exists yet.
-UNSCOPED_ALLOWLIST: tuple[AllowEntry, ...] = ()
+# ``services/platform_*.py`` (T-TEN-18) add theirs.
+UNSCOPED_ALLOWLIST: tuple[AllowEntry, ...] = (
+    AllowEntry(
+        "apps/tenancy/selectors/resolution.py",
+        "Membership.objects.unscoped(UnscopedReason.TENANT_RESOLUTION)",
+        "resolución del tenant (design.md §3.5): todavía no hay TenantContext; la consulta filtra "
+        "por user_id y organization_id del header, membership activa (RN-TEN-03/06)",
+        count=1,
+    ),
+)
 
 # Raw SQL and Django's persistence internals in business code
 # (tenant_rules.tenant_query_violations).

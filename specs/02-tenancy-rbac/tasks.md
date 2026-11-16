@@ -346,9 +346,9 @@ T-TEN-30 · suspendida → T-TEN-29.
     §6`). Todavía no hay rutas reales: `openapi.yaml` no cambia.
   - `User` no tiene `is_superuser`/`is_staff` (Q-228): AC-TEN-33 los pone con `monkeypatch` y verifica que la
     resolución no los mira.
-  - Cuando se mergee `T-TEN-04` (PR #104), `allowlists.UNSCOPED_ALLOWLIST` necesita la entrada de
-    `apps/tenancy/selectors/resolution.py` (`Membership.objects.unscoped(UnscopedReason.TENANT_RESOLUTION)`): la
-    agrega la que se mergee segunda (en `main` la lista todavía no existe y una entrada muerta falla).
+  - `backend/tests/architecture/allowlists.py`: `UNSCOPED_ALLOWLIST` suma la entrada de
+    `apps/tenancy/selectors/resolution.py` (`Membership.objects.unscoped(UnscopedReason.TENANT_RESOLUTION)`,
+    `count=1`), la que `design.md §3.3` prevé desde `T-TEN-04` (PR #104).
 - **Pruebas:** `test_AC_TEN_03_foreign_equals_nonexistent`, `test_AC_TEN_04_revoked_membership_with_valid_jwt`,
   `test_AC_TEN_06_missing_header`, `test_AC_TEN_33_superuser_without_membership`,
   `test_RNF_TEN_07_one_query_per_request`, `test_RNF_TEN_02_denial_is_logged`, más
