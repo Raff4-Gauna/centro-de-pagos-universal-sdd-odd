@@ -65,7 +65,7 @@ Donde el diseño y el código de SPEC-00, o el orden real, difieren, manda esta 
 | T-TEN-06 | Matriz de permisos como código | AC-TEN-15, AC-TEN-16, AC-TEN-34 (matriz) | Dominio | `apps/common/authz/{actions,checks}.py`, `apps/tenancy/domain/permissions.py` | T-TEN-01, T-TEN-05 | backend-dev | L | Sí | 🟡 | rama `task/T-TEN-06-permission-matrix`, PR #105 |
 | T-TEN-07 | Reglas de roles (`decide_*`) | AC-TEN-13, AC-TEN-15, AC-TEN-16, AC-TEN-27 (decisión) | Dominio | `apps/tenancy/domain/role_rules.py` | T-TEN-05 | backend-dev | L | Sí | 🟡 | rama `task/T-TEN-07-role-rules`, sin PR |
 | T-TEN-08 | Resolución de organización por request | AC-TEN-03, AC-TEN-04, AC-TEN-06, AC-TEN-33 | API | `apps/tenancy/api/{permissions,base}.py`, `apps/tenancy/selectors/resolution.py` | T-TEN-05, T-TEN-06, T-IDA-06 | backend-dev | L | Sí | 🟡 | PR #110 |
-| T-TEN-09 | Suite cross-tenant parametrizada | AC-TEN-12, AC-TEN-33 | Aislamiento | `backend/tests/cross_tenant/*` | T-TEN-08 | backend-dev | L | Sí | 🟡 | rama `task/T-TEN-09-cross-tenant`, sin PR |
+| T-TEN-09 | Suite cross-tenant parametrizada | AC-TEN-12, AC-TEN-33 | Aislamiento | `backend/tests/cross_tenant/*` | T-TEN-08 | backend-dev | L | Sí | 🟡 | PR #114 |
 | T-TEN-10 | Puerto de auditoría y catálogo | AC-TEN-23 (base) | Base | `apps/common/audit/{port,sinks}.py`, `apps/tenancy/domain/audit_events.py` | T-TEN-01 | backend-dev | M | Sí | 🟡 | rama `task/T-TEN-10-audit-port`, sin PR |
 | T-TEN-11 | Locks y tareas por organización | AC-TEN-28 (s2s) | Base | `apps/common/tenancy/{locks,celery}.py`, `apps/tenancy/selectors/locks.py` | T-TEN-08 | backend-dev | L | Sí | ☐ | |
 | T-TEN-12 | `GET /api/organizations/` y selector para `/api/me` | AC-TEN-08, AC-TEN-21, AC-IDA-21 | API | `apps/tenancy/api/organizations.py`, `selectors/memberships.py`, `services/membership_selector.py` | T-TEN-08, T-IDA-07 | backend-dev | M | Sí | 🟡 | rama `task/T-TEN-12-organizations-list`, PR #113 |
@@ -384,6 +384,11 @@ T-TEN-30 · suspendida → T-TEN-29.
   - AC-TEN-33: el operador es owner de otra organización y `is_superuser`/`is_staff` se ponen con `monkeypatch` (Q-228).
   - `conftest.py` apaga `cache_logger_on_first_use` durante la suite: un logger cacheado acá antes de que
     `tests/logging` reconfigure structlog no llega a un `capture_logs` posterior (rompía 8 tests de 00 y de T-TEN-08).
+  - Límites aceptados (revisión del PR #114): la regla de initkwargs es estricta, así que un `@action(serializer_class=...)`
+    falla; el walker solo ve las rutas montadas con los settings de test; y la dependencia de orden de structlog en
+    `main` (`tests/logging` reconfigura y rompe un `capture_logs` posterior) queda para un seguimiento por Carril O.
+  - Revisión del PR #114: `reads_as_a_user` cuenta también un `GET` de las acciones de un `ViewSet`, y la detección de
+    fugas de las rutas tenant incluye al owner de B, su email y su sesión (`World.marks_of_b`), como en las exentas.
 - **Pruebas:** `test_AC_TEN_12_new_route_without_case_fails`, `test_AC_TEN_12_every_case_runs`,
   `test_AC_TEN_33_superuser_body_identical`.
 

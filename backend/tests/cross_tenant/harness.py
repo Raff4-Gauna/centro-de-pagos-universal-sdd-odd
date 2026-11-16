@@ -13,7 +13,8 @@ whom AC-TEN-33 also gives the superuser/staff flags). ``check_endpoint`` sends, 
 ``check_exempt`` reads an exempt route scoped to the person (``Exemption.read``) as A's member, with
 no header and with B's: ``2xx`` and nothing of B, of its owner or of the owner's session.
 
-After every request B's rows must be unchanged and no response may carry an id of B. It returns
+After every request B's rows must be unchanged and no response may carry B's ids, B's owner or the
+owner's session (``World.marks_of_b``). It returns
 the failures instead of asserting, so a test can prove that a broken endpoint is caught: a view
 that skips the guard reaches its handler on step 1 and answers anything but ``400``.
 """
@@ -74,6 +75,10 @@ class World:
         rows = (row for table in self.snapshot(organization) for row in table)
         return {str(organization.id), *(str(row[0]) for row in rows)}
 
+    def marks_of_b(self) -> set[str]:
+        """Everything of B no response to A's member may carry: its ids, its owner, its session."""
+        return self.ids_of(self.org_b) | self.owner_b_marks
+
 
 def build_world(seeds: tuple[Seed, ...]) -> World:
     org_a, org_b = new_org("A"), new_org("B")
@@ -128,15 +133,15 @@ class _Run:
         self.client, self.world, self.endpoint, self.case = client, world, endpoint, case
         self.failures: list[str] = []
         self.b_before = world.snapshot(world.org_b)
-        self.b_ids = world.ids_of(world.org_b)
+        self.b_marks = world.marks_of_b()
 
     def request(self, step: str, target: Organization, headers: Mapping[str, str]) -> Any:
         case = self.case
         body = case.body(target) if case.body is not None else None
         response = send(self.client, self.endpoint.method, case.path(target), headers, body)
         text = response.content.decode(errors="replace")
-        if leaked := sorted(found for found in self.b_ids if found in text):
-            self.fail(step, f"the response carries ids of B: {leaked}")
+        if leaked := sorted(found for found in self.b_marks if found in text):
+            self.fail(step, f"the response carries B's data: {leaked}")
         if (after := self.world.snapshot(self.world.org_b)) != self.b_before:
             self.fail(step, "B's rows changed")
             self.b_before = after
@@ -236,7 +241,7 @@ def check_exempt(client: Client, world: World, exemption: Exemption) -> list[str
     """An exempt route of the person: A's member sees nothing of B, whatever the header says."""
     assert exemption.read is not None
     path, label = exemption.read(world.org_a), f"GET {exemption.route} (exempt)"
-    marks = world.ids_of(world.org_b) | world.owner_b_marks
+    marks = world.marks_of_b()
     failures = []
     for step, organization_id in (("no header", None), ("org B", world.org_b.id)):
         response = send(client, "GET", path, world.headers(world.member, organization_id))

@@ -20,9 +20,10 @@ def no_cached_loggers() -> Iterator[None]:
     logging tests then configure a new list, and a logger cached here (``tenancy.access_denied``)
     would never reach a later ``capture_logs``.
     """
+    previous = structlog.get_config()["cache_logger_on_first_use"]
     structlog.configure(cache_logger_on_first_use=False)
     yield
-    structlog.configure(cache_logger_on_first_use=True)
+    structlog.configure(cache_logger_on_first_use=previous)
 
 
 @pytest.fixture

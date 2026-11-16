@@ -10,7 +10,9 @@ everything. The rest get past ``TenantViewSet.__init_subclass__`` and its runtim
 - ``uncased``: a correct ``TenantViewSet`` nobody wrote a ``CrossTenantCase`` for;
 - ``plain-drf`` and ``plain-django``: views that are not tenant-aware and are not exempt;
 - ``mine`` and ``everyone``: exempt ``GET`` routes of the person; ``everyone`` lists every
-  organization, which ``harness.check_exempt`` must catch.
+  organization, which ``harness.check_exempt`` must catch;
+- ``user-viewset``: a plain ``ViewSet`` behind the login, whose ``GET`` exists only in its actions;
+- ``people``: a guarded ``TenantViewSet`` that lists every user, B's owner included.
 
 Each handler answers ``200`` with nothing of the tenant: a bypass shows up as that ``200``.
 """
@@ -21,11 +23,13 @@ from typing import Any
 
 from django.http import HttpRequest, HttpResponse
 from django.urls import URLPattern, path
+from rest_framework import viewsets
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.common.tenancy.querysets import UnscopedReason
+from apps.identity.models import User
 from apps.tenancy.api.base import TenantViewSet
 from apps.tenancy.domain.permissions import TENANCY_ACTIONS, TenancyAction
 from apps.tenancy.models import Organization
@@ -88,6 +92,18 @@ class OwnDispatchViewSet(LeakyViewSet):
         return self.response
 
 
+class PeopleViewSet(TenantViewSet):
+    action_specs = READ
+
+    def list(self, request: Request) -> Response:
+        return Response([[str(pk), email] for pk, email in User.objects.values_list("pk", "email")])
+
+
+class UserViewSet(viewsets.ViewSet):
+    def list(self, request: Request) -> Response:
+        return Response({"user_id": str(request.user.pk)})
+
+
 class UncasedViewSet(GoodViewSet):
     pass
 
@@ -126,6 +142,8 @@ PLAIN_DRF = "synthetic/plain-drf/"
 PLAIN_DJANGO = "synthetic/plain-django/"
 MINE = "synthetic/mine/"
 EVERYONE = "synthetic/everyone/"
+USER_VIEWSET = "synthetic/user-viewset/"
+PEOPLE = "synthetic/people/"
 BYPASSES = (INITKWARGS, REASSIGNED, INITIAL, DISPATCH)
 
 urlpatterns: list[URLPattern] = [
@@ -139,6 +157,8 @@ urlpatterns: list[URLPattern] = [
     path(PLAIN_DJANGO, plain_django),
     path(MINE, MineView.as_view()),
     path(EVERYONE, EveryoneView.as_view()),
+    path(USER_VIEWSET, UserViewSet.as_view(_list())),
+    path(PEOPLE, PeopleViewSet.as_view(_list())),
 ]
 
 
@@ -151,7 +171,9 @@ def _path_of(route: str) -> Any:
 
 # Every tenant route but ``UNCASED`` has its case: what fails is the view, not a missing entry.
 REGISTRY = Registry(
-    cases=tuple(CrossTenantCase(route, "GET", _path_of(route)) for route in (GOOD, *BYPASSES)),
+    cases=tuple(
+        CrossTenantCase(route, "GET", _path_of(route)) for route in (GOOD, PEOPLE, *BYPASSES)
+    ),
     exemptions=tuple(
         Exemption(route, "de la persona", read=_path_of(route)) for route in (MINE, EVERYONE)
     ),

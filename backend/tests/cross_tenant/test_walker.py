@@ -160,3 +160,31 @@ def test_AC_TEN_12_an_exempt_route_that_lists_others_is_caught(
         f"GET {synthetic.EVERYONE} (exempt) [org B]",
     ]
     assert all(str(world.org_b.id) in failure for failure in failures)
+
+
+def test_AC_TEN_12_an_exempt_viewset_behind_the_login_needs_a_read() -> None:
+    """A ``ViewSet`` has no ``get`` of its own: its ``GET`` is in the actions of ``as_view()``."""
+    route = synthetic.USER_VIEWSET
+    without = replace(synthetic.REGISTRY, exemptions=(Exemption(route, "de la persona"),))
+    read = Exemption(route, "de la persona", read=lambda organization: f"/{route}")
+
+    (error,) = errors_naming(route, without)
+
+    assert error.endswith("exempt GET behind the login without a read URL")
+    assert errors_naming(route, replace(synthetic.REGISTRY, exemptions=(read,))) == []
+
+
+@pytest.mark.django_db
+@pytest.mark.urls(URLCONF)
+def test_AC_TEN_12_a_tenant_route_that_shows_b_owner_is_caught(
+    xt_client: Client, world: World
+) -> None:
+    case = synthetic.REGISTRY.case_for(synthetic.PEOPLE, "GET")
+    assert case is not None
+
+    failures = check_endpoint(xt_client, world, endpoint_at(synthetic.PEOPLE), case)
+
+    leaks = [failure for failure in failures if "carries B's data" in failure]
+    (email,) = [mark for mark in world.owner_b_marks if "@" in mark]
+    assert leaks
+    assert all(email in leak for leak in leaks)

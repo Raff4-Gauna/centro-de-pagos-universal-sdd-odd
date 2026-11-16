@@ -144,7 +144,8 @@ def guard_errors(route: Route) -> list[str]:
 def reads_as_a_user(route: Route) -> bool:
     """A ``GET`` that only a logged-in person reaches: what it lists must be that person's."""
     cls = route.view_class
-    if cls is None or not callable(getattr(cls, "get", None)):
+    # An APIView has its ``get``; a ViewSet maps it at ``as_view()`` (``route.actions``).
+    if cls is None or not (callable(getattr(cls, "get", None)) or "get" in route.actions):
         return False
     classes = getattr(cls, "permission_classes", ())
     return any(isinstance(c, type) and issubclass(c, IsAuthenticated) for c in classes)
