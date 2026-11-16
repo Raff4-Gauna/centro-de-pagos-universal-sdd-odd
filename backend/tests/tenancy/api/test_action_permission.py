@@ -8,7 +8,7 @@ denied.
 
 from __future__ import annotations
 
-from collections.abc import MutableMapping
+from collections.abc import Iterator, MutableMapping
 from typing import Any
 
 import pytest
@@ -18,11 +18,13 @@ from drf_spectacular.generators import SchemaGenerator
 from rest_framework.decorators import action
 from rest_framework.request import Request
 from rest_framework.response import Response
+from rest_framework.test import APIRequestFactory
 from structlog.contextvars import merge_contextvars
 from structlog.testing import capture_logs
 
 from apps.common.authz.roles import Role
 from apps.common.tenancy.context import OrgStatus
+from apps.common.tenancy.current import clear_tenant
 from apps.identity.api.authentication import IsAuthenticated
 from apps.tenancy.api.base import TenantViewSet
 from apps.tenancy.api.permissions import DENIED_EVENT, ActionPermission, ResolveTenant
@@ -110,7 +112,7 @@ def test_RN_TEN_09_unmapped_method_is_405(client: Client) -> None:
 
 
 def test_RN_TEN_09_viewset_permissions_run_in_order() -> None:
-    assert TenantViewSet.permission_classes == [IsAuthenticated, ResolveTenant, ActionPermission]
+    assert TenantViewSet.permission_classes == (IsAuthenticated, ResolveTenant, ActionPermission)
     assert TenantViewSet.tenant_scoped is True
 
 
@@ -211,3 +213,83 @@ def test_RN_TEN_09_overriding_get_permissions_fails_at_import() -> None:
         class _Bypass(TenantViewSet):
             def get_permissions(self) -> list[Any]:
                 return []
+
+
+class _GetPermissionsMixin:
+    def get_permissions(self) -> list[Any]:
+        return []
+
+
+class _CheckPermissionsMixin:
+    def check_permissions(self, request: Request) -> None:
+        return None
+
+
+@pytest.mark.parametrize(
+    ("mixin", "method"),
+    [(_GetPermissionsMixin, "get_permissions"), (_CheckPermissionsMixin, "check_permissions")],
+)
+def test_RN_TEN_09_override_through_a_mixin_fails_at_import(mixin: type, method: str) -> None:
+    """A mixin listed before ``TenantViewSet`` wins the MRO: it is an override all the same."""
+    with pytest.raises(ImproperlyConfigured, match=method):
+        type("_Mixed", (mixin, TenantViewSet), {})
+
+
+def test_RN_TEN_09_overriding_check_permissions_fails_at_import() -> None:
+    with pytest.raises(ImproperlyConfigured, match="check_permissions"):
+
+        class _Bypass(TenantViewSet):
+            def check_permissions(self, request: Request) -> None:
+                return None
+
+
+def test_RN_TEN_09_base_permission_classes_cannot_be_mutated() -> None:
+    assert isinstance(TenantViewSet.permission_classes, tuple)
+
+
+class _Blind(TenantViewSet):
+    """Answers without reading the tenant: only the permissions stand between a caller and it."""
+
+    action_specs = {"list": READ_SPEC}  # noqa: RUF012
+
+    def list(self, request: Request) -> Response:
+        return Response({"reached": True})
+
+
+@pytest.fixture
+def member_request() -> Iterator[Request]:
+    """Called without the middleware stack: clear what ``ResolveTenant`` activated."""
+    organization = new_org("A")
+    user = new_user("late")
+    add_member(organization, user, Role.OWNER)
+    headers = as_member(user, organization.id)
+    yield APIRequestFactory().get(PROBE, headers=headers)
+    clear_tenant()
+
+
+def test_RN_TEN_09_permission_classes_reassigned_later_fail_closed(
+    monkeypatch: pytest.MonkeyPatch, member_request: Request
+) -> None:
+    """``V.permission_classes = ...`` skips ``__init_subclass__``: the request checks again."""
+    monkeypatch.setattr(_Blind, "permission_classes", (IsAuthenticated,))
+    view = _Blind.as_view({"get": "list"})
+
+    response = view(member_request)
+
+    assert response.status_code == 500
+    assert response.data["code"] == "internal_error"
+
+
+def test_RN_TEN_09_as_view_permission_classes_fail_closed(member_request: Request) -> None:
+    view = _Blind.as_view({"get": "list"}, permission_classes=[IsAuthenticated])
+
+    response = view(member_request)
+
+    assert response.status_code == 500
+    assert response.data["code"] == "internal_error"
+
+
+def test_RN_TEN_09_unchanged_viewset_still_answers(member_request: Request) -> None:
+    response = _Blind.as_view({"get": "list"})(member_request)
+
+    assert response.status_code == 200

@@ -10,8 +10,12 @@ name) to its ``ActionSpec``. A subclass that leaves one out, or maps it to somet
 ``ActionSpec``, fails when the class is created (``ImproperlyConfigured``), so no route of any
 module ships without a role list and an ``ActionKind`` (design.md §3.7: the suspension is applied
 by the kind). So does a subclass whose ``permission_classes`` drop ``ResolveTenant`` or
-``ActionPermission`` or put them out of order, or that overrides ``get_permissions``: either would
-let a request reach the view without a validated tenant or without its role check.
+``ActionPermission`` or put them out of order, or that overrides ``get_permissions`` or
+``check_permissions`` (on the class or through a mixin listed before ``TenantViewSet``): either
+would let a request reach the view without a validated tenant or without its role check.
+``permission_classes`` is a tuple, so no subclass mutates the shared one; a reassignment after the
+class exists (``V.permission_classes = ...``, ``as_view(permission_classes=...)``) is checked again
+on every request, before any permission runs, and answers a generic ``500``.
 
 The schema declares ``X-Organization-Id`` as a required header of every operation (design.md §6),
 so the frontend's generated types demand it.
@@ -19,8 +23,8 @@ so the frontend's generated types demand it.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
-from typing import Any, ClassVar
+from collections.abc import Mapping, Sequence
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from django.core.exceptions import ImproperlyConfigured
 from drf_spectacular.openapi import AutoSchema
@@ -37,6 +41,9 @@ from apps.tenancy.api.permissions import (
     ResolveTenant,
     tenant_of,
 )
+
+if TYPE_CHECKING:
+    from rest_framework.request import Request
 
 STANDARD_ACTIONS = ("list", "create", "retrieve", "update", "partial_update", "destroy")
 
@@ -65,11 +72,18 @@ def _actions_of(cls: type[viewsets.GenericViewSet[Any]]) -> list[str]:
     return [*standard, *extra]
 
 
-def _permission_errors(cls: type[viewsets.GenericViewSet[Any]]) -> list[str]:
-    errors: list[str] = []
-    if "get_permissions" in vars(cls):
-        errors.append("overrides get_permissions")
-    classes = list(cls.permission_classes)
+GUARDED_METHODS = ("get_permissions", "check_permissions")
+
+
+def _permission_errors(
+    cls: type[viewsets.GenericViewSet[Any]], permission_classes: Sequence[Any]
+) -> list[str]:
+    errors = [
+        f"overrides {name}"
+        for name in GUARDED_METHODS
+        if getattr(cls, name) is not getattr(TenantViewSet, name)
+    ]
+    classes = list(permission_classes)
     required = (ResolveTenant, ActionPermission)
     if not all(permission in classes for permission in required) or classes.index(
         ResolveTenant
@@ -78,16 +92,22 @@ def _permission_errors(cls: type[viewsets.GenericViewSet[Any]]) -> list[str]:
     return errors
 
 
+def _require_permissions(
+    cls: type[viewsets.GenericViewSet[Any]], permission_classes: Sequence[Any]
+) -> None:
+    if errors := _permission_errors(cls, permission_classes):
+        raise ImproperlyConfigured(f"{cls.__name__}: {'; '.join(errors)}")
+
+
 class TenantViewSet(viewsets.GenericViewSet):
     tenant_scoped: ClassVar[bool] = True
-    permission_classes = [IsAuthenticated, ResolveTenant, ActionPermission]  # noqa: RUF012
+    permission_classes: Sequence[Any] = (IsAuthenticated, ResolveTenant, ActionPermission)
     action_specs: ClassVar[Mapping[str, ActionSpec]] = {}
     schema = TenantAutoSchema()
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
-        if errors := _permission_errors(cls):
-            raise ImproperlyConfigured(f"{cls.__name__}: {'; '.join(errors)}")
+        _require_permissions(cls, cls.permission_classes)
         wrong = [
             name
             for name in _actions_of(cls)
@@ -97,6 +117,11 @@ class TenantViewSet(viewsets.GenericViewSet):
             raise ImproperlyConfigured(
                 f"{cls.__name__}: actions without an ActionSpec in action_specs: {', '.join(wrong)}"
             )
+
+    def check_permissions(self, request: Request) -> None:
+        """Re-checks ``permission_classes``: they may have been reassigned after import."""
+        _require_permissions(type(self), self.permission_classes)
+        super().check_permissions(request)
 
     @property
     def tenant(self) -> TenantContext:

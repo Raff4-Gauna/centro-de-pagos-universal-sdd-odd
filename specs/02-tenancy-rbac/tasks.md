@@ -341,7 +341,11 @@ T-TEN-30 · suspendida → T-TEN-29.
     el viewset no mapea → `405`.
   - Revisión del PR #110: `TenantViewSet.__init_subclass__` también exige `ActionSpec` para cada
     `@<acción>.mapping.<método>` y rechaza un `permission_classes` sin `ResolveTenant` seguido de `ActionPermission` y
-    un `get_permissions` propio.
+    un `get_permissions` propio. Segunda revisión: también rechaza `get_permissions`/`check_permissions` heredados de un mixin puesto
+    antes de `TenantViewSet`; `permission_classes` es una tupla, y `check_permissions` vuelve a validarla en cada
+    request, así que reasignarla después de importar (`V.permission_classes = ...`, `as_view(permission_classes=...)`)
+    da `500` genérico antes de que corra cualquier permiso. Límite: un `dispatch`/`initial` propio que no llame a
+    `check_permissions` sigue sin detectarse; lo cubre la suite cross-tenant (`T-TEN-09`).
   - `TenantViewSet` declara `X-Organization-Id` como header requerido en el esquema (`TenantAutoSchema`, `design.md
     §6`). Todavía no hay rutas reales: `openapi.yaml` no cambia.
   - `User` no tiene `is_superuser`/`is_staff` (Q-228): AC-TEN-33 los pone con `monkeypatch` y verifica que la
