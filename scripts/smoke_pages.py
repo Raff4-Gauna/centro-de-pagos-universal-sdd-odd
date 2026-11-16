@@ -17,9 +17,13 @@ from smoke_leaks import leaks_in, page_leaks_in, pages_in_manifest, static_asset
 CHECK = "client-bundle"
 ROUTES_MANIFEST = ".next/app-path-routes-manifest.json"
 
-# Page -> path it must redirect to without a session. The first protected page (T-IDA-28) adds
-# itself here, and from then on a 200 on it fails.
-EXPECTED_REDIRECTS: dict[str, str] = {"/": "/inicio"}
+# Page -> path it must redirect to without a session, so a 200 on it fails. ``proxy.ts`` sends
+# every page but "Ingresar" to ``/login`` (T-IDA-28), the root included: a new page goes here too.
+EXPECTED_REDIRECTS: dict[str, str] = {
+    "/": "/login",
+    "/inicio": "/login",
+    "/configuracion": "/login",
+}
 # Route with ``[id]`` in the manifest -> URL that renders it without a session.
 SAMPLE_URLS: dict[str, str] = {}
 

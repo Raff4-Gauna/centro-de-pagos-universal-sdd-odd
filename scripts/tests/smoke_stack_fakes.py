@@ -40,6 +40,7 @@ class FakeStack:
                 "/page": "/",
                 "/(dashboard)/inicio/page": "/inicio",
                 "/(dashboard)/configuracion/page": "/configuracion",
+                "/(auth)/login/page": "/login",
             }
         )
         page = f'<html><script src="{CHUNK}"></script></html>'
@@ -50,9 +51,13 @@ class FakeStack:
                 {"type": "about:blank", "status": 404},
                 **{"content-type": "application/problem+json", "x-request-id": REQUEST_ID},
             ),
-            f"{FRONTEND}/": HttpResponse(307, {"location": "/inicio"}, page),
-            f"{FRONTEND}/inicio": HttpResponse(200, {}, page),
-            f"{FRONTEND}/configuracion": HttpResponse(200, {}, page),
+            # Without a session every page but "Ingresar" redirects there (proxy.ts, T-IDA-28).
+            f"{FRONTEND}/": HttpResponse(302, {"location": "/login?return_to=%2F"}, ""),
+            f"{FRONTEND}/inicio": HttpResponse(302, {"location": "/login?return_to=%2Finicio"}, ""),
+            f"{FRONTEND}/configuracion": HttpResponse(
+                302, {"location": "/login?return_to=%2Fconfiguracion"}, ""
+            ),
+            f"{FRONTEND}/login": HttpResponse(200, {}, page),
             f"{FRONTEND}{CHUNK}": HttpResponse(200, {}, "console.log(1)"),
         }
 
