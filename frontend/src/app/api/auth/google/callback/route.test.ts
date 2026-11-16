@@ -242,12 +242,15 @@ describe("GET /api/auth/google/callback (RF-IDA-02, design.md §6.3)", () => {
     ["no cookie", null],
     ["another shape", "__Host-cpu_login=short"],
     ["repeated", `__Host-cpu_login=${BINDING}; __Host-cpu_login=${"c".repeat(43)}`],
-  ])("test_RF_IDA_02_callback_without_binding_never_calls_django_%s", async (_name, cookie) => {
-    const calls = mockDjango();
+  ])("test_AC_IDA_24_callback_without_binding_is_relayed_for_audit_%s", async (_name, cookie) => {
+    // Q-128 (owner, 2026-11-16): Django rejects it as google_auth_failed and audits it.
+    const calls = mockDjango(() => problem(400, "google_auth_failed"));
 
     const response = await callback(undefined, cookie);
 
-    expect(calls).toHaveLength(0);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.path).toBe("/api/auth/bff/login/complete/");
+    expect(calls[0]!.body).toEqual({ state: STATE, login_binding: null, code: CODE, error: null });
     expect(response.headers.get("location")).toBe(`${APP}/login?error=google_auth_failed`);
     expect(setCookies(response)).toEqual({ "__Host-cpu_login": CLEARED_LOGIN });
   });

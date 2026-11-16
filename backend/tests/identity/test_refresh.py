@@ -297,8 +297,12 @@ def test_AC_IDA_15_used_token_past_grace_revokes_session(opened: OpenedSession) 
             "sid": str(opened.session.pk),
             "user_id": str(opened.session.user_id),
         }
-    [alert] = [entry for entry in logs if entry["event"] == "identity.refresh_reuse_detected"]
-    assert alert["alert"] is True
+    [alert] = [entry for entry in logs if entry["event"] == "auth.refresh_reuse_detected"]
+    assert (alert["alert"], alert["outcome"], alert["reason"]) == (
+        True,
+        "rejected",
+        "refresh_reuse",
+    )
     assert opened.refresh_token not in str(logs)
     assert successor not in str(logs)
 
@@ -323,4 +327,4 @@ def test_AC_IDA_23_refresh_logs_carry_no_token(opened: OpenedSession) -> None:
         assert str(secret) not in text
     assert hash_secret(opened.refresh_token) not in text
     events = [entry["event"] for entry in logs]
-    assert events == ["identity.refresh_succeeded", "identity.refresh_rejected"]
+    assert events == ["auth.refresh_succeeded", "auth.refresh_rejected"]

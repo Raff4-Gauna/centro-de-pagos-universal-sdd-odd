@@ -158,7 +158,7 @@ export interface components {
     schemas: {
         LoginCompleteRequest: {
             state: string;
-            login_binding: string;
+            login_binding?: (string) | null;
             code?: string | null;
             error?: string | null;
         };

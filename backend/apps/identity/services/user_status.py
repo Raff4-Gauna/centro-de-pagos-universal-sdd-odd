@@ -11,7 +11,11 @@ request with any JWT of that person answers ``401 session_revoked`` (AC-IDA-27).
 clears both fields and leaves the sessions as they are: a revoked one never comes back, the person
 logs in again. Repeating either on a user already in that state changes nothing, and is still
 audited, since every run is (RN-IDA-23): the same event with ``outcome="no_change"`` instead of
-``"changed"``, and no session touched; the caller reports it.
+``"changed"``, and no session touched; the caller reports it. So is a run that matches no user:
+the same event with ``result=failure`` and ``outcome="not_found"``, written after the rollback,
+naming the operator and how the user was asked for (``target``), never the email typed, which may
+be somebody else's (RNF-IDA-05); a ``--user-id`` is kept as ``requested_user_id``. A run refused
+for its arguments (no valid ``--operator``) has no actor to name and is not audited.
 
 **Locks.** The user row first, then the sessions one at a time in ascending id, as "cerrar las
 demás" does (``sessions.py``). A login locks the same user row before it opens a session
@@ -20,11 +24,14 @@ of sessions to revoke is read: none is left ``active`` to come back with a react
 locks a token and then its session and only reads the user, so it waits behind a revocation or
 makes it wait, never both (``tests/identity/test_revocation_concurrency.py``).
 
-**Logs**: ids, the outcome and the count; never the email (RNF-IDA-05) nor the operator's note.
+**Logs**: ``auth.user_deactivated``/``auth.user_reactivated`` with ids, the ``outcome`` and the
+count; never the email (RNF-IDA-05) nor the operator's note.
 """
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from uuid import UUID
@@ -46,12 +53,13 @@ from apps.identity.selectors.auth_sessions import list_active_session_ids
 from apps.identity.selectors.users import get_by_email, get_by_id
 from apps.identity.services.session_lifecycle import revoke
 
-DEACTIVATED_EVENT = "identity.user_deactivated"
-REACTIVATED_EVENT = "identity.user_reactivated"
+DEACTIVATED_EVENT = "auth.user_deactivated"
+REACTIVATED_EVENT = "auth.user_reactivated"
 MAX_OPERATOR = 150
 MAX_NOTE = 200
 CHANGED = "changed"
 NO_CHANGE = "no_change"
+NOT_FOUND = "not_found"
 
 logger = get_logger(__name__)
 
@@ -108,7 +116,11 @@ def deactivate_user(
     *, target: UserTarget, operator: PlatformOperator, note: str | None, now: datetime
 ) -> StatusChange:
     note = clean_note(note)
-    with transaction.atomic():
+    action = IdentityAuditAction.USER_DEACTIVATED
+    with (
+        _audited_if_not_found(action, DEACTIVATED_EVENT, target, operator, note, now),
+        transaction.atomic(),
+    ):
         user = _locked(target)
         if not user.is_active:
             _audit(
@@ -141,7 +153,7 @@ def deactivate_user(
             outcome = StatusChange(user_id=user.pk, changed=True, revoked_sessions=revoked)
     logger.info(
         DEACTIVATED_EVENT,
-        result="deactivated" if outcome.changed else "already_inactive",
+        outcome=CHANGED if outcome.changed else NO_CHANGE,
         revoked=outcome.revoked_sessions,
         user_id=str(outcome.user_id),
     )
@@ -153,7 +165,11 @@ def reactivate_user(
 ) -> StatusChange:
     """Back to active; its sessions stay ended (RN-IDA-07)."""
     note = clean_note(note)
-    with transaction.atomic():
+    action = IdentityAuditAction.USER_REACTIVATED
+    with (
+        _audited_if_not_found(action, REACTIVATED_EVENT, target, operator, note, now),
+        transaction.atomic(),
+    ):
         user = _locked(target)
         if user.is_active:
             _audit(
@@ -175,7 +191,7 @@ def reactivate_user(
             outcome = StatusChange(user_id=user.pk, changed=True)
     logger.info(
         REACTIVATED_EVENT,
-        result="reactivated" if outcome.changed else "already_active",
+        outcome=CHANGED if outcome.changed else NO_CHANGE,
         user_id=str(outcome.user_id),
     )
     return outcome
@@ -190,6 +206,36 @@ def _locked(target: UserTarget) -> User:
     if user is None:
         raise UserNotFoundError
     return user
+
+
+@contextmanager
+def _audited_if_not_found(
+    action: IdentityAuditAction,
+    event: str,
+    target: UserTarget,
+    operator: PlatformOperator,
+    note: str | None,
+    now: datetime,
+) -> Iterator[None]:
+    """Audits a run that matched nobody, outside the transaction its error rolled back."""
+    try:
+        yield
+    except UserNotFoundError:
+        asked: dict[str, object] = {"target": "email"}
+        if target.user_id is not None:
+            asked = {"target": "user_id", "requested_user_id": str(target.user_id)}
+        get_audit_port().record(
+            AuditEvent(
+                action=action,
+                result=AuditResult.FAILURE,
+                reason=note,
+                actor_type=AuditActorType.PLATFORM_OPERATOR,
+                occurred_at=now,
+                metadata={"outcome": NOT_FOUND, **asked, **_actor(operator)},
+            )
+        )
+        logger.info(event, outcome=NOT_FOUND)
+        raise
 
 
 def _actor(operator: PlatformOperator) -> dict[str, object]:

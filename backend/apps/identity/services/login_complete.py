@@ -7,7 +7,9 @@ before this):
    browser's binding, only while it is alive: the row is gone whatever happens next, so a callback
    repeated from the history finds nothing (AC-IDA-08), and of two at once only one gets it. It
    commits on its own, before Google is called: a later rollback does not give the attempt back.
-   No attempt → ``google_auth_failed`` and Google is never asked (AC-IDA-08).
+   No attempt → ``google_auth_failed`` and Google is never asked (AC-IDA-08). No binding at all
+   (the BFF relays a callback without a usable ``__Host-cpu_login``, Q-128) is the same rejection,
+   decided before the table is touched: nobody's attempt is spent by a ``state`` alone.
 3. ``error=access_denied`` → ``login_cancelled``; any other ``error``, or no ``code`` →
    ``google_auth_failed``.
 4-5. Code exchange and ID token (``oidc/``), with the attempt's verifier and ``nonce`` hash.
@@ -106,7 +108,7 @@ class _Attempt:
 def complete_login(
     *,
     state: str,
-    login_binding: str,
+    login_binding: str | None,
     code: str | None,
     error: str | None,
     client_user_agent: str | None = None,
@@ -146,12 +148,14 @@ def complete_login(
 def _complete(
     *,
     state: str,
-    login_binding: str,
+    login_binding: str | None,
     code: str | None,
     error: str | None,
     client_user_agent: str | None,
     now: datetime,
 ) -> CompletedLogin:
+    if not login_binding:
+        _reject(IdentityErrorCode.GOOGLE_AUTH_FAILED)
     attempt = _consume_attempt(state=state, login_binding=login_binding, now=now)
     if error == ACCESS_DENIED:
         raise LoginCancelledError

@@ -84,7 +84,7 @@ El diseño se escribió antes de que existiera el código de SPEC-00. Donde difi
 | T-IDA-18 | Comandos de desactivar y reactivar usuario | AC-IDA-27, AC-IDA-32 (parte 01) | Comandos | `services/user_status.py`, `management/commands/*` | T-IDA-17 | backend-dev | M | Sí | 🟡 | rama `task/T-IDA-18-user-status`, sin PR |
 | T-IDA-19 | Purga periódica | AC-IDA-38 | Asíncrono | `tasks.py`, `beat.py`, `services/purge.py` | T-IDA-10, T-IDA-14 | backend-dev | M | Sí | 🟡 | PR #107 |
 | T-IDA-20 | Chequeos de arranque y proveedor OIDC falso | — (RN-IDA-01, RN-IDA-16, RNF-IDA-06) | Config | `checks.py`, `apps.py`, `dev_oidc/*`, `oidc/provider.py` | T-IDA-08 | backend-dev | L | Sí | 🟡 | rama `task/T-IDA-20-startup-checks`, sin PR |
-| T-IDA-21 | Redacción de logs, métricas y catálogo completo | AC-IDA-23, AC-IDA-24 | Observabilidad | `apps/common/domain/redaction.py`, tests de identity | T-IDA-13, T-IDA-15, T-IDA-16, T-IDA-17, T-IDA-18 | backend-dev | M | Sí | ☐ | |
+| T-IDA-21 | Redacción de logs, métricas y catálogo completo | AC-IDA-23, AC-IDA-24 | Observabilidad | `apps/common/domain/redaction.py`, tests de identity | T-IDA-13, T-IDA-15, T-IDA-16, T-IDA-17, T-IDA-18 | backend-dev | M | Sí | 🟡 | PR #111 |
 | T-IDA-22 | BFF: cookies, IP, retorno y cliente a Django | AC-IDA-18, AC-IDA-19, AC-IDA-37 (BFF) | BFF | `src/lib/server/{cookies,client-ip,return-path,django,problem}.ts`, `.github/zona-roja-paths.txt` | T-IDA-10 | frontend-dev | L | Sí | 🟡 | rama `task/T-IDA-22-bff-lib`, sin PR |
 | T-IDA-23 | BFF: CSRF y refresh con coalescencia | AC-IDA-19 (CSRF), AC-IDA-28 (BFF) | BFF | `src/lib/server/{csrf,refresh}.ts` | T-IDA-14, T-IDA-22 | frontend-dev | M | Sí | 🟡 | rama `task/T-IDA-23-bff-routes`, PR #99 |
 | T-IDA-24 | Route Handlers de inicio y callback | AC-IDA-01 (cookies), AC-IDA-18, AC-IDA-19 | BFF | `app/api/auth/google/{start,callback}/route.ts` | T-IDA-13, T-IDA-22 | frontend-dev | M | Sí | 🟡 | rama `task/T-IDA-24-login-routes`, PR #103 |
@@ -635,6 +635,57 @@ módulos se aprueba en la misma pasada, después de `T-TEN-36`.
 - **Pruebas:** `test_AC_IDA_23_no_secret_in_logs_or_errors` (login, refresh, logout, rechazo),
   `test_AC_IDA_24_every_event_is_emitted`, `test_AC_IDA_24_429_is_not_audited`.
 - **Aviso de `T-IDA-05`:** el logger `audit` hereda el nivel del root, así que con `LOG_LEVEL=WARNING` se pierden los eventos `info`: darle nivel propio en `apps/common/logging/setup.py` (sumarlo a los archivos). Una clave de `metadata` con `session` o `token` sale `[REDACTED]` en ese canal.
+- **Sumados al implementar:** los servicios que emitían con otro nombre o sin `outcome` (`login_start`, `refresh`,
+  `logout`, `sessions`, `user_status`); `api/views_bff.py` (sus dos avisos de `logout` usan `auth.logout` y pasan de
+  `result` a `outcome`); y los tests de identity que fijaban los nombres viejos (`test_logout.py`, `test_refresh.py`,
+  `api/test_logout_view.py`, `test_AC_IDA_27_deactivate.py`). Los de AC-IDA-23 y 24 que pasan por las rutas del BFF
+  van en `tests/identity/api/`, donde está el fixture `flow`; el de las claves, en `tests/identity/`.
+- **Sumados por la revisión de #111:**
+  - Q-128 (callback sin binding): `api/serializers.py` y `services/login_complete.py` (binding opcional, rechazo
+    auditado); `apps/common/api/schema.py` (`API_VERSION` 0.8.0: un campo requerido pasa a opcional);
+    `specs/_contracts/openapi.yaml` y `frontend/src/types/api.d.ts` (regenerados);
+    `frontend/src/app/api/auth/google/callback/route.ts` y su test (reenvía en vez de cortar);
+    `specs/01-identity-access/clarifications.md` (la pregunta y su decisión).
+  - Tests que fijaban la versión del contrato o el binding obligatorio: `api/test_login_complete_errors.py`,
+    `api/test_login_start.py`, `api/test_refresh_view.py` y `api/test_sessions.py`.
+  - `api/client_ip.py` y `api/test_throttles.py`: `identity.client_ip_invalid` pasa a `auth.client_ip_invalid` con
+    `outcome`.
+  - `context/08-control-de-versiones-ci-cd.md §6`: la regla de nombres de campo (`reason`, nunca `code`; `status`,
+    nunca `state`), porque la redacción vale para todos los módulos.
+- **Notas de implementación:**
+  - **Redacción (`§7.5`):** `code` y `state` como clave exacta, también tras un prefijo de proveedor (`oauth`, `auth`,
+    `authorization`, `google`: `oauth_code`, `authorization_code`, `oauth_state`); cualquier otro nombre más largo
+    queda (`status_code`, `error_code`, `state_changed`). `nonce`, `verifier` y `binding` como parte del nombre. En
+    texto, `code=` y `state=` (con los mismos prefijos) pierden el valor; `code: 1` o el `"code"` de un problem quedan.
+    Un JWT suelto (`eyJ…` en tres partes) y un refresh token suelto (`rt1.<sid>.<secreto>`) también. Un evento nombra un
+    código del catálogo como `reason`, nunca `code`, y un estado como `status`, nunca `state` (`context/08 §6`; aviso
+    para `SPEC-06`). Las demás claves del diseño ya las cubrían `token`, `secret`, `credential` y las exactas.
+  - **Email e IP por clave (no bloqueante 4 de #111):** no se tapan (`email`, `ip`, `client_ip` pasan). `§7.5` no lo
+    pide y ningún servicio los loguea (`client_ip.py` loguea el evento sin el valor): RNF-IDA-05 queda cubierta por no
+    loguearlos, no por la redacción.
+  - **Eventos operativos:** todos `auth.*` con `outcome` y, si es un rechazo, `reason`: `auth.login_started`,
+    `auth.login_*`, `auth.refresh_succeeded` (`decision`), `auth.refresh_rejected`, `auth.refresh_reuse_detected`
+    (`alert=true`, como `auth.identity_conflict`), `auth.logout`, `auth.session_revoked`, `auth.other_sessions_revoked`,
+    `auth.user_deactivated`/`auth.user_reactivated`, `auth.client_ip_invalid` (`outcome="fallback"`). `auth.purge_completed` y `auth.sessions_active` (`T-IDA-19`) son
+    conteos y no llevan `outcome`. Los de detalle de `oidc/` (`identity.google.*`) quedan como estaban: el resumen por
+    callback es `auth.login_*`.
+  - **Métrica de `429` por endpoint (RNF-IDA-04):** sale del access log (`http.request` con `route` y `status=429`);
+    no se agrega un evento propio, porque `throttled` de DRF no dice qué throttle cortó.
+  - **Comando sobre un usuario inexistente (RN-IDA-23, nota de la revisión de `T-IDA-18`):** se audita. Mismo evento
+    (`user_deactivated`/`user_reactivated`) con `result=failure`, `outcome="not_found"`, el operador y `target`
+    (`email` o `user_id`, este con `requested_user_id`), escrito después del rollback; nunca el email tipeado, que
+    puede ser de otra persona (RNF-IDA-05). Sigue saliendo con código 1. Un argumento inválido (código 2) no se
+    audita: no hay operador válido que nombrar.
+  - **Callback sin `__Host-cpu_login` (nota de `T-IDA-24`), Q-128 decidida por el dueño el 2026-11-16, opción a):**
+    se audita. El BFF reenvía el callback a `login/complete` con `login_binding: null` cuando la cookie falta, está
+    repetida o tiene otra forma; Django lo rechaza como `google_auth_failed` (paso 2 de `design.md §4.2`, tal como está
+    aprobado), lo audita, no toca `login_attempts` (un `state` solo no gasta el intento de nadie) ni llama a Google, y
+    el throttle `login_complete_ip` acota una inundación. Pruebas: `test_AC_IDA_24_callback_without_binding_is_audited`,
+    `test_AC_IDA_24_flood_without_binding_meets_the_throttle` y, en el BFF,
+    `test_AC_IDA_24_callback_without_binding_is_relayed_for_audit_*`.
+  - **Logs del BFF (fuera de esta ficha, frontend):** `frontend/src/lib/server/log.ts` tiene fija la ruta
+    `/api/[...path]`, así que las rutas de login, callback y logout no dejan log operativo (`C-16`). Queda para una
+    tarea del BFF.
 
 ### T-IDA-22 — BFF: cookies, IP, retorno y cliente a Django
 - **AC:** AC-IDA-18, AC-IDA-19, AC-IDA-37 (BFF). RN-IDA-12, RN-IDA-13. **Zona roja:** sí.
@@ -688,7 +739,8 @@ módulos se aprueba en la misma pasada, después de `T-TEN-36`.
   seteadas y redirección interna).
 - **Limitaciones conocidas (revisión de #103):**
   - Un callback sin `__Host-cpu_login` (o con una de otra forma) no llega a Django, que exige el binding, y por eso
-    no se audita (`design.md §4.2`, paso 2). Queda para `T-IDA-21`. La cookie de login se borra ante cualquier
+    no se audita (`design.md §4.2`, paso 2). Queda para `T-IDA-21`. **Resuelto ahí (Q-128):** el BFF lo reenvía sin
+    binding y Django lo audita. La cookie de login se borra ante cualquier
     falla: un `/callback` forjado por navegación top-level corta un login en curso (solo deniega el servicio).
   - Las rutas no dejan log operativo: `log.ts` tiene fija la ruta `/api/[...path]` y un fallo del BFF (config, red)
     no deja rastro (`C-16`). Va en una tarea aparte.

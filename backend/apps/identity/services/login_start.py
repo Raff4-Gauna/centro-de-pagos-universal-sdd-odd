@@ -30,7 +30,7 @@ from apps.identity.models.login_attempt import LOGIN_ATTEMPT_LIFETIME, LoginAtte
 from apps.identity.oidc.provider import get_google_gateway
 
 LOGIN_FLAG = "IDENTITY_GOOGLE_LOGIN"
-LOGIN_STARTED_EVENT = "identity.login_started"
+LOGIN_STARTED_EVENT = "auth.login_started"
 
 logger = get_logger(__name__)
 
@@ -58,5 +58,5 @@ def start_login(*, return_path: object, login_binding: str, now: datetime | None
         created_at=created_at,
         expires_at=created_at + LOGIN_ATTEMPT_LIFETIME,
     )
-    logger.info(LOGIN_STARTED_EVENT)
+    logger.info(LOGIN_STARTED_EVENT, outcome="started")
     return gateway.build_authorization_url(state=state, nonce=nonce, code_verifier=code_verifier)

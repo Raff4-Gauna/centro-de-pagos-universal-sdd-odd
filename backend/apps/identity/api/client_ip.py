@@ -24,7 +24,7 @@ if TYPE_CHECKING:
     from rest_framework.request import Request
 
 CLIENT_IP_HEADER = "X-Hub-Client-IP"
-INVALID_CLIENT_IP_EVENT = "identity.client_ip_invalid"
+INVALID_CLIENT_IP_EVENT = "auth.client_ip_invalid"
 
 logger = get_logger(__name__)
 
@@ -46,6 +46,7 @@ def client_ip_for(request: Request) -> str:
         canonical = _canonical(reported)
         if canonical is not None:
             return canonical
-        logger.warning(INVALID_CLIENT_IP_EVENT)
+        # The value is not logged: it is what the BFF relayed, and an IP is personal (RNF-IDA-05).
+        logger.warning(INVALID_CLIENT_IP_EVENT, outcome="fallback")
     remote_addr: str = request.META.get("REMOTE_ADDR", "")
     return _canonical(remote_addr) or remote_addr

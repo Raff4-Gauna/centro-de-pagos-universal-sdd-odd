@@ -124,8 +124,8 @@ def test_AC_IDA_27_two_sessions_revoked_and_next_request_401(
     # Neither the output nor the logs carry the email.
     assert EMAIL not in out
     assert EMAIL not in repr(logs)
-    [log] = [entry for entry in logs if entry["event"] == "identity.user_deactivated"]
-    assert (log["result"], log["revoked"], log["user_id"]) == ("deactivated", 2, str(ana.pk))
+    [log] = [entry for entry in logs if entry["event"] == "auth.user_deactivated"]
+    assert (log["outcome"], log["revoked"], log["user_id"]) == ("changed", 2, str(ana.pk))
 
 
 def test_AC_IDA_27_reactivate_does_not_revive(client: Client, ports: Ports, ana: User) -> None:
@@ -189,13 +189,39 @@ def test_AC_IDA_27_repeating_either_changes_nothing_and_is_audited(ports: Ports,
 
 
 def test_AC_IDA_27_unknown_user_exits_1_without_echoing(ports: Ports, ana: User) -> None:
-    for target in (("--email", "nobody@example.com"), ("--user-id", str(uuid4()))):
-        with pytest.raises(CommandError) as raised:
-            deactivate(*target)
-        assert raised.value.returncode == 1
-        assert str(raised.value) == "No user matches."
-    assert ports.audit.events == []
+    unknown_id = uuid4()
+    runs = (
+        ("deactivate_user", ("--email", "nobody@example.com")),
+        ("reactivate_user", ("--user-id", str(unknown_id))),
+    )
+    with capture_logs() as logs:
+        for command, target in runs:
+            with pytest.raises(CommandError) as raised:
+                run(command, *target, "--operator", OPERATOR, "--reason", "typo?")
+            assert raised.value.returncode == 1
+            assert str(raised.value) == "No user matches."
     assert User.objects.get(pk=ana.pk).is_active
+    # Every run is audited (RN-IDA-23), this one too: who ran it and that nobody matched, never
+    # the email typed (it may be somebody else's, RNF-IDA-05).
+    actor = {"operator": OPERATOR, "os_user": "deploy"}
+    assert [(e.action, e.result, e.reason, e.actor_type) for e in ports.audit.events] == [
+        (action, AuditResult.FAILURE, "typo?", AuditActorType.PLATFORM_OPERATOR)
+        for action in (IdentityAuditAction.USER_DEACTIVATED, IdentityAuditAction.USER_REACTIVATED)
+    ]
+    assert [e.metadata for e in ports.audit.events] == [
+        {"outcome": "not_found", "target": "email", **actor},
+        {
+            "outcome": "not_found",
+            "target": "user_id",
+            "requested_user_id": str(unknown_id),
+            **actor,
+        },
+    ]
+    assert "nobody@example.com" not in repr(ports.audit.events) + repr(logs)
+    assert [(entry["event"], entry["outcome"]) for entry in logs] == [
+        ("auth.user_deactivated", "not_found"),
+        ("auth.user_reactivated", "not_found"),
+    ]
 
 
 @pytest.mark.parametrize(

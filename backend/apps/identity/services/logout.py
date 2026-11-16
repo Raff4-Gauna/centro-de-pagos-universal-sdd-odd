@@ -21,7 +21,8 @@ use. Order:
    and is not audited: it had already ended.
    Anything else (revoked, expired, unknown) is left as it is: the second logout has no effects.
 
-Nothing logged carries a token or its hash (RNF-IDA-03): the ``sid``, the ``user_id``, the result.
+Nothing logged carries a token or its hash (RNF-IDA-03): ``auth.logout`` with the ``sid``, the
+``user_id``, the ``outcome`` (a ``LogoutResult``) and the ``reason``.
 """
 
 from __future__ import annotations
@@ -52,7 +53,7 @@ from apps.identity.tokens.access_token import (
     verify_access_token_ignoring_expiry,
 )
 
-LOGOUT_EVENT = "identity.logout"
+LOGOUT_EVENT = "auth.logout"
 LOGOUT_REASONS = frozenset({RevokeReason.LOGOUT, RevokeReason.SUPERSEDED})
 
 logger = get_logger(__name__)
@@ -83,13 +84,13 @@ def logout(
         raise ValueError("logout ends a session only for logout or superseded")
     ref = _by_refresh_token(refresh_token) or _by_access_token(access_token)
     if ref is None:
-        logger.info(LOGOUT_EVENT, result=LogoutResult.NO_SESSION.value)
+        logger.info(LOGOUT_EVENT, outcome=LogoutResult.NO_SESSION.value)
         return False
     with transaction.atomic():
         result, user_id = _end_locked(ref, reason=reason, now=now)
     # ``sid`` as in the JWT: any key holding "session" is redacted from the logs (C-06).
     ids = {"sid": str(ref.session_id)} if user_id is None else _ids(ref.session_id, user_id)
-    logger.info(LOGOUT_EVENT, result=result.value, reason=reason.value, **ids)
+    logger.info(LOGOUT_EVENT, outcome=result.value, reason=reason.value, **ids)
     return result is LogoutResult.REVOKED
 
 

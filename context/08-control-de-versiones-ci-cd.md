@@ -128,6 +128,14 @@ corre en CI porque es más lento.
 - Campos obligatorios: `timestamp`, `level`, `request_id` (o `task_id` para Celery), `component`
   (`charges.service`, `integrations.providers.mercadopago`…), `organization_id` cuando aplica, `message`.
   **Nunca** credenciales, tokens, ni cuerpo crudo de request/response de proveedor (`C-06`, `RNF-ENG-02`).
+- **Nombres de campo y redacción.** La redacción de `apps/common/domain/redaction.py` vale para todos los módulos y
+  tapa por nombre de clave. Por eso:
+  - un evento nombra un código del catálogo (`rate_limited`, `token_invalid`) como `reason`, **nunca** `code`: la
+    clave exacta `code` (y `oauth_code`, `authorization_code`…) es el código de OAuth y sale `[REDACTED]`;
+  - la clave exacta `state` también sale `[REDACTED]` (es el `state` de OAuth): el estado de un cobro (`SPEC-06`) o
+    de cualquier entidad se loguea como `status` o con un nombre más largo (`charge_status`), no como `state`. Lo
+    mismo un problem anidado con `code`: se loguea su `reason`, no el problem;
+  - la redacción **no** tapa email ni IP por clave (`email`, `client_ip`): no se loguean (`RNF-IDA-05`).
 - El log de auditoría (`C-08`, módulo `10-audit`) es una **tabla**, no un archivo de log: queda append-only en
   BD porque tiene que sobrevivir y ser consultable, no rotar como un log operativo.
 - En desarrollo: logs a `stdout` (Docker Compose los junta). En producción: `stdout` también, pero recolectados

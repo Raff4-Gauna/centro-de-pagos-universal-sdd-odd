@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Centro de Pagos Universal API
-  version: 0.7.0
+  version: 0.8.0
 paths:
   /api/auth/bff/login/complete/:
     post:
@@ -365,9 +365,13 @@ components:
           type: string
           maxLength: 512
         login_binding:
-          type: string
-          minLength: 43
-          maxLength: 43
+          nullable: true
+          oneOf:
+          - type: string
+            maxLength: 43
+            minLength: 43
+          - type: string
+            maxLength: 0
         code:
           type: string
           nullable: true
@@ -377,7 +381,6 @@ components:
           nullable: true
           maxLength: 256
       required:
-      - login_binding
       - state
     LoginCompleteResponse:
       type: object
