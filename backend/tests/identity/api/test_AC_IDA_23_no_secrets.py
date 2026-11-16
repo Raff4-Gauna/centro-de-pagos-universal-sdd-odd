@@ -13,6 +13,7 @@ browser sent, the BFF credential, Google's client secret and the JWT signing key
 from __future__ import annotations
 
 import json
+import logging
 from typing import Any
 
 import pytest
@@ -96,13 +97,19 @@ def test_AC_IDA_23_no_secret_in_logs_or_errors(
         tokens = {"refresh_token": second["refresh_token"], "access_token": second["access_token"]}
         assert post(flow, LOGOUT, tokens).status_code == 204
 
-    # A login that fails with an error nobody expected, whose message quotes the state.
+    # A login that fails with an error nobody expected, whose message quotes the state, the code
+    # and the binding, and that some code logs carelessly with its traceback: the access log never
+    # writes a message, so this line is the one the redaction has to clean (C-06).
     state, nonce = flow.begin()
     secrets += [state, nonce]
     flow.google.next_id_token = flow.google.id_token(nonce=nonce)
 
     def broken(*args: object, **kwargs: object) -> None:
-        raise RuntimeError(f"broken while handling state={state} code={CODE}")
+        try:
+            raise RuntimeError(f"broken at state={state}&code={CODE} login_binding={BINDING}")
+        except RuntimeError:
+            logging.getLogger("apps.identity.careless").exception("callback failed")
+            raise
 
     monkeypatch.setattr(login_complete, "provision_user", broken)
     flow.client.raise_request_exception = False
@@ -126,6 +133,8 @@ def test_AC_IDA_23_no_secret_in_logs_or_errors(
         if line["outcome"] == "rejected":
             assert line["reason"]
     assert any(line.get("exception_type") == "RuntimeError" for line in lines)
+    [careless] = [line for line in lines if line.get("message") == "callback failed"]
+    assert "broken at state=[REDACTED]&code=[REDACTED] login_binding=[REDACTED]" in str(careless)
     for secret in [*secrets, *signing_key_lines()]:
         assert secret not in logged
         for body in bodies:

@@ -7,18 +7,25 @@
   header (``HTTP_AUTHORIZATION``) is the header. Exact: ``authorization``, ``proxy-authorization``,
   ``cookie``, ``set-cookie``, ``x-api-key``, ``auth``, ``location`` (a redirect target or a
   cache location, ``CACHES["default"]["LOCATION"]`` is the Redis URL; T-PLT-12 review), and the
-  OAuth ``code`` and ``state`` (SPEC-01 design.md §7.5): exact only, so ``status_code`` or a
-  ``state`` inside a longer name stay. Containing: ``token``, ``secret``, ``password``,
-  ``passwd``, ``api_key``/``apikey``, ``credential``, ``signature``, ``private_key``, ``session``
-  (``sessionid``), ``jwt``, ``nonce``, ``verifier`` (``code_verifier``) and ``binding``
-  (``login_binding``). An event names a catalog code ``reason``, never ``code``.
+  OAuth ``code`` and ``state`` (SPEC-01 design.md §7.5), also after a provider prefix
+  (``oauth``, ``auth``, ``authorization``, ``google``: ``oauth_code``, ``authorization_code``,
+  ``google_state``); any other longer name stays (``status_code``, ``error_code``,
+  ``state_changed``). The price is global: a ``state`` key of any module (a charge's) is blanked
+  too, so a module names its states otherwise (``status``; ``context/08`` §6).
+  Containing: ``token``, ``secret``, ``password``, ``passwd``, ``api_key``/``apikey``,
+  ``credential``, ``signature``, ``private_key``, ``session`` (``sessionid``), ``jwt``, ``nonce``,
+  ``verifier`` (``code_verifier``) and ``binding`` (``login_binding``). An event names a catalog
+  code ``reason``, never ``code``.
 - **Text** (every string, the message and a rendered traceback included): a URL loses its
   ``user:password@``, query string and fragment; a secret-like key followed by ``=`` or ``:``
   (with blanks and quotes around: ``password = x``, ``token: x``, ``{"access_token": "x"}``, a
   query string without a URL, a libpq DSN, a header line) loses its value, after an auth scheme if
   there is one (``Authorization: Bearer x``); ``code=`` and ``state=`` (a query string or a form
-  body, never ``code: 1``) lose theirs; ``Bearer``/``Basic <credential>`` loses the credential
-  anywhere.
+  body, never ``code: 1``), with the same provider prefixes, lose theirs; ``Bearer``/``Basic
+  <credential>`` loses the credential anywhere, and so do a bare JWT (``eyJ…`` in three dotted
+  parts) and a bare refresh token of the Hub (``rt1.<sid>.<secret>``).
+  Not by key: an email or an IP (``email``, ``client_ip``) pass as they are; RNF-IDA-05 is kept
+  by not logging them (SPEC-01 ``T-IDA-21`` note).
   Best effort: a secret written into free text in any other shape is not recognised, which is why
   the rule stays "never log it" (RN-PLT-06) and this is the net under it.
 - **Linear time** (T-PLT-14 review B-1): records are rendered inside ``Handler.emit``, under the
@@ -62,8 +69,6 @@ _EXACT_KEYS = frozenset(
         "xapikey",
         "location",
         "auth",
-        "code",
-        "state",
     }
 )
 _KEY_PARTS = (
@@ -82,6 +87,10 @@ _KEY_PARTS = (
     "binding",
 )
 _WSGI_HEADER_PREFIX = "http"
+# OAuth's code and state, alone or after the name of who issued them (compact form).
+_OAUTH_NAMES = ("code", "state")
+_OAUTH_PREFIXES = ("", "oauth", "auth", "authorization", "google")
+_OAUTH_KEYS = frozenset(prefix + name for prefix in _OAUTH_PREFIXES for name in _OAUTH_NAMES)
 
 # Linear by construction (B-1): each pattern can only start where the previous character cannot
 # be part of its first run (lookbehind), its leading runs are bounded, and only its last run is
@@ -106,7 +115,15 @@ _SECRET_PAIR = re.compile(
 )
 # OAuth's code and state as a query string or a form body has them (design.md §7.5 of SPEC-01):
 # with "=" only, since "code: 1" or a problem's "code": "x" are no secret.
-_FORM_PAIR = re.compile(r"(?i)(?<![\w.\-])((?:code|state)=)[^\s&;,\"'}\]]+")
+_FORM_PAIR = re.compile(
+    r"(?i)(?<![\w.\-])((?:(?:oauth|auth|authorization|google)[_\-]?)?(?:code|state)=)"
+    r"[^\s&;,\"'}\]]+"
+)
+# A JWT (its header is base64url JSON, so it starts with "eyJ") or a refresh token of the Hub
+# (rt1.<sid>.<secret>, SPEC-01) written without a key. Bounded leading runs, greedy last one.
+_BARE_TOKEN = re.compile(
+    r"(?<![\w\-.])(?:eyJ[\w\-]{1,4096}\.[\w\-]{1,8192}\.|rt1\.[\w\-]{1,64}\.)[\w\-]+"
+)
 # A credential after an HTTP auth scheme, anywhere in a text.
 _AUTH_SCHEME = re.compile(r"(?i)(?<!\w)((?:bearer|basic)\s{1,16})[A-Za-z0-9\-._~+/]+=*")
 _NON_FINITE = {math.inf: "Infinity", -math.inf: "-Infinity"}
@@ -116,7 +133,7 @@ JsonValue = str | int | float | bool | None | list["JsonValue"] | dict[str, "Jso
 
 def is_secret_key(key: str) -> bool:
     compact = key.lower().replace("-", "").replace("_", "")
-    if compact in _EXACT_KEYS:
+    if compact in _EXACT_KEYS or compact in _OAUTH_KEYS:
         return True
     if (
         compact.startswith(_WSGI_HEADER_PREFIX)
@@ -159,6 +176,7 @@ def redact_text(text: str) -> str:
     # Pairs before the bare scheme rule: a pair keeps "Bearer" in group 1 and redacts the rest.
     text = _SECRET_PAIR.sub(lambda match: match.group(1) + REDACTED, text)
     text = _FORM_PAIR.sub(lambda match: match.group(1) + REDACTED, text)
+    text = _BARE_TOKEN.sub(REDACTED, text)
     return _AUTH_SCHEME.sub(lambda match: match.group(1) + REDACTED, text)
 
 

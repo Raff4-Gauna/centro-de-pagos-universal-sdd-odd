@@ -231,7 +231,10 @@ def test_malformed_client_ip_falls_back_to_remote_addr_without_logging_it(value:
     with capture_logs() as logs:
         ip = client_ip_for(rest_request({**BFF, "X-Hub-Client-IP": value}))
     assert ip == "10.0.0.5"
-    assert [entry["event"] for entry in logs] == [INVALID_CLIENT_IP_EVENT]
+    assert [(entry["event"], entry["outcome"]) for entry in logs] == [
+        ("auth.client_ip_invalid", "fallback")
+    ]
+    assert INVALID_CLIENT_IP_EVENT == "auth.client_ip_invalid"
     assert value not in str(logs)
 
 

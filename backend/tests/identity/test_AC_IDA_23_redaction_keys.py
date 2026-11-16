@@ -76,3 +76,23 @@ def test_AC_IDA_23_text_with_a_code_that_is_no_form_field_is_kept() -> None:
     # message or "exit code: 1" keep their value.
     for text in ('{"code": "rate_limited"}', "exit code: 1", "state: active"):
         assert redact_text(text) == text
+
+
+@pytest.mark.parametrize(
+    "key", ["oauth_code", "auth_code", "authorization_code", "oauth_state", "google_code"]
+)
+def test_AC_IDA_23_oauth_code_or_state_with_a_provider_prefix_is_redacted(key: str) -> None:
+    assert redact_mapping({key: VALUE}) == {key: REDACTED}
+    assert VALUE not in redact_text(f"{key}={VALUE}")
+
+
+JWT = "eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiIxMjMifQ.c2lnbmF0dXJlLW9mLXRoZS10b2tlbg"
+REFRESH = "rt1.AAAAAAAAAAAAAAAAAAAAAA." + "B" * 43
+
+
+@pytest.mark.parametrize("secret", [JWT, REFRESH])
+def test_AC_IDA_23_bare_hub_token_in_free_text_is_redacted(secret: str) -> None:
+    for text in (secret, f"refused {secret} again", f"('{secret}',)"):
+        redacted = redact_text(text)
+        assert secret not in redacted
+        assert REDACTED in redacted
