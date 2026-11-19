@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Centro de Pagos Universal API
-  version: 0.10.0
+  version: 0.11.0
 paths:
   /api/auth/bff/login/complete/:
     post:
@@ -322,6 +322,126 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
+  /api/branches/:
+    get:
+      operationId: branches_list
+      summary: Las sucursales de la organización activa
+      parameters:
+      - in: header
+        name: X-Organization-Id
+        schema:
+          type: string
+          format: uuid
+        description: Organización activa de la request (RN-TEN-03).
+        required: true
+      - in: query
+        name: is_active
+        schema:
+          enum:
+          - 'false'
+          - 'true'
+          type: string
+          minLength: 1
+        description: |-
+          true: solo las activas · false: solo las inactivas · sin el parámetro: todas.
+
+          * `false` - false
+          * `true` - true
+      - name: page
+        required: false
+        in: query
+        description: Un número de página dentro del conjunto de resultados paginado.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Número de resultados a devolver por página.
+        schema:
+          type: integer
+      tags:
+      - tenancy
+      security:
+      - HubBearer: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedBranchList'
+          description: ''
+        4XX:
+          description: Error del cliente
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        5XX:
+          description: Error del servidor
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+    post:
+      operationId: branches_create
+      summary: Crea una sucursal en la organización activa
+      parameters:
+      - in: header
+        name: X-Organization-Id
+        schema:
+          type: string
+          format: uuid
+        description: Organización activa de la request (RN-TEN-03).
+        required: true
+      tags:
+      - tenancy
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BranchCreateRequest'
+        required: true
+      security:
+      - HubBearer: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Branch'
+          description: ''
+        '400':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: 'code: validation_error (unknown_field si el cuerpo trae otra
+            clave) · organization_required'
+        '403':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: 'code: forbidden'
+        '409':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: 'code: conflict (nombre o código de otra sucursal activa) ·
+            organization_suspended'
+        4XX:
+          description: Error del cliente
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        5XX:
+          description: Error del servidor
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
   /api/me/:
     get:
       operationId: me_retrieve
@@ -532,6 +652,52 @@ paths:
                 $ref: '#/components/schemas/Problem'
 components:
   schemas:
+    Branch:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          readOnly: true
+        code:
+          type: string
+          readOnly: true
+        address:
+          type: string
+          readOnly: true
+        is_active:
+          type: boolean
+          readOnly: true
+        deactivated_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+      required:
+      - address
+      - code
+      - deactivated_at
+      - id
+      - is_active
+      - name
+    BranchCreateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+        code:
+          type: string
+          maxLength: 32
+        address:
+          type: string
+          maxLength: 255
+      required:
+      - name
     CurrentOrganization:
       type: object
       properties:
@@ -754,6 +920,29 @@ components:
       description: |-
         * `active` - active
         * `suspended` - suspended
+    PaginatedBranchList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          description: Ruta relativa con la query de la página, o null.
+          example: /api/recurso/?page=4
+        previous:
+          type: string
+          nullable: true
+          description: Ruta relativa con la query de la página, o null.
+          example: /api/recurso/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Branch'
     PaginatedMyOrganizationList:
       type: object
       required:
