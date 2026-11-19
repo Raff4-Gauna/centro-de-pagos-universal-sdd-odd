@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Centro de Pagos Universal API
-  version: 0.9.0
+  version: 0.10.0
 paths:
   /api/auth/bff/login/complete/:
     post:
@@ -403,8 +403,187 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
+  /api/organizations/current/:
+    get:
+      operationId: organizations_current_retrieve
+      summary: La organización activa y lo que la persona puede hacer en ella
+      parameters:
+      - in: header
+        name: X-Organization-Id
+        schema:
+          type: string
+          format: uuid
+        description: Organización activa de la request (RN-TEN-03).
+        required: true
+      tags:
+      - tenancy
+      security:
+      - HubBearer: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurrentOrganization'
+          description: ''
+        '400':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: 'code: organization_required (falta X-Organization-Id)'
+        '401':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: 'code: unauthenticated · token_expired · token_invalid · session_revoked
+            (con WWW-Authenticate: Bearer realm="hub")'
+        '404':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: 'code: organization_not_found (no existe o sin membership activa:
+            el mismo cuerpo)'
+        4XX:
+          description: Error del cliente
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        5XX:
+          description: Error del servidor
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+    patch:
+      operationId: organizations_current_partial_update
+      summary: Editar los datos de la organización activa (owner y admin)
+      parameters:
+      - in: header
+        name: X-Organization-Id
+        schema:
+          type: string
+          format: uuid
+        description: Organización activa de la request (RN-TEN-03).
+        required: true
+      tags:
+      - tenancy
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedOrganizationUpdateRequest'
+      security:
+      - HubBearer: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurrentOrganization'
+          description: ''
+        '400':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: 'code: validation_error (un campo desconocido o de solo lectura,
+            como status, es unknown_field) · organization_required'
+        '401':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: 'code: unauthenticated · token_expired · token_invalid · session_revoked
+            (con WWW-Authenticate: Bearer realm="hub")'
+        '403':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: 'code: forbidden (rol sin org.update)'
+        '404':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: 'code: organization_not_found (no existe o sin membership activa:
+            el mismo cuerpo)'
+        '409':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: 'code: organization_suspended'
+        4XX:
+          description: Error del cliente
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        5XX:
+          description: Error del servidor
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
 components:
   schemas:
+    CurrentOrganization:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          readOnly: true
+        legal_name:
+          type: string
+          readOnly: true
+        tax_id:
+          type: string
+          readOnly: true
+        timezone:
+          type: string
+          readOnly: true
+        status:
+          allOf:
+          - $ref: '#/components/schemas/OrganizationStatusEnum'
+          readOnly: true
+        my_role:
+          allOf:
+          - $ref: '#/components/schemas/RoleEnum'
+          readOnly: true
+        my_membership_id:
+          type: string
+          format: uuid
+          readOnly: true
+        allowed_actions:
+          type: array
+          items:
+            $ref: '#/components/schemas/TenancyActionEnum'
+          readOnly: true
+        invitable_roles:
+          type: array
+          items:
+            $ref: '#/components/schemas/RoleEnum'
+          readOnly: true
+      required:
+      - allowed_actions
+      - id
+      - invitable_roles
+      - legal_name
+      - my_membership_id
+      - my_role
+      - name
+      - status
+      - tax_id
+      - timezone
     LoginCompleteRequest:
       type: object
       properties:
@@ -621,6 +800,23 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Session'
+    PatchedOrganizationUpdateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+        legal_name:
+          type: string
+          maxLength: 200
+        tax_id:
+          type: string
+          maxLength: 13
+        timezone:
+          type: string
+          minLength: 1
+          maxLength: 64
     Problem:
       type: object
       description: Sobre único de error (RFC 9457), media type application/problem+json.
@@ -750,6 +946,40 @@ components:
       - is_current
       - last_used_at
       - os
+    TenancyActionEnum:
+      enum:
+      - org.read
+      - org.update
+      - member.list
+      - member.change_role
+      - member.revoke
+      - member.leave
+      - invitation.list
+      - invitation.create
+      - invitation.resend
+      - invitation.revoke
+      - branch.read
+      - branch.create
+      - branch.update
+      - branch.deactivate
+      - branch.reactivate
+      type: string
+      description: |-
+        * `org.read` - org.read
+        * `org.update` - org.update
+        * `member.list` - member.list
+        * `member.change_role` - member.change_role
+        * `member.revoke` - member.revoke
+        * `member.leave` - member.leave
+        * `invitation.list` - invitation.list
+        * `invitation.create` - invitation.create
+        * `invitation.resend` - invitation.resend
+        * `invitation.revoke` - invitation.revoke
+        * `branch.read` - branch.read
+        * `branch.create` - branch.create
+        * `branch.update` - branch.update
+        * `branch.deactivate` - branch.deactivate
+        * `branch.reactivate` - branch.reactivate
   securitySchemes:
     BffCredential:
       type: apiKey

@@ -247,4 +247,4 @@ def test_contract_publishes_complete_as_bff_internal() -> None:
         "session_expires_in",
         "return_path",
     }
-    assert contract["info"]["version"] == "0.9.0"
+    assert contract["info"]["version"] == "0.10.0"

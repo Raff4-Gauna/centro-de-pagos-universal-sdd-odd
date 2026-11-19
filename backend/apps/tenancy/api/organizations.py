@@ -1,13 +1,21 @@
-"""``GET /api/organizations/``: my organizations and my role in each (RF-TEN-02, design.md §6).
+"""The organizations of the person and the active one (RF-TEN-02, RF-TEN-03, design.md §6).
 
-Exempt from the active organization (design.md §3.5): it lists the organizations a user can pick,
-so it is not a ``TenantViewSet``; ``X-Organization-Id`` is neither required nor read. The user is
-always the authenticated one and the route takes no user identifier, so nobody lists anyone else's
-(AC-TEN-08). Default permission: any authenticated person; anonymous → ``401 unauthenticated``.
+``GET /api/organizations/`` (``MyOrganizationsView``) is exempt from the active organization
+(design.md §3.5): it lists the organizations a user can pick, so it is not a ``TenantViewSet``;
+``X-Organization-Id`` is neither required nor read. The user is always the authenticated one and
+the route takes no user identifier, so nobody lists anyone else's (AC-TEN-08). Default permission:
+any authenticated person; anonymous → ``401 unauthenticated``. Paginated as the other lists
+(``HubPageNumberPagination``), ordered by name.
 
-Only ``GET``: there is no way to create, replace or delete an organization through the API
-(RN-TEN-10, AC-TEN-21); any other method is ``405 method_not_allowed`` once authenticated.
-Paginated as the other lists (``HubPageNumberPagination``), ordered by name.
+``/api/organizations/current/`` (``CurrentOrganizationViewSet``) is the organization of
+``X-Organization-Id``: ``GET`` for every role (``org.read``), ``PATCH`` of ``name``,
+``legal_name``, ``tax_id`` and ``timezone`` for owner and admin (``org.update``, a ``WRITE``:
+``409 organization_suspended`` while suspended). Both answer the same body.
+
+There is no way to create, replace, delete or change the status of an organization through the
+API (RN-TEN-10, RN-TEN-18, AC-TEN-21, AC-TEN-29): any other method is ``405 method_not_allowed``
+once authenticated, and ``status`` in a ``PATCH`` is ``400 validation_error``. Both routes answer
+``Cache-Control: no-store``.
 """
 
 from __future__ import annotations
@@ -26,15 +34,34 @@ from apps.common.authz.roles import Role
 from apps.common.tenancy.context import OrgStatus
 from apps.identity.api.authentication import Unauthenticated
 from apps.identity.selectors.auth_sessions import RequestAuthContext
+from apps.tenancy.api.base import TenantViewSet
+from apps.tenancy.api.serializers.organizations import (
+    CurrentOrganizationSerializer,
+    OrganizationUpdateSerializer,
+    current_organization,
+)
+from apps.tenancy.domain.permissions import TENANCY_ACTIONS, TenancyAction
+from apps.tenancy.models import Organization
 from apps.tenancy.selectors.memberships import MyMembership, list_active_memberships
+from apps.tenancy.selectors.organizations import get_organization
+from apps.tenancy.services.organizations import update_organization
 
 ORGANIZATIONS_TAG = "tenancy"
-_UNAUTHORIZED = OpenApiResponse(
-    response={"$ref": f"#/components/schemas/{PROBLEM}"},
-    description=(
-        "code: unauthenticated · token_expired · token_invalid · session_revoked "
-        '(con WWW-Authenticate: Bearer realm="hub")'
-    ),
+
+
+def _problem(description: str) -> OpenApiResponse:
+    return OpenApiResponse(
+        response={"$ref": f"#/components/schemas/{PROBLEM}"}, description=description
+    )
+
+
+_UNAUTHORIZED = _problem(
+    "code: unauthenticated · token_expired · token_invalid · session_revoked "
+    '(con WWW-Authenticate: Bearer realm="hub")'
+)
+_ORGANIZATION_REQUIRED = _problem("code: organization_required (falta X-Organization-Id)")
+_ORGANIZATION_NOT_FOUND = _problem(
+    "code: organization_not_found (no existe o sin membership activa: el mismo cuerpo)"
 )
 
 
@@ -75,3 +102,52 @@ class MyOrganizationsView(generics.ListAPIView[Any]):
         response = self.get_paginated_response(self.get_serializer(page, many=True).data)
         response["Cache-Control"] = "no-store"  # personal data: no shared or browser copy
         return response
+
+
+class CurrentOrganizationViewSet(TenantViewSet):
+    action_specs = {  # noqa: RUF012 - read once by TenantViewSet.__init_subclass__
+        "retrieve": TENANCY_ACTIONS[TenancyAction.ORG_READ],
+        "partial_update": TENANCY_ACTIONS[TenancyAction.ORG_UPDATE],
+    }
+
+    def _respond(self, organization: Organization) -> Response:
+        body = CurrentOrganizationSerializer(current_organization(organization, self.tenant)).data
+        response = Response(body)
+        response["Cache-Control"] = "no-store"  # the actor's role and permissions
+        return response
+
+    @extend_schema(
+        operation_id="organizations_current_retrieve",
+        summary="La organización activa y lo que la persona puede hacer en ella",
+        tags=[ORGANIZATIONS_TAG],
+        responses={
+            200: CurrentOrganizationSerializer,
+            (400, PROBLEM_CONTENT_TYPE): _ORGANIZATION_REQUIRED,
+            (401, PROBLEM_CONTENT_TYPE): _UNAUTHORIZED,
+            (404, PROBLEM_CONTENT_TYPE): _ORGANIZATION_NOT_FOUND,
+        },
+    )
+    def retrieve(self, request: Request) -> Response:
+        return self._respond(get_organization(self.tenant))
+
+    @extend_schema(
+        operation_id="organizations_current_partial_update",
+        summary="Editar los datos de la organización activa (owner y admin)",
+        tags=[ORGANIZATIONS_TAG],
+        request=OrganizationUpdateSerializer,
+        responses={
+            200: CurrentOrganizationSerializer,
+            (400, PROBLEM_CONTENT_TYPE): _problem(
+                "code: validation_error (un campo desconocido o de solo lectura, como status, "
+                "es unknown_field) · organization_required"
+            ),
+            (401, PROBLEM_CONTENT_TYPE): _UNAUTHORIZED,
+            (403, PROBLEM_CONTENT_TYPE): _problem("code: forbidden (rol sin org.update)"),
+            (404, PROBLEM_CONTENT_TYPE): _ORGANIZATION_NOT_FOUND,
+            (409, PROBLEM_CONTENT_TYPE): _problem("code: organization_suspended"),
+        },
+    )
+    def partial_update(self, request: Request) -> Response:
+        serializer = OrganizationUpdateSerializer(data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        return self._respond(update_organization(self.tenant, serializer.validated_data))
