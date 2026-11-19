@@ -378,8 +378,7 @@ T-TEN-30 · suspendida → T-TEN-29.
     cada request, las filas de B no cambian y la respuesta no lleva ids de B. HEAD se prueba por estado.
   - Una ruta exenta con `GET` detrás del login (`IsAuthenticated`) declara `read`: la suite la lee como miembro de A,
     sin header y con el de B, y falla si aparece algo de B, de su owner o de su sesión (exenta no es sin aislamiento).
-    Hoy: `/api/me/` y `/api/auth/sessions/`; `GET /api/organizations/` (T-TEN-12) entra igual, una línea en
-    `cases/tenancy.py`.
+    Hoy: `/api/me/`, `/api/auth/sessions/` y `GET /api/organizations/` (T-TEN-12, en `cases/tenancy.py`).
   - Sin rutas de negocio aún, `cases/tenant_probe.py` monta un CRUD de `Widget` como ruta real de la suite.
   - AC-TEN-33: el operador es owner de otra organización y `is_superuser`/`is_staff` se ponen con `monkeypatch` (Q-228).
   - `conftest.py` apaga `cache_logger_on_first_use` durante la suite: un logger cacheado acá antes de que
