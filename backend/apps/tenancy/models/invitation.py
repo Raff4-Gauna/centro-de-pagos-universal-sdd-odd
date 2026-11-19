@@ -21,12 +21,18 @@ final net even if a service fails (ADR-0002 §2):
 ``invitation_org_status_created`` serves the listing of one organization and
 ``invitation_pending_email`` the pending ones of an email (port of SPEC-01, T-TEN-16/17). Every FK
 is ``PROTECT`` without reverse accessor: an invitation is never deleted (``NoHardDeleteMixin``).
-``replaces`` points a resent invitation at the one it revoked. The model scopes of design.md §3.4
-(``by_token_hash``, ``pending_for_email``, ``for_session_accept``) arrive with their first reader.
+``replaces`` points a resent invitation at the one it revoked.
+
+``Invitation.objects.by_token_hash(token_hash)`` is the scope of accepting by token (design.md
+§3.4, §4.4): the one row with that hash, whatever its organization, read only
+(``scopes.ModelScope``; ``allowlists.MODEL_SCOPES``). It takes the hash, never the token, and
+refuses anything that is not 64 lowercase hex. ``pending_for_email`` and ``for_session_accept``
+arrive with their first reader (T-TEN-16).
 """
 
 from __future__ import annotations
 
+import re
 import uuid
 from enum import StrEnum
 from typing import ClassVar
@@ -38,6 +44,7 @@ from django.db.models.functions import Lower, Trim
 
 from apps.common.authz.roles import Role
 from apps.common.tenancy.models import NoHardDeleteMixin, TenantModel
+from apps.common.tenancy.querysets import TenantQuerySet
 from apps.tenancy.domain.invitations import (
     OPERATOR_PURPOSES,
     TOKEN_HASH_LENGTH,
@@ -51,6 +58,19 @@ EMAIL_MAX_LENGTH = 254
 
 def _values(enum: type[StrEnum]) -> list[str]:
     return [member.value for member in enum]
+
+
+_TOKEN_HASH = re.compile(rf"[0-9a-f]{{{TOKEN_HASH_LENGTH}}}")
+
+
+class InvitationQuerySet(TenantQuerySet["Invitation"]):
+    def by_token_hash(self, token_hash: str) -> InvitationQuerySet:
+        if not isinstance(token_hash, str) or not _TOKEN_HASH.fullmatch(token_hash):
+            raise ValueError("by_token_hash needs the SHA-256 of a token, in hex")
+        return self._model_scope("by_token_hash", token_hash, token_hash=token_hash)
+
+
+InvitationManager = models.Manager.from_queryset(InvitationQuerySet)
 
 
 class Invitation(NoHardDeleteMixin, TenantModel):
@@ -81,6 +101,8 @@ class Invitation(NoHardDeleteMixin, TenantModel):
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    objects: ClassVar[InvitationManager] = InvitationManager()
 
     class Meta:
         constraints: ClassVar[list[models.BaseConstraint]] = [

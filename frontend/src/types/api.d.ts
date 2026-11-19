@@ -153,6 +153,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/invitations/accept/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Aceptar una invitación con su token (sin organización activa) */
+        post: operations["invitations_accept"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/me/": {
         parameters: {
             query?: never;
@@ -209,6 +226,12 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        AcceptedInvitation: {
+            readonly organization: components["schemas"]["JoinedOrganization"];
+            readonly role: components["schemas"]["RoleEnum"];
+            /** Format: uuid */
+            readonly membership_id: string;
+        };
         Branch: {
             /** Format: uuid */
             readonly id: string;
@@ -237,6 +260,14 @@ export interface components {
             readonly my_membership_id: string;
             readonly allowed_actions: components["schemas"]["TenancyActionEnum"][];
             readonly invitable_roles: components["schemas"]["RoleEnum"][];
+        };
+        InvitationAcceptRequest: {
+            token: string;
+        };
+        JoinedOrganization: {
+            /** Format: uuid */
+            readonly id: string;
+            readonly name: string;
         };
         LoginCompleteRequest: {
             state: string;
@@ -369,6 +400,11 @@ export interface components {
             request_id: string | null;
             /** @description Solo en validation_error. */
             errors?: components["schemas"]["ProblemFieldError"][];
+            /**
+             * @description Solo en los code que se precisan (invitation_invalid): un valor de una lista cerrada, nunca la entrada.
+             * @example expired
+             */
+            reason?: string;
         };
         ProblemFieldError: {
             /** @example amount */
@@ -928,6 +964,74 @@ export interface operations {
                 };
             };
             /** @description code: conflict (nombre o código de otra sucursal activa) · organization_suspended */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Error del cliente */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Error del servidor */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    invitations_accept: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InvitationAcceptRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AcceptedInvitation"];
+                };
+            };
+            /** @description code: invitation_invalid, con reason: not_found · email_mismatch · revoked · used · expired; o validation_error (falta el token) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description code: unauthenticated · token_expired · token_invalid · session_revoked (con WWW-Authenticate: Bearer realm="hub") */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description code: organization_suspended · already_member */
             409: {
                 headers: {
                     [name: string]: unknown;

@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Centro de Pagos Universal API
-  version: 0.11.0
+  version: 0.12.0
 paths:
   /api/auth/bff/login/complete/:
     post:
@@ -442,6 +442,59 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
+  /api/invitations/accept/:
+    post:
+      operationId: invitations_accept
+      summary: Aceptar una invitación con su token (sin organización activa)
+      tags:
+      - tenancy
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InvitationAcceptRequest'
+        required: true
+      security:
+      - HubBearer: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AcceptedInvitation'
+          description: ''
+        '400':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: 'code: invitation_invalid, con reason: not_found · email_mismatch
+            · revoked · used · expired; o validation_error (falta el token)'
+        '401':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: 'code: unauthenticated · token_expired · token_invalid · session_revoked
+            (con WWW-Authenticate: Bearer realm="hub")'
+        '409':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: 'code: organization_suspended · already_member'
+        4XX:
+          description: Error del cliente
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        5XX:
+          description: Error del servidor
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
   /api/me/:
     get:
       operationId: me_retrieve
@@ -652,6 +705,25 @@ paths:
                 $ref: '#/components/schemas/Problem'
 components:
   schemas:
+    AcceptedInvitation:
+      type: object
+      properties:
+        organization:
+          allOf:
+          - $ref: '#/components/schemas/JoinedOrganization'
+          readOnly: true
+        role:
+          allOf:
+          - $ref: '#/components/schemas/RoleEnum'
+          readOnly: true
+        membership_id:
+          type: string
+          format: uuid
+          readOnly: true
+      required:
+      - membership_id
+      - organization
+      - role
     Branch:
       type: object
       properties:
@@ -750,6 +822,29 @@ components:
       - status
       - tax_id
       - timezone
+    InvitationAcceptRequest:
+      type: object
+      properties:
+        token:
+          type: string
+          writeOnly: true
+          minLength: 1
+          maxLength: 128
+      required:
+      - token
+    JoinedOrganization:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          readOnly: true
+      required:
+      - id
+      - name
     LoginCompleteRequest:
       type: object
       properties:
@@ -1038,6 +1133,11 @@ components:
           description: Solo en validation_error.
           items:
             $ref: '#/components/schemas/ProblemFieldError'
+        reason:
+          type: string
+          description: 'Solo en los code que se precisan (invitation_invalid): un
+            valor de una lista cerrada, nunca la entrada.'
+          example: expired
       required:
       - type
       - title

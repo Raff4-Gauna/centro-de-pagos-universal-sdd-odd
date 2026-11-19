@@ -16,7 +16,7 @@ from typing import Any
 
 from apps.common.api.problems import PROBLEM_CONTENT_TYPE
 
-API_VERSION = "0.11.0"
+API_VERSION = "0.12.0"
 PUBLIC_URLCONF = "config.urls"
 
 PROBLEM = "Problem"
@@ -58,6 +58,14 @@ def _problem_schema() -> dict[str, Any]:
                 "type": "array",
                 "description": "Solo en validation_error.",
                 "items": {"$ref": f"#/components/schemas/{FIELD_ERROR}"},
+            },
+            "reason": {
+                "type": "string",
+                "description": (
+                    "Solo en los code que se precisan (invitation_invalid): un valor de una lista "
+                    "cerrada, nunca la entrada."
+                ),
+                "example": "expired",
             },
         },
         "required": ["type", "title", "status", "code", "request_id"],

@@ -2,9 +2,10 @@
 
 Pure (no Django, no DRF): ``api/exceptions.py`` turns exceptions into ``build_problem`` calls.
 Fields (design.md §3.2.4, §6.2): ``type`` (``urn:hub:problem:<code>``), ``title`` (fixed per code),
-``status``, ``code``, ``detail`` (never on a 5xx), ``request_id`` and, for ``validation_error``
-only, ``errors[]`` of ``field``/``code``/``message``. ``code`` is the contract: changing or removing
-a published one is incompatible (ADR-0005).
+``status``, ``code``, ``detail`` (never on a 5xx), ``request_id``, for ``validation_error``
+only, ``errors[]`` of ``field``/``code``/``message`` and, for the codes that refine themselves,
+``reason`` (``invitation_invalid``, SPEC-02 design.md §6): a closed value, never the input.
+``code`` is the contract: changing or removing a published one is incompatible (ADR-0005).
 """
 
 from __future__ import annotations
@@ -48,6 +49,8 @@ TITLES: Mapping[str, str] = {
     "organization_suspended": "Organización suspendida",
     "forbidden": "Acción no permitida",
     "conflict": "Conflicto",
+    "invitation_invalid": "Invitación inválida",
+    "already_member": "Ya es miembro",
     INTERNAL_ERROR: "Error interno",
 }
 
@@ -68,6 +71,7 @@ def build_problem(
     request_id: str | None,
     detail: str | None = None,
     errors: list[dict[str, str]] | None = None,
+    reason: str | None = None,
 ) -> dict[str, Any]:
     """The envelope; ``detail`` is dropped from any 5xx, whatever the caller passed."""
     problem: dict[str, Any] = {
@@ -81,6 +85,8 @@ def build_problem(
     problem["request_id"] = request_id
     if errors is not None:
         problem["errors"] = errors
+    if reason is not None:
+        problem["reason"] = reason
     return problem
 
 

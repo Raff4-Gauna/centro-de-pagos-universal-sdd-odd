@@ -2,8 +2,9 @@
 ``application/problem+json`` envelope (design.md §3.2.4, RN-PLT-15, AC-PLT-34).
 
 DRF views: an ``APIException`` keeps its status, its ``code`` (``get_codes()`` when that is one
-string, else the class default; a ``ValidationError`` is ``validation_error`` with ``errors[]``) and
-the headers DRF would send (``WWW-Authenticate``, ``Retry-After``). Django's ``Http404`` and
+string, else the class default; a ``ValidationError`` is ``validation_error`` with ``errors[]``),
+its ``problem_reason`` as ``reason`` when it sets one (a ``str`` of a closed list) and the headers
+DRF would send (``WWW-Authenticate``, ``Retry-After``). Django's ``Http404`` and
 ``PermissionDenied`` become ``not_found``/``permission_denied`` *without* their message (it may name
 a model or an id). Anything else is ``500 internal_error`` without detail, also with ``DEBUG``. The
 handler runs inside DRF's ``except``, so it sends ``got_request_exception`` there: the access log
@@ -73,11 +74,13 @@ def _api_problem(exc: exceptions.APIException) -> dict[str, Any]:
             errors=errors,
         )
     codes = exc.get_codes()
+    reason = getattr(exc, "problem_reason", None)
     return build_problem(
         code=codes if isinstance(codes, str) else str(exc.default_code),
         status=exc.status_code,
         request_id=current_request_id(),
         detail=exc.detail if isinstance(exc.detail, str) else None,
+        reason=reason if isinstance(reason, str) else None,
     )
 
 
