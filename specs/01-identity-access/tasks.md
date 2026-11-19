@@ -94,7 +94,7 @@ El diseño se escribió antes de que existiera el código de SPEC-00. Donde difi
 | T-IDA-27 | Proxy con sesión: Bearer, CSRF y refresh transparente | AC-IDA-18, AC-IDA-26 (UX), AC-IDA-28 | BFF | `src/lib/server/{session-proxy,backend-proxy,problem}.ts`, `app/api/[...path]/route.ts`, `src/lib/api-client.ts`, `frontend/scripts/check-client-bundle.ts`, `frontend/Dockerfile`, `context/07-frontend-ui-guidelines.md` | T-IDA-23 | frontend-dev | L | Sí | 🟡 | rama `task/T-IDA-27-session-proxy`, sin PR |
 | T-IDA-28 | Pantalla "Ingresar" y protección de rutas | AC-IDA-19 (UI) | UI | `src/proxy.ts`, `app/(auth)/login/page.tsx`, `src/modules/identity/components/{LoginCard,LoginErrorAlert}.tsx`, `src/modules/identity/lib/login-errors.ts`, `scripts/smoke_pages.py`, `scripts/tests/test_smoke_pages.py` | T-IDA-24, T-IDA-26, T-IDA-27 | frontend-dev | M | Sí | 🟡 | PR #112 |
 | T-IDA-29 | Mi perfil, menú de usuario y "sin empresas" | AC-IDA-30 (UI) | UI | `src/modules/identity/components/{ProfileCard,UserMenu,NoOrganizationState}.tsx` | T-IDA-07, T-IDA-25, T-IDA-28 | frontend-dev | M | Sí (`scripts/**`) | 🟡 | rama `task/T-IDA-29-profile-menu`, sin PR |
-| T-IDA-30 | Pantalla "Seguridad" | AC-IDA-33 (UI) | UI | `app/(dashboard)/configuracion/seguridad/page.tsx`, `src/modules/identity/components/SessionsTable.tsx` | T-IDA-17, T-IDA-29 | frontend-dev | L | No | ☐ | |
+| T-IDA-30 | Pantalla "Seguridad" | AC-IDA-33 (UI) | UI | `app/(dashboard)/configuracion/seguridad/page.tsx`, `src/modules/identity/components/SessionsTable.tsx` | T-IDA-17, T-IDA-29 | frontend-dev | L | No | ⛔ | Q-129 (faltan textos de la pantalla) |
 | T-IDA-31 | E2E de login con proveedor falso | AC-IDA-01, AC-IDA-17, AC-IDA-33 | E2E | `scripts/e2e_login.py`, `scripts/tests/test_e2e_login.py` | T-IDA-20, T-IDA-29, T-IDA-30 | backend-dev | M | Sí | ☐ | |
 
 ## Cobertura AC → tareas
@@ -866,6 +866,12 @@ módulos se aprueba en la misma pasada, después de `T-TEN-36`.
   `src/modules/identity/hooks/{useSessions,useRevokeSession,useRevokeOtherSessions}.ts`, `lib/format-dates.ts`.
 - **Pruebas:** `test_AC_IDA_33` (acción deshabilitada sin otras sesiones; la actual usa logout del BFF), fechas en
   `America/Argentina/Buenos_Aires`.
+- **Bloqueo (2026-11-19):** ⛔ **Q-129**: la spec §14 y `design.md §3.4` no fijan los textos de los diálogos, el
+  encabezado de la columna navegador · SO, el valor para `browser`/`os` nulos, el estado vacío ni qué se ve ante un
+  `404` al revocar. No se escribió código; se retoma cuando el dueño decida.
+- **A sumar al implementar:** `src/modules/settings/settings-sections.ts` ("Seguridad" pasa a enlace) y
+  `scripts/smoke_pages.py`, `scripts/tests/test_smoke_pages.py`, `scripts/tests/smoke_stack_fakes.py` (la página nueva
+  redirige a `/login` sin sesión; sin listarla, el smoke falla). Por esos tres, el PR pasa a **zona roja** (`scripts/**`).
 
 ### T-IDA-31 — E2E de login con proveedor falso
 - **AC:** AC-IDA-01, AC-IDA-17, AC-IDA-33. **Zona roja:** sí (`scripts/**`).
