@@ -47,6 +47,7 @@ TITLES: Mapping[str, str] = {
     "organization_not_found": "Organización no encontrada",
     "organization_suspended": "Organización suspendida",
     "forbidden": "Acción no permitida",
+    "conflict": "Conflicto",
     INTERNAL_ERROR: "Error interno",
 }
 

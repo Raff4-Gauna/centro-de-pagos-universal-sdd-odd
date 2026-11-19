@@ -3,10 +3,16 @@
 from __future__ import annotations
 
 from django.urls import URLPattern, URLResolver, path
+from rest_framework.routers import SimpleRouter
 
+from apps.tenancy.api.branches import BranchViewSet
 from apps.tenancy.api.organizations import CurrentOrganizationViewSet, MyOrganizationsView
 
 app_name = "tenancy"
+
+# Tenant-scoped: the organization of X-Organization-Id (design.md §6).
+router = SimpleRouter()
+router.register("branches", BranchViewSet, basename="branch")
 
 urlpatterns: list[URLPattern | URLResolver] = [
     # Exempt from the active organization (design.md §3.5): the organizations a user can pick.
@@ -17,4 +23,5 @@ urlpatterns: list[URLPattern | URLResolver] = [
         CurrentOrganizationViewSet.as_view({"get": "retrieve", "patch": "partial_update"}),
         name="organization-current",
     ),
+    *router.urls,
 ]

@@ -33,12 +33,11 @@ from apps.tenancy.domain.tax_id import InvalidTaxIdError, normalize_tax_id
 from apps.tenancy.models import Organization
 from apps.tenancy.selectors.organizations import lock_organization
 from apps.tenancy.services.audit import audit_trigger, record_event
+from apps.tenancy.services.fields import unknown_field_errors
 
 EDITABLE_FIELDS = ("name", "legal_name", "tax_id", "timezone")
 NAME_MAX_LENGTH = 120
 LEGAL_NAME_MAX_LENGTH = 200
-UNKNOWN_FIELD = "unknown_field"
-UNKNOWN_FIELD_MESSAGE = "Este campo no se puede modificar."
 
 
 @cache
@@ -64,9 +63,7 @@ def _check_length(field: str, value: str, limit: int, errors: dict[str, list[Err
 
 def clean_changes(changes: Mapping[str, object]) -> dict[str, str]:
     """The normalized values of ``changes``; ``ValidationError`` with every wrong field."""
-    errors: dict[str, list[ErrorDetail]] = {}
-    for field in sorted(set(changes) - set(EDITABLE_FIELDS)):
-        errors[field] = _error(UNKNOWN_FIELD_MESSAGE, UNKNOWN_FIELD)
+    errors = unknown_field_errors(changes, EDITABLE_FIELDS)
     cleaned: dict[str, str] = {}
     for field in EDITABLE_FIELDS:
         if field not in changes:

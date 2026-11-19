@@ -10,15 +10,20 @@ on both. The first one is ``GET /api/organizations/`` (T-TEN-12).
 ``/api/organizations/current/`` (T-TEN-13) names no object: the organization is the header's.
 ``SEEDS`` adds the organization's own editable row, so the suite sees an edit that lands on B, or
 on A while it is suspended.
+
+``/api/branches/`` (T-TEN-24): two branches in each organization, one of them inactive, so a
+listing that leaks B's rows, active or not, carries B's ids. A ``POST`` names the organization it
+is built for in the name of the new branch; it can only land in the active one.
 """
 
 from __future__ import annotations
 
 from typing import Any
 
-from apps.tenancy.models import Organization
+from apps.common.tenancy.current import tenant_scope
+from apps.tenancy.models import Branch, Organization
 from tests.cross_tenant.registry import CrossTenantCase, Exemption, Seed
-from tests.tenancy.api.probe import PLATFORM
+from tests.tenancy.api.probe import PLATFORM, platform_ctx
 
 _MINE = (
     "ruta de alcance de usuario: las organizaciones de la persona, exenta de la organización activa"
@@ -26,6 +31,7 @@ _MINE = (
 )
 CURRENT = "api/organizations/current/"
 _FIELDS = ("id", "name", "legal_name", "tax_id", "timezone", "status")
+BRANCHES = "api/branches/"
 
 
 def _current(organization: Organization) -> str:
@@ -45,11 +51,39 @@ def _organization_row(organization: Organization) -> frozenset[tuple[Any, ...]]:
     return frozenset(rows.values_list(*_FIELDS))
 
 
+def _create_branches(organization: Organization) -> None:
+    ctx = platform_ctx(organization)
+    with tenant_scope(ctx):
+        branches = Branch.objects.for_tenant(ctx)
+        branches.create(name=f"{organization.name}-centro", code=f"{organization.name}-C01")
+        branches.create(name=f"{organization.name}-norte", is_active=False)
+
+
+def _branch_rows(organization: Organization) -> frozenset[tuple[Any, ...]]:
+    ctx = platform_ctx(organization)
+    with tenant_scope(ctx):
+        rows = Branch.objects.for_tenant(ctx).values_list("id", "name", "code", "is_active")
+        return frozenset(rows)
+
+
+def _branches(organization: Organization) -> str:
+    return f"/{BRANCHES}"
+
+
+def _new_branch(organization: Organization) -> dict[str, str]:
+    return {"name": f"nueva-en-{organization.name}"}
+
+
 CASES: tuple[CrossTenantCase, ...] = (
     CrossTenantCase(CURRENT, "GET", _current),
     CrossTenantCase(CURRENT, "PATCH", _current, body=_renamed),
+    CrossTenantCase(BRANCHES, "GET", _branches),
+    CrossTenantCase(BRANCHES, "POST", _branches, body=_new_branch),
 )
 EXEMPT: tuple[Exemption, ...] = (
     Exemption("api/organizations/", _MINE, read=lambda organization: "/api/organizations/"),
 )
-SEEDS: tuple[Seed, ...] = (Seed(create=_no_rows, rows=_organization_row),)
+SEEDS: tuple[Seed, ...] = (
+    Seed(create=_no_rows, rows=_organization_row),
+    Seed(create=_create_branches, rows=_branch_rows),
+)

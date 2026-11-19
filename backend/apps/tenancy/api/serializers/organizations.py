@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from rest_framework import serializers
-from rest_framework.exceptions import ErrorDetail, ValidationError
+from rest_framework.exceptions import ValidationError
 
 from apps.common.authz.checks import allowed_actions
 from apps.common.authz.roles import Role
@@ -28,11 +28,10 @@ from apps.common.tenancy.errors import Forbidden
 from apps.tenancy.domain.permissions import TENANCY_ACTIONS, TenancyAction
 from apps.tenancy.domain.role_rules import Decision, decide_invite
 from apps.tenancy.models import Organization
+from apps.tenancy.services.fields import unknown_field_errors
 from apps.tenancy.services.organizations import (
     LEGAL_NAME_MAX_LENGTH,
     NAME_MAX_LENGTH,
-    UNKNOWN_FIELD,
-    UNKNOWN_FIELD_MESSAGE,
 )
 
 
@@ -110,10 +109,7 @@ class OrganizationUpdateSerializer(serializers.Serializer[dict[str, Any]]):
         ref_name = "OrganizationUpdate"  # published as PatchedOrganizationUpdateRequest
 
     def to_internal_value(self, data: Any) -> dict[str, Any]:
-        if isinstance(data, Mapping):
-            unknown = sorted(str(key) for key in data if key not in self.fields)
-            if unknown:
-                detail = [ErrorDetail(UNKNOWN_FIELD_MESSAGE, code=UNKNOWN_FIELD)]
-                raise ValidationError(dict.fromkeys(unknown, detail))
+        if isinstance(data, Mapping) and (unknown := unknown_field_errors(data, self.fields)):
+            raise ValidationError(unknown)
         validated: dict[str, Any] = super().to_internal_value(data)
         return validated

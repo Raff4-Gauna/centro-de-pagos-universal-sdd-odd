@@ -53,7 +53,7 @@ Donde el diseño y el código de SPEC-00, o el orden real, difieren, manda esta 
 
 ## Resumen
 
-> T-TEN-01, T-TEN-02, T-TEN-03, T-TEN-04, T-TEN-05, T-TEN-06, T-TEN-07, T-TEN-08, T-TEN-09, T-TEN-10, T-TEN-11, T-TEN-12, T-TEN-13 y T-TEN-14 en revisión; las demás sin empezar. La columna **Evidencia** es obligatoria para `✅` y la verifica `scripts/check_spec_state.py`.
+> T-TEN-01, T-TEN-02, T-TEN-03, T-TEN-04, T-TEN-05, T-TEN-06, T-TEN-07, T-TEN-08, T-TEN-09, T-TEN-10, T-TEN-11, T-TEN-12, T-TEN-13, T-TEN-14 y T-TEN-24 en revisión; las demás sin empezar. La columna **Evidencia** es obligatoria para `✅` y la verifica `scripts/check_spec_state.py`.
 
 | ID | Título | AC | Capa | Archivos esperados (ver detalle) | Depende de | Agente | Tamaño | Zona roja | Estado | Evidencia |
 |---|---|---|---|---|---|---|---|---|---|---|
@@ -80,7 +80,7 @@ Donde el diseño y el código de SPEC-00, o el orden real, difieren, manda esta 
 | T-TEN-21 | Reenviar y revocar invitaciones | AC-TEN-02, AC-TEN-15, AC-TEN-24, AC-TEN-26, AC-TEN-37 | Servicio/API | `services/invitations.py`, `api/invitations.py` | T-TEN-20 | backend-dev | M | Sí | ☐ | |
 | T-TEN-22 | Listar memberships y cambiar rol | AC-TEN-02, AC-TEN-05, AC-TEN-13, AC-TEN-15, AC-TEN-16, AC-TEN-27, AC-TEN-34 | Servicio/API | `services/memberships.py`, `api/memberships.py` | T-TEN-07, T-TEN-11 | backend-dev | L | Sí | ☐ | |
 | T-TEN-23 | Revocar, abandonar y autorrevocar invitaciones | AC-TEN-04, AC-TEN-13, AC-TEN-14, AC-TEN-15, AC-TEN-31, AC-TEN-36 | Servicio/API | `services/memberships.py`, `api/memberships.py` | T-TEN-21, T-TEN-22 | backend-dev | L | Sí | ☐ | |
-| T-TEN-24 | `Branch` + migración 0004 + crear y listar | AC-TEN-07, AC-TEN-16, AC-TEN-30, AC-TEN-38 | DB/API | `models/branch.py`, `services/branches.py`, `api/branches.py` | T-TEN-08, T-TEN-11 | backend-dev | L | Sí | ☐ | |
+| T-TEN-24 | `Branch` + migración 0004 + crear y listar | AC-TEN-07, AC-TEN-16, AC-TEN-30, AC-TEN-38 | DB/API | `models/branch.py`, `services/branches.py`, `api/branches.py` | T-TEN-08, T-TEN-11 | backend-dev | L | Sí | 🟡 | rama `task/T-TEN-24-branch-model`, sin PR |
 | T-TEN-25 | Ver, editar, desactivar y reactivar `Branch`, filtro | AC-TEN-01, AC-TEN-05, AC-TEN-09, AC-TEN-30, AC-TEN-32, AC-TEN-37, AC-TEN-38 | Servicio/API | `services/branches.py`, `api/branches.py`, `api/filters.py` | T-TEN-24 | backend-dev | L | Sí | ☐ | |
 | T-TEN-26 | Vencimiento de invitaciones y email por flag | AC-TEN-37 | Asíncrono | `apps/tenancy/tasks.py` | T-TEN-11, T-TEN-21 | backend-dev | M | Sí | ☐ | |
 | T-TEN-27 | Completitud de auditoría y suspendida genérica | AC-TEN-23, AC-TEN-28 | Aislamiento | `backend/tests/cross_tenant/*`, `apps/tenancy/tests/test_audit_triggers.py` | T-TEN-13, T-TEN-23, T-TEN-25, T-TEN-26 | backend-dev | M | Sí | ☐ | |
@@ -634,6 +634,26 @@ T-TEN-30 · suspendida → T-TEN-29.
 - **Pruebas:** `test_AC_TEN_07_org_in_body_creates_nothing_in_b`, `test_AC_TEN_16_viewer_cannot_create_branch`,
   `test_AC_TEN_30_inactive_listed`, `test_AC_TEN_38_name_case_insensitive_and_code`,
   `test_AC_TEN_38_inactive_frees_values`, `test_AC_TEN_38_other_org_accepts`.
+- **Hecho (2026-11-19):** `GET`/`POST /api/branches/` sobre `TenantViewSet` (`branch.read`, `branch.create`);
+  el detalle por id, editar, desactivar y reactivar quedan para `T-TEN-25`. Contrato 0.11.0.
+  - El cuerpo del `POST` lo valida el servicio (`services/branches.py::clean_new_branch`), estricto: otra clave
+    (`organization_id`, `is_active`, `id`) → `400 validation_error` con `unknown_field` y nada escrito (AC-TEN-07,
+    design.md §6), con la misma regla que `T-TEN-13`. `BranchCreateSerializer` solo documenta el contrato; un test
+    lo ata a `CREATE_FIELDS`.
+  - La unicidad entre activas es de la BD: el `INSERT` corre en un savepoint y el `IntegrityError` de
+    `branch_unique_active_name`/`branch_unique_active_code` → `409 conflict` (con `detail` que nombra nombre o código);
+    otro `IntegrityError` sube como bug. Sin evento de auditoría en el rechazo.
+  - En una transacción: `ensure_writable` (AC-TEN-28), el `INSERT` y `branch.created` con `branch_id`
+    (`AUDIT_TRIGGERS`).
+  - `GET` lista activas e inactivas (AC-TEN-30), `?is_active=true|false` filtra; paginado con
+    `HubPageNumberPagination` (como `GET /api/organizations/`), por nombre y después id. `DELETE`/`PUT` → `405`.
+  - Sumados, con su porqué: `models/__init__.py` (exporta `Branch`); `api/urls.py` (monta el router);
+    `api/serializers/__init__.py` (paquete nuevo, mismo contenido que el de `T-TEN-13`);
+    `apps/common/api/problems.py` (título fijo de `conflict`); `apps/common/api/schema.py` (`API_VERSION` 0.11.0) y
+    los tests que fijan `info.version`.
+  - `services/fields.py` (nuevo) con `unknown_field_errors`, la regla de cuerpo estricto que ya tenía `T-TEN-13`:
+    la usan `services/branches.py`, `services/organizations.py` y `api/serializers/organizations.py` en vez de
+    repetirla. El mensaje pasa a uno solo, "Este campo no se acepta."; el código `unknown_field` no cambia.
 
 ### T-TEN-25 — Ver, editar, desactivar y reactivar `Branch`, filtro
 - **AC:** AC-TEN-01, 05, 09, 30, 32, 37, 38. RF-TEN-06, RN-TEN-16, RN-TEN-19. **Zona roja:** sí.
