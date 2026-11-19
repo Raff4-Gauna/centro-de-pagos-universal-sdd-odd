@@ -168,6 +168,39 @@ en `backend` ni `specs/_contracts/` en `frontend`. Las formas que funcionan est�
 - El target `dev` corre como root (el árbol montado es del usuario del host): Celery avisa con un `SecurityWarning`
   al arrancar el worker. Es esperado en dev; la imagen `runtime` corre como uid 10001.
 
+### E2E del login (`scripts/e2e_login.py`, T-IDA-31)
+Habla con el BFF como un navegador, sin navegador y solo con la biblioteca estándar: tres navegadores con su propio
+jar de cookies entran por el proveedor OIDC falso, `/api/me` responde, el primero ve sus tres sesiones y cierra las
+demás, y después hace logout (AC-IDA-01, AC-IDA-33, AC-IDA-17). Cada paso imprime `e2e ok [<paso>]`; un fallo,
+`e2e failed [<paso>]: <detalle>`, sin cookies, tokens, `code` ni `state`. Sale con 0, 1 (falló) o 2 (argumentos).
+
+**No corre en CI:** el proveedor falso solo existe con `settings.dev` o `settings.test` (T-IDA-20) y el stack de CI
+(`docker-compose.ci.yml`) corre `settings.prod`. Sumarlo a CI toca `ci.yml` y lo decide el dueño (Q-063).
+
+Contra el stack de desarrollo, con estas variables en el `.env` (valores ficticios, distintos entre sí, RN-IDA-16):
+`IDENTITY_OIDC_PROVIDER=fake`, `IDENTITY_GOOGLE_CLIENT_ID` y `IDENTITY_GOOGLE_CLIENT_SECRET` (cualquiera),
+`IDENTITY_GOOGLE_REDIRECT_URI=http://localhost:3000/api/auth/google/callback`, `HUB_APP_ORIGIN=http://localhost:3000`
+y las claves del JWT (`env.example` explica cómo generarlas). El usuario tiene que existir y estar activo: todavía
+ningún puerto de invitaciones deja entrar a un email nuevo (`not_invited`). Se crea con el `sub` que el proveedor falso
+deriva del email, y se corre el E2E:
+```
+docker compose -f infra/docker-compose.yml --env-file .env exec -T backend python manage.py shell -c "from apps.identity.domain.emails import normalize_email; from apps.identity.domain.secrets_format import hash_secret; from apps.identity.models import User; e = normalize_email('e2e@example.test'); User.objects.get_or_create(google_sub='dev-' + hash_secret(e)[:24], defaults={'email': e})"
+python scripts/e2e_login.py --email e2e@example.test --frontend-url http://localhost:3000
+```
+- `--frontend-url` es exactamente `HUB_APP_ORIGIN`: los `POST` lo mandan como `Origin` y el BFF rechaza otro.
+- `dev.py` fija `IDENTITY_FAKE_OIDC_BASE_URL=http://localhost:8000`: es la URL que el backend usa para hablarse a sí
+  mismo y la que arma para el navegador. Si el backend se publica en otro puerto del host, `--provider-url
+  http://127.0.0.1:<puerto>` cambia solo el origen de esa URL. El script se niega a seguir si no apunta a
+  `/dev-oidc/authorize` (nunca le manda un email a Google).
+- Deja las tres sesiones cerradas; el usuario queda en la BD (descartable, `down -v`).
+
+**Stack descartable** (así se corrió para `verification.md`, sin tocar el `.env` ni los volúmenes de desarrollo): un
+archivo Compose propio **fuera del repo**, con `name:` propio (por ejemplo `hub-e2e`), las imágenes `runtime` del
+commit (`docker build --target runtime …` como en el smoke), `DJANGO_SETTINGS_MODULE=config.settings.dev`, valores
+ficticios en línea, un par de claves del JWT generado para esa corrida y puertos libres; `HUB_APP_ORIGIN` y
+`IDENTITY_GOOGLE_REDIRECT_URI` con el puerto publicado del `frontend`, y `--provider-url` con el del `backend`. Al
+terminar, `docker compose -f <archivo> down -v`.
+
 ## Repo público: protección de `main` (T-PLT-40, `design.md §3.7`)
 
 El repo ya es público (Q-054 resuelta: gitleaks sobre todo el historial, 0 hallazgos). Sigue pendiente **rotar los

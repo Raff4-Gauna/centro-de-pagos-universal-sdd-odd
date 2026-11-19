@@ -95,7 +95,7 @@ El diseño se escribió antes de que existiera el código de SPEC-00. Donde difi
 | T-IDA-28 | Pantalla "Ingresar" y protección de rutas | AC-IDA-19 (UI) | UI | `src/proxy.ts`, `app/(auth)/login/page.tsx`, `src/modules/identity/components/{LoginCard,LoginErrorAlert}.tsx`, `src/modules/identity/lib/login-errors.ts`, `scripts/smoke_pages.py`, `scripts/tests/test_smoke_pages.py` | T-IDA-24, T-IDA-26, T-IDA-27 | frontend-dev | M | Sí | 🟡 | PR #112 |
 | T-IDA-29 | Mi perfil, menú de usuario y "sin empresas" | AC-IDA-30 (UI) | UI | `src/modules/identity/components/{ProfileCard,UserMenu,NoOrganizationState}.tsx` | T-IDA-07, T-IDA-25, T-IDA-28 | frontend-dev | M | Sí (`scripts/**`) | 🟡 | rama `task/T-IDA-29-profile-menu`, sin PR |
 | T-IDA-30 | Pantalla "Seguridad" | AC-IDA-33 (UI) | UI | `app/(dashboard)/configuracion/seguridad/page.tsx`, `src/modules/identity/components/SessionsTable.tsx` | T-IDA-17, T-IDA-29 | frontend-dev | L | Sí (`scripts/**`) | 🟡 | rama `task/T-IDA-30-security-screen`, sin PR |
-| T-IDA-31 | E2E de login con proveedor falso | AC-IDA-01, AC-IDA-17, AC-IDA-33 | E2E | `scripts/e2e_login.py`, `scripts/tests/test_e2e_login.py` | T-IDA-20, T-IDA-29, T-IDA-30 | backend-dev | M | Sí | ☐ | |
+| T-IDA-31 | E2E de login con proveedor falso | AC-IDA-01, AC-IDA-17, AC-IDA-33 | E2E | `scripts/e2e_login.py`, `scripts/tests/test_e2e_login.py` | T-IDA-20, T-IDA-29, T-IDA-30 | backend-dev | M | Sí | 🟡 | rama `task/T-IDA-31-e2e-login` |
 
 ## Cobertura AC → tareas
 | AC | Tareas |
