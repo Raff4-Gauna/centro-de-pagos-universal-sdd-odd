@@ -23,6 +23,7 @@ EXPECTED_REDIRECTS: dict[str, str] = {
     "/": "/login",
     "/inicio": "/login",
     "/configuracion": "/login",
+    "/configuracion/perfil": "/login",
 }
 # Route with ``[id]`` in the manifest -> URL that renders it without a session.
 SAMPLE_URLS: dict[str, str] = {}

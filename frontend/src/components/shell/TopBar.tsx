@@ -4,8 +4,9 @@ import IconButton from "@mui/material/IconButton";
 import Toolbar from "@mui/material/Toolbar";
 import Typography from "@mui/material/Typography";
 
+import { UserMenu } from "@/modules/identity/components/UserMenu";
+
 import { OrgBranchSelectorPlaceholder } from "./OrgBranchSelectorPlaceholder";
-import { UserMenuPlaceholder } from "./UserMenuPlaceholder";
 
 // Top bar of the (dashboard) shell (design.md §3.3.2): menu button (only below `md`, where the
 // navigation is a temporary drawer), app title, the company/branch selector and the user menu.
@@ -38,7 +39,7 @@ export function TopBar({ onOpenNav }: TopBarProps) {
         </Typography>
         <div className="tw-ml-auto tw-flex tw-items-center tw-gap-2">
           <OrgBranchSelectorPlaceholder />
-          <UserMenuPlaceholder />
+          <UserMenu />
         </div>
       </Toolbar>
     </AppBar>

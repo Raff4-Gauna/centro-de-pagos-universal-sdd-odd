@@ -1,20 +1,22 @@
-// Sections of Configuración (07 §5.3, design.md §3.3.2). In 00-platform none of them works yet:
-// each one is listed disabled with the module that implements it, so the screen is never blank
-// and nothing is invented. A module enables its own section when it ships.
+// Sections of Configuración (07 §5.3, design.md §3.3.2). A section without `href` does not work
+// yet: it is listed disabled with the module that implements it, so the screen is never blank and
+// nothing is invented. A module enables its own section, with the route of its page, when it ships.
 export type SettingsSection = Readonly<{
   id: string;
   title: string;
   description: string;
   // Module numbers (specs/NN-*) that implement the section, in order.
   modules: readonly string[];
+  href?: string;
 }>;
 
 export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
   {
     id: "profile",
     title: "Mi perfil",
-    description: "Tus datos personales: nombre, email e idioma.",
+    description: "Tus datos personales: nombre y email.",
     modules: ["01"],
+    href: "/configuracion/perfil",
   },
   {
     id: "security",
