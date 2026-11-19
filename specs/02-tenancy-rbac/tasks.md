@@ -53,7 +53,7 @@ Donde el diseño y el código de SPEC-00, o el orden real, difieren, manda esta 
 
 ## Resumen
 
-> T-TEN-01, T-TEN-02, T-TEN-03, T-TEN-04, T-TEN-05, T-TEN-06, T-TEN-07, T-TEN-08, T-TEN-09, T-TEN-10, T-TEN-11, T-TEN-12, T-TEN-13, T-TEN-14 y T-TEN-24 en revisión; las demás sin empezar. La columna **Evidencia** es obligatoria para `✅` y la verifica `scripts/check_spec_state.py`.
+> T-TEN-01, T-TEN-02, T-TEN-03, T-TEN-04, T-TEN-05, T-TEN-06, T-TEN-07, T-TEN-08, T-TEN-09, T-TEN-10, T-TEN-11, T-TEN-12, T-TEN-13, T-TEN-14, T-TEN-24 y T-TEN-29 en revisión; las demás sin empezar. La columna **Evidencia** es obligatoria para `✅` y la verifica `scripts/check_spec_state.py`.
 
 | ID | Título | AC | Capa | Archivos esperados (ver detalle) | Depende de | Agente | Tamaño | Zona roja | Estado | Evidencia |
 |---|---|---|---|---|---|---|---|---|---|---|
@@ -85,7 +85,7 @@ Donde el diseño y el código de SPEC-00, o el orden real, difieren, manda esta 
 | T-TEN-26 | Vencimiento de invitaciones y email por flag | AC-TEN-37 | Asíncrono | `apps/tenancy/tasks.py` | T-TEN-11, T-TEN-21 | backend-dev | M | Sí | ☐ | |
 | T-TEN-27 | Completitud de auditoría y suspendida genérica | AC-TEN-23, AC-TEN-28 | Aislamiento | `backend/tests/cross_tenant/*`, `apps/tenancy/tests/test_audit_triggers.py` | T-TEN-13, T-TEN-23, T-TEN-25, T-TEN-26 | backend-dev | M | Sí | ☐ | |
 | T-TEN-28 | Comandos de soporte y recuperación de owner | AC-TEN-23 (`purpose`) | Comandos | `services/platform_access.py`, `management/commands/{tenancy_support_access,tenancy_owner_recovery}.py` | T-TEN-18 | backend-dev | M | Sí | ☐ | |
-| T-TEN-29 | Organización activa en el frontend y selector | — (RF-TEN-02, spec §14) | UI | `src/modules/tenancy/context/ActiveOrgProvider.tsx`, `src/lib/api-client.ts`, `context/07-frontend-ui-guidelines.md` | T-TEN-12, T-IDA-27 | frontend-dev | L | No | ☐ | |
+| T-TEN-29 | Organización activa en el frontend y selector | — (RF-TEN-02, spec §14) | UI | `src/modules/tenancy/context/ActiveOrgProvider.tsx`, `src/lib/api-client.ts`, `context/07-frontend-ui-guidelines.md` | T-TEN-12, T-IDA-27 | frontend-dev | L | No | 🟡 | rama `task/T-TEN-29-active-org-frontend`, sin PR |
 | T-TEN-30 | Sin organización y aviso de invitaciones (Q-124) | AC-TEN-39 (UI) | UI | `app/(dashboard)/sin-organizacion/page.tsx`, `src/modules/tenancy/components/PendingInvitationsNotice.tsx` | T-TEN-16, T-TEN-29, T-IDA-29 | frontend-dev | M | Sí | ☐ | |
 | T-TEN-31 | Pantalla `/invitacion` | AC-TEN-17 (UI) | UI | `app/invitacion/page.tsx`, `src/modules/tenancy/components/AcceptInvitation.tsx` | T-TEN-15, T-TEN-29 | frontend-dev | M | Sí | ☐ | |
 | T-TEN-32 | Datos de la empresa y abandonar | — (RF-TEN-03, RF-TEN-04, spec §14) | UI | `app/(dashboard)/configuracion/empresa/page.tsx`, `src/modules/tenancy/components/CompanyDataForm.tsx` | T-TEN-13, T-TEN-23, T-TEN-29 | frontend-dev | M | No | ☐ | |
