@@ -12,7 +12,11 @@ runs them. See that module for the scope, the allowlist and the known gaps.
   ``TenantContext`` as a value: a call, an alias (imported ``as`` or assigned), ``partial(
   TenantContext, ...)``. Types pass: annotations, ``isinstance``, ``case TenantContext():``. Also an
   instance built from its class at runtime, ``type(x)(...)`` and ``x.__class__(...)``, whatever
-  ``x`` is: the AST cannot tell a context apart.
+  ``x`` is: the AST cannot tell a context apart. The same rule keeps two more names in their
+  modules (``RESTRICTED_VALUES``, review of PR #117): ``system_context``, which builds a
+  ``SystemActor`` context for any organization (only the Celery bases and its own module), and
+  ``MembershipMutex``, the proof that a transaction holds the membership lock (only
+  ``tenancy/selectors/locks.py``). Not caught: ``dataclasses.replace(mutex, ...)``.
 """
 
 from __future__ import annotations
@@ -25,12 +29,22 @@ from tests.architecture.money_rules import not_a_value
 
 RULE = "AC-TEN-10"
 TENANT_CONTEXT_BUILDERS = ("apps/common/tenancy/", "apps/tenancy/api/permissions.py")
+SYSTEM_CONTEXT_CALLERS = ("apps/common/tenancy/celery.py", "apps/common/tenancy/locks.py")
+MEMBERSHIP_MUTEX_BUILDERS = ("apps/tenancy/selectors/locks.py",)
 REFRESH_METHODS = frozenset({"refresh_from_db", "arefresh_from_db"})
 ROW_KEYS = frozenset({"pk", "id"})
 FUNCTION_NODES = (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)
 
 REFRESH_MSG = "refresh_from_db after re-pointing the pk reads that row from any organization"
 CONTEXT_MSG = "TenantContext built outside tenant resolution: take it from the request or task"
+SYSTEM_CONTEXT_MSG = "system_context outside the task bases: a process gets it from TenantTask"
+MUTEX_MSG = "MembershipMutex built outside selectors/locks.py: take it from lock_membership_mutex"
+# A name used as a value (called, aliased, passed) only under these path prefixes, and why not.
+RESTRICTED_VALUES: dict[str, tuple[tuple[str, ...], str]] = {
+    "TenantContext": (TENANT_CONTEXT_BUILDERS, CONTEXT_MSG),
+    "system_context": (SYSTEM_CONTEXT_CALLERS, SYSTEM_CONTEXT_MSG),
+    "MembershipMutex": (MEMBERSHIP_MUTEX_BUILDERS, MUTEX_MSG),
+}
 
 
 def found(source: SourceFile, node: ast.AST, rule: str, symbol: str, msg: str) -> Violation:
@@ -134,17 +148,20 @@ def built_from_its_class(node: ast.Call) -> bool:
 
 
 def context_builds(source: SourceFile) -> Iterator[Violation]:
-    if any(source.path.startswith(builder) for builder in TENANT_CONTEXT_BUILDERS):
-        return
-    names = aliases(source.tree, frozenset({"TenantContext"}))
+    if not any(source.path.startswith(builder) for builder in TENANT_CONTEXT_BUILDERS):
+        for node in ast.walk(source.tree):
+            if isinstance(node, ast.Call) and built_from_its_class(node):
+                yield found(source, node, RULE, ast.unparse(node.func), CONTEXT_MSG)
     types = not_a_value(source.tree)
-    for node in ast.walk(source.tree):
-        if isinstance(node, ast.Call) and built_from_its_class(node):
-            yield found(source, node, RULE, ast.unparse(node.func), CONTEXT_MSG)
-        elif (
-            isinstance(node, ast.Name | ast.Attribute)
-            and isinstance(node.ctx, ast.Load)
-            and (node.id in names if isinstance(node, ast.Name) else node.attr == "TenantContext")
-            and id(node) not in types
-        ):
-            yield found(source, node, RULE, ast.unparse(node), CONTEXT_MSG)
+    for name, (allowed, msg) in RESTRICTED_VALUES.items():
+        if any(source.path.startswith(prefix) for prefix in allowed):
+            continue
+        names = aliases(source.tree, frozenset({name}))
+        for node in ast.walk(source.tree):
+            if (
+                isinstance(node, ast.Name | ast.Attribute)
+                and isinstance(node.ctx, ast.Load)
+                and (node.id in names if isinstance(node, ast.Name) else node.attr == name)
+                and id(node) not in types
+            ):
+                yield found(source, node, RULE, ast.unparse(node), msg)
