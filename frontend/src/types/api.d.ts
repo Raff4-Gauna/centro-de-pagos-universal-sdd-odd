@@ -169,10 +169,42 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/organizations/current/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** La organización activa y lo que la persona puede hacer en ella */
+        get: operations["organizations_current_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Editar los datos de la organización activa (owner y admin) */
+        patch: operations["organizations_current_partial_update"];
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        CurrentOrganization: {
+            /** Format: uuid */
+            readonly id: string;
+            readonly name: string;
+            readonly legal_name: string;
+            readonly tax_id: string;
+            readonly timezone: string;
+            readonly status: components["schemas"]["OrganizationStatusEnum"];
+            readonly my_role: components["schemas"]["RoleEnum"];
+            /** Format: uuid */
+            readonly my_membership_id: string;
+            readonly allowed_actions: components["schemas"]["TenancyActionEnum"][];
+            readonly invitable_roles: components["schemas"]["RoleEnum"][];
+        };
         LoginCompleteRequest: {
             state: string;
             login_binding?: (string) | null;
@@ -265,6 +297,12 @@ export interface components {
             previous?: string | null;
             results: components["schemas"]["Session"][];
         };
+        PatchedOrganizationUpdateRequest: {
+            name?: string;
+            legal_name?: string;
+            tax_id?: string;
+            timezone?: string;
+        };
         /** @description Sobre único de error (RFC 9457), media type application/problem+json. Sin trazas, hosts ni secretos. */
         Problem: {
             /** @example urn:hub:problem:validation_error */
@@ -320,6 +358,25 @@ export interface components {
             readonly last_used_at: string;
             readonly is_current: boolean;
         };
+        /**
+         * @description * `org.read` - org.read
+         *     * `org.update` - org.update
+         *     * `member.list` - member.list
+         *     * `member.change_role` - member.change_role
+         *     * `member.revoke` - member.revoke
+         *     * `member.leave` - member.leave
+         *     * `invitation.list` - invitation.list
+         *     * `invitation.create` - invitation.create
+         *     * `invitation.resend` - invitation.resend
+         *     * `invitation.revoke` - invitation.revoke
+         *     * `branch.read` - branch.read
+         *     * `branch.create` - branch.create
+         *     * `branch.update` - branch.update
+         *     * `branch.deactivate` - branch.deactivate
+         *     * `branch.reactivate` - branch.reactivate
+         * @enum {string}
+         */
+        TenancyActionEnum: "org.read" | "org.update" | "member.list" | "member.change_role" | "member.revoke" | "member.leave" | "invitation.list" | "invitation.create" | "invitation.resend" | "invitation.revoke" | "branch.read" | "branch.create" | "branch.update" | "branch.deactivate" | "branch.reactivate";
     };
     responses: never;
     parameters: never;
@@ -798,6 +855,162 @@ export interface operations {
             };
             /** @description code: unauthenticated · token_expired · token_invalid · session_revoked (con WWW-Authenticate: Bearer realm="hub") */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Error del cliente */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Error del servidor */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    organizations_current_retrieve: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Organización activa de la request (RN-TEN-03). */
+                "X-Organization-Id": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CurrentOrganization"];
+                };
+            };
+            /** @description code: organization_required (falta X-Organization-Id) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description code: unauthenticated · token_expired · token_invalid · session_revoked (con WWW-Authenticate: Bearer realm="hub") */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description code: organization_not_found (no existe o sin membership activa: el mismo cuerpo) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Error del cliente */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Error del servidor */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    organizations_current_partial_update: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Organización activa de la request (RN-TEN-03). */
+                "X-Organization-Id": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PatchedOrganizationUpdateRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CurrentOrganization"];
+                };
+            };
+            /** @description code: validation_error (un campo desconocido o de solo lectura, como status, es unknown_field) · organization_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description code: unauthenticated · token_expired · token_invalid · session_revoked (con WWW-Authenticate: Bearer realm="hub") */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description code: forbidden (rol sin org.update) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description code: organization_not_found (no existe o sin membership activa: el mismo cuerpo) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description code: organization_suspended */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

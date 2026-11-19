@@ -16,7 +16,7 @@ from typing import Any
 
 from apps.common.api.problems import PROBLEM_CONTENT_TYPE
 
-API_VERSION = "0.9.0"
+API_VERSION = "0.10.0"
 PUBLIC_URLCONF = "config.urls"
 
 PROBLEM = "Problem"
@@ -107,10 +107,29 @@ def spectacular_settings() -> dict[str, Any]:
         # An enum is named after its field by default: "reason" alone would be ReasonEnum, a name
         # the next "reason" of another endpoint would take and rename (SPEC-01 logout, §6.1).
         # "role" and "status" come back in memberships and invitations (SPEC-02): named here once.
+        # So does "allowed_actions": SPEC-02's actions (TenancyAction, in its order; the settings
+        # import no app, and the contract test fails if this list and the enum part ways).
         "ENUM_NAME_OVERRIDES": {
             "LogoutReasonEnum": ["logout", "superseded"],
             "RoleEnum": ["owner", "admin", "operator", "viewer"],
             "OrganizationStatusEnum": ["active", "suspended"],
+            "TenancyActionEnum": [
+                "org.read",
+                "org.update",
+                "member.list",
+                "member.change_role",
+                "member.revoke",
+                "member.leave",
+                "invitation.list",
+                "invitation.create",
+                "invitation.resend",
+                "invitation.revoke",
+                "branch.read",
+                "branch.create",
+                "branch.update",
+                "branch.deactivate",
+                "branch.reactivate",
+            ],
         },
         "APPEND_COMPONENTS": {
             "schemas": {PROBLEM: _problem_schema(), FIELD_ERROR: _field_error_schema()},
