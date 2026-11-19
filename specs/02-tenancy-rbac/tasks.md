@@ -67,7 +67,7 @@ Donde el diseño y el código de SPEC-00, o el orden real, difieren, manda esta 
 | T-TEN-08 | Resolución de organización por request | AC-TEN-03, AC-TEN-04, AC-TEN-06, AC-TEN-33 | API | `apps/tenancy/api/{permissions,base}.py`, `apps/tenancy/selectors/resolution.py` | T-TEN-05, T-TEN-06, T-IDA-06 | backend-dev | L | Sí | 🟡 | PR #110 |
 | T-TEN-09 | Suite cross-tenant parametrizada | AC-TEN-12, AC-TEN-33 | Aislamiento | `backend/tests/cross_tenant/*` | T-TEN-08 | backend-dev | L | Sí | 🟡 | PR #114 |
 | T-TEN-10 | Puerto de auditoría y catálogo | AC-TEN-23 (base) | Base | `apps/common/audit/{port,sinks}.py`, `apps/tenancy/domain/audit_events.py` | T-TEN-01 | backend-dev | M | Sí | 🟡 | rama `task/T-TEN-10-audit-port`, sin PR |
-| T-TEN-11 | Locks y tareas por organización | AC-TEN-28 (s2s) | Base | `apps/common/tenancy/{locks,celery}.py`, `apps/tenancy/selectors/locks.py` | T-TEN-08 | backend-dev | L | Sí | 🟡 | rama `task/T-TEN-11-org-locks`, sin PR |
+| T-TEN-11 | Locks y tareas por organización | AC-TEN-28 (s2s) | Base | `apps/common/tenancy/{locks,celery}.py`, `apps/tenancy/selectors/locks.py` | T-TEN-08 | backend-dev | L | Sí | 🟡 | rama `task/T-TEN-11-org-locks`, PR #117 |
 | T-TEN-12 | `GET /api/organizations/` y selector para `/api/me` | AC-TEN-08, AC-TEN-21, AC-IDA-21 | API | `apps/tenancy/api/organizations.py`, `selectors/memberships.py`, `services/membership_selector.py` | T-TEN-08, T-IDA-07 | backend-dev | M | Sí | 🟡 | rama `task/T-TEN-12-organizations-list`, PR #113 |
 | T-TEN-13 | Datos de la organización activa | AC-TEN-29 (API) | API | `apps/tenancy/api/organizations.py`, `services/organizations.py`, `domain/tax_id.py` | T-TEN-10, T-TEN-11, T-TEN-12 | backend-dev | L | Sí | ☐ | |
 | T-TEN-14 | `Invitation` + migración 0003 + reglas puras | AC-TEN-25, AC-TEN-35 (unidad) | DB | `apps/tenancy/models/invitation.py`, `domain/invitations.py` | T-TEN-05 | backend-dev | L | Sí | ☐ | |
@@ -427,6 +427,24 @@ T-TEN-30 · suspendida → T-TEN-29.
     `fan_out(task, organization_id, **kwargs)` encola solo `TenantTask`.
   - Pruebas extra: con hilos, escribir después de suspender ve `suspended`, las escrituras no se esperan entre sí ni
     a un cambio de membership, dos cambios de membership sí se esperan y la espera del lock está acotada.
+- **Revisión del PR #117 (aprobado sobre `f47d2e4`, 9 no bloqueantes):**
+  - Sumados: `backend/tests/architecture/tenant_instance_rules.py` (la regla) y
+    `test_restricted_values.py` (sus pruebas). `RESTRICTED_VALUES` extiende la regla de `TenantContext`:
+    `system_context` solo en `common/tenancy/{celery,locks}.py` y `MembershipMutex(` solo en
+    `tenancy/selectors/locks.py`; una anotación de tipo pasa. Sin token por transacción: la regla AST cierra el
+    constructor y los dos huecos documentados siguen igual.
+  - `bounded_lock_wait` también restaura `lock_timeout` cuando sale un `DatabaseError` y la transacción sigue
+    usable (el error salió de un savepoint interno al bloque); antes quedaba en `5s` (`0 -> 5s`).
+  - `TenantTask` no corre dentro de un tenant activo, de otra organización **ni de la misma**: en una request
+    cambiaría un usuario, que la suspensión frena, por un actor de sistema, que no. `fan_out` tampoco encola dentro
+    de un tenant.
+  - Celery confirma el mensaje antes de correr la tarea (`acks_late` apagado): un timeout de lock en una tarea
+    termina en `FAILURE` sin reintento. Los consumidores servidor-a-servidor de SPEC-06/07 declaran
+    `autoretry_for=(OperationalError,)` con backoff (anotado en el docstring de `celery.py`).
+  - Antes de T-TEN-20..23 hay que abrir un `Q-xxx`: un código reintentable para el timeout de lock (`409`/`503` +
+    `Retry-After`) sería contrato público. Hoy da `500`.
+  - `wait_for_a_blocked_backend` (`tests/identity/test_refresh_concurrency.py`) cuenta cualquier backend de la base
+    que espera un lock: vale en la corrida serial de CI, no con pytest en paralelo sobre la misma base.
 
 ### T-TEN-12 — `GET /api/organizations/` y selector para `/api/me`
 - **AC:** AC-TEN-08, AC-TEN-21, AC-IDA-21. RF-TEN-02, RF-IDA-06. **Zona roja:** sí.
