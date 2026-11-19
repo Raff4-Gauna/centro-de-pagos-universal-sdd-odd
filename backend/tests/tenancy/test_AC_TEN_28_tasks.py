@@ -155,3 +155,27 @@ def test_fan_out_only_enqueues_tenant_tasks() -> None:
 
     with pytest.raises(TypeError):
         SystemFanoutTask.fan_out(fan_out_nothing, org.id)
+
+
+@pytest.mark.parametrize("same_organization", [False, True])
+def test_tenant_task_does_not_run_inside_a_tenant(same_organization: bool) -> None:
+    """Review of PR #117: inline in a tenant it would switch organization, or turn a user (who
+    is stopped by the suspension) into a system actor (who is not)."""
+    a, b = new_org("A"), new_org("B")
+    target = a if same_organization else b
+
+    with tenant_scope(system_ctx(a.id)), pytest.raises(TenantScopeError):
+        who_runs.apply(kwargs={"organization_id": str(target.id)}).get()
+
+    assert seen == []
+
+
+def test_fan_out_does_not_enqueue_from_inside_a_tenant(monkeypatch: pytest.MonkeyPatch) -> None:
+    a, b = new_org("A"), new_org("B")
+    sent: list[dict[str, Any]] = []
+    monkeypatch.setattr(rename_widget, "apply_async", lambda **options: sent.append(options))
+
+    with tenant_scope(system_ctx(a.id)), pytest.raises(TenantScopeError):
+        SystemFanoutTask.fan_out(rename_widget, b.id, widget_id=str(uuid.uuid4()), name="x")
+
+    assert sent == []

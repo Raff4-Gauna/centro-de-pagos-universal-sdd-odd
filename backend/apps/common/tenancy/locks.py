@@ -20,7 +20,9 @@ cannot import the organization model of ``apps.tenancy`` (``common`` is below it
 that model needs a ``TenantContext`` to read at all. The table comes from ``settings.TENANT_MODEL``.
 
 Waiting for a lock is bounded (``LOCK_TIMEOUT``, design.md §11): ``bounded_lock_wait`` sets it for
-the lock only and gives the previous value back. A timeout raises the database's
+the lock only and gives the previous value back, also when a database error leaves the block and
+the transaction is still usable (it came out of a savepoint inside the block, which rolled back
+after the ``set_config``: review of PR #117). A timeout raises the database's
 ``OperationalError`` and rolls back the write: a bug or a stuck transaction, answered as a 500.
 """
 
@@ -61,8 +63,10 @@ def bounded_lock_wait() -> Iterator[None]:
     try:
         yield
     except DatabaseError:
-        # The error aborted the transaction (or its savepoint): its rollback restores the setting,
-        # and no statement runs before it.
+        # Aborted (no savepoint caught it): the rollback the caller owes restores the setting, and
+        # a statement here would replace the error with "current transaction is aborted".
+        if not connection.needs_rollback and connection.is_usable():
+            _execute("SELECT set_config('lock_timeout', %s, true)", previous)
         raise
     except BaseException:
         _execute("SELECT set_config('lock_timeout', %s, true)", previous)

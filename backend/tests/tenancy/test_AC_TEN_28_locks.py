@@ -11,7 +11,7 @@ from __future__ import annotations
 import uuid
 
 import pytest
-from django.db import connection, transaction
+from django.db import DatabaseError, connection, transaction
 from django.db.transaction import TransactionManagementError
 
 from apps.common.authz.roles import Role
@@ -137,3 +137,29 @@ def test_the_lock_wait_is_restored_after_an_error_that_keeps_the_transaction() -
         with pytest.raises(OrganizationNotFound), bounded_lock_wait():
             raise OrganizationNotFound
         assert lock_timeout() == before
+
+
+def test_the_lock_wait_is_restored_after_a_database_error_of_an_inner_savepoint() -> None:
+    """Review of PR #117: the savepoint rolls back after ``set_config``, so it restores nothing."""
+    assert lock_timeout() == "0"
+
+    with transaction.atomic():
+        with (
+            pytest.raises(DatabaseError),
+            bounded_lock_wait(),
+            transaction.atomic(),  # the savepoint, inside the block
+            connection.cursor() as cursor,
+        ):
+            cursor.execute("SELECT 1 / 0")
+        assert lock_timeout() == "0"  # it was left at 5s
+
+
+def test_the_lock_wait_leaves_an_aborted_transaction_alone() -> None:
+    """No savepoint: the error aborted the transaction, and restoring would hide it."""
+    with (
+        pytest.raises(DatabaseError, match="division by zero"),
+        transaction.atomic(),
+        bounded_lock_wait(),
+        connection.cursor() as cursor,
+    ):
+        cursor.execute("SELECT 1 / 0")
