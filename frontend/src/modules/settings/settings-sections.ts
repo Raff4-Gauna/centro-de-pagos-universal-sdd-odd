@@ -23,6 +23,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
     title: "Seguridad",
     description: "Sesiones activas y cierre de sesiones.",
     modules: ["01"],
+    href: "/configuracion/seguridad",
   },
   {
     id: "members",

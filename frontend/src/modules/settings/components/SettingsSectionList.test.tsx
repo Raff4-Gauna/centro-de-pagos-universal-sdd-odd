@@ -37,7 +37,7 @@ describe("Configuración (AC-PLT-28, spec §14, 07 §5.3)", () => {
       const [title, chip] = EXPECTED[index];
       expect(item).toHaveTextContent(title);
       expect(item).toHaveTextContent(chip);
-      if (title === "Mi perfil") return;
+      if (title === "Mi perfil" || title === "Seguridad") return;
       expect(item).toHaveAccessibleName(title);
       expect(item).toHaveAttribute("aria-disabled", "true");
       expect(item).toHaveTextContent(SECTION_UNAVAILABLE_TEXT);
@@ -57,6 +57,16 @@ describe("Configuración (AC-PLT-28, spec §14, 07 §5.3)", () => {
     expect(profile).not.toHaveTextContent(/idioma/i);
     const link = within(profile!).getByRole("link", { name: /Mi perfil/ });
     expect(link).toHaveAttribute("href", "/configuracion/perfil");
+  });
+
+  it("test_AC_IDA_33_settings_security_section_links_to_seguridad", () => {
+    render(<SettingsPage />);
+    const list = screen.getByRole("list", { name: SETTINGS_LIST_LABEL });
+    const security = within(list).getAllByRole("listitem")[1]!;
+    expect(security).not.toHaveAttribute("aria-disabled");
+    expect(security).not.toHaveTextContent(SECTION_UNAVAILABLE_TEXT);
+    const link = within(security).getByRole("link", { name: /Seguridad/ });
+    expect(link).toHaveAttribute("href", "/configuracion/seguridad");
   });
 
   it("test_AC_PLT_28_settings_module_chip_label_joins_modules", () => {

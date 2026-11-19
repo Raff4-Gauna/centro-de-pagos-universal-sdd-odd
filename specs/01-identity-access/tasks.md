@@ -94,7 +94,7 @@ El diseño se escribió antes de que existiera el código de SPEC-00. Donde difi
 | T-IDA-27 | Proxy con sesión: Bearer, CSRF y refresh transparente | AC-IDA-18, AC-IDA-26 (UX), AC-IDA-28 | BFF | `src/lib/server/{session-proxy,backend-proxy,problem}.ts`, `app/api/[...path]/route.ts`, `src/lib/api-client.ts`, `frontend/scripts/check-client-bundle.ts`, `frontend/Dockerfile`, `context/07-frontend-ui-guidelines.md` | T-IDA-23 | frontend-dev | L | Sí | 🟡 | rama `task/T-IDA-27-session-proxy`, sin PR |
 | T-IDA-28 | Pantalla "Ingresar" y protección de rutas | AC-IDA-19 (UI) | UI | `src/proxy.ts`, `app/(auth)/login/page.tsx`, `src/modules/identity/components/{LoginCard,LoginErrorAlert}.tsx`, `src/modules/identity/lib/login-errors.ts`, `scripts/smoke_pages.py`, `scripts/tests/test_smoke_pages.py` | T-IDA-24, T-IDA-26, T-IDA-27 | frontend-dev | M | Sí | 🟡 | PR #112 |
 | T-IDA-29 | Mi perfil, menú de usuario y "sin empresas" | AC-IDA-30 (UI) | UI | `src/modules/identity/components/{ProfileCard,UserMenu,NoOrganizationState}.tsx` | T-IDA-07, T-IDA-25, T-IDA-28 | frontend-dev | M | Sí (`scripts/**`) | 🟡 | rama `task/T-IDA-29-profile-menu`, sin PR |
-| T-IDA-30 | Pantalla "Seguridad" | AC-IDA-33 (UI) | UI | `app/(dashboard)/configuracion/seguridad/page.tsx`, `src/modules/identity/components/SessionsTable.tsx` | T-IDA-17, T-IDA-29 | frontend-dev | L | No | ☐ | |
+| T-IDA-30 | Pantalla "Seguridad" | AC-IDA-33 (UI) | UI | `app/(dashboard)/configuracion/seguridad/page.tsx`, `src/modules/identity/components/SessionsTable.tsx` | T-IDA-17, T-IDA-29 | frontend-dev | L | Sí (`scripts/**`) | 🟡 | rama `task/T-IDA-30-security-screen`, sin PR |
 | T-IDA-31 | E2E de login con proveedor falso | AC-IDA-01, AC-IDA-17, AC-IDA-33 | E2E | `scripts/e2e_login.py`, `scripts/tests/test_e2e_login.py` | T-IDA-20, T-IDA-29, T-IDA-30 | backend-dev | M | Sí | ☐ | |
 
 ## Cobertura AC → tareas
@@ -861,11 +861,28 @@ módulos se aprueba en la misma pasada, después de `T-TEN-36`.
   - **"Mi perfil" en Configuración:** la descripción deja de nombrar el idioma (Q-115).
 
 ### T-IDA-30 — Pantalla "Seguridad"
-- **AC:** AC-IDA-33 (UI). RF-IDA-07, RNF-IDA-07. **Zona roja:** no (reviewer recomendado).
+- **AC:** AC-IDA-33 (UI). RF-IDA-07, RNF-IDA-07. **Zona roja:** sí, solo por `scripts/**` (ver "Sumados al implementar").
 - **Archivos:** `src/app/(dashboard)/configuracion/seguridad/page.tsx`, `src/modules/identity/components/{SessionsTable,RevokeSessionDialog,RevokeOthersDialog}.tsx`,
   `src/modules/identity/hooks/{useSessions,useRevokeSession,useRevokeOtherSessions}.ts`, `lib/format-dates.ts`.
 - **Pruebas:** `test_AC_IDA_33` (acción deshabilitada sin otras sesiones; la actual usa logout del BFF), fechas en
   `America/Argentina/Buenos_Aires`.
+- **Textos:** Q-129 a) (decidida por el dueño el 2026-11-19): diálogos, columna "Dispositivo", nulos, estado vacío
+  y `404` al revocar.
+- **Sumados al implementar:** `src/modules/settings/settings-sections.ts` y el test de `SettingsSectionList` ("Seguridad"
+  pasa a enlace a la página nueva); `scripts/smoke_pages.py`, `scripts/tests/test_smoke_pages.py` y
+  `scripts/tests/smoke_stack_fakes.py` (la página nueva redirige a `/login` sin sesión; sin listarla, el smoke falla).
+  Por esos tres, el PR es **zona roja** (`scripts/**`).
+- **Notas de implementación:**
+  - **Sesión actual:** "Cerrar esta sesión" confirma y usa `useLogout` (logout del BFF: borra cookies y va a `/login`);
+    nunca llama a `/{id}/revoke/`. Mientras sale, el diálogo queda bloqueado; un `403` o un fallo de red quedan como
+    error dentro del diálogo.
+  - **Otra sesión:** `POST /api/auth/sessions/{id}/revoke/` por el cliente tipado; el id va solo en la ruta del request,
+    nunca en la URL de la página, en el DOM ni en logs. Un `404 not_found` cuenta como hecho (Q-129 a): el diálogo se
+    cierra y la lista se recarga, sin error.
+  - **Listado:** se leen todas las páginas de `GET /api/auth/sessions/` (sin textos de paginación y sin dejar la sesión
+    actual en otra página); un `next` que no avanza es respuesta inesperada. Sin aviso de éxito: la lista se recarga.
+  - **Errores:** el `title` fijo del código (`C-08`), nunca el `detail`.
+  - **Skeleton:** 5 filas, como pide `design.md §3.4` (el `PageSkeleton` compartido tiene 6).
 
 ### T-IDA-31 — E2E de login con proveedor falso
 - **AC:** AC-IDA-01, AC-IDA-17, AC-IDA-33. **Zona roja:** sí (`scripts/**`).
