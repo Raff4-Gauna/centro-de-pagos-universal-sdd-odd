@@ -103,6 +103,13 @@ TENANT_QUERY_ALLOWLIST: tuple[AllowEntry, ...] = (
     AllowEntry(
         "apps/identity/services/login_complete.py", "connection.cursor", _LOGIN_ATTEMPT, count=1
     ),
+    AllowEntry(
+        "apps/common/tenancy/locks.py",
+        "connection.cursor",
+        "estado de la organización por id (design.md §3.1, §3.7): SELECT status ... FOR KEY SHARE "
+        "y lock_timeout; common no importa Organization y su manager exige un TenantContext",
+        count=1,
+    ),
 )
 
 # Concrete models of ``apps/`` that are not tenant models (RN-TEN-01; ``TenantModel`` subclasses
