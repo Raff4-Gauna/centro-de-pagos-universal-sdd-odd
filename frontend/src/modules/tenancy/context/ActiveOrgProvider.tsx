@@ -17,7 +17,6 @@ import {
 
 import {
   ORG_QUERY_SCOPE,
-  setActiveOrganizationId,
   subscribeOrganizationErrors,
   type OrganizationErrorEvent,
 } from "@/lib/api-client";
@@ -33,12 +32,15 @@ import {
 } from "../lib/active-organization";
 
 // The company this tab works on (RF-TEN-02, spec §14, Q-119 b, Q-205, design.md §3.9). It resolves
-// the tab's value → the BFF's default → the first by name (lib/active-organization.ts), hands it to
-// the api-client for `X-Organization-Id`, and keeps the tab's `sessionStorage` in line.
+// the tab's value → the BFF's default → the first by name (lib/active-organization.ts) during
+// render, and keeps the tab's value in line. It does not hand the company to the api-client: each
+// query names it in `X-Organization-Id` from its own `['org', orgId, …]` key (`orgHeaderFromKey`),
+// so a request always names the company its data is cached under, whatever the order of effects.
 //
-// Changing company removes every `['org', …]` query before the first request of the new one, and
-// tells the BFF the new default; that default is a preference, so a failed save changes nothing
-// for this tab. Global answers about the company (design.md §3.9):
+// Every change of the resolved company, picked in the selector or not (the list lost the company
+// the tab showed), goes through one place: it removes the `['org', …]` data of every other company
+// and tells the BFF the new default. The default is a preference, so a failed save changes
+// nothing for this tab. Global answers about the company (design.md §3.9):
 // - `404 organization_not_found` for the company the tab shows: reread the list; if the company
 //   is gone, move to the next one and say so, or, with none left, go to "sin organización".
 // - `409 organization_suspended`: reread the list, so the status (and SuspendedBanner) is current.
@@ -91,21 +93,17 @@ export function ActiveOrgProvider({ defaultOrganizationId, children }: ActiveOrg
   const activeId = active?.id ?? null;
   const hasNoOrganization = organizations.data?.length === 0;
 
-  // The company the requests name right now, for the handlers below (they outlive a render).
+  // The company the tab shows, for the handlers below (they outlive a render).
   const currentRef = useRef<string | null>(null);
+  // The company of the last committed render, for the transition below.
+  const committedRef = useRef<string | null>(null);
 
-  const activate = useCallback(
-    (organizationId: string | null) => {
-      currentRef.current = organizationId;
-      queryClient.removeQueries({ queryKey: [ORG_QUERY_SCOPE] });
-      setActiveOrganizationId(organizationId);
-      writeTabOrganization(organizationId);
-      saveDefaultOrganization(organizationId).catch(() => {
-        // Only the default of new tabs is lost; this tab keeps its own value.
-      });
-    },
-    [queryClient],
-  );
+  // Picking a company only changes the tab's value: the render resolves it, the effect below does
+  // the rest.
+  const activate = useCallback((organizationId: string | null) => {
+    currentRef.current = organizationId;
+    writeTabOrganization(organizationId);
+  }, []);
 
   const selectOrganization = useCallback(
     (organizationId: string) => {
@@ -118,13 +116,23 @@ export function ActiveOrgProvider({ defaultOrganizationId, children }: ActiveOrg
 
   useEffect(() => {
     currentRef.current = activeId;
-    setActiveOrganizationId(activeId);
     if (activeId !== null && activeId !== tabOrganizationId) {
       writeTabOrganization(activeId);
     }
-  }, [activeId, tabOrganizationId]);
-
-  useEffect(() => () => setActiveOrganizationId(null), []);
+    const previous = committedRef.current;
+    committedRef.current = activeId;
+    if (previous === null || sameId(previous, activeId)) {
+      return; // The first resolution of the page (tab value or default), or no change.
+    }
+    // The queries of the new company already started with their own key: only the others go.
+    queryClient.removeQueries({
+      predicate: ({ queryKey }) =>
+        queryKey[0] === ORG_QUERY_SCOPE && !sameId(String(queryKey[1]), activeId),
+    });
+    saveDefaultOrganization(activeId).catch(() => {
+      // Only the default of new tabs is lost; this tab keeps its own value.
+    });
+  }, [activeId, tabOrganizationId, queryClient]);
 
   useEffect(() => {
     if (hasNoOrganization && pathname !== NO_ORGANIZATION_PATH) {

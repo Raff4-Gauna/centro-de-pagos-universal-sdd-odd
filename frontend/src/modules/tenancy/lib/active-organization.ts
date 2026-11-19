@@ -31,35 +31,50 @@ export function resolveActiveOrganization(
 }
 
 // The tab's value, as an external store for `useSyncExternalStore`: `sessionStorage` does not
-// notify the tab that writes it, so writes go through here and tell the subscribers.
+// notify the tab that writes it, so writes go through here and tell the subscribers. Once this tab
+// wrote a value, the copy in memory is the one read: a failed `setItem` (quota, storage disabled)
+// can never send the resolution back to the company the tab left. `sessionStorage` is per tab, as
+// this module's memory is, so the two never disagree about another tab.
 export const TAB_ORGANIZATION_KEY = "cpu.active-organization";
 
 const tabListeners = new Set<() => void>();
+// `undefined`: nothing written yet in this page, the stored value (a reload) is the one read.
+let tabMemory: string | null | undefined;
 
 function storage(): Storage | null {
   try {
     return typeof window === "undefined" ? null : window.sessionStorage;
   } catch {
-    // Storage disabled by the browser: the tab falls back to the default and the first company.
+    // Storage disabled by the browser: the copy in memory is all the tab has.
+    return null;
+  }
+}
+
+function readStoredTabOrganization(): string | null {
+  try {
+    const value = storage()?.getItem(TAB_ORGANIZATION_KEY) ?? null;
+    return isOrganizationId(value) ? value : null;
+  } catch {
     return null;
   }
 }
 
 export function readTabOrganization(): string | null {
-  let value: string | null = null;
-  try {
-    value = storage()?.getItem(TAB_ORGANIZATION_KEY) ?? null;
-  } catch {
-    return null;
-  }
-  return isOrganizationId(value) ? value : null;
+  return tabMemory === undefined ? readStoredTabOrganization() : tabMemory;
 }
 
 export function readServerTabOrganization(): string | null {
   return null;
 }
 
+function notifyTab(): void {
+  for (const listener of tabListeners) {
+    listener();
+  }
+}
+
 export function writeTabOrganization(organizationId: string | null): void {
+  tabMemory = organizationId;
   try {
     const store = storage();
     if (organizationId === null) {
@@ -68,11 +83,20 @@ export function writeTabOrganization(organizationId: string | null): void {
       store?.setItem(TAB_ORGANIZATION_KEY, organizationId);
     }
   } catch {
-    // Quota or disabled storage: the choice still holds for this render through the api-client.
+    // Quota or disabled storage: the copy in memory keeps the choice for this page.
   }
-  for (const listener of tabListeners) {
-    listener();
+  notifyTab();
+}
+
+// Logout (ADR-0004 §7 clears `__Host-cpu_org` too): the tab forgets its company, stored and in memory.
+export function clearTabOrganization(): void {
+  tabMemory = undefined;
+  try {
+    storage()?.removeItem(TAB_ORGANIZATION_KEY);
+  } catch {
+    // Disabled storage holds nothing to clear.
   }
+  notifyTab();
 }
 
 export function subscribeTabOrganization(listener: () => void): () => void {

@@ -17,8 +17,11 @@ import { apiErrorFromResponse, isProblemResponse, networkApiError, parseProblem 
 // on every unsafe method (double submit, RN-IDA-13), and on a `401` (the BFF could not refresh the
 // session) it sends the browser to "Ingresar", keeping only the internal path to come back to.
 //
-// The active organization (SPEC-02 design.md §3.9, Q-119 b, ADR-0004 §7): each tab sends the one it
-// shows in `X-Organization-Id`, from its own state (ActiveOrgProvider), never from the session.
+// The active organization (SPEC-02 design.md §3.9, Q-119 b, ADR-0004 §7): a tenant-scoped request
+// names its company in `X-Organization-Id`, taken from the `['org', orgId, …]` key of its own query
+// (`orgHeaderFromKey`) or, for a mutation, from the company the screen shows. There is no shared
+// "current company" the client fills in: a request without the header fails closed (`400
+// organization_required`), it never goes out with the company of another render.
 
 export const API_BASE_URL = "";
 
@@ -136,16 +139,22 @@ export function orgQueryKey<const Parts extends readonly unknown[]>(
   return [ORG_QUERY_SCOPE, organizationId, ...parts] as const;
 }
 
-// The organization of this tab, set by ActiveOrgProvider. It is not an authorization: Django
-// revalidates the membership on every request (RN-TEN-03). Routes exempt from it ignore the header.
-let tabOrganizationId: string | null = null;
+export type OrganizationHeader = { [ORGANIZATION_HEADER]: string };
 
-export function setActiveOrganizationId(organizationId: string | null): void {
-  tabOrganizationId = organizationId;
+// The header of a request about `organizationId` (`params.header` of a typed call). It is not an
+// authorization: Django revalidates the membership on every request (RN-TEN-03).
+export function organizationHeader(organizationId: string): OrganizationHeader {
+  return { [ORGANIZATION_HEADER]: organizationId };
 }
 
-export function getActiveOrganizationId(): string | null {
-  return tabOrganizationId;
+// The header of a query, read from its own key: the company the request names is, by
+// construction, the one its data is cached under. A key outside `['org', orgId, …]` is a bug.
+export function orgHeaderFromKey(queryKey: readonly unknown[]): OrganizationHeader {
+  const [scope, organizationId] = queryKey;
+  if (scope !== ORG_QUERY_SCOPE || typeof organizationId !== "string" || organizationId === "") {
+    throw new Error("api-client: a tenant-scoped query needs an ['org', orgId, …] key");
+  }
+  return organizationHeader(organizationId);
 }
 
 // The two answers about the organization itself that the whole shell reacts to (design.md §3.9).
@@ -182,19 +191,9 @@ function isOrganizationErrorCode(code: string): code is OrganizationErrorCode {
 }
 
 // Registered after `problemMiddleware`, like `sessionMiddleware`, so it reads a copy of the body
-// before the response is thrown as an `ApiError`. A request that already names an organization
-// keeps it: a query sends the one of its own key, never a newer one.
-export function organizationMiddleware(
-  readOrganizationId: () => string | null,
-  onOrganizationError: OrganizationErrorListener,
-): Middleware {
+// before the response is thrown as an `ApiError`. It never adds nor changes the header.
+export function organizationMiddleware(onOrganizationError: OrganizationErrorListener): Middleware {
   return {
-    onRequest({ request }) {
-      const organizationId = readOrganizationId();
-      if (organizationId !== null && !request.headers.has(ORGANIZATION_HEADER)) {
-        request.headers.set(ORGANIZATION_HEADER, organizationId);
-      }
-    },
     async onResponse({ request, response }) {
       if ((response.status !== 404 && response.status !== 409) || !isProblemResponse(response)) {
         return;
@@ -218,7 +217,6 @@ export type ApiClient = Client<paths>;
 export type ApiClientOptions = Pick<ClientOptions, "fetch" | "Request"> & {
   readCsrfToken?: () => string | null;
   onSessionExpired?: (url: string) => void;
-  readOrganizationId?: () => string | null;
   onOrganizationError?: OrganizationErrorListener;
 };
 
@@ -227,7 +225,6 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
   const {
     readCsrfToken = readCsrfCookie,
     onSessionExpired = goToLogin,
-    readOrganizationId = getActiveOrganizationId,
     onOrganizationError = notifyOrganizationError,
     ...fetchOptions
   } = options;
@@ -235,7 +232,7 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
   client.use(
     problemMiddleware,
     sessionMiddleware(readCsrfToken, onSessionExpired),
-    organizationMiddleware(readOrganizationId, onOrganizationError),
+    organizationMiddleware(onOrganizationError),
   );
   return client;
 }

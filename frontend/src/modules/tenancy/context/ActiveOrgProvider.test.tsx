@@ -4,10 +4,11 @@ import userEvent from "@testing-library/user-event";
 import { usePathname, useRouter } from "next/navigation";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { createApiClient, getActiveOrganizationId, ORGANIZATION_HEADER } from "@/lib/api-client";
+import { createApiClient, organizationHeader } from "@/lib/api-client";
 
 import { useCurrentOrganization } from "../hooks/useCurrentOrganization";
 import {
+  clearTabOrganization,
   type MyOrganization,
   saveDefaultOrganization,
   TAB_ORGANIZATION_KEY,
@@ -58,8 +59,9 @@ class BrowserRequest extends Request {
   }
 }
 
-// A tenant-scoped request answered with `code`: the api-client tells the provider (by default).
-async function answerWith(status: number, code: string) {
+// A tenant-scoped request about `organizationId` answered with `code`: the api-client tells the
+// provider (by default).
+async function answerWith(status: number, code: string, organizationId: string = ACME.id) {
   const client = createApiClient({
     Request: BrowserRequest,
     fetch: async () =>
@@ -74,9 +76,14 @@ async function answerWith(status: number, code: string) {
         { status, headers: { "content-type": "application/problem+json" } },
       ),
   });
-  const get = client.GET as unknown as (path: string) => Promise<unknown>;
+  const get = client.GET as unknown as (
+    path: string,
+    init: { headers: Record<string, string> },
+  ) => Promise<unknown>;
   await act(async () => {
-    await get("/api/branches/").catch(() => undefined);
+    await get("/api/branches/", { headers: organizationHeader(organizationId) }).catch(
+      () => undefined,
+    );
   });
 }
 
@@ -110,6 +117,7 @@ function renderProvider(defaultOrganizationId: string | null = null) {
 const active = () => screen.getByTestId("active");
 
 beforeEach(() => {
+  clearTabOrganization();
   queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   vi.mocked(usePathname).mockReturnValue("/inicio");
   vi.mocked(useRouter).mockReturnValue({ replace } as unknown as ReturnType<typeof useRouter>);
@@ -117,6 +125,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  clearTabOrganization();
   window.sessionStorage.clear();
   queryClient.clear();
 });
@@ -126,7 +135,7 @@ describe("ActiveOrgProvider (RF-TEN-02, spec §14, Q-119, Q-205, design.md §3.9
     window.sessionStorage.setItem(TAB_ORGANIZATION_KEY, BETA.id);
     renderProvider(ACME.id);
     await waitFor(() => expect(active()).toHaveTextContent(BETA.id));
-    expect(getActiveOrganizationId()).toBe(BETA.id);
+    expect(saveDefaultOrganization).not.toHaveBeenCalled();
   });
 
   it("test_RF_TEN_02_bff_default_when_the_tab_has_none", async () => {
@@ -144,7 +153,7 @@ describe("ActiveOrgProvider (RF-TEN-02, spec §14, Q-119, Q-205, design.md §3.9
     expect(saveDefaultOrganization).not.toHaveBeenCalled();
   });
 
-  it("test_RF_TEN_02_change_clears_org_cache_sets_header_and_saves_default", async () => {
+  it("test_RF_TEN_02_change_clears_org_cache_and_saves_default", async () => {
     renderProvider(ACME.id);
     await waitFor(() => expect(active()).toHaveTextContent(ACME.id));
     queryClient.setQueryData(["org", ACME.id, "branches"], ["sucursal"]);
@@ -155,9 +164,23 @@ describe("ActiveOrgProvider (RF-TEN-02, spec §14, Q-119, Q-205, design.md §3.9
     expect(queryClient.getQueryData(["org", ACME.id, "branches"])).toBeUndefined();
     expect(queryClient.getQueryData(["organizations"])).toEqual([ACME, BETA]);
     expect(window.sessionStorage.getItem(TAB_ORGANIZATION_KEY)).toBe(BETA.id);
-    expect(getActiveOrganizationId()).toBe(BETA.id);
     expect(saveDefaultOrganization).toHaveBeenCalledExactlyOnceWith(BETA.id);
-    expect(ORGANIZATION_HEADER).toBe("X-Organization-Id");
+  });
+
+  // Not picked in the selector: the list was reread (here, invalidated) without the company.
+  it("test_RF_TEN_02_list_without_the_active_company_clears_its_cache_and_saves_default", async () => {
+    renderProvider(ACME.id);
+    await waitFor(() => expect(active()).toHaveTextContent(ACME.id));
+    queryClient.setQueryData(["org", ACME.id, "branches"], ["sucursal"]);
+    listOrganizations.mockResolvedValue([BETA]);
+
+    await act(async () => {
+      await queryClient.invalidateQueries({ queryKey: ["organizations"] });
+    });
+
+    await waitFor(() => expect(active()).toHaveTextContent(BETA.id));
+    expect(queryClient.getQueryData(["org", ACME.id, "branches"])).toBeUndefined();
+    expect(saveDefaultOrganization).toHaveBeenCalledExactlyOnceWith(BETA.id);
   });
 
   it("test_RF_TEN_02_organization_not_found_moves_to_the_next_and_says_so", async () => {
@@ -203,19 +226,7 @@ describe("ActiveOrgProvider (RF-TEN-02, spec §14, Q-119, Q-205, design.md §3.9
     await waitFor(() => expect(active()).toHaveTextContent(BETA.id));
 
     // A late answer for Acme: the request was sent before the change.
-    const client = createApiClient({
-      Request: BrowserRequest,
-      readOrganizationId: () => ACME.id,
-      fetch: async () =>
-        new Response(
-          JSON.stringify({ type: "x", title: "t", status: 404, code: "organization_not_found" }),
-          { status: 404, headers: { "content-type": "application/problem+json" } },
-        ),
-    });
-    const get = client.GET as unknown as (path: string) => Promise<unknown>;
-    await act(async () => {
-      await get("/api/branches/").catch(() => undefined);
-    });
+    await answerWith(404, "organization_not_found", ACME.id);
 
     expect(listOrganizations).toHaveBeenCalledTimes(1);
     expect(active()).toHaveTextContent(BETA.id);
@@ -237,7 +248,6 @@ describe("ActiveOrgProvider (RF-TEN-02, spec §14, Q-119, Q-205, design.md §3.9
     const { unmount } = renderProvider(ACME.id);
     await waitFor(() => expect(replace).toHaveBeenCalledExactlyOnceWith(NO_ORGANIZATION_PATH));
     unmount();
-    expect(getActiveOrganizationId()).toBeNull();
 
     replace.mockClear();
     vi.mocked(usePathname).mockReturnValue(NO_ORGANIZATION_PATH);

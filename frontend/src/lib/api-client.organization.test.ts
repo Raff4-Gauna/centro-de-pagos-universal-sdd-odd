@@ -1,11 +1,11 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   createApiClient,
-  getActiveOrganizationId,
   ORGANIZATION_HEADER,
+  organizationHeader,
+  orgHeaderFromKey,
   orgQueryKey,
-  setActiveOrganizationId,
   subscribeOrganizationErrors,
   type OrganizationErrorEvent,
 } from "./api-client";
@@ -18,7 +18,7 @@ class BrowserRequest extends Request {
   }
 }
 
-// No tenant-scoped path is in the contract yet (T-TEN-13): the tests call the client untyped.
+// The tests call the client untyped, on paths the contract does not have yet.
 type UntypedCall = (
   path: string,
   init?: { body?: unknown; headers?: Record<string, string> },
@@ -37,7 +37,6 @@ function problem(status: number, code: string) {
 function clientWith(
   respond: () => Response,
   options: {
-    readOrganizationId?: () => string | null;
     onOrganizationError?: (event: OrganizationErrorEvent) => void;
   } = {},
 ) {
@@ -50,48 +49,33 @@ function clientWith(
   };
 }
 
-afterEach(() => setActiveOrganizationId(null));
-
 describe("api-client and the active organization (RF-TEN-02, Q-119, design.md §3.9)", () => {
-  it("test_RF_TEN_02_api_client_sends_the_tab_organization_on_every_request", async () => {
-    const { get, post, fetchMock } = clientWith(() => new Response(null, { status: 204 }), {
-      readOrganizationId: () => ORG_A,
-    });
+  it("test_RF_TEN_02_query_header_comes_from_its_own_key", async () => {
+    const { get, fetchMock } = clientWith(() => new Response(null, { status: 204 }));
 
-    await get("/api/branches/");
-    await post("/api/branches/", { body: {} });
+    await get("/api/branches/", { headers: orgHeaderFromKey(orgQueryKey(ORG_A, "branches")) });
+    await get("/api/branches/", { headers: orgHeaderFromKey(orgQueryKey(ORG_B, "branches")) });
 
     const sent = fetchMock.mock.calls.map(([request]) => request.headers.get(ORGANIZATION_HEADER));
-    expect(sent).toEqual([ORG_A, ORG_A]);
-    expect(ORGANIZATION_HEADER).toBe("X-Organization-Id");
+    expect(sent).toEqual([ORG_A, ORG_B]);
+    expect(organizationHeader(ORG_A)).toEqual({ "X-Organization-Id": ORG_A });
   });
 
-  it("test_RF_TEN_02_api_client_keeps_the_organization_a_request_already_names", async () => {
-    const { get, fetchMock } = clientWith(() => new Response(null, { status: 204 }), {
-      readOrganizationId: () => ORG_B,
-    });
-
-    await get("/api/branches/", { headers: { [ORGANIZATION_HEADER]: ORG_A } });
-
-    expect(fetchMock.mock.calls[0]![0].headers.get(ORGANIZATION_HEADER)).toBe(ORG_A);
+  it("test_RF_TEN_02_query_outside_the_org_scope_has_no_header", () => {
+    expect(() => orgHeaderFromKey(["organizations"])).toThrow("['org', orgId, …] key");
+    expect(() => orgHeaderFromKey(["org"])).toThrow();
+    expect(() => orgHeaderFromKey(["org", ""])).toThrow();
+    expect(() => orgHeaderFromKey(["other", ORG_A])).toThrow();
   });
 
-  it("test_RF_TEN_02_api_client_without_active_organization_sends_no_header", async () => {
-    const { get, fetchMock } = clientWith(() => new Response(null, { status: 204 }));
+  it("test_RF_TEN_02_api_client_never_fills_the_header_itself", async () => {
+    const { get, post, fetchMock } = clientWith(() => new Response(null, { status: 204 }));
 
     await get("/api/organizations/");
+    await post("/api/branches/", { body: {}, headers: organizationHeader(ORG_B) });
 
-    expect(fetchMock.mock.calls[0]![0].headers.has(ORGANIZATION_HEADER)).toBe(false);
-  });
-
-  it("test_RF_TEN_02_api_client_reads_the_tab_organization_by_default", async () => {
-    const { get, fetchMock } = clientWith(() => new Response(null, { status: 204 }));
-
-    setActiveOrganizationId(ORG_B);
-    await get("/api/branches/");
-
-    expect(getActiveOrganizationId()).toBe(ORG_B);
-    expect(fetchMock.mock.calls[0]![0].headers.get(ORGANIZATION_HEADER)).toBe(ORG_B);
+    const sent = fetchMock.mock.calls.map(([request]) => request.headers.get(ORGANIZATION_HEADER));
+    expect(sent).toEqual([null, ORG_B]);
   });
 
   it.each([
@@ -99,12 +83,11 @@ describe("api-client and the active organization (RF-TEN-02, Q-119, design.md §
     [409, "organization_suspended"],
   ])("test_RF_TEN_02_api_client_reports_%i_%s_and_still_throws", async (status, code) => {
     const onOrganizationError = vi.fn();
-    const { get } = clientWith(() => problem(status, code), {
-      readOrganizationId: () => ORG_A,
-      onOrganizationError,
-    });
+    const { get } = clientWith(() => problem(status, code), { onOrganizationError });
 
-    await expect(get("/api/branches/")).rejects.toMatchObject({ status, code });
+    await expect(
+      get("/api/branches/", { headers: organizationHeader(ORG_A) }),
+    ).rejects.toMatchObject({ status, code });
 
     expect(onOrganizationError).toHaveBeenCalledExactlyOnceWith({ code, organizationId: ORG_A });
   });
@@ -133,8 +116,9 @@ describe("api-client and the active organization (RF-TEN-02, Q-119, design.md §
     const unsubscribe = subscribeOrganizationErrors(listener);
     const { get } = clientWith(() => problem(404, "organization_not_found"));
 
-    setActiveOrganizationId(ORG_A);
-    await expect(get("/api/branches/")).rejects.toBeInstanceOf(ApiError);
+    await expect(
+      get("/api/branches/", { headers: organizationHeader(ORG_A) }),
+    ).rejects.toBeInstanceOf(ApiError);
     unsubscribe();
     await expect(get("/api/branches/")).rejects.toBeInstanceOf(ApiError);
 
