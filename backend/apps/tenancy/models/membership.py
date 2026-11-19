@@ -15,7 +15,8 @@ A ``TenantModel``: its manager fails closed and ``save()`` writes only in the ac
 ``membership_active_user_org`` is the partial index the request resolution reads in one query, and
 "my organizations" with it (``INCLUDE (role)``, RNF-TEN-07). Every FK is ``PROTECT`` without
 reverse accessor: a membership is never deleted (``NoHardDeleteMixin``), nor is the user it names.
-``source_invitation`` arrives with ``Invitation`` (T-TEN-14).
+``source_invitation`` is the invitation it came from, unique: one invitation yields at most one
+membership, the final net of a double accept (RN-TEN-12, design.md §4.4).
 
 ``Membership.objects.for_user(user_id)`` is the scope of "my organizations" (design.md §3.4): every
 membership of one user, across organizations, read only (``scopes.ModelScope``). It is the only
@@ -80,6 +81,13 @@ class Membership(NoHardDeleteMixin, TenantModel):
     )
     invited_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+    source_invitation = models.OneToOneField(
+        "tenancy.Invitation",
         on_delete=models.PROTECT,
         null=True,
         blank=True,

@@ -53,7 +53,7 @@ Donde el diseño y el código de SPEC-00, o el orden real, difieren, manda esta 
 
 ## Resumen
 
-> T-TEN-01, T-TEN-02, T-TEN-03, T-TEN-04, T-TEN-05, T-TEN-06, T-TEN-07, T-TEN-08, T-TEN-09, T-TEN-10, T-TEN-11 y T-TEN-12 en revisión; las demás sin empezar. La columna **Evidencia** es obligatoria para `✅` y la verifica `scripts/check_spec_state.py`.
+> T-TEN-01, T-TEN-02, T-TEN-03, T-TEN-04, T-TEN-05, T-TEN-06, T-TEN-07, T-TEN-08, T-TEN-09, T-TEN-10, T-TEN-11, T-TEN-12 y T-TEN-14 en revisión; las demás sin empezar. La columna **Evidencia** es obligatoria para `✅` y la verifica `scripts/check_spec_state.py`.
 
 | ID | Título | AC | Capa | Archivos esperados (ver detalle) | Depende de | Agente | Tamaño | Zona roja | Estado | Evidencia |
 |---|---|---|---|---|---|---|---|---|---|---|
@@ -70,7 +70,7 @@ Donde el diseño y el código de SPEC-00, o el orden real, difieren, manda esta 
 | T-TEN-11 | Locks y tareas por organización | AC-TEN-28 (s2s) | Base | `apps/common/tenancy/{locks,celery}.py`, `apps/tenancy/selectors/locks.py` | T-TEN-08 | backend-dev | L | Sí | 🟡 | rama `task/T-TEN-11-org-locks`, PR #117 |
 | T-TEN-12 | `GET /api/organizations/` y selector para `/api/me` | AC-TEN-08, AC-TEN-21, AC-IDA-21 | API | `apps/tenancy/api/organizations.py`, `selectors/memberships.py`, `services/membership_selector.py` | T-TEN-08, T-IDA-07 | backend-dev | M | Sí | 🟡 | rama `task/T-TEN-12-organizations-list`, PR #113 |
 | T-TEN-13 | Datos de la organización activa | AC-TEN-29 (API) | API | `apps/tenancy/api/organizations.py`, `services/organizations.py`, `domain/tax_id.py` | T-TEN-10, T-TEN-11, T-TEN-12 | backend-dev | L | Sí | ☐ | |
-| T-TEN-14 | `Invitation` + migración 0003 + reglas puras | AC-TEN-25, AC-TEN-35 (unidad) | DB | `apps/tenancy/models/invitation.py`, `domain/invitations.py` | T-TEN-05 | backend-dev | L | Sí | ☐ | |
+| T-TEN-14 | `Invitation` + migración 0003 + reglas puras | AC-TEN-25, AC-TEN-35 (unidad) | DB | `apps/tenancy/models/invitation.py`, `domain/invitations.py` | T-TEN-05 | backend-dev | L | Sí | 🟡 | rama `task/T-TEN-14-invitation-model`, sin PR |
 | T-TEN-15 | Aceptar invitación con token | AC-TEN-17, AC-TEN-18, AC-TEN-19, AC-TEN-25, AC-TEN-35 | Servicio/API | `services/invitation_accept.py`, `api/invitations.py` | T-TEN-10, T-TEN-11, T-TEN-14 | backend-dev | L | Sí | ☐ | |
 | T-TEN-16 | Mis invitaciones y aceptar desde la sesión (Q-124) | AC-TEN-39, AC-TEN-28, AC-TEN-10 | Servicio/API | `selectors/invitations.py`, `api/invitations.py`, `services/invitation_accept.py` | T-TEN-15 | backend-dev | L | Sí | ☐ | |
 | T-TEN-17 | `TenancyInvitationPort` (puerto de SPEC-01) | AC-TEN-17 (vía puerto), AC-IDA-02, AC-IDA-04, AC-IDA-05, AC-IDA-31 | Servicio | `services/invitation_port.py`, `config/settings/base.py` | T-TEN-15, T-IDA-13 | backend-dev | M | Sí | ☐ | |
@@ -500,6 +500,13 @@ T-TEN-30 · suspendida → T-TEN-29.
   `test_AC_TEN_10_scopes_are_tenant_queryset_methods` exige que cada scope sea método de `TenantQuerySet`. Los scopes
   declarados por modelo (`Invitation.by_token_hash`, `pending_for_email`, y `Membership.for_user`) necesitan pasar a
   scopes por modelo (modelo → scopes) en la regla y en ese test antes de sumarse; si no, cualquier modelo podría usarlos.
+- **Hecho (2026-11-19):** los scopes por modelo ya existen (T-TEN-12, `allowlists.MODEL_SCOPES`), pero esta tarea no
+  declara ninguno de `Invitation`: `by_token_hash` llega con su primer lector (`T-TEN-15`) y `pending_for_email` con el
+  suyo (`T-TEN-16`/`T-TEN-17`). `normalize_email` es `strip` + `lower`, igual que el de identity (un test compara los dos
+  sobre la misma tabla); validar que sea un email (`EmailValidator`, 254) queda en la entrada (`T-TEN-20`, comandos),
+  porque `domain/` no importa Django. Suma `invitation_token_hash_sha256` (64 hex en minúscula: un token en claro no
+  entra en la columna, RNF-TEN-03) e `invitation_revoked_reason_valid` (enum de §5 como `CHECK`). `token_hash` es
+  `varchar(64)` con ese `CHECK` en vez de `char(64)`.
 
 ### T-TEN-15 — Aceptar invitación con token
 - **AC:** AC-TEN-17, 18, 19, 25, 35. RN-TEN-11, RN-TEN-12. **Zona roja:** sí.
