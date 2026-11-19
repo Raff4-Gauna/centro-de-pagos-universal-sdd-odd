@@ -93,7 +93,7 @@ El diseño se escribió antes de que existiera el código de SPEC-00. Donde difi
 | T-IDA-26 | Smoke: 3xx y URL de ejemplo (deuda de 00) | AC-PLT-29 (regresión) | CI | `scripts/smoke_stack.py`, `scripts/smoke_pages.py`, `scripts/tests/test_smoke_stack.py`, `scripts/tests/test_smoke_pages.py`, `scripts/tests/test_smoke_stack_wiring.py`, `scripts/tests/test_smoke_client_bundle.py` | — | backend-dev | M | Sí | 🟡 | PR abierto |
 | T-IDA-27 | Proxy con sesión: Bearer, CSRF y refresh transparente | AC-IDA-18, AC-IDA-26 (UX), AC-IDA-28 | BFF | `src/lib/server/{session-proxy,backend-proxy,problem}.ts`, `app/api/[...path]/route.ts`, `src/lib/api-client.ts`, `frontend/scripts/check-client-bundle.ts`, `frontend/Dockerfile`, `context/07-frontend-ui-guidelines.md` | T-IDA-23 | frontend-dev | L | Sí | 🟡 | rama `task/T-IDA-27-session-proxy`, sin PR |
 | T-IDA-28 | Pantalla "Ingresar" y protección de rutas | AC-IDA-19 (UI) | UI | `src/proxy.ts`, `app/(auth)/login/page.tsx`, `src/modules/identity/components/{LoginCard,LoginErrorAlert}.tsx`, `src/modules/identity/lib/login-errors.ts`, `scripts/smoke_pages.py`, `scripts/tests/test_smoke_pages.py` | T-IDA-24, T-IDA-26, T-IDA-27 | frontend-dev | M | Sí | 🟡 | PR #112 |
-| T-IDA-29 | Mi perfil, menú de usuario y "sin empresas" | AC-IDA-30 (UI) | UI | `src/modules/identity/components/{ProfileCard,UserMenu,NoOrganizationState}.tsx` | T-IDA-07, T-IDA-25, T-IDA-28 | frontend-dev | M | No | ☐ | |
+| T-IDA-29 | Mi perfil, menú de usuario y "sin empresas" | AC-IDA-30 (UI) | UI | `src/modules/identity/components/{ProfileCard,UserMenu,NoOrganizationState}.tsx` | T-IDA-07, T-IDA-25, T-IDA-28 | frontend-dev | M | Sí (`scripts/**`) | 🟡 | rama `task/T-IDA-29-profile-menu`, sin PR |
 | T-IDA-30 | Pantalla "Seguridad" | AC-IDA-33 (UI) | UI | `app/(dashboard)/configuracion/seguridad/page.tsx`, `src/modules/identity/components/SessionsTable.tsx` | T-IDA-17, T-IDA-29 | frontend-dev | L | No | ☐ | |
 | T-IDA-31 | E2E de login con proveedor falso | AC-IDA-01, AC-IDA-17, AC-IDA-33 | E2E | `scripts/e2e_login.py`, `scripts/tests/test_e2e_login.py` | T-IDA-20, T-IDA-29, T-IDA-30 | backend-dev | M | Sí | ☐ | |
 
@@ -840,8 +840,25 @@ módulos se aprueba en la misma pasada, después de `T-TEN-36`.
 - **AC:** AC-IDA-30 (UI). Spec §14. **Zona roja:** no (reviewer recomendado).
 - **Archivos:** `src/app/(dashboard)/configuracion/perfil/page.tsx`, `src/modules/identity/components/{ProfileCard,UserMenu,NoOrganizationState}.tsx`,
   `src/modules/identity/hooks/{useMe,useLogout}.ts`, `src/components/shell/TopBar.tsx`, `src/modules/settings/settings-sections.ts`.
+- **Sumados al implementar:** `src/components/shell/UserMenuPlaceholder.tsx` (se borra: lo reemplaza `UserMenu`) y
+  `src/components/shell/AppShell.test.tsx` (afirmaba el placeholder deshabilitado; la imagen decorativa del avatar
+  también tiene rol `presentation`, así que el cierre del menú móvil se comprueba por la navegación);
+  `src/modules/settings/components/SettingsSectionList.tsx` y su test ("Mi perfil" pasa a ser un enlace; la lista
+  pasa a componente cliente porque la fila usa `component={Link}`); `scripts/smoke_pages.py`,
+  `scripts/tests/test_smoke_pages.py` y `scripts/tests/smoke_stack_fakes.py` (la página nueva redirige a `/login` sin
+  sesión: sin listarla, el smoke falla). Por esos tres, el PR es **zona roja** (`scripts/**`).
 - **Cambios:** reemplaza `UserMenuPlaceholder`. `NoOrganizationState` es el componente que después reutiliza `T-TEN-30`.
 - **Pruebas:** `test_AC_IDA_30` (`memberships` vacías muestra el estado), estados de carga y error de `07 §2`.
+- **Notas de implementación:**
+  - **Logout:** `useLogout` llama a `POST /api/auth/logout` con `fetch` (la ruta es del BFF, no está en el contrato) y el
+    mismo doble envío de CSRF que `api-client`. Solo un `204` cierra la sesión y lleva a `/login`; un `403
+    bff.csrf_failed`, otro estado o un fallo de red quedan como error con "Reintentar" (limitación de #109).
+  - **Textos de error:** el `title` fijo del código (`ApiError.title`), nunca el `detail` ni el mensaje crudo (`C-08`).
+  - **Dónde se muestra "sin empresas":** el componente no se monta todavía. `design.md §3.4` dice que lo usa el layout
+    `(dashboard)`, pero SPEC-02 fija la ruta `/sin-organizacion` y la decisión con `ActiveOrgProvider`
+    (`02 design.md §3.9`, `T-TEN-29`, `T-TEN-30`); montarlo acá en el layout duplicaría esa lógica.
+  - **Avatar:** solo `https://`, con `referrerPolicy="no-referrer"`; si no hay o no carga, las iniciales.
+  - **"Mi perfil" en Configuración:** la descripción deja de nombrar el idioma (Q-115).
 
 ### T-IDA-30 — Pantalla "Seguridad"
 - **AC:** AC-IDA-33 (UI). RF-IDA-07, RNF-IDA-07. **Zona roja:** no (reviewer recomendado).

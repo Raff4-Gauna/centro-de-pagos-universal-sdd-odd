@@ -7,7 +7,11 @@ import SettingsLoading from "@/app/(dashboard)/configuracion/loading";
 import SettingsPage from "@/app/(dashboard)/configuracion/page";
 
 import { moduleChipLabel } from "../settings-sections";
-import { SETTINGS_LIST_LABEL, SETTINGS_TITLE } from "./SettingsSectionList";
+import {
+  SECTION_UNAVAILABLE_TEXT,
+  SETTINGS_LIST_LABEL,
+  SETTINGS_TITLE,
+} from "./SettingsSectionList";
 
 // 07 §5.3: each section of the Hub with the chip of the module that implements it.
 const EXPECTED = [
@@ -23,7 +27,7 @@ const EXPECTED = [
 ] as const;
 
 describe("Configuración (AC-PLT-28, spec §14, 07 §5.3)", () => {
-  it("test_AC_PLT_28_settings_lists_nine_sections_disabled_with_module_chip", () => {
+  it("test_AC_PLT_28_settings_lists_nine_sections_with_module_chip", () => {
     render(<SettingsPage />);
     expect(screen.getByRole("heading", { level: 1, name: SETTINGS_TITLE })).toBeInTheDocument();
     const list = screen.getByRole("list", { name: SETTINGS_LIST_LABEL });
@@ -31,13 +35,28 @@ describe("Configuración (AC-PLT-28, spec §14, 07 §5.3)", () => {
     expect(items).toHaveLength(9);
     items.forEach((item, index) => {
       const [title, chip] = EXPECTED[index];
+      expect(item).toHaveTextContent(title);
+      expect(item).toHaveTextContent(chip);
+      if (title === "Mi perfil") return;
       expect(item).toHaveAccessibleName(title);
       expect(item).toHaveAttribute("aria-disabled", "true");
-      expect(item).toHaveTextContent(chip);
+      expect(item).toHaveTextContent(SECTION_UNAVAILABLE_TEXT);
       // Disabled means nothing to activate: no links nor buttons inside a section.
       expect(within(item).queryByRole("link")).toBeNull();
       expect(within(item).queryByRole("button")).toBeNull();
     });
+  });
+
+  it("test_RF_IDA_06_settings_profile_section_links_to_mi_perfil", () => {
+    render(<SettingsPage />);
+    const list = screen.getByRole("list", { name: SETTINGS_LIST_LABEL });
+    const [profile] = within(list).getAllByRole("listitem");
+    expect(profile).not.toHaveAttribute("aria-disabled");
+    expect(profile).not.toHaveTextContent(SECTION_UNAVAILABLE_TEXT);
+    // Without language (Q-115).
+    expect(profile).not.toHaveTextContent(/idioma/i);
+    const link = within(profile!).getByRole("link", { name: /Mi perfil/ });
+    expect(link).toHaveAttribute("href", "/configuracion/perfil");
   });
 
   it("test_AC_PLT_28_settings_module_chip_label_joins_modules", () => {

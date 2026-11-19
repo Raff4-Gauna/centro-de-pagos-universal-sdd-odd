@@ -3,13 +3,19 @@ import userEvent from "@testing-library/user-event";
 import { usePathname } from "next/navigation";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { logoutResult, ME, meResult } from "@/modules/identity/components/identity.test-helpers";
+import { USER_MENU_LABEL } from "@/modules/identity/components/UserMenu";
+import { useLogout } from "@/modules/identity/hooks/useLogout";
+import { useMe } from "@/modules/identity/hooks/useMe";
+
 import { AppShell } from "./AppShell";
 import { isActive, NAV_LABEL } from "./NavMenu";
 import { ORG_BRANCH_PENDING_TEXT } from "./OrgBranchSelectorPlaceholder";
 import { APP_TITLE, OPEN_NAV_LABEL } from "./TopBar";
-import { USER_MENU_LABEL } from "./UserMenuPlaceholder";
 
 vi.mock("next/navigation", () => ({ usePathname: vi.fn() }));
+vi.mock("@/modules/identity/hooks/useMe", () => ({ useMe: vi.fn() }));
+vi.mock("@/modules/identity/hooks/useLogout", () => ({ useLogout: vi.fn() }));
 
 const pathname = vi.mocked(usePathname);
 
@@ -24,6 +30,8 @@ function renderShell() {
 describe("AppShell (AC-PLT-28, spec §14, 07 §5)", () => {
   beforeEach(() => {
     pathname.mockReturnValue("/inicio");
+    vi.mocked(useMe).mockReturnValue(meResult({ data: ME }));
+    vi.mocked(useLogout).mockReturnValue(logoutResult());
   });
 
   it("test_AC_PLT_28_top_bar_has_disabled_org_branch_selector", () => {
@@ -38,7 +46,8 @@ describe("AppShell (AC-PLT-28, spec §14, 07 §5)", () => {
       // No invented organizations nor branches before SPEC-02: nothing selected, no value.
       expect(select.textContent?.replace("​", "").trim()).toBe("");
     }
-    expect(within(bar).getByRole("button", { name: USER_MENU_LABEL })).toBeDisabled();
+    // SPEC-01 (T-IDA-29): the user menu replaces the disabled placeholder.
+    expect(within(bar).getByRole("button", { name: USER_MENU_LABEL })).toBeEnabled();
   });
 
   it("test_AC_PLT_28_nav_links_to_inicio_and_configuracion", () => {
@@ -93,8 +102,10 @@ describe("AppShell (AC-PLT-28, spec §14, 07 §5)", () => {
     const dialog = await screen.findByRole("presentation");
     const mobileNav = within(dialog).getByRole("navigation", { name: NAV_LABEL });
     await userEvent.click(within(mobileNav).getByRole("link", { name: "Configuración" }));
+    // The drawer is not kept mounted: closed, a single nav is left (the avatar's decorative image
+    // also has the presentation role, so the drawer is matched by its nav, not by that role).
     await vi.waitFor(() => {
-      expect(screen.queryByRole("presentation")).toBeNull();
+      expect(screen.getAllByRole("navigation", { name: NAV_LABEL })).toHaveLength(1);
     });
     document.removeEventListener("click", stopNavigation);
   });
