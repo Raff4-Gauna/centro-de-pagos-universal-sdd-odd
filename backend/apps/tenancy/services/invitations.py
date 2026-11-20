@@ -142,6 +142,12 @@ def accept_base_url() -> str:
     return str(base)
 
 
+def accept_url(base: str, token: str) -> str:
+    """The link of an invitation, ``{base}/invitacion#token=<token>``; the operator's commands
+    build theirs with it too (``platform_org.py``)."""
+    return f"{base}{ACCEPT_PATH}#token={token}"
+
+
 @audit_trigger(TenancyAuditAction.INVITATION_CREATED)
 def create_invitation(
     ctx: TenantContext, email: str, role: Role, *, now: datetime | None = None
@@ -155,7 +161,7 @@ def create_invitation(
     with transaction.atomic():
         invitation_id, actor_role = _create_locked(ctx, address, role, hash_token(token), moment)
     logger.info(CREATED_EVENT, invitation_id=str(invitation_id), role=role.value)
-    return CreatedInvitation(invitation_id, actor_role, f"{base}{ACCEPT_PATH}#token={token}")
+    return CreatedInvitation(invitation_id, actor_role, accept_url(base, token))
 
 
 def _create_locked(

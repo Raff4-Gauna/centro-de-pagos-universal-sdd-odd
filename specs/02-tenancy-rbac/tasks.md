@@ -62,7 +62,7 @@ Donde el diseño y el código de SPEC-00, o el orden real, difieren, manda esta 
 
 ## Resumen
 
-> T-TEN-01, T-TEN-02, T-TEN-03, T-TEN-04, T-TEN-05, T-TEN-06, T-TEN-07, T-TEN-08, T-TEN-09, T-TEN-10, T-TEN-11, T-TEN-12, T-TEN-13, T-TEN-14, T-TEN-15, T-TEN-16, T-TEN-17, T-TEN-20, T-TEN-21, T-TEN-22, T-TEN-24, T-TEN-25, T-TEN-29 y T-TEN-30 en revisión; las demás sin empezar. La columna **Evidencia** es obligatoria para `✅` y la verifica `scripts/check_spec_state.py`.
+> T-TEN-01, T-TEN-02, T-TEN-03, T-TEN-04, T-TEN-05, T-TEN-06, T-TEN-07, T-TEN-08, T-TEN-09, T-TEN-10, T-TEN-11, T-TEN-12, T-TEN-13, T-TEN-14, T-TEN-15, T-TEN-16, T-TEN-17, T-TEN-18, T-TEN-20, T-TEN-21, T-TEN-22, T-TEN-24, T-TEN-25, T-TEN-29 y T-TEN-30 en revisión; las demás sin empezar. La columna **Evidencia** es obligatoria para `✅` y la verifica `scripts/check_spec_state.py`.
 
 | ID | Título | AC | Capa | Archivos esperados (ver detalle) | Depende de | Agente | Tamaño | Zona roja | Estado | Evidencia |
 |---|---|---|---|---|---|---|---|---|---|---|
@@ -83,7 +83,7 @@ Donde el diseño y el código de SPEC-00, o el orden real, difieren, manda esta 
 | T-TEN-15 | Aceptar invitación con token | AC-TEN-17, AC-TEN-18, AC-TEN-19, AC-TEN-25, AC-TEN-35 | Servicio/API | `services/invitation_accept.py`, `api/invitations.py` | T-TEN-10, T-TEN-11, T-TEN-14 | backend-dev | L | Sí | 🟡 | rama `task/T-TEN-15-accept-invitation`, sin PR |
 | T-TEN-16 | Mis invitaciones y aceptar desde la sesión (Q-124) | AC-TEN-39, AC-TEN-28, AC-TEN-10 | Servicio/API | `selectors/invitations.py`, `api/invitations.py`, `services/invitation_accept.py` | T-TEN-15 | backend-dev | L | Sí | 🟡 | rama `task/T-TEN-16-my-invitations`, sin PR |
 | T-TEN-17 | `TenancyInvitationPort` (puerto de SPEC-01) | AC-TEN-17 (vía puerto), AC-IDA-02, AC-IDA-04, AC-IDA-05, AC-IDA-31 | Servicio | `services/invitation_port.py`, `config/settings/base.py` | T-TEN-15, T-IDA-13 | backend-dev | M | Sí | 🟡 | rama `task/T-TEN-17-invitation-port`, sin PR |
-| T-TEN-18 | Comando `tenancy_create_org` | AC-TEN-22, AC-TEN-40, AC-IDA-32 | Comandos | `services/platform_org.py`, `management/commands/tenancy_create_org.py` | T-TEN-16, T-TEN-17 | backend-dev | L | Sí | ☐ | |
+| T-TEN-18 | Comando `tenancy_create_org` | AC-TEN-22, AC-TEN-40, AC-IDA-32 | Comandos | `services/platform_org.py`, `management/commands/tenancy_create_org.py` | T-TEN-16, T-TEN-17 | backend-dev | L | Sí | 🟡 | rama `task/T-TEN-18-create-org-command`, sin PR |
 | T-TEN-19 | Comandos de suspensión y primer owner | AC-TEN-28, AC-TEN-29 | Comandos | `management/commands/{tenancy_set_org_status,tenancy_owner_invite}.py` | T-TEN-18 | backend-dev | M | Sí | ☐ | |
 | T-TEN-20 | Crear y listar invitaciones | AC-TEN-15, AC-TEN-20, AC-TEN-24, AC-TEN-26, AC-TEN-34 | Servicio/API | `services/invitations.py`, `api/invitations.py`, `api/serializers/invitations.py` | T-TEN-07, T-TEN-15 | backend-dev | L | Sí | 🟡 | rama `task/T-TEN-20-create-invitations`, PR #131 |
 | T-TEN-21 | Reenviar y revocar invitaciones | AC-TEN-02, AC-TEN-15, AC-TEN-24, AC-TEN-26, AC-TEN-37 | Servicio/API | `services/invitations.py`, `api/invitations.py` | T-TEN-20 | backend-dev | M | Sí | 🟡 | rama `task/T-TEN-21-resend-revoke`, sin PR |
@@ -610,6 +610,43 @@ T-TEN-30 · suspendida → T-TEN-29.
   `test_AC_TEN_40_existing_user_gets_invitation_not_membership`, `test_AC_TEN_40_next_login_does_not_accept`,
   `test_AC_TEN_40_accept_from_session_gives_one_owner`, `test_AC_IDA_32_bootstrap_command_audited`,
   `test_Q_123_repeat_creates_nothing`.
+- **Implementado:**
+  - `tenancy_create_org --key --name --owner-email --operator`: salida `0` creada o ya creada con esos valores,
+    `1` clave de otros valores o sin `FRONTEND_BASE_URL` (nada escrito), `2` argumento inválido u operador fuera
+    de la lista. El link (`services/invitations.py::accept_url`, el mismo de toda invitación) va una sola vez por
+    stdout; los logs y los eventos llevan ids, nunca el email ni el token.
+  - Idempotencia (Q-123): `platform_creation_key` único; dos corridas a la vez con la misma clave dejan una
+    organización (la segunda espera el `INSERT` de la primera y falla en un savepoint). Misma clave: se comparan
+    el nombre y el email de la primera invitación `first_owner` (`replaces` nulo); iguales → nada escrito, sin
+    eventos ni link; distintos → error, nada escrito. El operador no cuenta como parámetro.
+  - Alta: `Organization` con `created_by_operator`, después `tenant_scope(system_context(org,
+    SystemReason.PLATFORM_COMMAND))` (ya existía), invitación `owner`/`first_owner` con `invited_by_operator` y
+    `organization.created` + `invitation.created`, actor `platform_operator` (el email) y `os_user` en
+    `metadata`. `AUDIT_TRIGGERS[organization.created]` es `create_platform_org`.
+  - `PLATFORM_OPERATOR_EMAILS` (`PlatformEnv`): lista separada por comas, normalizada (recorte y minúsculas) y
+    validada como emails; vacía = ningún comando de operador corre. Se permite vacía también en prod, así que el
+    smoke (prod + `env.example` vacío) arranca igual. En test es fija (`ops@hub.test`).
+  - El chequeo compartido vive en `apps/common/platform_operators.py` (`allowed_operator`, `os_user`):
+    `apps/identity` no importa `apps/tenancy`. `deactivate_user` y `reactivate_user` lo usan; un operador fuera
+    de la lista sale con `2` y no se audita, como un `--operator` inválido.
+- **Fuera de la ficha, con su porqué:**
+  - `apps/common/platform_operators.py`: el chequeo de `--operator` que comparten tenancy e identity (decisión de
+    planificación del 2026-11-14).
+  - `apps/identity/management/commands/_user_status.py`: aplica ese chequeo; `os_user` se mudó al módulo común.
+  - `apps/tenancy/services/invitations.py`: `accept_url(base, token)`, para no duplicar el armado del link.
+  - `config/settings/{dev,test,prod}.py` e `infra/docker-compose.yml`: el setting y la variable del stack de dev,
+    como `FRONTEND_BASE_URL` (T-TEN-20).
+  - `apps/tenancy/management/__init__.py`, `management/commands/__init__.py`, `tests/tenancy/commands/__init__.py`.
+  - `tests/architecture/allowlists.py`: `system_context` y `Organization.objects.unscoped(PLATFORM_COMMAND)` en
+    `services/platform_org.py`, `count=1` cada una (design.md §3.3 ya lo anticipaba).
+  - `tests/identity/test_AC_IDA_27_deactivate.py`: el operador es ahora un email de la lista; casos de operador
+    fuera de la lista, lista vacía y normalización.
+  - `tests/config/test_RF_TEN_07_platform_operator_emails.py`: validación de la variable y arranque de prod sin ella.
+- **Para el reviewer:** RN-IDA-23 y Q-123 dicen "cada ejecución auditada" y `design.md §4.5` dice que repetir con
+  la misma clave "no emite eventos". Se siguió el diseño: el catálogo de RNF-TEN-04 no tiene un evento para una
+  corrida sin cambios, y emitir `organization.created` otra vez sería falso. La repetición deja un log
+  operativo (`tenancy.platform_org_unchanged`, con el id). Si el dueño quiere auditarla, hace falta un evento
+  nuevo en el catálogo (`Q-xxx`).
 
 ### T-TEN-19 — Comandos de suspensión y primer owner
 - **AC:** AC-TEN-28, AC-TEN-29. RF-TEN-07, RN-TEN-18, Q-208, Q-213. **Zona roja:** sí.

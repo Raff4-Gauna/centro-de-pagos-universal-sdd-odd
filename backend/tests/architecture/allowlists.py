@@ -89,6 +89,14 @@ UNSCOPED_ALLOWLIST: tuple[AllowEntry, ...] = (
         "por user_id y organization_id del header, membership activa (RN-TEN-03/06)",
         count=1,
     ),
+    AllowEntry(
+        "apps/tenancy/services/platform_org.py",
+        "Organization.objects.unscoped(UnscopedReason.PLATFORM_COMMAND)",
+        "comando del operador tenancy_create_org (design.md §4.5, T-TEN-18): busca la "
+        "organización por platform_creation_key (Q-123) y la crea; todavía no hay organización "
+        "ni TenantContext",
+        count=1,
+    ),
 )
 
 # Model scopes allowed per file, not only per model (``tenant_rules.restricted_scope_violations``):
@@ -151,6 +159,15 @@ TENANT_QUERY_ALLOWLIST: tuple[AllowEntry, ...] = (
         "invitaciones de organizaciones donde la persona no tiene membership; mismo "
         "SystemReason.INVITATION_ACCEPT, relee la suspensión bajo el mutex y decide con "
         "accept_locked, como los otros caminos de aceptación",
+        count=1,
+    ),
+    AllowEntry(
+        "apps/tenancy/services/platform_org.py",
+        "system_context",
+        "comando del operador tenancy_create_org (design.md §4.5, T-TEN-18): la organización "
+        "recién creada (o la de la clave repetida) no tiene ningún miembro, así que no hay "
+        "UserActor; tenant_scope(system_context(org, SystemReason.PLATFORM_COMMAND)), como "
+        "dice el diseño, y los eventos nombran al operador como actor",
         count=1,
     ),
 )
