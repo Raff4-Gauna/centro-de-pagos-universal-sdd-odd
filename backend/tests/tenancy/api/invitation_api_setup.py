@@ -1,4 +1,4 @@
-"""Shared setup of the invitation API tests (T-TEN-20): requests and what to read back.
+"""Shared setup of the invitation API tests (T-TEN-20, T-TEN-21): requests and what to read back.
 
 Rows go in as the operator's command would (``probe.add_member``, ``invitation_setup.issue``), so
 no business rule runs; the tests read back with ``unscoped(PLATFORM)``, never through the code
@@ -24,6 +24,17 @@ def invite(client: Client, user: User, organization: Organization, body: Any) ->
     return client.post(
         INVITATIONS,
         data=json.dumps(body),
+        content_type="application/json",
+        headers=as_member(user, organization.id),
+    )
+
+
+def manage(
+    client: Client, user: User, organization: Organization, invitation_id: Any, action: str
+) -> Any:
+    """``POST /api/invitations/{id}/<action>/`` (``resend`` or ``revoke``, T-TEN-21), no body."""
+    return client.post(
+        f"{INVITATIONS}{invitation_id}/{action}/",
         content_type="application/json",
         headers=as_member(user, organization.id),
     )

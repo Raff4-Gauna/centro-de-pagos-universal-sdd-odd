@@ -337,4 +337,4 @@ def test_RNF_TEN_03_contract_publishes_accept_url_only_on_create() -> None:
     assert "accept_url" not in row
     assert not {"token", "token_hash"} & set(row)
     assert schemas["InvitationStatusEnum"]["enum"] == ["pending", "accepted", "revoked", "expired"]
-    assert contract["info"]["version"] == "0.16.0"
+    assert contract["info"]["version"] == "0.17.0"

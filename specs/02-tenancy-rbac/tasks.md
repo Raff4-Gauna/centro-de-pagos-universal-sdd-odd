@@ -62,7 +62,7 @@ Donde el diseño y el código de SPEC-00, o el orden real, difieren, manda esta 
 
 ## Resumen
 
-> T-TEN-01, T-TEN-02, T-TEN-03, T-TEN-04, T-TEN-05, T-TEN-06, T-TEN-07, T-TEN-08, T-TEN-09, T-TEN-10, T-TEN-11, T-TEN-12, T-TEN-13, T-TEN-14, T-TEN-15, T-TEN-16, T-TEN-17, T-TEN-20, T-TEN-22, T-TEN-24, T-TEN-25, T-TEN-29 y T-TEN-30 en revisión; las demás sin empezar. La columna **Evidencia** es obligatoria para `✅` y la verifica `scripts/check_spec_state.py`.
+> T-TEN-01, T-TEN-02, T-TEN-03, T-TEN-04, T-TEN-05, T-TEN-06, T-TEN-07, T-TEN-08, T-TEN-09, T-TEN-10, T-TEN-11, T-TEN-12, T-TEN-13, T-TEN-14, T-TEN-15, T-TEN-16, T-TEN-17, T-TEN-20, T-TEN-21, T-TEN-22, T-TEN-24, T-TEN-25, T-TEN-29 y T-TEN-30 en revisión; las demás sin empezar. La columna **Evidencia** es obligatoria para `✅` y la verifica `scripts/check_spec_state.py`.
 
 | ID | Título | AC | Capa | Archivos esperados (ver detalle) | Depende de | Agente | Tamaño | Zona roja | Estado | Evidencia |
 |---|---|---|---|---|---|---|---|---|---|---|
@@ -86,7 +86,7 @@ Donde el diseño y el código de SPEC-00, o el orden real, difieren, manda esta 
 | T-TEN-18 | Comando `tenancy_create_org` | AC-TEN-22, AC-TEN-40, AC-IDA-32 | Comandos | `services/platform_org.py`, `management/commands/tenancy_create_org.py` | T-TEN-16, T-TEN-17 | backend-dev | L | Sí | ☐ | |
 | T-TEN-19 | Comandos de suspensión y primer owner | AC-TEN-28, AC-TEN-29 | Comandos | `management/commands/{tenancy_set_org_status,tenancy_owner_invite}.py` | T-TEN-18 | backend-dev | M | Sí | ☐ | |
 | T-TEN-20 | Crear y listar invitaciones | AC-TEN-15, AC-TEN-20, AC-TEN-24, AC-TEN-26, AC-TEN-34 | Servicio/API | `services/invitations.py`, `api/invitations.py`, `api/serializers/invitations.py` | T-TEN-07, T-TEN-15 | backend-dev | L | Sí | 🟡 | rama `task/T-TEN-20-create-invitations`, PR #131 |
-| T-TEN-21 | Reenviar y revocar invitaciones | AC-TEN-02, AC-TEN-15, AC-TEN-24, AC-TEN-26, AC-TEN-37 | Servicio/API | `services/invitations.py`, `api/invitations.py` | T-TEN-20 | backend-dev | M | Sí | ☐ | |
+| T-TEN-21 | Reenviar y revocar invitaciones | AC-TEN-02, AC-TEN-15, AC-TEN-24, AC-TEN-26, AC-TEN-37 | Servicio/API | `services/invitations.py`, `api/invitations.py` | T-TEN-20 | backend-dev | M | Sí | 🟡 | rama `task/T-TEN-21-resend-revoke`, sin PR |
 | T-TEN-22 | Listar memberships y cambiar rol | AC-TEN-02, AC-TEN-05, AC-TEN-13, AC-TEN-15, AC-TEN-16, AC-TEN-27, AC-TEN-34 | Servicio/API | `services/memberships.py`, `api/memberships.py` | T-TEN-07, T-TEN-11 | backend-dev | L | Sí | 🟡 | rama `task/T-TEN-22-memberships`, sin PR |
 | T-TEN-23 | Revocar, abandonar y autorrevocar invitaciones | AC-TEN-04, AC-TEN-13, AC-TEN-14, AC-TEN-15, AC-TEN-31, AC-TEN-36 | Servicio/API | `services/memberships.py`, `api/memberships.py` | T-TEN-21, T-TEN-22 | backend-dev | L | Sí | ☐ | |
 | T-TEN-24 | `Branch` + migración 0004 + crear y listar | AC-TEN-07, AC-TEN-16, AC-TEN-30, AC-TEN-38 | DB/API | `models/branch.py`, `services/branches.py`, `api/branches.py` | T-TEN-08, T-TEN-11 | backend-dev | L | Sí | 🟡 | rama `task/T-TEN-24-branch-model`, sin PR |
@@ -668,6 +668,39 @@ T-TEN-30 · suspendida → T-TEN-29.
 - **Pruebas:** `test_AC_TEN_26_resend_revokes_old_and_renews`, `test_AC_TEN_15_admin_cannot_manage_owner_invitation`,
   `test_AC_TEN_02_other_org_invitation_is_404`, `test_AC_TEN_24_old_token_is_invalid`,
   `test_AC_TEN_37_revoke_accepted_is_invalid_transition`.
+- **Sumados, con su porqué:**
+  - `services/invitation_manage.py` (nuevo): con reenviar y revocar, `services/invitations.py` pasaba de 400 líneas
+    (`C-14`). `services/invitations.py` publica `insert_invitation` (antes `_insert`) y `expire_invitation` (el
+    vencimiento perezoso, extraído de `_expire_or_refuse_pending`) para no duplicarlos.
+  - `api/urls.py`: monta `resend` y `revoke` con `as_view({"post": ...})`, como `T-TEN-25` (sin `@action`, por el
+    clasificador de la suite cross-tenant; no se tocó `classifier.py`).
+  - `apps/common/api/schema.py` (`API_VERSION` 0.17.0) y los tests que fijan `info.version`.
+  - `tests/tenancy/test_Q_230_organization_busy.py` (reenviar y revocar toman el lock) y
+    `tests/tenancy/test_invitation_manage_race.py` (aceptar contra reenviar o revocar, con hilos).
+  - Tests en `tests/tenancy/api/test_invitations_manage{,_refusals}.py` (uno pasaba de 400 líneas) y `manage()` en
+    `tests/tenancy/api/invitation_api_setup.py`.
+- **Implementado:**
+  - `POST /api/invitations/{id}/resend/` (`invitation.resend`, `WRITE`) y `POST /api/invitations/{id}/revoke/`
+    (`invitation.revoke`, `REDUCE_ACCESS`: permitido con la organización suspendida, Q-221), sin cuerpo (otra clave →
+    `400 unknown_field`), `Cache-Control: no-store`. Bajo `lock_membership_mutex`: actor releído (revocado →
+    `404 organization_not_found`; rol fuera de la lista → `403`), invitación `FOR UPDATE` (otra organización,
+    inexistente o id no UUID → el mismo `404 not_found`), `decide_manage_invitation` (admin sobre una `owner` → `403`,
+    sea cual sea su estado), `pending` vencida → `expired` + `invitation.expired` (actor sistema), cualquier otro estado
+    → `409 invalid_transition` + `transition.rejected` (`entity=invitation`, `state`, `event=resend|revoke`) fuera del
+    `atomic`.
+  - Revocar: `revoked` con `revoked_reason=revoked`, `revoked_by`, `revoked_at` e `invitation.revoked`; `200` = la fila.
+  - Reenviar: la anterior `revoked` con `revoked_reason=resent` + `invitation.revoked`; la nueva copia email, rol,
+    `purpose` y `reason`, `replaces=` la anterior, `invited_by_user` = quien reenvía, vigencia de 7 días desde ahora y
+    token nuevo; `invitation.resent` (`invitation_id`, `replaces`, rol, `purpose`). `201` = la fila nueva +
+    `accept_url`, única respuesta con el token nuevo; el viejo da `invitation_invalid` (`revoked`).
+  - `AUDIT_TRIGGERS`: `resend_invitation` registra `invitation.resent` y `revoke_invitation` `invitation.revoked`;
+    `transition.rejected` sigue registrado en `reactivate_branch`.
+  - Pruebas extra: `test_AC_TEN_26_new_token_is_accepted_for_seven_days`, `test_AC_TEN_26_resend_keeps_one_pending_per_email`,
+    `test_AC_TEN_24_revoke_answers_no_token`, `test_RF_TEN_05_*`, `test_Q_221_revoke_allowed_when_suspended_resend_is_not`,
+    `test_AC_TEN_15_owner_manages_owner_invitation`, `test_AC_TEN_16_operator_and_viewer_cannot_manage`,
+    `test_RN_TEN_08_revoked_actor_under_the_lock`, `test_AC_TEN_37_past_expiry_is_expired_then_invalid_transition`,
+    `test_RN_TEN_12_takes_no_body`, `test_RNF_TEN_03_contract_of_resend_and_revoke`, las carreras de
+    `test_invitation_manage_race.py`, Q-230 y la suite cross-tenant con las dos rutas.
 
 ### T-TEN-22 — Listar memberships y cambiar rol
 - **AC:** AC-TEN-02, 05, 13, 15, 16, 27, 34. RF-TEN-04. **Zona roja:** sí.

@@ -34,6 +34,9 @@ is the only place the token exists in clear, and it is built once: the API answe
 nor written: ``ImproperlyConfigured``, a generic ``500``. The refusals are not audited (none is in
 RNF-TEN-04). A lock not taken within ``lock_timeout`` is ``503 organization_busy`` (Q-230). Logs
 carry ids, never an email nor the token (C-06, RNF-TEN-06).
+
+``insert_invitation`` (step 5) and ``expire_invitation`` (the lazy expiry of step 4) are shared
+with resending and revoking, in ``services/invitation_manage.py`` (``C-14``).
 """
 
 from __future__ import annotations
@@ -168,7 +171,7 @@ def _create_locked(
     if members.filter(user__email=email, status=MembershipStatus.ACTIVE.value).exists():
         raise InviteeAlreadyMember
     _expire_or_refuse_pending(mutex, email, now)
-    invitation = _insert(
+    invitation = insert_invitation(
         ctx,
         email=email,
         role=role.value,
@@ -202,17 +205,22 @@ def _expire_or_refuse_pending(mutex: MembershipMutex, email: str, now: datetime)
         return
     if not is_expired(pending.expires_at, now):
         raise InvitationPending
-    pending.status = InvitationStatus.EXPIRED.value
-    pending.save(update_fields=["status", "updated_at"])
+    expire_invitation(ctx, pending)
+
+
+def expire_invitation(ctx: TenantContext, invitation: Invitation) -> None:
+    """A locked ``pending`` one past its expiry becomes ``expired``; the system is the actor."""
+    invitation.status = InvitationStatus.EXPIRED.value
+    invitation.save(update_fields=["status", "updated_at"])
     record_event(
         TenancyAuditAction.INVITATION_EXPIRED,
         ctx=ctx,
         actor=EXPIRY_ACTOR,
-        metadata={"invitation_id": str(pending.pk)},
+        metadata={"invitation_id": str(invitation.pk)},
     )
 
 
-def _insert(ctx: TenantContext, **values: object) -> Invitation:
+def insert_invitation(ctx: TenantContext, **values: object) -> Invitation:
     """The ``INSERT`` in a savepoint: the pending constraint is ``invitation_pending``."""
     try:
         with transaction.atomic():

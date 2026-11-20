@@ -38,6 +38,11 @@ shows up.
 a listing that leaks B's carries (B's invitation id). A ``POST`` invites a new email named after the
 organization it is built for; built for B it also carries B's ``organization_id``: the strict body
 refuses it and nothing lands in B. Built for A it creates the invitation in A (``201``).
+
+``/api/invitations/{id}/resend/`` and ``revoke/`` (T-TEN-21) name that ``pending`` invitation by id:
+B's with A active is ``404`` (AC-TEN-02), and a resend or revoke that lands in B changes the status
+of B's row (or adds one). A resend with A suspended is ``409``; a revoke reduces access, so the
+suite does not expect it refused there (Q-221).
 """
 
 from __future__ import annotations
@@ -184,6 +189,20 @@ def _invitations(organization: Organization) -> str:
     return f"/{INVITATIONS}"
 
 
+def _guest_invitation(organization: Organization, action: str) -> str:
+    email = f"guest-of-{organization.name.lower()}@hub.test"
+    rows = Invitation.objects.unscoped(PLATFORM).filter(organization=organization, email=email)
+    return f"/{INVITATIONS}{rows.get(status='pending').pk}/{action}/"
+
+
+def _to_resend(organization: Organization) -> str:
+    return _guest_invitation(organization, "resend")
+
+
+def _to_revoke(organization: Organization) -> str:
+    return _guest_invitation(organization, "revoke")
+
+
 def _new_invitation(organization: Organization) -> dict[str, str]:
     body = {"email": f"invitee-of-{organization.name.lower()}@hub.test", "role": "viewer"}
     if organization.name == OTHER_ORGANIZATION:
@@ -204,6 +223,8 @@ CASES: tuple[CrossTenantCase, ...] = (
     CrossTenantCase(MEMBERSHIP, "PATCH", _colleague, body=_demoted),
     CrossTenantCase(INVITATIONS, "GET", _invitations),
     CrossTenantCase(INVITATIONS, "POST", _invitations, body=_new_invitation),
+    CrossTenantCase("api/invitations/<str:id>/resend/", "POST", _to_resend),
+    CrossTenantCase("api/invitations/<str:id>/revoke/", "POST", _to_revoke),
 )
 EXEMPT: tuple[Exemption, ...] = (
     Exemption("api/organizations/", _MINE, read=lambda organization: "/api/organizations/"),

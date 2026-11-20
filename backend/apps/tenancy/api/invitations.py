@@ -13,8 +13,18 @@ the organization and the resolution checks the membership on every request (RN-T
   ``409 already_member`` (AC-TEN-20), ``409 invitation_pending`` (AC-TEN-26),
   ``409 organization_suspended``, ``400 validation_error`` and ``503 organization_busy`` (Q-230).
 
-Both answer ``Cache-Control: no-store`` (invitees' emails, and the link). Resending and revoking
-come with T-TEN-21.
+- ``POST /api/invitations/{id}/resend/`` is ``invitation.resend`` (owner and admin, a ``WRITE``)
+  and ``POST /api/invitations/{id}/revoke/`` is ``invitation.revoke`` (a ``REDUCE_ACCESS``, allowed
+  with the organization suspended, Q-221), through ``services/invitation_manage.py`` (design.md
+  §4.3). No body. The resend's ``201`` is the new invitation and its ``accept_url``, the only
+  answer with the new token (AC-TEN-24); the revoke's ``200`` is the revoked row. Refusals:
+  ``403`` (an admin on an ``owner`` one, AC-TEN-15), ``404 not_found`` (another organization's, a
+  missing one or an id that is not a UUID: the same body, AC-TEN-02), ``409 invalid_transition``
+  (not ``pending``, AC-TEN-37), ``409 organization_suspended`` (resend) and
+  ``503 organization_busy`` (Q-230). Both are mounted in ``urls.py`` with ``as_view``, not
+  ``@action``, as ``api/branches.py`` explains (the cross-tenant suite's classifier).
+
+All of them answer ``Cache-Control: no-store`` (invitees' emails, and the link).
 
 The other three routes are exempt from the active organization (design.md §3.5): the person has no
 membership in the invitation's organization yet, so none is a ``TenantViewSet`` and
@@ -47,9 +57,10 @@ from collections.abc import Mapping
 from typing import Any
 
 from django.utils import timezone
-from drf_spectacular.utils import OpenApiResponse, extend_schema
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema
 from rest_framework import generics, serializers, status
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import NotFound, ValidationError
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -73,6 +84,7 @@ from apps.tenancy.api.serializers.invitations import (
 from apps.tenancy.domain.permissions import TENANCY_ACTIONS, TenancyAction
 from apps.tenancy.selectors.invitations import (
     MyInvitation,
+    OrganizationInvitation,
     get_invitation,
     list_my_pending,
     list_pending,
@@ -84,9 +96,22 @@ from apps.tenancy.services.invitation_accept import (
     accept_by_token,
     accept_from_session,
 )
+from apps.tenancy.services.invitation_manage import (
+    INVITATION_NOT_FOUND,
+    resend_invitation,
+    revoke_invitation,
+)
 from apps.tenancy.services.invitations import create_invitation
 
 INVITATIONS_TAG = "tenancy"
+LOOKUP = "id"
+
+INVITATION_ID = OpenApiParameter(
+    name=LOOKUP,
+    type=OpenApiTypes.UUID,
+    location=OpenApiParameter.PATH,
+    description="La invitación.",
+)
 
 
 def _problem(description: str) -> OpenApiResponse:
@@ -100,6 +125,14 @@ _UNAUTHORIZED = _problem(
     '(con WWW-Authenticate: Bearer realm="hub")'
 )
 _CONFLICT = _problem("code: organization_suspended · already_member")
+_NO_BODY = _problem("code: validation_error (el pedido no lleva cuerpo) · organization_required")
+_MANAGE_FORBIDDEN = _problem(
+    "code: forbidden (el rol no alcanza: un admin no gestiona invitaciones owner)"
+)
+_NOT_FOUND = _problem(
+    "code: not_found (no existe o es de otra organización: el mismo cuerpo) · "
+    "organization_not_found"
+)
 
 
 def _invitee(request: Request) -> Invitee:
@@ -142,6 +175,8 @@ class InvitationViewSet(TenantViewSet):
     action_specs = {  # noqa: RUF012 - read once by TenantViewSet.__init_subclass__
         "list": TENANCY_ACTIONS[TenancyAction.INVITATION_LIST],
         "create": TENANCY_ACTIONS[TenancyAction.INVITATION_CREATE],
+        "resend": TENANCY_ACTIONS[TenancyAction.INVITATION_RESEND],
+        "revoke": TENANCY_ACTIONS[TenancyAction.INVITATION_REVOKE],
     }
 
     def finalize_response(
@@ -196,6 +231,67 @@ class InvitationViewSet(TenantViewSet):
         view = invitation_view(invitation, ctx, actor_role=created.actor_role)
         data = {**self.get_serializer(view).data, "accept_url": created.accept_url}
         return Response(data, status=status.HTTP_201_CREATED)
+
+    def _invitation_id(self) -> uuid.UUID:
+        """The id of the URL; one that is not a UUID is the 404 of an unknown invitation."""
+        try:
+            return uuid.UUID(str(self.kwargs[LOOKUP]))
+        except ValueError:
+            raise NotFound(INVITATION_NOT_FOUND) from None
+
+    @extend_schema(
+        operation_id="invitations_resend",
+        summary="Reenviar una invitación: revoca la anterior y emite otra (link una sola vez)",
+        tags=[INVITATIONS_TAG],
+        parameters=[INVITATION_ID],
+        request=None,
+        responses={
+            201: CreatedInvitationSerializer,
+            (400, PROBLEM_CONTENT_TYPE): _NO_BODY,
+            (403, PROBLEM_CONTENT_TYPE): _MANAGE_FORBIDDEN,
+            (404, PROBLEM_CONTENT_TYPE): _NOT_FOUND,
+            (409, PROBLEM_CONTENT_TYPE): _problem(
+                "code: invalid_transition (no está pendiente) · organization_suspended"
+            ),
+            (503, PROBLEM_CONTENT_TYPE): ORGANIZATION_BUSY_RESPONSE,
+        },
+    )
+    def resend(self, request: Request, **kwargs: object) -> Response:
+        NoBodySerializer(data=request.data).is_valid(raise_exception=True)
+        ctx = self.tenant
+        resent = resend_invitation(ctx, self._invitation_id())
+        view = invitation_view(self._read(resent.invitation_id), ctx, actor_role=resent.actor_role)
+        data = {**self.get_serializer(view).data, "accept_url": resent.accept_url}
+        return Response(data, status=status.HTTP_201_CREATED)
+
+    @extend_schema(
+        operation_id="invitations_revoke",
+        summary="Revocar una invitación pendiente (también con la organización suspendida)",
+        tags=[INVITATIONS_TAG],
+        parameters=[INVITATION_ID],
+        request=None,
+        responses={
+            200: InvitationSerializer,
+            (400, PROBLEM_CONTENT_TYPE): _NO_BODY,
+            (403, PROBLEM_CONTENT_TYPE): _MANAGE_FORBIDDEN,
+            (404, PROBLEM_CONTENT_TYPE): _NOT_FOUND,
+            (409, PROBLEM_CONTENT_TYPE): _problem("code: invalid_transition (no está pendiente)"),
+            (503, PROBLEM_CONTENT_TYPE): ORGANIZATION_BUSY_RESPONSE,
+        },
+    )
+    def revoke(self, request: Request, **kwargs: object) -> Response:
+        NoBodySerializer(data=request.data).is_valid(raise_exception=True)
+        ctx = self.tenant
+        revoked = revoke_invitation(ctx, self._invitation_id())
+        invitation = self._read(revoked.invitation_id)
+        view = invitation_view(invitation, ctx, actor_role=revoked.actor_role)
+        return Response(self.get_serializer(view).data)
+
+    def _read(self, invitation_id: uuid.UUID) -> OrganizationInvitation:
+        invitation = get_invitation(self.tenant, invitation_id)
+        if invitation is None:  # just written in this organization; an invitation is never deleted
+            raise AssertionError("the invitation just written is not found")
+        return invitation
 
 
 class AcceptInvitationView(APIView):
