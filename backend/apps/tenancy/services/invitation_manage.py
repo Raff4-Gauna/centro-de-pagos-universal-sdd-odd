@@ -14,16 +14,16 @@ and in the fixed lock order (organization, then invitation), as creating one
    ``404 not_found`` (RN-TEN-05, AC-TEN-02). ``decide_manage_invitation`` with the role as it is
    now: an admin never touches an ``owner`` one (``403``, Q-202, AC-TEN-15), whatever its state.
 4. A ``pending`` one past its expiry becomes ``expired`` first (``invitation.expired``, the system
-   as its actor; lazy expiry, RN-TEN-12). Any status other than ``pending`` is
+   as its actor; lazy expiry, RN-TEN-12, Q-234 b). Any status other than ``pending`` is
    ``409 invalid_transition``, and ``transition.rejected`` (entity, state, event) goes out after
    the transaction: the expiry stays and the refusal never rolls its own audit back (C-05, Q-225,
    AC-TEN-37, design.md §3.3).
 5. Revoking: ``revoked`` with ``revoked_reason=revoked``, who and when, and ``invitation.revoked``.
    Resending (AC-TEN-26): the old one is ``revoked`` with ``revoked_reason=resent`` and
-   ``invitation.revoked``; the new one keeps its email, role, purpose and reason, points at it
-   (``replaces``), is issued by the actor (who vouches for it now, also for Q-223) and lives seven
-   days from now, with a fresh token, inserted as a new one is (``insert_invitation``); then
-   ``invitation.resent``.
+   ``invitation.revoked``; the new one keeps its email, role, purpose and reason (Q-234 c), points
+   at it (``replaces``), is issued by the actor (who vouches for it now, also for Q-223: Q-234 a)
+   and lives seven days from now, with a fresh token, inserted as a new one is
+   (``insert_invitation``); then ``invitation.resent``.
 
 The resend's ``accept_url`` is the only place the new token exists in clear (RNF-TEN-03,
 AC-TEN-24), masked in ``repr``; the old token is ``invitation_invalid`` (``revoked``) from then on.
@@ -150,11 +150,11 @@ def _resend_locked(
         ctx,
         email=old.email,
         role=old.role,
-        purpose=old.purpose,
+        purpose=old.purpose,  # Q-234 c: a support or recovery one stays identifiable
         reason=old.reason,
         token_hash=token_hash,
         expires_at=expires_at_for(now),
-        invited_by_user_id=actor.user_id,
+        invited_by_user_id=actor.user_id,  # Q-234 a: whoever resends issues it now
         replaces=old,
     )
     record_event(
@@ -199,7 +199,7 @@ def _lock_managed(
     if decide_manage_invitation(actor.role, invitation.role) is not Decision.ALLOW:
         raise Forbidden
     pending = InvitationStatus.PENDING.value
-    if invitation.status == pending and is_expired(invitation.expires_at, now):
+    if invitation.status == pending and is_expired(invitation.expires_at, now):  # Q-234 b
         expire_invitation(ctx, invitation)
     if invitation.status != pending:
         state = str(invitation.status)

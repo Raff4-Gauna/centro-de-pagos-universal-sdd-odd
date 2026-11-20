@@ -662,7 +662,7 @@ T-TEN-30 · suspendida → T-TEN-29.
     `repr`), `test_AC_TEN_28_suspended_*` y la suite cross-tenant con `GET`/`POST /api/invitations/`.
 
 ### T-TEN-21 — Reenviar y revocar invitaciones
-- **AC:** AC-TEN-02, 15, 24, 26, 37. RF-TEN-05. **Zona roja:** sí.
+- **AC:** AC-TEN-02, 15, 24, 26, 37. RF-TEN-05, Q-234. **Zona roja:** sí.
 - **Archivos:** `services/invitations.py`, `api/invitations.py`, `cases/tenancy.py`, `openapi.yaml`, `api.d.ts`, tests.
 - **Cambios:** transiciones inválidas → `invalid_transition` + `transition.rejected`.
 - **Pruebas:** `test_AC_TEN_26_resend_revokes_old_and_renews`, `test_AC_TEN_15_admin_cannot_manage_owner_invitation`,
@@ -685,13 +685,13 @@ T-TEN-30 · suspendida → T-TEN-29.
     `400 unknown_field`), `Cache-Control: no-store`. Bajo `lock_membership_mutex`: actor releído (revocado →
     `404 organization_not_found`; rol fuera de la lista → `403`), invitación `FOR UPDATE` (otra organización,
     inexistente o id no UUID → el mismo `404 not_found`), `decide_manage_invitation` (admin sobre una `owner` → `403`,
-    sea cual sea su estado), `pending` vencida → `expired` + `invitation.expired` (actor sistema), cualquier otro estado
+    sea cual sea su estado), `pending` vencida → `expired` + `invitation.expired` (actor sistema, Q-234 b), cualquier otro estado
     → `409 invalid_transition` + `transition.rejected` (`entity=invitation`, `state`, `event=resend|revoke`) fuera del
     `atomic`.
   - Revocar: `revoked` con `revoked_reason=revoked`, `revoked_by`, `revoked_at` e `invitation.revoked`; `200` = la fila.
   - Reenviar: la anterior `revoked` con `revoked_reason=resent` + `invitation.revoked`; la nueva copia email, rol,
     `purpose` y `reason`, `replaces=` la anterior, `invited_by_user` = quien reenvía, vigencia de 7 días desde ahora y
-    token nuevo; `invitation.resent` (`invitation_id`, `replaces`, rol, `purpose`). `201` = la fila nueva +
+    token nuevo (las tres reglas son Q-234, decidida por el dueño el 2026-11-20); `invitation.resent` (`invitation_id`, `replaces`, rol, `purpose`). `201` = la fila nueva +
     `accept_url`, única respuesta con el token nuevo; el viejo da `invitation_invalid` (`revoked`).
   - `AUDIT_TRIGGERS`: `resend_invitation` registra `invitation.resent` y `revoke_invitation` `invitation.revoked`;
     `transition.rejected` sigue registrado en `reactivate_branch`.
