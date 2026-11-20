@@ -62,9 +62,14 @@ def test_AC_TEN_34_owner_and_admin_list(client: Client, org_a: Organization, rol
 
     body = listed(client, user, org_a)
 
+    # The selector orders by (created_at, id). Two rows can share created_at on
+    # a coarse clock (Windows), so the expected order follows the same rule
+    # instead of assuming creation order.
+    expected = sorted([mine, theirs], key=lambda m: (m.created_at, str(m.pk)))
     assert body["count"] == 2
-    assert [row["id"] for row in body["results"]] == [str(mine.pk), str(theirs.pk)]
-    assert body["results"][1]["user"] == {"id": str(other.pk), "email": other.email, "name": ""}
+    assert [row["id"] for row in body["results"]] == [str(m.pk) for m in expected]
+    by_id = {row["id"]: row for row in body["results"]}
+    assert by_id[str(theirs.pk)]["user"] == {"id": str(other.pk), "email": other.email, "name": ""}
 
 
 # --- AC-TEN-02 ---
