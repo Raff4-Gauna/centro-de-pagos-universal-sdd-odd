@@ -13,16 +13,24 @@ import { returnUrl } from "@/lib/server/return-path";
 // Left alone: `/api/*` (the BFF answers `401` itself; a redirect would hand the api-client an HTML
 // page) and Next's own `/_next/*`. "Ingresar" is open with a session too.
 //
+// "Aceptar invitación" (`/invitacion`, exactly that path; SPEC-02 design.md §3.9) is the one other
+// page open without a session: its link carries the token in the fragment, which the browser
+// never sends, so no redirect from here could keep it for after the login. The page stores it in
+// the tab and goes to "Ingresar" itself. It shows nothing of anyone's: the accept is an `/api/*`
+// call that needs the session.
+//
 // The `Location` is the absolute URL of "Ingresar" on the app origin, never built from the `Host`
 // of the request. `return_to` is the page after `returnUrl` (lib/server/return-path.ts), so a
 // path like `/..//evil.example` becomes "Inicio". Without a valid app origin it still redirects,
 // to the fixed path `/login` with nothing from the request.
 
 const PASS_THROUGH_PREFIXES = ["/api/", "/_next/"];
+const INVITATION_PAGE_PATH = "/invitacion";
 
 function isPublic(pathname: string): boolean {
   return (
     pathname === LOGIN_PAGE_PATH ||
+    pathname === INVITATION_PAGE_PATH ||
     PASS_THROUGH_PREFIXES.some((prefix) => pathname.startsWith(prefix))
   );
 }
