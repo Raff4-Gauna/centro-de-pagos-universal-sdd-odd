@@ -153,6 +153,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/invitations/{invitation_id}/accept/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Aceptar desde la sesión una invitación del propio email (sin organización activa) */
+        post: operations["invitations_accept_mine"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/invitations/accept/": {
         parameters: {
             query?: never;
@@ -164,6 +181,23 @@ export interface paths {
         put?: never;
         /** Aceptar una invitación con su token (sin organización activa) */
         post: operations["invitations_accept"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/invitations/mine/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Las invitaciones pendientes del email de la persona (sin organización activa) */
+        get: operations["invitations_mine"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -318,6 +352,14 @@ export interface components {
             readonly organization_name: string;
             readonly role: string;
         };
+        MyInvitation: {
+            /** Format: uuid */
+            readonly id: string;
+            readonly organization: components["schemas"]["JoinedOrganization"];
+            readonly role: components["schemas"]["RoleEnum"];
+            /** Format: date-time */
+            readonly expires_at: string;
+        };
         MyOrganization: {
             /** Format: uuid */
             readonly id: string;
@@ -345,6 +387,21 @@ export interface components {
              */
             previous?: string | null;
             results: components["schemas"]["Branch"][];
+        };
+        PaginatedMyInvitationList: {
+            /** @example 123 */
+            count: number;
+            /**
+             * @description Ruta relativa con la query de la página, o null.
+             * @example /api/recurso/?page=4
+             */
+            next?: string | null;
+            /**
+             * @description Ruta relativa con la query de la página, o null.
+             * @example /api/recurso/?page=2
+             */
+            previous?: string | null;
+            results: components["schemas"]["MyInvitation"][];
         };
         PaginatedMyOrganizationList: {
             /** @example 123 */
@@ -992,6 +1049,72 @@ export interface operations {
             };
         };
     };
+    invitations_accept_mine: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                invitation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AcceptedInvitation"];
+                };
+            };
+            /** @description code: invitation_invalid, con reason: not_found (no existe o es de otro email: el mismo cuerpo) · revoked · used · expired; o validation_error (el pedido no lleva cuerpo) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description code: unauthenticated · token_expired · token_invalid · session_revoked (con WWW-Authenticate: Bearer realm="hub") */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description code: organization_suspended · already_member */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Error del cliente */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Error del servidor */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     invitations_accept: {
         parameters: {
             query?: never;
@@ -1033,6 +1156,57 @@ export interface operations {
             };
             /** @description code: organization_suspended · already_member */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Error del cliente */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Error del servidor */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    invitations_mine: {
+        parameters: {
+            query?: {
+                /** @description Un número de página dentro del conjunto de resultados paginado. */
+                page?: number;
+                /** @description Número de resultados a devolver por página. */
+                page_size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedMyInvitationList"];
+                };
+            };
+            /** @description code: unauthenticated · token_expired · token_invalid · session_revoked (con WWW-Authenticate: Bearer realm="hub") */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };

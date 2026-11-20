@@ -53,6 +53,13 @@ def set_status(invitation: Invitation, status: InvitationStatus) -> None:
     rows.update(status=status.value)
 
 
+def make_due(invitation: Invitation) -> None:
+    """Past its expiry but still ``pending``: issued a week ago, due a second ago."""
+    now = timezone.now()
+    rows = Invitation.objects.unscoped(PLATFORM).filter(pk=invitation.pk)
+    rows.update(created_at=now - timedelta(days=7), expires_at=now - timedelta(seconds=1))
+
+
 def status_of(invitation: Invitation) -> str:
     rows = Invitation.objects.unscoped(PLATFORM).filter(pk=invitation.pk)
     return str(rows.values_list("status", flat=True).get())
