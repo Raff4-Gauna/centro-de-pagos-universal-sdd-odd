@@ -46,6 +46,20 @@ type LoginSession = components["schemas"]["LoginCompleteResponse"];
 const ACCESS_DENIED = "access_denied";
 const OTHER_PROVIDER_ERROR = "provider_error";
 
+// A lock of an invitation's organization not taken in time (SPEC-02 Q-230) is Django's
+// `503 organization_busy`. The attempt and Google's `code` are spent by then, so the same callback
+// cannot be sent again: the person starts the login over, with Q-127's "Reintentar" (Q-231). Its
+// `Retry-After` is not relayed.
+const ORGANIZATION_BUSY = "organization_busy";
+
+function failureCode(code: string | null): LoginErrorCode {
+  // An over-long `state` or `code` in the URL: what Google sent is not valid.
+  if (code === "validation_error") {
+    return "google_auth_failed";
+  }
+  return code === ORGANIZATION_BUSY ? "google_unavailable" : loginErrorCode(code);
+}
+
 function providerError(raw: string | null): string | null {
   if (raw === null || raw === "") {
     return null;
@@ -171,9 +185,7 @@ export async function GET(request: Request): Promise<Response> {
 
   const { response } = outcome;
   if (response.status !== 200) {
-    const code = await problemCodeOf(response);
-    // An over-long `state` or `code` in the URL: what Google sent is not valid.
-    return fail(code === "validation_error" ? "google_auth_failed" : loginErrorCode(code));
+    return fail(failureCode(await problemCodeOf(response)));
   }
   const reply = await replyOf(response);
   const session = sessionOf(reply);

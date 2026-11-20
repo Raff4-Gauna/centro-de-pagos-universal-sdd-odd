@@ -57,10 +57,11 @@ Donde el diseño y el código de SPEC-00, o el orden real, difieren, manda esta 
 | `400 validation_error` al reactivar con el **nombre** ocupado (`design.md §6`, RN-TEN-19) | El mismo `400 validation_error` (código `taken` en el campo) si lo ocupado es el `code` (T-TEN-25) | §6 no da otro código de error para reactivar: el `409 conflict` es de crear y editar. Q-227 hace único el `code` entre activas con la misma regla que el nombre |
 | Timeout de lock → `OperationalError` de la BD como `500` (`design.md §11`, T-TEN-11, PR #117) | `503 organization_busy` con `Retry-After: 2` y título fijo "Hay otra operación en curso, probá de nuevo", para todo usuario de `lock_org_for_write` / `lock_membership_mutex`; lo mapea `apps/common/api/exceptions.py` por el SQLSTATE `55P03` (T-TEN-22) | Q-230, decidida por el dueño el 2026-11-20. Código nuevo de contrato (versión menor): `design.md §6` no lo lista |
 | `GET /api/memberships/` → `user:{id, email, name}` (`design.md §6`) | `name` es `User.display_name` de SPEC-01 (T-TEN-22) | `User` no tiene un campo `name` |
+| Callback del login con error de Django → `/login?error=<code>` de la lista (SPEC-01 `design.md §6.3`) | `503 organization_busy` del primer login (lock de una organización invitante, Q-230) → `/login?error=google_unavailable`, sin cookies de sesión ni `Retry-After` (T-TEN-17) | Q-231, decidida por el dueño el 2026-11-20: el intento y el `code` ya se gastaron, así que el mismo callback no se puede repetir; se reusa el texto y el "Reintentar" de Q-127 sin cambiar el contrato |
 
 ## Resumen
 
-> T-TEN-01, T-TEN-02, T-TEN-03, T-TEN-04, T-TEN-05, T-TEN-06, T-TEN-07, T-TEN-08, T-TEN-09, T-TEN-10, T-TEN-11, T-TEN-12, T-TEN-13, T-TEN-14, T-TEN-15, T-TEN-16, T-TEN-22, T-TEN-24, T-TEN-25, T-TEN-29 y T-TEN-30 en revisión; las demás sin empezar. La columna **Evidencia** es obligatoria para `✅` y la verifica `scripts/check_spec_state.py`.
+> T-TEN-01, T-TEN-02, T-TEN-03, T-TEN-04, T-TEN-05, T-TEN-06, T-TEN-07, T-TEN-08, T-TEN-09, T-TEN-10, T-TEN-11, T-TEN-12, T-TEN-13, T-TEN-14, T-TEN-15, T-TEN-16, T-TEN-17, T-TEN-22, T-TEN-24, T-TEN-25, T-TEN-29 y T-TEN-30 en revisión; las demás sin empezar. La columna **Evidencia** es obligatoria para `✅` y la verifica `scripts/check_spec_state.py`.
 
 | ID | Título | AC | Capa | Archivos esperados (ver detalle) | Depende de | Agente | Tamaño | Zona roja | Estado | Evidencia |
 |---|---|---|---|---|---|---|---|---|---|---|
@@ -80,7 +81,7 @@ Donde el diseño y el código de SPEC-00, o el orden real, difieren, manda esta 
 | T-TEN-14 | `Invitation` + migración 0003 + reglas puras | AC-TEN-25, AC-TEN-35 (unidad) | DB | `apps/tenancy/models/invitation.py`, `domain/invitations.py` | T-TEN-05 | backend-dev | L | Sí | 🟡 | rama `task/T-TEN-14-invitation-model`, sin PR |
 | T-TEN-15 | Aceptar invitación con token | AC-TEN-17, AC-TEN-18, AC-TEN-19, AC-TEN-25, AC-TEN-35 | Servicio/API | `services/invitation_accept.py`, `api/invitations.py` | T-TEN-10, T-TEN-11, T-TEN-14 | backend-dev | L | Sí | 🟡 | rama `task/T-TEN-15-accept-invitation`, sin PR |
 | T-TEN-16 | Mis invitaciones y aceptar desde la sesión (Q-124) | AC-TEN-39, AC-TEN-28, AC-TEN-10 | Servicio/API | `selectors/invitations.py`, `api/invitations.py`, `services/invitation_accept.py` | T-TEN-15 | backend-dev | L | Sí | 🟡 | rama `task/T-TEN-16-my-invitations`, sin PR |
-| T-TEN-17 | `TenancyInvitationPort` (puerto de SPEC-01) | AC-TEN-17 (vía puerto), AC-IDA-02, AC-IDA-04, AC-IDA-05, AC-IDA-31 | Servicio | `services/invitation_port.py`, `config/settings/base.py` | T-TEN-15, T-IDA-13 | backend-dev | M | Sí | ☐ | |
+| T-TEN-17 | `TenancyInvitationPort` (puerto de SPEC-01) | AC-TEN-17 (vía puerto), AC-IDA-02, AC-IDA-04, AC-IDA-05, AC-IDA-31 | Servicio | `services/invitation_port.py`, `config/settings/base.py` | T-TEN-15, T-IDA-13 | backend-dev | M | Sí | 🟡 | rama `task/T-TEN-17-invitation-port`, sin PR |
 | T-TEN-18 | Comando `tenancy_create_org` | AC-TEN-22, AC-TEN-40, AC-IDA-32 | Comandos | `services/platform_org.py`, `management/commands/tenancy_create_org.py` | T-TEN-16, T-TEN-17 | backend-dev | L | Sí | ☐ | |
 | T-TEN-19 | Comandos de suspensión y primer owner | AC-TEN-28, AC-TEN-29 | Comandos | `management/commands/{tenancy_set_org_status,tenancy_owner_invite}.py` | T-TEN-18 | backend-dev | M | Sí | ☐ | |
 | T-TEN-20 | Crear y listar invitaciones | AC-TEN-15, AC-TEN-20, AC-TEN-24, AC-TEN-26, AC-TEN-34 | Servicio/API | `services/invitations.py`, `api/invitations.py`, `api/serializers/invitations.py` | T-TEN-07, T-TEN-15 | backend-dev | L | Sí | ☐ | |
@@ -586,7 +587,7 @@ T-TEN-30 · suspendida → T-TEN-29.
   `test_AC_TEN_10_session_scopes_are_read_only` y `test_RN_TEN_12_accept_from_session_takes_no_body`.
 
 ### T-TEN-17 — `TenancyInvitationPort` (puerto de SPEC-01)
-- **AC:** AC-TEN-17 (vía puerto); AC-IDA-02, 04, 05, 31 con puerto real. RN-TEN-11, RN-IDA-06, Q-108, Q-120. **Zona roja:** sí.
+- **AC:** AC-TEN-17 (vía puerto); AC-IDA-02, 04, 05, 31 con puerto real. RN-TEN-11, RN-IDA-06, Q-108, Q-120, Q-231. **Zona roja:** sí.
 - **Archivos:** `services/invitation_port.py`, `selectors/invitations.py`, `config/settings/base.py`,
   `backend/tests/tenancy/test_invitation_port_contract.py`, `backend/tests/identity/test_login_with_real_port.py`.
 - **Cambios:** firma de `specs/01-identity-access/design.md §6.4`, **todo o nada**; locks en orden de `id`. `apps/identity`
