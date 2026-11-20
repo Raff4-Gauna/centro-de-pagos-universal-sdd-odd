@@ -29,6 +29,9 @@ x-backend-environment: &backend-environment
   # Empty: prod settings refuse the public BFF credential of env.example (T-IDA-20), and the smoke
   # never calls auth/bff/*, which answers 404 without one.
   IDENTITY_BFF_CREDENTIALS: ""
+  # Prod settings take only an https origin (SPEC-02 design.md §6), and env.example's is the dev
+  # http one. A reserved, unresolvable name: the smoke never creates an invitation.
+  FRONTEND_BASE_URL: https://hub.invalid
 
 services:
   db:

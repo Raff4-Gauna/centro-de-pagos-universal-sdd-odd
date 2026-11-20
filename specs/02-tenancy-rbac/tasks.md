@@ -84,7 +84,7 @@ Donde el diseño y el código de SPEC-00, o el orden real, difieren, manda esta 
 | T-TEN-17 | `TenancyInvitationPort` (puerto de SPEC-01) | AC-TEN-17 (vía puerto), AC-IDA-02, AC-IDA-04, AC-IDA-05, AC-IDA-31 | Servicio | `services/invitation_port.py`, `config/settings/base.py` | T-TEN-15, T-IDA-13 | backend-dev | M | Sí | 🟡 | rama `task/T-TEN-17-invitation-port`, sin PR |
 | T-TEN-18 | Comando `tenancy_create_org` | AC-TEN-22, AC-TEN-40, AC-IDA-32 | Comandos | `services/platform_org.py`, `management/commands/tenancy_create_org.py` | T-TEN-16, T-TEN-17 | backend-dev | L | Sí | ☐ | |
 | T-TEN-19 | Comandos de suspensión y primer owner | AC-TEN-28, AC-TEN-29 | Comandos | `management/commands/{tenancy_set_org_status,tenancy_owner_invite}.py` | T-TEN-18 | backend-dev | M | Sí | ☐ | |
-| T-TEN-20 | Crear y listar invitaciones | AC-TEN-15, AC-TEN-20, AC-TEN-24, AC-TEN-26, AC-TEN-34 | Servicio/API | `services/invitations.py`, `api/invitations.py`, `api/serializers/invitations.py` | T-TEN-07, T-TEN-15 | backend-dev | L | Sí | 🟡 | rama `task/T-TEN-20-create-invitations`, sin PR |
+| T-TEN-20 | Crear y listar invitaciones | AC-TEN-15, AC-TEN-20, AC-TEN-24, AC-TEN-26, AC-TEN-34 | Servicio/API | `services/invitations.py`, `api/invitations.py`, `api/serializers/invitations.py` | T-TEN-07, T-TEN-15 | backend-dev | L | Sí | 🟡 | rama `task/T-TEN-20-create-invitations`, PR #131 |
 | T-TEN-21 | Reenviar y revocar invitaciones | AC-TEN-02, AC-TEN-15, AC-TEN-24, AC-TEN-26, AC-TEN-37 | Servicio/API | `services/invitations.py`, `api/invitations.py` | T-TEN-20 | backend-dev | M | Sí | ☐ | |
 | T-TEN-22 | Listar memberships y cambiar rol | AC-TEN-02, AC-TEN-05, AC-TEN-13, AC-TEN-15, AC-TEN-16, AC-TEN-27, AC-TEN-34 | Servicio/API | `services/memberships.py`, `api/memberships.py` | T-TEN-07, T-TEN-11 | backend-dev | L | Sí | 🟡 | rama `task/T-TEN-22-memberships`, sin PR |
 | T-TEN-23 | Revocar, abandonar y autorrevocar invitaciones | AC-TEN-04, AC-TEN-13, AC-TEN-14, AC-TEN-15, AC-TEN-31, AC-TEN-36 | Servicio/API | `services/memberships.py`, `api/memberships.py` | T-TEN-21, T-TEN-22 | backend-dev | L | Sí | ☐ | |
@@ -619,7 +619,7 @@ T-TEN-30 · suspendida → T-TEN-29.
 ### T-TEN-20 — Crear y listar invitaciones
 - **AC:** AC-TEN-15, 20, 24, 26, 34. RF-TEN-05, RN-TEN-13, RNF-TEN-03, Q-207. **Zona roja:** sí.
 - **Archivos:** `services/invitations.py`, `api/invitations.py`, `api/serializers/invitations.py`,
-  `backend/tests/cross_tenant/cases/tenancy.py`, `openapi.yaml`, `api.d.ts`, tests.
+  `backend/tests/cross_tenant/cases/tenancy.py`, `openapi.yaml`, `api.d.ts`, `infra/docker-compose.ci.yml`, tests.
 - **Cambios:** `design.md §4.3`, `accept_url` con fragmento `#token=`, una sola vez; `IntegrityError` → `invitation_pending`.
 - **Pruebas:** `test_AC_TEN_15_admin_cannot_invite_owner`, `test_AC_TEN_20_already_member`,
   `test_AC_TEN_24_token_only_in_create_response`, `test_AC_TEN_26_second_pending_rejected`,
@@ -630,7 +630,9 @@ T-TEN-30 · suspendida → T-TEN-29.
   - `api/urls.py` (monta `invitations` en el router) y `apps/common/api/schema.py` (`API_VERSION` 0.16.0; enums
     `InvitationStatusEnum` e `InvitationPurposeEnum`).
   - `FRONTEND_BASE_URL` (`design.md §3.1` lo nombra y `§6` arma `accept_url` con él, pero no existía):
-    `config/settings/{env,dev,test,prod}.py`, `env.example` e `infra/docker-compose.yml`. Solo un origen
+    `config/settings/{env,dev,test,prod}.py`, `env.example`, `infra/docker-compose.yml` e
+    `infra/docker-compose.ci.yml` (el smoke corre con prod settings y `--env-file env.example`, cuyo valor
+    es `http`: el override fija `https://hub.invalid`, como ya hace con `IDENTITY_BFF_CREDENTIALS`). Solo un origen
     (`scheme://host[:port]`, sin ruta, query, fragmento ni credenciales); en prod solo `https`; vacío = sin
     configurar, y crear una invitación falla cerrado (`500`, nada escrito). En test es fijo
     (`http://localhost:3000`), sin variable de CI.

@@ -67,7 +67,8 @@ class ProdEnv(PlatformEnv):
     @classmethod
     def _app_origin_is_https(cls, value: str) -> str:
         # The invitation link carries its token: never over plain HTTP outside dev. Unset is
-        # allowed (creating an invitation fails closed), as the smoke stack runs without it.
+        # allowed (creating an invitation fails closed); the CI smoke sets a fake https one
+        # (infra/docker-compose.ci.yml).
         if value and not value.startswith("https://"):
             raise PydanticCustomError("origin_not_https", "https only in prod")
         return value
