@@ -42,7 +42,8 @@ export const PENDING_INVITATIONS_TEXTS = {
   loading: "Cargando",
 } as const;
 
-type AcceptFailure = Readonly<{ invitationId: string; error: ApiError }>;
+// The invitation travels with its error: the list read again after a refusal may not bring it.
+type AcceptFailure = Readonly<{ invitation: MyInvitation; error: ApiError }>;
 
 function isRetryable(error: ApiError): boolean {
   return error.status === 0 || error.status >= 500;
@@ -136,7 +137,7 @@ export function PendingInvitationsNotice() {
     setFailure(null);
     accept.mutate(invitation.id, {
       onSuccess: (result) => setAccepted((done) => [...done, { invitation, result }]),
-      onError: (error) => setFailure({ invitationId: invitation.id, error }),
+      onError: (error) => setFailure({ invitation, error }),
     });
   }
 
@@ -167,12 +168,10 @@ export function PendingInvitationsNotice() {
       .map((invitation) => ({ invitation, result: undefined })),
     ...accepted,
   ];
-  if (rows.length === 0) {
+  if (rows.length === 0 && failure === null) {
     return null; // Without invitations the notice is not shown (design.md §3.9).
   }
   const pendingId = accept.isPending ? accept.variables : undefined;
-  const byId = new Map(rows.map(({ invitation }) => [invitation.id, invitation]));
-  const retryTarget = failure ? byId.get(failure.invitationId) : undefined;
 
   return (
     <NoticeFrame titleId={titleId}>
@@ -181,8 +180,12 @@ export function PendingInvitationsNotice() {
           severity="error"
           className="tw-mb-2"
           action={
-            isRetryable(failure.error) && retryTarget ? (
-              <Button color="inherit" size="small" onClick={() => acceptInvitation(retryTarget)}>
+            isRetryable(failure.error) ? (
+              <Button
+                color="inherit"
+                size="small"
+                onClick={() => acceptInvitation(failure.invitation)}
+              >
                 {RETRY_LABEL}
               </Button>
             ) : undefined
@@ -191,32 +194,34 @@ export function PendingInvitationsNotice() {
           {failure.error.title}
         </Alert>
       ) : null}
-      <Table size="small">
-        <TableHead>
-          <TableRow>
-            <TableCell>{PENDING_INVITATIONS_TEXTS.organization}</TableCell>
-            <TableCell>{PENDING_INVITATIONS_TEXTS.role}</TableCell>
-            <TableCell>{PENDING_INVITATIONS_TEXTS.expires}</TableCell>
-            <TableCell align="right">
-              <span className="tw-sr-only">{PENDING_INVITATIONS_TEXTS.accept}</span>
-            </TableCell>
-          </TableRow>
-        </TableHead>
-        <TableBody>
-          {rows.map(({ invitation, result }) => (
-            // A React key, never rendered: the invitation id does not reach the DOM.
-            <InvitationRow
-              key={invitation.id}
-              invitation={invitation}
-              accepted={result}
-              accepting={pendingId === invitation.id}
-              busy={accept.isPending}
-              onAccept={() => acceptInvitation(invitation)}
-              onGoTo={goTo}
-            />
-          ))}
-        </TableBody>
-      </Table>
+      {rows.length > 0 ? (
+        <Table size="small">
+          <TableHead>
+            <TableRow>
+              <TableCell>{PENDING_INVITATIONS_TEXTS.organization}</TableCell>
+              <TableCell>{PENDING_INVITATIONS_TEXTS.role}</TableCell>
+              <TableCell>{PENDING_INVITATIONS_TEXTS.expires}</TableCell>
+              <TableCell align="right">
+                <span className="tw-sr-only">{PENDING_INVITATIONS_TEXTS.accept}</span>
+              </TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {rows.map(({ invitation, result }) => (
+              // A React key, never rendered: the invitation id does not reach the DOM.
+              <InvitationRow
+                key={invitation.id}
+                invitation={invitation}
+                accepted={result}
+                accepting={pendingId === invitation.id}
+                busy={accept.isPending}
+                onAccept={() => acceptInvitation(invitation)}
+                onGoTo={goTo}
+              />
+            ))}
+          </TableBody>
+        </Table>
+      ) : null}
     </NoticeFrame>
   );
 }

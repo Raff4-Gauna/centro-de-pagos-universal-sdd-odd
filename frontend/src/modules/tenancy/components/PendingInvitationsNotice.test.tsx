@@ -266,6 +266,32 @@ describe("PendingInvitationsNotice (AC-TEN-39, Q-121, Q-124, design.md §3.9)", 
     },
   );
 
+  it("test_AC_TEN_39_refusal_of_the_only_invitation_keeps_the_error", async () => {
+    // It expired meanwhile: the list read again comes back empty, the error must stay.
+    let refused = false;
+    serve({
+      mine: () => page(refused ? [] : [BETA_INVITATION]),
+      accept: () => {
+        refused = true;
+        return problem(400, "invitation_invalid", "Invitación no válida", { reason: "expired" });
+      },
+    });
+    renderNotice();
+    await screen.findByRole("row", { name: /Beta/ });
+
+    await userEvent.click(acceptButton("Beta"));
+
+    await waitFor(() =>
+      expect(network.requests.filter(({ method }) => method === "GET")).toHaveLength(2),
+    );
+    await waitFor(() =>
+      expect(screen.queryByRole("row", { name: /Beta/ })).not.toBeInTheDocument(),
+    );
+    const notice = screen.getByRole("region", { name: PENDING_INVITATIONS_TEXTS.title });
+    expect(within(notice).getByRole("alert")).toHaveTextContent("Invitación no válida");
+    expect(within(notice).queryByRole("table")).not.toBeInTheDocument();
+  });
+
   it("test_AC_TEN_39_server_failure_on_accept_offers_retry", async () => {
     let attempts = 0;
     serve({

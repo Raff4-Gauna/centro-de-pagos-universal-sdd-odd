@@ -42,6 +42,7 @@ class FakeStack:
                 "/(dashboard)/configuracion/page": "/configuracion",
                 "/(dashboard)/configuracion/perfil/page": "/configuracion/perfil",
                 "/(dashboard)/configuracion/seguridad/page": "/configuracion/seguridad",
+                "/(dashboard)/sin-organizacion/page": "/sin-organizacion",
                 "/(auth)/login/page": "/login",
             }
         )
@@ -64,6 +65,9 @@ class FakeStack:
             ),
             f"{FRONTEND}/configuracion/seguridad": HttpResponse(
                 302, {"location": "/login?return_to=%2Fconfiguracion%2Fseguridad"}, ""
+            ),
+            f"{FRONTEND}/sin-organizacion": HttpResponse(
+                302, {"location": "/login?return_to=%2Fsin-organizacion"}, ""
             ),
             f"{FRONTEND}/login": HttpResponse(200, {}, page),
             f"{FRONTEND}{CHUNK}": HttpResponse(200, {}, "console.log(1)"),
