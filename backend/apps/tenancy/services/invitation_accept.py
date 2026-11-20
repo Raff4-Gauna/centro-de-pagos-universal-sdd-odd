@@ -4,9 +4,17 @@ The only acceptance path (ADR-0002 §5), shared by every entry point:
 
 - ``accept_by_token(token, invitee)``: ``POST /api/invitations/accept/`` (T-TEN-15). The token is
   hashed and looked up once (``selectors.invitations.find_by_token``); no row is ``not_found``.
-- ``accept_invitation(ref, invitee, mismatch=...)``: the rest of the diagram for a known row. From
-  the session (T-TEN-16) it is called with ``mismatch=InvalidReason.NOT_FOUND``, so another
-  person's invitation answers like a missing one (that contract has no ``email_mismatch``).
+- ``accept_from_session(invitation_id, invitee)``: ``POST /api/invitations/{id}/accept/``
+  (T-TEN-16, Q-121, Q-124), in the three steps of §4.4. (1) It reads the row by id with
+  ``Invitation.objects.for_session_accept`` (any organization: the only file allowed to,
+  ``allowlists.RESTRICTED_SCOPE_ALLOWLIST``), with no transaction and no lock, so somebody else's
+  attempt locks nothing. (2) No row, or a row of another email, is ``not_found`` with the same body;
+  for an existing row ``invitation.rejected`` (``email_mismatch``, the person as actor, no email)
+  goes out on its own, outside any transaction, and the row stays ``pending``. (3) The holder goes
+  on to ``accept_invitation`` with ``mismatch=InvalidReason.NOT_FOUND``: if the email no longer
+  matches under the lock it answers the same ``not_found`` (that contract has no
+  ``email_mismatch``).
+- ``accept_invitation(ref, invitee, mismatch=...)``: the rest of the diagram for a known row.
 - ``accept_locked(mutex, invitation_id, invitee, now=)``: the decision and the writes, inside a
   transaction that already holds the organization's ``MembershipMutex``. The port of SPEC-01
   (T-TEN-17) calls it inside its own all-or-nothing transaction and turns a refusal into its error.
@@ -51,7 +59,12 @@ from apps.common.tenancy.current import tenant_scope
 from apps.common.tenancy.errors import OrganizationSuspended
 from apps.common.tenancy.locks import bounded_lock_wait, system_context
 from apps.tenancy.domain.audit_events import TenancyAuditAction
-from apps.tenancy.domain.invitations import InvalidReason, InvitationStatus, decide_accept
+from apps.tenancy.domain.invitations import (
+    InvalidReason,
+    InvitationStatus,
+    decide_accept,
+    emails_match,
+)
 from apps.tenancy.models import Invitation, Membership, Organization
 from apps.tenancy.models.membership import MembershipStatus
 from apps.tenancy.selectors.invitations import InvitationRef, find_by_token
@@ -125,7 +138,7 @@ def accept_invitation(
     if mismatch not in MISMATCH_ANSWERS:
         raise ValueError("another email answers email_mismatch or not_found")
     moment = timezone.now() if now is None else now
-    ctx = system_context(ref.organization_id, SystemReason.INVITATION_ACCEPT)
+    ctx = _accept_context(ref.organization_id)
     with tenant_scope(ctx):
         try:
             with transaction.atomic():
@@ -143,15 +156,28 @@ def accept_invitation(
             )
             return outcome
         if outcome is InvalidReason.EMAIL_MISMATCH:
-            record_event(
-                TenancyAuditAction.INVITATION_REJECTED,
-                ctx=ctx,
-                actor=_person(invitee),
-                reason=InvalidReason.EMAIL_MISMATCH.value,
-                metadata={"invitation_id": str(ref.invitation_id)},
-            )
+            _rejected(ctx, ref.invitation_id, invitee)
         _refused(outcome, invitee, ref.invitation_id)
     raise InvitationInvalid(mismatch if outcome is InvalidReason.EMAIL_MISMATCH else outcome)
+
+
+def accept_from_session(
+    invitation_id: uuid.UUID, invitee: Invitee, *, now: datetime | None = None
+) -> AcceptedInvitation:
+    row = (
+        Invitation.objects.for_session_accept(invitation_id)
+        .values_list("organization_id", "email")
+        .first()
+    )
+    if row is None:
+        _refused(InvalidReason.NOT_FOUND, invitee, None)
+        raise InvitationInvalid(InvalidReason.NOT_FOUND)
+    ref = InvitationRef(invitation_id, row[0])
+    if not emails_match(row[1], invitee.email):  # another person's: nothing is locked or written
+        _rejected(_accept_context(ref.organization_id), invitation_id, invitee)
+        _refused(InvalidReason.EMAIL_MISMATCH, invitee, invitation_id)
+        raise InvitationInvalid(InvalidReason.NOT_FOUND)
+    return accept_invitation(ref, invitee, now=now, mismatch=InvalidReason.NOT_FOUND)
 
 
 def accept_locked(
@@ -219,6 +245,23 @@ def _expire(ctx: TenantContext, invitation: Invitation) -> None:
         TenancyAuditAction.INVITATION_EXPIRED,
         ctx=ctx,
         metadata={"invitation_id": str(invitation.pk)},
+    )
+
+
+def _accept_context(organization_id: uuid.UUID) -> TenantContext:
+    """The scope of the invitation's organization; the status is read again under the lock."""
+    return system_context(organization_id, SystemReason.INVITATION_ACCEPT)
+
+
+def _rejected(ctx: TenantContext, invitation_id: uuid.UUID, invitee: Invitee) -> None:
+    """Another email tried it: audited after (or without) the transaction, so a refusal does not
+    roll it back (design.md §3.3, RNF-TEN-04); the id only, no email of anyone."""
+    record_event(
+        TenancyAuditAction.INVITATION_REJECTED,
+        ctx=ctx,
+        actor=_person(invitee),
+        reason=InvalidReason.EMAIL_MISMATCH.value,
+        metadata={"invitation_id": str(invitation_id)},
     )
 
 

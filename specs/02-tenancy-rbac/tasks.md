@@ -56,7 +56,7 @@ Donde el diseño y el código de SPEC-00, o el orden real, difieren, manda esta 
 
 ## Resumen
 
-> T-TEN-01, T-TEN-02, T-TEN-03, T-TEN-04, T-TEN-05, T-TEN-06, T-TEN-07, T-TEN-08, T-TEN-09, T-TEN-10, T-TEN-11, T-TEN-12, T-TEN-13, T-TEN-14, T-TEN-15, T-TEN-24 y T-TEN-29 en revisión; las demás sin empezar. La columna **Evidencia** es obligatoria para `✅` y la verifica `scripts/check_spec_state.py`.
+> T-TEN-01, T-TEN-02, T-TEN-03, T-TEN-04, T-TEN-05, T-TEN-06, T-TEN-07, T-TEN-08, T-TEN-09, T-TEN-10, T-TEN-11, T-TEN-12, T-TEN-13, T-TEN-14, T-TEN-15, T-TEN-16, T-TEN-24 y T-TEN-29 en revisión; las demás sin empezar. La columna **Evidencia** es obligatoria para `✅` y la verifica `scripts/check_spec_state.py`.
 
 | ID | Título | AC | Capa | Archivos esperados (ver detalle) | Depende de | Agente | Tamaño | Zona roja | Estado | Evidencia |
 |---|---|---|---|---|---|---|---|---|---|---|
@@ -75,7 +75,7 @@ Donde el diseño y el código de SPEC-00, o el orden real, difieren, manda esta 
 | T-TEN-13 | Datos de la organización activa | AC-TEN-29 (API) | API | `apps/tenancy/api/organizations.py`, `services/organizations.py`, `domain/tax_id.py` | T-TEN-10, T-TEN-11, T-TEN-12 | backend-dev | L | Sí | 🟡 | rama `task/T-TEN-13-active-org-data`, sin PR |
 | T-TEN-14 | `Invitation` + migración 0003 + reglas puras | AC-TEN-25, AC-TEN-35 (unidad) | DB | `apps/tenancy/models/invitation.py`, `domain/invitations.py` | T-TEN-05 | backend-dev | L | Sí | 🟡 | rama `task/T-TEN-14-invitation-model`, sin PR |
 | T-TEN-15 | Aceptar invitación con token | AC-TEN-17, AC-TEN-18, AC-TEN-19, AC-TEN-25, AC-TEN-35 | Servicio/API | `services/invitation_accept.py`, `api/invitations.py` | T-TEN-10, T-TEN-11, T-TEN-14 | backend-dev | L | Sí | 🟡 | rama `task/T-TEN-15-accept-invitation`, sin PR |
-| T-TEN-16 | Mis invitaciones y aceptar desde la sesión (Q-124) | AC-TEN-39, AC-TEN-28, AC-TEN-10 | Servicio/API | `selectors/invitations.py`, `api/invitations.py`, `services/invitation_accept.py` | T-TEN-15 | backend-dev | L | Sí | ☐ | |
+| T-TEN-16 | Mis invitaciones y aceptar desde la sesión (Q-124) | AC-TEN-39, AC-TEN-28, AC-TEN-10 | Servicio/API | `selectors/invitations.py`, `api/invitations.py`, `services/invitation_accept.py` | T-TEN-15 | backend-dev | L | Sí | 🟡 | rama `task/T-TEN-16-my-invitations`, sin PR |
 | T-TEN-17 | `TenancyInvitationPort` (puerto de SPEC-01) | AC-TEN-17 (vía puerto), AC-IDA-02, AC-IDA-04, AC-IDA-05, AC-IDA-31 | Servicio | `services/invitation_port.py`, `config/settings/base.py` | T-TEN-15, T-IDA-13 | backend-dev | M | Sí | ☐ | |
 | T-TEN-18 | Comando `tenancy_create_org` | AC-TEN-22, AC-TEN-40, AC-IDA-32 | Comandos | `services/platform_org.py`, `management/commands/tenancy_create_org.py` | T-TEN-16, T-TEN-17 | backend-dev | L | Sí | ☐ | |
 | T-TEN-19 | Comandos de suspensión y primer owner | AC-TEN-28, AC-TEN-29 | Comandos | `management/commands/{tenancy_set_org_status,tenancy_owner_invite}.py` | T-TEN-18 | backend-dev | M | Sí | ☐ | |
@@ -565,6 +565,21 @@ T-TEN-30 · suspendida → T-TEN-29.
   `test_AC_TEN_28_accept_from_session_is_409`, `test_AC_TEN_39_double_accept_one_membership`,
   `test_AC_TEN_39_accept_vs_revoke_in_parallel` (hilos), `test_AC_TEN_39_email_changed_under_lock_is_not_found`,
   `test_AC_TEN_10_for_session_accept_outside_its_service_fails`.
+- **Implementado:** `services/invitation_accept.py::accept_from_session` hace los tres pasos de §4.4: lee con
+  `Invitation.objects.for_session_accept(id)` sin transacción ni lock; sin fila o con otro email responde
+  `not_found` con el mismo cuerpo, y para una fila ajena emite `invitation.rejected` (`email_mismatch`, actor la
+  persona) fuera de toda transacción; el titular sigue por `accept_invitation(..., mismatch=NOT_FOUND)`.
+  `selectors/invitations.py::list_my_pending` lee con `Invitation.objects.pending_for_email(email)` (normaliza el
+  email) y filtra `expires_at > now` y organización `active`; la lista va paginada como las demás
+  (`HubPageNumberPagination`), ordenada por vencimiento e id, y la organización reusa el esquema
+  `JoinedOrganization`. La regla por archivo es `tenant_rules.restricted_scope_violations` con
+  `allowlists.RESTRICTED_SCOPES` y `RESTRICTED_SCOPE_ALLOWLIST` (símbolo `Invitation.objects.for_session_accept`,
+  `count=1`); C-01 suma una entrada `Invitation.objects` con `count=1` para ese servicio. El `POST` no lleva cuerpo:
+  cualquier clave es `unknown_field`. `system_context` sigue con una sola aparición (`_accept_context`). La suite
+  cross-tenant suma las dos exenciones (la de `mine/` con `read`) y un `Seed` de invitaciones para otro email en
+  cada organización. `API_VERSION` 0.13.0. Pruebas extra: `test_AC_TEN_25_expiry_from_the_session_stays_committed`
+  (`transaction=True`, revisión del PR #125), `test_AC_TEN_39_foreign_attempt_takes_no_lock`,
+  `test_AC_TEN_10_session_scopes_are_read_only` y `test_RN_TEN_12_accept_from_session_takes_no_body`.
 
 ### T-TEN-17 — `TenancyInvitationPort` (puerto de SPEC-01)
 - **AC:** AC-TEN-17 (vía puerto); AC-IDA-02, 04, 05, 31 con puerto real. RN-TEN-11, RN-IDA-06, Q-108, Q-120. **Zona roja:** sí.

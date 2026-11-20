@@ -37,7 +37,9 @@ always is.
 ``unscoped_violations``: every ``unscoped`` of business code, called (``qs.unscoped(reason)``) or
 not (``f = qs.unscoped``, ``getattr``/``methodcaller("unscoped", ...)``), needs an entry in
 ``allowlists.UNSCOPED_ALLOWLIST``; the symbol of a call is the whole call, so the entry pins the
-model and the ``UnscopedReason``.
+model and the ``UnscopedReason``. ``restricted_scope_violations``: the same for a model scope that
+is allowed per file (``allowlists.RESTRICTED_SCOPES``, ``Invitation.for_session_accept``); the
+symbol is ``X.objects.<scope>``, so the entry of ``RESTRICTED_SCOPE_ALLOWLIST`` pins the model.
 
 To justify an exception: an ``AllowEntry`` (path from ``backend/``, the exact ``symbol``, a reason
 and, for raw SQL, ``count``) in ``allowlists.py``; ``apply_allowlist`` fails an entry without a
@@ -63,6 +65,7 @@ import ast
 from collections.abc import Iterable, Iterator, Sequence
 
 from tests.architecture.allowlists import MODEL_SCOPES, TENANT_SCOPES, AllowEntry
+from tests.architecture.allowlists import RESTRICTED_SCOPES as RESTRICTED_MODEL_SCOPES
 from tests.architecture.ast_rules import (
     ATTRIBUTE_GETTERS,
     META_MANAGER_ATTRS,
@@ -111,6 +114,8 @@ INTERNAL_MSG = "Django persistence internal in business code: it skips the tenan
 RAW_SQL_MSG = "raw SQL or a plain queryset ignores the organization filter: use a scoped queryset"
 MANAGER_MSG = "manager of a tenant model without a scope: open it with X.objects.for_tenant(ctx)"
 UNSCOPED_MSG = "unscoped(reason) outside UNSCOPED_ALLOWLIST"
+RESTRICTED_RULE = "AC-TEN-10/restricted-scope"
+RESTRICTED_MSG = "model scope allowed in one file only: outside RESTRICTED_SCOPE_ALLOWLIST"
 SCOPE_BUILDER = "_model_scope"
 BUILDER_MSG = "_model_scope outside a models module: declare the scope on the model's queryset"
 
@@ -288,9 +293,11 @@ def tenant_query_violations(
     return apply_allowlist(sorted(violations), allowlist, RULE)
 
 
-def unscoped_violations(
-    trees: Iterable[SourceTree], allowlist: Sequence[AllowEntry]
-) -> list[Violation]:
+def _restricted_uses(
+    trees: Iterable[SourceTree], names: frozenset[str], rule: str, msg: str, *, whole_call: bool
+) -> set[Violation]:
+    """Every use of ``names`` in business code, called or not; the symbol is the whole call
+    (``whole_call``) or the receiver and the name."""
     violations: set[Violation] = set()
     for source in iter_sources(trees):
         if not is_business(source):
@@ -298,11 +305,29 @@ def unscoped_violations(
         own = own_methods(source.tree)
         calls = {id(n.func): n for n in ast.walk(source.tree) if isinstance(n, ast.Call)}
         for node in ast.walk(source.tree):
-            if isinstance(node, ast.Attribute) and node.attr in RESTRICTED_SCOPES:
+            if isinstance(node, ast.Attribute) and node.attr in names:
                 if id(node) in own:
                     continue
-                shown = calls.get(id(node), node)
-                violations.add(found(source, node, UNSCOPED_RULE, ast.unparse(shown), UNSCOPED_MSG))
-            elif isinstance(node, ast.Call) and literal_names(node) & RESTRICTED_SCOPES:
-                violations.add(found(source, node, UNSCOPED_RULE, ast.unparse(node), UNSCOPED_MSG))
-    return apply_allowlist(sorted(violations), allowlist, UNSCOPED_RULE)
+                shown = calls.get(id(node), node) if whole_call else node
+                violations.add(found(source, node, rule, ast.unparse(shown), msg))
+            elif isinstance(node, ast.Call) and literal_names(node) & names:
+                violations.add(found(source, node, rule, ast.unparse(node), msg))
+    return violations
+
+
+def unscoped_violations(
+    trees: Iterable[SourceTree], allowlist: Sequence[AllowEntry]
+) -> list[Violation]:
+    uses = _restricted_uses(trees, RESTRICTED_SCOPES, UNSCOPED_RULE, UNSCOPED_MSG, whole_call=True)
+    return apply_allowlist(sorted(uses), allowlist, UNSCOPED_RULE)
+
+
+def restricted_scope_violations(
+    trees: Iterable[SourceTree],
+    allowlist: Sequence[AllowEntry],
+    names: frozenset[str] = RESTRICTED_MODEL_SCOPES,
+) -> list[Violation]:
+    """A model scope allowed per file (``allowlists.RESTRICTED_SCOPES``): the symbol is
+    ``X.objects.<scope>``, so an entry pins the model and the file (note of T-TEN-04, PR #104)."""
+    uses = _restricted_uses(trees, names, RESTRICTED_RULE, RESTRICTED_MSG, whole_call=False)
+    return apply_allowlist(sorted(uses), allowlist, RESTRICTED_RULE)

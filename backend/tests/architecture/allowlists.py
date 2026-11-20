@@ -48,6 +48,14 @@ ALLOWED_TENANT_MANAGERS: tuple[AllowEntry, ...] = (
     AllowEntry(_PURGE, "AuthSession.objects", _BY_DEADLINE),
     AllowEntry(_PURGE, "RefreshToken.objects", _BY_DEADLINE),
     AllowEntry(_PURGE, "LoginAttempt.objects", _BY_DEADLINE),
+    AllowEntry(
+        "apps/tenancy/services/invitation_accept.py",
+        "Invitation.objects",
+        "Invitation.objects.for_session_accept(id) (design.md §3.4, §4.4): el primer paso de "
+        "aceptar desde la sesión lee la fila por id sin lock; el scope lo restringe "
+        "RESTRICTED_SCOPE_ALLOWLIST y el resto del archivo usa for_tenant",
+        count=1,
+    ),
 )
 
 # C-02: ``FloatField`` in models and ``float`` in domain/services/selectors/api (money_rules.py).
@@ -63,10 +71,10 @@ TENANT_SCOPES: frozenset[str] = frozenset({"for_tenant", "unscoped"})
 
 # Scopes that one model declares on its own queryset (design.md §3.4): they open the manager of
 # that model only, by model label. ``Invitation.by_token_hash`` came with accepting by token
-# (T-TEN-15); ``pending_for_email`` comes with "my invitations" and ``for_session_accept``, which is
-# per file too, with accepting from the session (T-TEN-16).
+# (T-TEN-15); ``pending_for_email`` with "my invitations" and ``for_session_accept`` with accepting
+# from the session (T-TEN-16). The latter is restricted by file too (``RESTRICTED_SCOPES``).
 MODEL_SCOPES: dict[str, frozenset[str]] = {
-    "tenancy.Invitation": frozenset({"by_token_hash"}),
+    "tenancy.Invitation": frozenset({"by_token_hash", "for_session_accept", "pending_for_email"}),
     "tenancy.Membership": frozenset({"for_user"}),
 }
 
@@ -79,6 +87,22 @@ UNSCOPED_ALLOWLIST: tuple[AllowEntry, ...] = (
         "Membership.objects.unscoped(UnscopedReason.TENANT_RESOLUTION)",
         "resolución del tenant (design.md §3.5): todavía no hay TenantContext; la consulta filtra "
         "por user_id y organization_id del header, membership activa (RN-TEN-03/06)",
+        count=1,
+    ),
+)
+
+# Model scopes allowed per file, not only per model (``tenant_rules.restricted_scope_violations``):
+# every use in business code, called or not, needs an entry; the symbol is the receiver and the
+# scope (``Invitation.objects.for_session_accept``), so the entry pins the model too. Note of
+# T-TEN-04 (review of PR #104): a scope that reads any organization's row by id has one service.
+RESTRICTED_SCOPES: frozenset[str] = frozenset({"for_session_accept"})
+RESTRICTED_SCOPE_ALLOWLIST: tuple[AllowEntry, ...] = (
+    AllowEntry(
+        "apps/tenancy/services/invitation_accept.py",
+        "Invitation.objects.for_session_accept",
+        "aceptar desde la sesión (design.md §3.4, §4.4): lee la invitación por id, de cualquier "
+        "organización, sin transacción ni lock; el servicio compara el email antes de responder y "
+        "otro email o un id inexistente dan el mismo not_found",
         count=1,
     ),
 )

@@ -14,6 +14,12 @@ on A while it is suspended.
 ``/api/branches/`` (T-TEN-24): two branches in each organization, one of them inactive, so a
 listing that leaks B's rows, active or not, carries B's ids. A ``POST`` names the organization it
 is built for in the name of the new branch; it can only land in the active one.
+
+``/api/invitations/mine/`` and ``/api/invitations/{id}/accept/`` (T-TEN-16, Q-124) are exempt:
+the person has no membership in the invitation's organization yet. Each organization gets a
+``pending`` invitation for somebody else's email, so "my invitations" that leaks B's carries B's
+invitation id. Accepting by id is a ``POST``, so it gives no ``read``; its isolation is in
+``tests/tenancy/api/test_my_invitations_api.py`` (another email answers like a missing id).
 """
 
 from __future__ import annotations
@@ -21,9 +27,10 @@ from __future__ import annotations
 from typing import Any
 
 from apps.common.tenancy.current import tenant_scope
-from apps.tenancy.models import Branch, Organization
+from apps.tenancy.models import Branch, Invitation, Organization
 from tests.cross_tenant.registry import CrossTenantCase, Exemption, Seed
 from tests.tenancy.api.probe import PLATFORM, platform_ctx
+from tests.tenancy.invitation_setup import issue
 
 _MINE = (
     "ruta de alcance de usuario: las organizaciones de la persona, exenta de la organización activa"
@@ -32,6 +39,14 @@ _MINE = (
 _ACCEPT = (
     "aceptar una invitación con su token: la persona todavía no es miembro; la organización es la "
     "de la invitación, no la del header (design.md §3.5, §4.4)"
+)
+_MY_INVITATIONS = (
+    "ruta de alcance de usuario: las invitaciones pendientes del email de la persona, que todavía "
+    "no es miembro de esas organizaciones (design.md §3.5, Q-124)"
+)
+_ACCEPT_MINE = (
+    "aceptar desde la sesión una invitación del propio email: la persona todavía no es miembro; la "
+    "organización es la de la invitación, no la del header (design.md §3.5, §4.4, Q-124)"
 )
 CURRENT = "api/organizations/current/"
 _FIELDS = ("id", "name", "legal_name", "tax_id", "timezone", "status")
@@ -70,6 +85,15 @@ def _branch_rows(organization: Organization) -> frozenset[tuple[Any, ...]]:
         return frozenset(rows)
 
 
+def _invite_a_guest(organization: Organization) -> None:
+    issue(organization, f"guest-of-{organization.name.lower()}@hub.test")
+
+
+def _invitation_rows(organization: Organization) -> frozenset[tuple[Any, ...]]:
+    rows = Invitation.objects.unscoped(PLATFORM).filter(organization=organization)
+    return frozenset(rows.values_list("id", "email", "role", "status"))
+
+
 def _branches(organization: Organization) -> str:
     return f"/{BRANCHES}"
 
@@ -87,8 +111,11 @@ CASES: tuple[CrossTenantCase, ...] = (
 EXEMPT: tuple[Exemption, ...] = (
     Exemption("api/organizations/", _MINE, read=lambda organization: "/api/organizations/"),
     Exemption("api/invitations/accept/", _ACCEPT),
+    Exemption("api/invitations/mine/", _MY_INVITATIONS, read=lambda _: "/api/invitations/mine/"),
+    Exemption("api/invitations/<uuid:invitation_id>/accept/", _ACCEPT_MINE),
 )
 SEEDS: tuple[Seed, ...] = (
     Seed(create=_no_rows, rows=_organization_row),
     Seed(create=_create_branches, rows=_branch_rows),
+    Seed(create=_invite_a_guest, rows=_invitation_rows),
 )

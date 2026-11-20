@@ -26,8 +26,12 @@ is ``PROTECT`` without reverse accessor: an invitation is never deleted (``NoHar
 ``Invitation.objects.by_token_hash(token_hash)`` is the scope of accepting by token (design.md
 §3.4, §4.4): the one row with that hash, whatever its organization, read only
 (``scopes.ModelScope``; ``allowlists.MODEL_SCOPES``). It takes the hash, never the token, and
-refuses anything that is not 64 lowercase hex. ``pending_for_email`` and ``for_session_accept``
-arrive with their first reader (T-TEN-16).
+refuses anything that is not 64 lowercase hex. ``pending_for_email(email)`` is the ``pending`` ones
+of one email, normalized here, whatever their organization ("my invitations" and the port of
+SPEC-01; the reader adds the expiry and the organization's status). ``for_session_accept(id)`` is
+one row by id, whatever its organization (accepting from the session, §4.4): the service decides by
+the email before it answers anything, and the architecture test allows it in that one file only
+(``allowlists.RESTRICTED_SCOPE_ALLOWLIST``). All three are reads: a write under them fails closed.
 """
 
 from __future__ import annotations
@@ -51,6 +55,7 @@ from apps.tenancy.domain.invitations import (
     InvitationPurpose,
     InvitationStatus,
     RevokedReason,
+    normalize_email,
 )
 
 EMAIL_MAX_LENGTH = 254
@@ -68,6 +73,17 @@ class InvitationQuerySet(TenantQuerySet["Invitation"]):
         if not isinstance(token_hash, str) or not _TOKEN_HASH.fullmatch(token_hash):
             raise ValueError("by_token_hash needs the SHA-256 of a token, in hex")
         return self._model_scope("by_token_hash", token_hash, token_hash=token_hash)
+
+    def pending_for_email(self, email: str) -> InvitationQuerySet:
+        if not isinstance(email, str) or not (normalized := normalize_email(email)):
+            raise ValueError("pending_for_email needs an email")
+        pending = InvitationStatus.PENDING.value
+        return self._model_scope("pending_for_email", normalized, email=normalized, status=pending)
+
+    def for_session_accept(self, invitation_id: uuid.UUID) -> InvitationQuerySet:
+        if not isinstance(invitation_id, uuid.UUID):
+            raise TypeError("for_session_accept needs the invitation's UUID")
+        return self._model_scope("for_session_accept", invitation_id, pk=invitation_id)
 
 
 InvitationManager = models.Manager.from_queryset(InvitationQuerySet)
