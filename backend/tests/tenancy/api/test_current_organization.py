@@ -342,4 +342,4 @@ def test_RF_TEN_03_contract_reads_and_patches_the_active_organization() -> None:
     [actions] = current["properties"]["allowed_actions"]["items"].values()
     assert actions == "#/components/schemas/TenancyActionEnum"
     assert schemas["TenancyActionEnum"]["enum"] == EVERY_ACTION
-    assert contract["info"]["version"] == "0.13.0"
+    assert contract["info"]["version"] == "0.14.0"

@@ -13,7 +13,14 @@ on A while it is suspended.
 
 ``/api/branches/`` (T-TEN-24): two branches in each organization, one of them inactive, so a
 listing that leaks B's rows, active or not, carries B's ids. A ``POST`` names the organization it
-is built for in the name of the new branch; it can only land in the active one.
+is built for in the name of the new branch; it can only land in the active one. Built for B (the
+suite's second organization, ``harness.build_world``), it also carries B's ``organization_id``
+(AC-TEN-07): the strict body refuses it, and nothing lands in B. Built for A it does not, so the
+creation in A answers ``2xx``.
+
+``/api/branches/{id}/`` and its ``deactivate``/``reactivate`` (T-TEN-25) name B's branches by id
+with A active (``404``, AC-TEN-01). Each one targets the branch it can change: the active one to
+see, edit or deactivate, the inactive one to reactivate (its name is free).
 
 ``/api/invitations/mine/`` and ``/api/invitations/{id}/accept/`` (T-TEN-16, Q-124) are exempt:
 the person has no membership in the invitation's organization yet. Each organization gets a
@@ -51,6 +58,9 @@ _ACCEPT_MINE = (
 CURRENT = "api/organizations/current/"
 _FIELDS = ("id", "name", "legal_name", "tax_id", "timezone", "status")
 BRANCHES = "api/branches/"
+BRANCH = "api/branches/(?P<id>[^/.]+)/"
+# harness.build_world: the organization whose rows the suite must never see changed.
+OTHER_ORGANIZATION = "B"
 
 
 def _current(organization: Organization) -> str:
@@ -99,7 +109,33 @@ def _branches(organization: Organization) -> str:
 
 
 def _new_branch(organization: Organization) -> dict[str, str]:
-    return {"name": f"nueva-en-{organization.name}"}
+    body = {"name": f"nueva-en-{organization.name}"}
+    if organization.name == OTHER_ORGANIZATION:
+        body["organization_id"] = str(organization.id)
+    return body
+
+
+def _branch_url(organization: Organization, *, active: bool, action: str = "") -> str:
+    ctx = platform_ctx(organization)
+    with tenant_scope(ctx):
+        branch = Branch.objects.for_tenant(ctx).filter(is_active=active).get()
+    return f"/{BRANCHES}{branch.pk}/{action}"
+
+
+def _active_branch(organization: Organization) -> str:
+    return _branch_url(organization, active=True)
+
+
+def _to_deactivate(organization: Organization) -> str:
+    return _branch_url(organization, active=True, action="deactivate/")
+
+
+def _to_reactivate(organization: Organization) -> str:
+    return _branch_url(organization, active=False, action="reactivate/")
+
+
+def _renamed_branch(organization: Organization) -> dict[str, str]:
+    return {"name": f"renombrada-en-{organization.name}", "address": "Calle 1"}
 
 
 CASES: tuple[CrossTenantCase, ...] = (
@@ -107,6 +143,10 @@ CASES: tuple[CrossTenantCase, ...] = (
     CrossTenantCase(CURRENT, "PATCH", _current, body=_renamed),
     CrossTenantCase(BRANCHES, "GET", _branches),
     CrossTenantCase(BRANCHES, "POST", _branches, body=_new_branch),
+    CrossTenantCase(BRANCH, "GET", _active_branch),
+    CrossTenantCase(BRANCH, "PATCH", _active_branch, body=_renamed_branch),
+    CrossTenantCase("api/branches/<str:id>/deactivate/", "POST", _to_deactivate),
+    CrossTenantCase("api/branches/<str:id>/reactivate/", "POST", _to_reactivate),
 )
 EXEMPT: tuple[Exemption, ...] = (
     Exemption("api/organizations/", _MINE, read=lambda organization: "/api/organizations/"),

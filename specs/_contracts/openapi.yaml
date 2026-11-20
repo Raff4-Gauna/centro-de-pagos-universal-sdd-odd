@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Centro de Pagos Universal API
-  version: 0.13.0
+  version: 0.14.0
 paths:
   /api/auth/bff/login/complete/:
     post:
@@ -422,7 +422,7 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
-          description: 'code: forbidden'
+          description: 'code: forbidden (rol sin permiso de gestión de sucursales)'
         '409':
           content:
             application/problem+json:
@@ -430,6 +430,257 @@ paths:
                 $ref: '#/components/schemas/Problem'
           description: 'code: conflict (nombre o código de otra sucursal activa) ·
             organization_suspended'
+        4XX:
+          description: Error del cliente
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        5XX:
+          description: Error del servidor
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /api/branches/{id}/:
+    get:
+      operationId: branches_retrieve
+      summary: Una sucursal de la organización activa, activa o no
+      parameters:
+      - in: header
+        name: X-Organization-Id
+        schema:
+          type: string
+          format: uuid
+        description: Organización activa de la request (RN-TEN-03).
+        required: true
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: La sucursal.
+        required: true
+      tags:
+      - tenancy
+      security:
+      - HubBearer: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Branch'
+          description: ''
+        '404':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: 'code: not_found (no existe o es de otra organización: el mismo
+            cuerpo)'
+        4XX:
+          description: Error del cliente
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        5XX:
+          description: Error del servidor
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+    patch:
+      operationId: branches_partial_update
+      summary: Edita el nombre, el código o la dirección de una sucursal
+      parameters:
+      - in: header
+        name: X-Organization-Id
+        schema:
+          type: string
+          format: uuid
+        description: Organización activa de la request (RN-TEN-03).
+        required: true
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: La sucursal.
+        required: true
+      tags:
+      - tenancy
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedBranchUpdateRequest'
+      security:
+      - HubBearer: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Branch'
+          description: ''
+        '400':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: 'code: validation_error (unknown_field si el cuerpo trae otra
+            clave, como is_active u organization_id)'
+        '403':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: 'code: forbidden (rol sin permiso de gestión de sucursales)'
+        '404':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: 'code: not_found (no existe o es de otra organización: el mismo
+            cuerpo)'
+        '409':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: 'code: conflict (nombre o código de otra sucursal activa) ·
+            organization_suspended'
+        4XX:
+          description: Error del cliente
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        5XX:
+          description: Error del servidor
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /api/branches/{id}/deactivate/:
+    post:
+      operationId: branches_deactivate
+      summary: Desactiva una sucursal (no se borra nunca)
+      parameters:
+      - in: header
+        name: X-Organization-Id
+        schema:
+          type: string
+          format: uuid
+        description: Organización activa de la request (RN-TEN-03).
+        required: true
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: La sucursal.
+        required: true
+      tags:
+      - tenancy
+      security:
+      - HubBearer: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Branch'
+          description: ''
+        '403':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: 'code: forbidden (rol sin permiso de gestión de sucursales)'
+        '404':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: 'code: not_found (no existe o es de otra organización: el mismo
+            cuerpo)'
+        '409':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: 'code: invalid_transition (ya está en ese estado) · organization_suspended'
+        4XX:
+          description: Error del cliente
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        5XX:
+          description: Error del servidor
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /api/branches/{id}/reactivate/:
+    post:
+      operationId: branches_reactivate
+      summary: Reactiva una sucursal inactiva
+      parameters:
+      - in: header
+        name: X-Organization-Id
+        schema:
+          type: string
+          format: uuid
+        description: Organización activa de la request (RN-TEN-03).
+        required: true
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: La sucursal.
+        required: true
+      tags:
+      - tenancy
+      security:
+      - HubBearer: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Branch'
+          description: ''
+        '400':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: 'code: validation_error (taken: otra sucursal activa usa su
+            nombre o su código)'
+        '403':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: 'code: forbidden (rol sin permiso de gestión de sucursales)'
+        '404':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: 'code: not_found (no existe o es de otra organización: el mismo
+            cuerpo)'
+        '409':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: 'code: invalid_transition (ya está en ese estado) · organization_suspended'
         4XX:
           description: Error del cliente
           content:
@@ -1235,6 +1486,19 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Session'
+    PatchedBranchUpdateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+        code:
+          type: string
+          maxLength: 32
+        address:
+          type: string
+          maxLength: 255
     PatchedOrganizationUpdateRequest:
       type: object
       properties:

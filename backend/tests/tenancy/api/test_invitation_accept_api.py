@@ -169,4 +169,4 @@ def test_RNF_TEN_03_contract_declares_token_write_only_and_the_refusals() -> Non
     assert "InvitationAccept" not in contract["components"]["schemas"]  # never a response
     accepted = contract["components"]["schemas"]["AcceptedInvitation"]
     assert set(accepted["properties"]) == {"organization", "role", "membership_id"}
-    assert contract["info"]["version"] == "0.13.0"
+    assert contract["info"]["version"] == "0.14.0"
