@@ -4,8 +4,9 @@ import type { components } from "@/types/api";
 // (RFC 9457) with a stable `code` and the `request_id`. The shape comes from the generated
 // contract types, never from a hand-written DTO. The client turns every failed response into one
 // `ApiError`, and only keeps what the UI may show: the fixed `title`, the plain-text `detail` of a
-// 4xx (never of a 5xx), the field errors and the request id to quote to support. The raw body,
-// the response headers and any network error stay out of it.
+// 4xx (never of a 5xx), the field errors, the `reason` that refines a few codes (a closed value,
+// never the input: `invitation_invalid`, SPEC-02 design.md §6) and the request id to quote to
+// support. The raw body, the response headers and any network error stay out of it.
 
 export type Problem = components["schemas"]["Problem"];
 export type ProblemFieldError = components["schemas"]["ProblemFieldError"];
@@ -31,6 +32,7 @@ export type ApiErrorInit = Readonly<{
   detail?: string;
   requestId: string | null;
   fieldErrors?: readonly ProblemFieldError[];
+  reason?: string;
 }>;
 
 export class ApiError extends Error {
@@ -41,6 +43,8 @@ export class ApiError extends Error {
   readonly detail: string | undefined;
   readonly requestId: string | null;
   readonly fieldErrors: readonly ProblemFieldError[];
+  // Only on the codes that refine themselves; a screen maps it to its own fixed text.
+  readonly reason: string | undefined;
 
   constructor(init: ApiErrorInit) {
     // The message is the fixed title of the code: safe to log or show, it carries no input.
@@ -52,6 +56,7 @@ export class ApiError extends Error {
     this.detail = init.status >= 500 ? undefined : init.detail;
     this.requestId = init.requestId;
     this.fieldErrors = init.fieldErrors ?? [];
+    this.reason = init.reason;
   }
 }
 
@@ -69,12 +74,13 @@ function isFieldError(value: unknown): value is ProblemFieldError {
 }
 
 // Runtime check of a body against the `Problem` component: required members with their types,
-// `status` an integer in 400-599. Malformed field errors are dropped, not trusted.
+// `status` an integer in 400-599. Malformed field errors, and a `reason` that is not text, are
+// dropped, not trusted.
 export function parseProblem(value: unknown): Problem | null {
   if (!isRecord(value)) {
     return null;
   }
-  const { type, title, status, code, detail, request_id: requestId, errors } = value;
+  const { type, title, status, code, detail, request_id: requestId, errors, reason } = value;
   if (
     typeof type !== "string" ||
     typeof title !== "string" ||
@@ -94,6 +100,9 @@ export function parseProblem(value: unknown): Problem | null {
   }
   if (Array.isArray(errors)) {
     problem.errors = errors.filter(isFieldError);
+  }
+  if (typeof reason === "string") {
+    problem.reason = reason;
   }
   return problem;
 }
@@ -134,6 +143,7 @@ export async function apiErrorFromResponse(response: Response): Promise<ApiError
     detail: problem.detail,
     requestId: problem.request_id ?? headerRequestId,
     fieldErrors: problem.errors,
+    reason: problem.reason,
   });
 }
 

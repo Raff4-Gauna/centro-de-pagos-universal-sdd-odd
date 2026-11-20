@@ -145,3 +145,20 @@ describe("proxy.ts: pages need a session (AC-IDA-19, design.md §3.2)", () => {
     },
   );
 });
+
+describe("proxy.ts: the invitation page is open (AC-TEN-17, SPEC-02 design.md §3.9)", () => {
+  it.each([undefined, `${RT}=opaque-refresh`])(
+    "test_AC_TEN_17_invitation_page_is_open_with_or_without_session (%s)",
+    (cookie) => {
+      // The token is in the fragment, which never reaches the server: the page stores it itself.
+      expect(passes(call("/invitacion", cookie))).toBe(true);
+    },
+  );
+
+  it.each(["/invitacion/x", "/invitacionx", "/invitaciones", "/Invitacion"])(
+    "test_AC_TEN_17_lookalike_%s_is_protected",
+    (path) => {
+      expect(call(path).status).toBe(302);
+    },
+  );
+});
