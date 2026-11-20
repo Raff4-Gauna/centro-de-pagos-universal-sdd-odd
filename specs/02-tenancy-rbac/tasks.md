@@ -58,6 +58,7 @@ Donde el diseño y el código de SPEC-00, o el orden real, difieren, manda esta 
 | Timeout de lock → `OperationalError` de la BD como `500` (`design.md §11`, T-TEN-11, PR #117) | `503 organization_busy` con `Retry-After: 2` y título fijo "Hay otra operación en curso, probá de nuevo", para todo usuario de `lock_org_for_write` / `lock_membership_mutex`; lo mapea `apps/common/api/exceptions.py` por el SQLSTATE `55P03` (T-TEN-22) | Q-230, decidida por el dueño el 2026-11-20. Código nuevo de contrato (versión menor): `design.md §6` no lo lista |
 | `GET /api/memberships/` → `user:{id, email, name}` (`design.md §6`) | `name` es `User.display_name` de SPEC-01 (T-TEN-22) | `User` no tiene un campo `name` |
 | Callback del login con error de Django → `/login?error=<code>` de la lista (SPEC-01 `design.md §6.3`) | `503 organization_busy` del primer login (lock de una organización invitante, Q-230) → `/login?error=google_unavailable`, sin cookies de sesión ni `Retry-After` (T-TEN-17) | Q-231, decidida por el dueño el 2026-11-20: el intento y el `code` ya se gastaron, así que el mismo callback no se puede repetir; se reusa el texto y el "Reintentar" de Q-127 sin cambiar el contrato |
+| Repetir `tenancy_create_org` con la misma clave "no emite eventos" (`design.md §4.5`) | Toda repetición emite `organization.create_repeated` con `outcome` `no_change` o `conflict`, actor `platform_operator` y `os_user`, fuera de la transacción y sin otra escritura; evento nuevo en `domain/audit_events.py` y en `AUDIT_TRIGGERS` (T-TEN-18) | Q-235, decidida por el dueño el 2026-11-20: RN-IDA-23 y Q-123 de SPEC-01 auditan cada ejecución del bootstrap. RNF-TEN-04 de la spec no se editó: el catálogo suma el evento con esta fila |
 | El rol se muestra como código (`context/07 §5.3`, spec §14) y los rechazos de `/invitacion` sin acción (`design.md §3.9`) | Etiquetas en español en un único módulo, `frontend/src/modules/tenancy/lib/role-labels.ts` (`Record<RoleEnum, string>`), que usan el aviso de invitaciones y la invitación aceptada; todo rechazo de `/invitacion` y el link sin token muestran un único botón "Ir a Inicio" hacia `/inicio`, y la falla de red/5xx conserva "Reintentar" | Q-232 y Q-233, decididas por el dueño el 2026-11-20. La API sigue con los códigos; un rol nuevo no compila sin su etiqueta. Worklog `context/worklog/2026-11-20-role-labels-exit.md` |
 
 ## Resumen
@@ -617,12 +618,15 @@ T-TEN-30 · suspendida → T-TEN-29.
     stdout; los logs y los eventos llevan ids, nunca el email ni el token.
   - Idempotencia (Q-123): `platform_creation_key` único; dos corridas a la vez con la misma clave dejan una
     organización (la segunda espera el `INSERT` de la primera y falla en un savepoint). Misma clave: se comparan
-    el nombre y el email de la primera invitación `first_owner` (`replaces` nulo); iguales → nada escrito, sin
-    eventos ni link; distintos → error, nada escrito. El operador no cuenta como parámetro.
+    el nombre y el email de la primera invitación `first_owner` (`replaces` nulo); iguales → nada escrito ni
+    link, salida `0`; distintos → error, nada escrito, salida `1`. El operador no cuenta como parámetro. Las dos
+    se auditan (Q-235): un `organization.create_repeated` con `outcome` `no_change` o `conflict`, actor
+    `platform_operator` y `os_user`, emitido después de la transacción; log `tenancy.platform_org_repeated`.
   - Alta: `Organization` con `created_by_operator`, después `tenant_scope(system_context(org,
     SystemReason.PLATFORM_COMMAND))` (ya existía), invitación `owner`/`first_owner` con `invited_by_operator` y
     `organization.created` + `invitation.created`, actor `platform_operator` (el email) y `os_user` en
-    `metadata`. `AUDIT_TRIGGERS[organization.created]` es `create_platform_org`.
+    `metadata`. `AUDIT_TRIGGERS` de `organization.created` y `organization.create_repeated` es
+    `create_platform_org`.
   - `PLATFORM_OPERATOR_EMAILS` (`PlatformEnv`): lista separada por comas, normalizada (recorte y minúsculas) y
     validada como emails; vacía = ningún comando de operador corre. Se permite vacía también en prod, así que el
     smoke (prod + `env.example` vacío) arranca igual. En test es fija (`ops@hub.test`).
@@ -642,11 +646,11 @@ T-TEN-30 · suspendida → T-TEN-29.
   - `tests/identity/test_AC_IDA_27_deactivate.py`: el operador es ahora un email de la lista; casos de operador
     fuera de la lista, lista vacía y normalización.
   - `tests/config/test_RF_TEN_07_platform_operator_emails.py`: validación de la variable y arranque de prod sin ella.
-- **Para el reviewer:** RN-IDA-23 y Q-123 dicen "cada ejecución auditada" y `design.md §4.5` dice que repetir con
-  la misma clave "no emite eventos". Se siguió el diseño: el catálogo de RNF-TEN-04 no tiene un evento para una
-  corrida sin cambios, y emitir `organization.created` otra vez sería falso. La repetición deja un log
-  operativo (`tenancy.platform_org_unchanged`, con el id). Si el dueño quiere auditarla, hace falta un evento
-  nuevo en el catálogo (`Q-xxx`).
+- **Q-235 (dueño, 2026-11-20):** RN-IDA-23 y Q-123 dicen "cada ejecución auditada" y `design.md §4.5` decía que
+  repetir la clave "no emite eventos"; ganó auditar (fila en "Ajustes al diseño"). Suma
+  `domain/audit_events.py`, `tests/tenancy/test_audit.py` (la lista copiada del catálogo) y
+  `clarifications.md` a los archivos fuera de la ficha, y `test_Q_235_conflict_is_audited_and_writes_nothing`
+  a las pruebas.
 
 ### T-TEN-19 — Comandos de suspensión y primer owner
 - **AC:** AC-TEN-28, AC-TEN-29. RF-TEN-07, RN-TEN-18, Q-208, Q-213. **Zona roja:** sí.

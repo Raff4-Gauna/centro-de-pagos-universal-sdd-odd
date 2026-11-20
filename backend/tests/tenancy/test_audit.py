@@ -57,6 +57,8 @@ RNF_TEN_04 = {
     "invitation.expired",
     "invitation.auto_revoked",
     "transition.rejected",
+    # Q-235 (2026-11-20): not in RNF-TEN-04; every repeat of tenancy_create_org is audited.
+    "organization.create_repeated",
 }
 
 

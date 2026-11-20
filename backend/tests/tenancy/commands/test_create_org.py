@@ -194,22 +194,54 @@ def test_AC_IDA_32_bootstrap_command_audited(recorded: RecordingSink) -> None:
     assert [entry["event"] for entry in logs] == ["tenancy.platform_org_created"]
 
 
+def repeated(sink: RecordingSink) -> list[tuple[Any, ...]]:
+    """Every ``organization.create_repeated``: (organization, actor, metadata)."""
+    return [
+        (e.organization_id, e.actor.kind, e.actor.name, e.metadata)
+        for e in sink.events
+        if e.action == TenancyAuditAction.ORGANIZATION_CREATE_REPEATED
+    ]
+
+
+def repeat_of(org: Organization, outcome: str) -> tuple[Any, ...]:
+    metadata = {"outcome": outcome, "os_user": "deploy"}
+    return (org.pk, AuditActorKind.PLATFORM_OPERATOR, OPERATOR, metadata)
+
+
 def test_Q_123_repeat_creates_nothing(recorded: RecordingSink) -> None:
     create_org()
     before, events = counts(), len(recorded.events)
 
-    again = create_org(name=" Acme ", email="ANA@example.com")
+    with capture_logs() as logs:
+        again = create_org(name=" Acme ", email="ANA@example.com")
 
     assert counts() == before
-    assert len(recorded.events) == events
     assert "already exists" in again
     assert "#token=" not in again
-    for changed in ({"name": "Acme SA"}, {"email": "beto@example.com"}):
-        with pytest.raises(CommandError) as raised:
-            create_org(**changed)
-        assert raised.value.returncode == 1
-        assert counts() == before
-    assert len(recorded.events) == events
+    # Q-235: the repeat is audited, with exactly one event and nothing else.
+    assert len(recorded.events) == events + 1
+    assert repeated(recorded) == [repeat_of(organization(), "no_change")]
+    assert EMAIL not in repr(recorded.events) + repr(logs)
+    assert [(entry["event"], entry["outcome"]) for entry in logs] == [
+        ("tenancy.platform_org_repeated", "no_change")
+    ]
+
+
+@pytest.mark.parametrize("changed", [{"name": "Acme SA"}, {"email": "beto@example.com"}])
+def test_Q_235_conflict_is_audited_and_writes_nothing(
+    recorded: RecordingSink, changed: dict[str, str]
+) -> None:
+    create_org()
+    before, events = counts(), len(recorded.events)
+
+    with pytest.raises(CommandError) as raised:
+        create_org(**changed)
+
+    assert raised.value.returncode == 1
+    assert counts() == before
+    assert len(recorded.events) == events + 1
+    assert repeated(recorded) == [repeat_of(organization(), "conflict")]
+    assert "beto@example.com" not in repr(recorded.events) + str(raised.value)
 
 
 @pytest.mark.integration
@@ -234,7 +266,9 @@ def test_Q_123_two_runs_at_once_create_one_organization(recorded: RecordingSink)
     assert len(outputs) == 3
     assert sum("#token=" in output for output in outputs) == 1
     assert counts() == (1, 1, 0)
-    assert invitations(organization()) == [owner_pending()]
+    org = organization()
+    assert invitations(org) == [owner_pending()]
+    assert repeated(recorded) == [repeat_of(org, "no_change")] * 2
 
 
 @pytest.mark.parametrize(

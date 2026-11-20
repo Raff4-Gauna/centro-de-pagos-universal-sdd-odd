@@ -5,7 +5,8 @@ Creates an organization with no members and a ``pending`` owner invitation to ``
 ``PLATFORM_OPERATOR_EMAILS`` (``apps.common.platform_operators``, as every operator command).
 The invitation link goes to stdout once, never through the logger: whoever runs the command
 hands it to the owner. Running it again with the same ``--key`` and values creates nothing and
-says so (Q-123); with other values it is refused.
+says so (Q-123); with other values it is refused. Either repeat is audited as
+``organization.create_repeated`` (Q-235).
 
 Exit codes: ``0`` created, or already created with these values; ``1`` the key belongs to other
 values, or ``FRONTEND_BASE_URL`` is not set (nothing written in either case); ``2`` a bad argument

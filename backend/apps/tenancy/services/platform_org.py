@@ -11,8 +11,11 @@ the user of the operating system in ``metadata`` (``os_user``).
 1. ``platform_creation_key`` is unique: the key already taken (by an earlier run, or by one running
    at the same time, whose ``INSERT`` this one waits for and then fails in a savepoint) is
    idempotency. Same name and same owner email as that run (its first ``first_owner`` invitation)
-   → nothing is written, no event and no token: the result says ``created=False``. Other values
-   → ``CreationKeyConflictError`` and nothing is written either (design.md §4.5 step 2).
+   → nothing is written and no token is issued: the result says ``created=False``. Other values
+   → ``CreationKeyConflictError`` and nothing is written either (design.md §4.5 step 2). Every
+   repeat is audited all the same (Q-235, RN-IDA-23): one ``organization.create_repeated`` with
+   ``outcome`` ``no_change`` or ``conflict``, emitted after the transaction, as the audited
+   rejections are (design.md §3.3), so a conflict's rollback does not take it.
 2. Otherwise ``Organization(status=active, created_by_operator=<operator>)``, then, under
    ``tenant_scope(system_context(org, PLATFORM_COMMAND))``, ``Invitation(role=owner,
    purpose=first_owner, invited_by_operator=<operator>)`` with only the SHA-256 of a fresh token
@@ -59,7 +62,9 @@ from apps.tenancy.services.invitations import accept_base_url, accept_url, norma
 logger = get_logger(__name__)
 
 CREATED_EVENT = "tenancy.platform_org_created"
-UNCHANGED_EVENT = "tenancy.platform_org_unchanged"
+REPEATED_EVENT = "tenancy.platform_org_repeated"
+NO_CHANGE = "no_change"
+CONFLICT = "conflict"
 KEY_MAX_LENGTH = 64
 NAME_MAX_LENGTH = 120
 
@@ -118,7 +123,9 @@ def clean_request(*, key: object, name: object, owner_email: object) -> OrgReque
     return OrgRequest(key=clean_key, name=clean_name, owner_email=email)
 
 
-@audit_trigger(TenancyAuditAction.ORGANIZATION_CREATED)
+@audit_trigger(
+    TenancyAuditAction.ORGANIZATION_CREATED, TenancyAuditAction.ORGANIZATION_CREATE_REPEATED
+)
 def create_platform_org(
     request: OrgRequest, operator: Operator, *, now: datetime | None = None
 ) -> PlatformOrg:
@@ -130,13 +137,11 @@ def create_platform_org(
         ctx = system_context(organization_id, SystemReason.PLATFORM_COMMAND)
         with tenant_scope(ctx):
             if not created:
-                _require_same_request(ctx, request)
-                invitation_id = None
+                same = _is_same_request(ctx, request)
             else:
                 invitation_id = _issue_owner_invitation(ctx, request, operator, token, moment)
-    if invitation_id is None:
-        logger.info(UNCHANGED_EVENT, organization_id=str(organization_id))
-        return PlatformOrg(organization_id, created=False)
+    if not created:
+        return _repeated(ctx, operator, same=same)
     logger.info(
         CREATED_EVENT, organization_id=str(organization_id), invitation_id=str(invitation_id)
     )
@@ -165,8 +170,23 @@ def _claim_key(request: OrgRequest, operator: Operator) -> tuple[uuid.UUID, bool
     return organization.pk, True
 
 
-def _require_same_request(ctx: TenantContext, request: OrgRequest) -> None:
-    """Same name and owner email as the first owner invitation, or ``CreationKeyConflictError``."""
+def _repeated(ctx: TenantContext, operator: Operator, *, same: bool) -> PlatformOrg:
+    """The audit of a repeated key (Q-235); a conflict raises after it, with nothing written."""
+    outcome = NO_CHANGE if same else CONFLICT
+    record_event(
+        TenancyAuditAction.ORGANIZATION_CREATE_REPEATED,
+        ctx=ctx,
+        actor=AuditActor.platform_operator(operator.email),
+        metadata={"outcome": outcome, "os_user": operator.os_user},
+    )
+    logger.info(REPEATED_EVENT, organization_id=str(ctx.organization_id), outcome=outcome)
+    if not same:
+        raise CreationKeyConflictError(ctx.organization_id)
+    return PlatformOrg(ctx.organization_id, created=False)
+
+
+def _is_same_request(ctx: TenantContext, request: OrgRequest) -> bool:
+    """Same name and owner email as the first owner invitation of the organization."""
     name = Organization.objects.for_tenant(ctx).values_list("name", flat=True).get()
     first_owner = (
         Invitation.objects.for_tenant(ctx)
@@ -175,8 +195,7 @@ def _require_same_request(ctx: TenantContext, request: OrgRequest) -> None:
         .values_list("email", flat=True)
         .first()
     )
-    if name != request.name or first_owner != request.owner_email:
-        raise CreationKeyConflictError(ctx.organization_id)
+    return name == request.name and first_owner == request.owner_email
 
 
 def _issue_owner_invitation(
