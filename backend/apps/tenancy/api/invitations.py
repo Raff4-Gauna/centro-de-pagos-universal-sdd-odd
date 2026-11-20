@@ -20,7 +20,8 @@ authenticated one, by the email of their Google account, and no route takes a us
   ``reason=not_found``; this contract has no ``email_mismatch``.
 
 ``200`` of both accepts is the membership created; ``409 organization_suspended`` and
-``409 already_member`` are the other refusals. Every answer is ``Cache-Control: no-store``.
+``409 already_member`` are the other refusals, and ``503 organization_busy`` a lock of the
+organization not taken in time (Q-230). Every answer is ``Cache-Control: no-store``.
 """
 
 from __future__ import annotations
@@ -43,6 +44,7 @@ from apps.common.api.schema import PROBLEM
 from apps.common.authz.roles import Role
 from apps.identity.api.authentication import Unauthenticated
 from apps.identity.selectors.auth_sessions import RequestAuthContext
+from apps.tenancy.api.base import ORGANIZATION_BUSY_RESPONSE
 from apps.tenancy.api.serializers.invitations import (
     AcceptedInvitationSerializer,
     InvitationAcceptSerializer,
@@ -120,6 +122,7 @@ class AcceptInvitationView(APIView):
             ),
             (401, PROBLEM_CONTENT_TYPE): _UNAUTHORIZED,
             (409, PROBLEM_CONTENT_TYPE): _CONFLICT,
+            (503, PROBLEM_CONTENT_TYPE): ORGANIZATION_BUSY_RESPONSE,
         },
     )
     def post(self, request: Request) -> Response:
@@ -175,6 +178,7 @@ class AcceptMyInvitationView(APIView):
             ),
             (401, PROBLEM_CONTENT_TYPE): _UNAUTHORIZED,
             (409, PROBLEM_CONTENT_TYPE): _CONFLICT,
+            (503, PROBLEM_CONTENT_TYPE): ORGANIZATION_BUSY_RESPONSE,
         },
     )
     def post(self, request: Request, invitation_id: uuid.UUID) -> Response:

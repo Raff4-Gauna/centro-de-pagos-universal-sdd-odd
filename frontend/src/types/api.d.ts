@@ -273,6 +273,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/memberships/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Los miembros de la organización activa (owner y admin) */
+        get: operations["memberships_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/memberships/{id}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Cambiar el rol de una membership de la organización activa */
+        patch: operations["memberships_partial_update"];
+        trace?: never;
+    };
     "/api/organizations/": {
         parameters: {
             query?: never;
@@ -347,6 +381,12 @@ export interface components {
             readonly allowed_actions: components["schemas"]["TenancyActionEnum"][];
             readonly invitable_roles: components["schemas"]["RoleEnum"][];
         };
+        /**
+         * @description * `revoked` - revoked
+         *     * `left` - left
+         * @enum {string}
+         */
+        EndedReasonEnum: "revoked" | "left";
         InvitationAcceptRequest: {
             token: string;
         };
@@ -404,6 +444,12 @@ export interface components {
             readonly organization_name: string;
             readonly role: string;
         };
+        /**
+         * @description * `active` - active
+         *     * `revoked` - revoked
+         * @enum {string}
+         */
+        MembershipStatusEnum: "active" | "revoked";
         MyInvitation: {
             /** Format: uuid */
             readonly id: string;
@@ -418,6 +464,26 @@ export interface components {
             readonly name: string;
             readonly status: components["schemas"]["OrganizationStatusEnum"];
             readonly role: components["schemas"]["RoleEnum"];
+        };
+        /** @enum {unknown} */
+        NullEnum: null;
+        OrganizationMember: {
+            /** Format: uuid */
+            readonly id: string;
+            readonly user: components["schemas"]["OrganizationMemberUser"];
+            readonly role: components["schemas"]["RoleEnum"];
+            readonly status: components["schemas"]["MembershipStatusEnum"];
+            readonly ended_reason: (components["schemas"]["EndedReasonEnum"] | components["schemas"]["NullEnum"]) | null;
+            /** Format: date-time */
+            readonly created_at: string;
+            readonly allowed_actions: components["schemas"]["TenancyActionEnum"][];
+            readonly assignable_roles: components["schemas"]["RoleEnum"][];
+        };
+        OrganizationMemberUser: {
+            /** Format: uuid */
+            readonly id: string;
+            readonly email: string;
+            readonly name: string;
         };
         /**
          * @description * `active` - active
@@ -470,6 +536,21 @@ export interface components {
             previous?: string | null;
             results: components["schemas"]["MyOrganization"][];
         };
+        PaginatedOrganizationMemberList: {
+            /** @example 123 */
+            count: number;
+            /**
+             * @description Ruta relativa con la query de la página, o null.
+             * @example /api/recurso/?page=4
+             */
+            next?: string | null;
+            /**
+             * @description Ruta relativa con la query de la página, o null.
+             * @example /api/recurso/?page=2
+             */
+            previous?: string | null;
+            results: components["schemas"]["OrganizationMember"][];
+        };
         PaginatedSessionList: {
             /** @example 123 */
             count: number;
@@ -489,6 +570,9 @@ export interface components {
             name?: string;
             code?: string;
             address?: string;
+        };
+        PatchedMembershipRoleUpdateRequest: {
+            role?: components["schemas"]["RoleEnum"];
         };
         PatchedOrganizationUpdateRequest: {
             name?: string;
@@ -1086,6 +1170,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
+            /** @description code: organization_busy (otra operación tiene tomada la organización; no se escribió nada: se puede reenviar la misma request después de Retry-After: 2 s) */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
             /** @description Error del cliente */
             "4XX": {
                 headers: {
@@ -1221,6 +1314,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
+            /** @description code: organization_busy (otra operación tiene tomada la organización; no se escribió nada: se puede reenviar la misma request después de Retry-After: 2 s) */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
             /** @description Error del cliente */
             "4XX": {
                 headers: {
@@ -1284,6 +1386,15 @@ export interface operations {
             };
             /** @description code: invalid_transition (ya está en ese estado) · organization_suspended */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description code: organization_busy (otra operación tiene tomada la organización; no se escribió nada: se puede reenviar la misma request después de Retry-After: 2 s) */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1370,6 +1481,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
+            /** @description code: organization_busy (otra operación tiene tomada la organización; no se escribió nada: se puede reenviar la misma request después de Retry-After: 2 s) */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
             /** @description Error del cliente */
             "4XX": {
                 headers: {
@@ -1429,6 +1549,15 @@ export interface operations {
             };
             /** @description code: organization_suspended · already_member */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description code: organization_busy (otra operación tiene tomada la organización; no se escribió nada: se puede reenviar la misma request después de Retry-After: 2 s) */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1497,6 +1626,15 @@ export interface operations {
             };
             /** @description code: organization_suspended · already_member */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description code: organization_busy (otra operación tiene tomada la organización; no se escribió nada: se puede reenviar la misma request después de Retry-After: 2 s) */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1594,6 +1732,159 @@ export interface operations {
             };
             /** @description code: unauthenticated · token_expired · token_invalid · session_revoked (con WWW-Authenticate: Bearer realm="hub") */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Error del cliente */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Error del servidor */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    memberships_list: {
+        parameters: {
+            query?: {
+                /** @description Un número de página dentro del conjunto de resultados paginado. */
+                page?: number;
+                /** @description Número de resultados a devolver por página. */
+                page_size?: number;
+                /**
+                 * @description active (por defecto): las vigentes · revoked: las revocadas o abandonadas.
+                 *
+                 *     * `active` - active
+                 *     * `revoked` - revoked
+                 */
+                status?: "active" | "revoked";
+            };
+            header: {
+                /** @description Organización activa de la request (RN-TEN-03). */
+                "X-Organization-Id": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedOrganizationMemberList"];
+                };
+            };
+            /** @description code: forbidden (operator y viewer) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Error del cliente */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Error del servidor */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    memberships_partial_update: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Organización activa de la request (RN-TEN-03). */
+                "X-Organization-Id": string;
+            };
+            path: {
+                /** @description La membership. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PatchedMembershipRoleUpdateRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrganizationMember"];
+                };
+            };
+            /** @description code: validation_error (otra clave que role es unknown_field) · organization_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description code: forbidden (el rol no alcanza: un admin no toca owners, nadie se eleva) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description code: not_found (no existe o es de otra organización: el mismo cuerpo) · organization_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description code: last_owner (dejaría la organización sin owner) · invalid_transition (membership revocada) · organization_suspended */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description code: organization_busy (otra operación tiene tomada la organización; no se escribió nada: se puede reenviar la misma request después de Retry-After: 2 s) */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1801,6 +2092,15 @@ export interface operations {
             };
             /** @description code: organization_suspended */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description code: organization_busy (otra operación tiene tomada la organización; no se escribió nada: se puede reenviar la misma request después de Retry-After: 2 s) */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

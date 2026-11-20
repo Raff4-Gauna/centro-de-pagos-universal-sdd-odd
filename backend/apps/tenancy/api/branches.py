@@ -39,7 +39,7 @@ from rest_framework.response import Response
 from apps.common.api.pagination import HubPageNumberPagination
 from apps.common.api.problems import PROBLEM_CONTENT_TYPE
 from apps.common.api.schema import PROBLEM
-from apps.tenancy.api.base import TenantViewSet
+from apps.tenancy.api.base import ORGANIZATION_BUSY_RESPONSE, TenantViewSet
 from apps.tenancy.api.serializers.branches import (
     BranchCreateSerializer,
     BranchListQuerySerializer,
@@ -135,6 +135,7 @@ class BranchViewSet(TenantViewSet):
             ),
             (403, PROBLEM_CONTENT_TYPE): _FORBIDDEN,
             (409, PROBLEM_CONTENT_TYPE): _TAKEN,
+            (503, PROBLEM_CONTENT_TYPE): ORGANIZATION_BUSY_RESPONSE,
         },
     )
     def create(self, request: Request) -> Response:
@@ -165,6 +166,7 @@ class BranchViewSet(TenantViewSet):
             (403, PROBLEM_CONTENT_TYPE): _FORBIDDEN,
             (404, PROBLEM_CONTENT_TYPE): _NOT_FOUND,
             (409, PROBLEM_CONTENT_TYPE): _TAKEN,
+            (503, PROBLEM_CONTENT_TYPE): ORGANIZATION_BUSY_RESPONSE,
         },
     )
     def partial_update(self, request: Request, **kwargs: Any) -> Response:
@@ -181,6 +183,7 @@ class BranchViewSet(TenantViewSet):
             (403, PROBLEM_CONTENT_TYPE): _FORBIDDEN,
             (404, PROBLEM_CONTENT_TYPE): _NOT_FOUND,
             (409, PROBLEM_CONTENT_TYPE): _TRANSITION,
+            (503, PROBLEM_CONTENT_TYPE): ORGANIZATION_BUSY_RESPONSE,
         },
     )
     def deactivate(self, request: Request, **kwargs: Any) -> Response:
@@ -200,6 +203,7 @@ class BranchViewSet(TenantViewSet):
             (403, PROBLEM_CONTENT_TYPE): _FORBIDDEN,
             (404, PROBLEM_CONTENT_TYPE): _NOT_FOUND,
             (409, PROBLEM_CONTENT_TYPE): _TRANSITION,
+            (503, PROBLEM_CONTENT_TYPE): ORGANIZATION_BUSY_RESPONSE,
         },
     )
     def reactivate(self, request: Request, **kwargs: Any) -> Response:

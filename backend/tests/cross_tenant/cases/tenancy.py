@@ -27,16 +27,23 @@ the person has no membership in the invitation's organization yet. Each organiza
 ``pending`` invitation for somebody else's email, so "my invitations" that leaks B's carries B's
 invitation id. Accepting by id is a ``POST``, so it gives no ``read``; its isolation is in
 ``tests/tenancy/api/test_my_invitations_api.py`` (another email answers like a missing id).
+
+``/api/memberships/`` and ``/api/memberships/{id}/`` (T-TEN-22): each organization gets an
+``admin`` colleague besides its owner, so a listing that leaks B's members carries B's membership
+ids, and a ``PATCH`` names B's colleague by id with A active (``404``, AC-TEN-02). The rows are
+every membership with its role and status: a role changed in B, or in A while it is suspended,
+shows up.
 """
 
 from __future__ import annotations
 
 from typing import Any
 
+from apps.common.authz.roles import Role
 from apps.common.tenancy.current import tenant_scope
-from apps.tenancy.models import Branch, Invitation, Organization
+from apps.tenancy.models import Branch, Invitation, Membership, Organization
 from tests.cross_tenant.registry import CrossTenantCase, Exemption, Seed
-from tests.tenancy.api.probe import PLATFORM, platform_ctx
+from tests.tenancy.api.probe import PLATFORM, add_member, new_user, platform_ctx
 from tests.tenancy.invitation_setup import issue
 
 _MINE = (
@@ -61,6 +68,8 @@ BRANCHES = "api/branches/"
 BRANCH = "api/branches/(?P<id>[^/.]+)/"
 # harness.build_world: the organization whose rows the suite must never see changed.
 OTHER_ORGANIZATION = "B"
+MEMBERSHIPS = "api/memberships/"
+MEMBERSHIP = "api/memberships/(?P<id>[^/.]+)/"
 
 
 def _current(organization: Organization) -> str:
@@ -138,6 +147,33 @@ def _renamed_branch(organization: Organization) -> dict[str, str]:
     return {"name": f"renombrada-en-{organization.name}", "address": "Calle 1"}
 
 
+def _colleague_name(organization: Organization) -> str:
+    return f"colleague-{organization.name.lower()}"
+
+
+def _add_a_colleague(organization: Organization) -> None:
+    add_member(organization, new_user(_colleague_name(organization)), Role.ADMIN)
+
+
+def _membership_rows(organization: Organization) -> frozenset[tuple[Any, ...]]:
+    rows = Membership.objects.unscoped(PLATFORM).filter(organization=organization)
+    return frozenset(rows.values_list("id", "user_id", "role", "status"))
+
+
+def _memberships(organization: Organization) -> str:
+    return f"/{MEMBERSHIPS}"
+
+
+def _colleague(organization: Organization) -> str:
+    email = f"{_colleague_name(organization)}@hub.test"
+    rows = Membership.objects.unscoped(PLATFORM).filter(organization=organization)
+    return f"/{MEMBERSHIPS}{rows.get(user__email=email).pk}/"
+
+
+def _demoted(organization: Organization) -> dict[str, str]:
+    return {"role": Role.VIEWER.value}
+
+
 CASES: tuple[CrossTenantCase, ...] = (
     CrossTenantCase(CURRENT, "GET", _current),
     CrossTenantCase(CURRENT, "PATCH", _current, body=_renamed),
@@ -147,6 +183,8 @@ CASES: tuple[CrossTenantCase, ...] = (
     CrossTenantCase(BRANCH, "PATCH", _active_branch, body=_renamed_branch),
     CrossTenantCase("api/branches/<str:id>/deactivate/", "POST", _to_deactivate),
     CrossTenantCase("api/branches/<str:id>/reactivate/", "POST", _to_reactivate),
+    CrossTenantCase(MEMBERSHIPS, "GET", _memberships),
+    CrossTenantCase(MEMBERSHIP, "PATCH", _colleague, body=_demoted),
 )
 EXEMPT: tuple[Exemption, ...] = (
     Exemption("api/organizations/", _MINE, read=lambda organization: "/api/organizations/"),
@@ -158,4 +196,5 @@ SEEDS: tuple[Seed, ...] = (
     Seed(create=_no_rows, rows=_organization_row),
     Seed(create=_create_branches, rows=_branch_rows),
     Seed(create=_invite_a_guest, rows=_invitation_rows),
+    Seed(create=_add_a_colleague, rows=_membership_rows),
 )

@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Centro de Pagos Universal API
-  version: 0.14.0
+  version: 0.15.0
 paths:
   /api/auth/bff/login/complete/:
     post:
@@ -430,6 +430,14 @@ paths:
                 $ref: '#/components/schemas/Problem'
           description: 'code: conflict (nombre o código de otra sucursal activa) ·
             organization_suspended'
+        '503':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: 'code: organization_busy (otra operación tiene tomada la organización;
+            no se escribió nada: se puede reenviar la misma request después de Retry-After:
+            2 s)'
         4XX:
           description: Error del cliente
           content:
@@ -552,6 +560,14 @@ paths:
                 $ref: '#/components/schemas/Problem'
           description: 'code: conflict (nombre o código de otra sucursal activa) ·
             organization_suspended'
+        '503':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: 'code: organization_busy (otra operación tiene tomada la organización;
+            no se escribió nada: se puede reenviar la misma request después de Retry-After:
+            2 s)'
         4XX:
           description: Error del cliente
           content:
@@ -613,6 +629,14 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: 'code: invalid_transition (ya está en ese estado) · organization_suspended'
+        '503':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: 'code: organization_busy (otra operación tiene tomada la organización;
+            no se escribió nada: se puede reenviar la misma request después de Retry-After:
+            2 s)'
         4XX:
           description: Error del cliente
           content:
@@ -681,6 +705,14 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: 'code: invalid_transition (ya está en ese estado) · organization_suspended'
+        '503':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: 'code: organization_busy (otra operación tiene tomada la organización;
+            no se escribió nada: se puede reenviar la misma request después de Retry-After:
+            2 s)'
         4XX:
           description: Error del cliente
           content:
@@ -737,6 +769,14 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: 'code: organization_suspended · already_member'
+        '503':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: 'code: organization_busy (otra operación tiene tomada la organización;
+            no se escribió nada: se puede reenviar la misma request después de Retry-After:
+            2 s)'
         4XX:
           description: Error del cliente
           content:
@@ -790,6 +830,14 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: 'code: organization_suspended · already_member'
+        '503':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: 'code: organization_busy (otra operación tiene tomada la organización;
+            no se escribió nada: se puede reenviar la misma request después de Retry-After:
+            2 s)'
         4XX:
           description: Error del cliente
           content:
@@ -872,6 +920,156 @@ paths:
                 $ref: '#/components/schemas/Problem'
           description: 'code: unauthenticated · token_expired · token_invalid · session_revoked
             (con WWW-Authenticate: Bearer realm="hub")'
+        4XX:
+          description: Error del cliente
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        5XX:
+          description: Error del servidor
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /api/memberships/:
+    get:
+      operationId: memberships_list
+      summary: Los miembros de la organización activa (owner y admin)
+      parameters:
+      - in: header
+        name: X-Organization-Id
+        schema:
+          type: string
+          format: uuid
+        description: Organización activa de la request (RN-TEN-03).
+        required: true
+      - name: page
+        required: false
+        in: query
+        description: Un número de página dentro del conjunto de resultados paginado.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Número de resultados a devolver por página.
+        schema:
+          type: integer
+      - in: query
+        name: status
+        schema:
+          enum:
+          - active
+          - revoked
+          type: string
+          default: active
+          minLength: 1
+        description: |-
+          active (por defecto): las vigentes · revoked: las revocadas o abandonadas.
+
+          * `active` - active
+          * `revoked` - revoked
+      tags:
+      - tenancy
+      security:
+      - HubBearer: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedOrganizationMemberList'
+          description: ''
+        '403':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: 'code: forbidden (operator y viewer)'
+        4XX:
+          description: Error del cliente
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        5XX:
+          description: Error del servidor
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /api/memberships/{id}/:
+    patch:
+      operationId: memberships_partial_update
+      summary: Cambiar el rol de una membership de la organización activa
+      parameters:
+      - in: header
+        name: X-Organization-Id
+        schema:
+          type: string
+          format: uuid
+        description: Organización activa de la request (RN-TEN-03).
+        required: true
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: La membership.
+        required: true
+      tags:
+      - tenancy
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedMembershipRoleUpdateRequest'
+      security:
+      - HubBearer: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationMember'
+          description: ''
+        '400':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: 'code: validation_error (otra clave que role es unknown_field)
+            · organization_required'
+        '403':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: 'code: forbidden (el rol no alcanza: un admin no toca owners,
+            nadie se eleva)'
+        '404':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: 'code: not_found (no existe o es de otra organización: el mismo
+            cuerpo) · organization_not_found'
+        '409':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: 'code: last_owner (dejaría la organización sin owner) · invalid_transition
+            (membership revocada) · organization_suspended'
+        '503':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: 'code: organization_busy (otra operación tiene tomada la organización;
+            no se escribió nada: se puede reenviar la misma request después de Retry-After:
+            2 s)'
         4XX:
           description: Error del cliente
           content:
@@ -1046,6 +1244,14 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: 'code: organization_suspended'
+        '503':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: 'code: organization_busy (otra operación tiene tomada la organización;
+            no se escribió nada: se puede reenviar la misma request después de Retry-After:
+            2 s)'
         4XX:
           description: Error del cliente
           content:
@@ -1177,6 +1383,14 @@ components:
       - status
       - tax_id
       - timezone
+    EndedReasonEnum:
+      enum:
+      - revoked
+      - left
+      type: string
+      description: |-
+        * `revoked` - revoked
+        * `left` - left
     InvitationAcceptRequest:
       type: object
       properties:
@@ -1339,6 +1553,14 @@ components:
       - organization_id
       - organization_name
       - role
+    MembershipStatusEnum:
+      enum:
+      - active
+      - revoked
+      type: string
+      description: |-
+        * `active` - active
+        * `revoked` - revoked
     MyInvitation:
       type: object
       properties:
@@ -1386,6 +1608,74 @@ components:
       - name
       - role
       - status
+    NullEnum:
+      enum:
+      - null
+    OrganizationMember:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        user:
+          allOf:
+          - $ref: '#/components/schemas/OrganizationMemberUser'
+          readOnly: true
+        role:
+          allOf:
+          - $ref: '#/components/schemas/RoleEnum'
+          readOnly: true
+        status:
+          allOf:
+          - $ref: '#/components/schemas/MembershipStatusEnum'
+          readOnly: true
+        ended_reason:
+          readOnly: true
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/EndedReasonEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        allowed_actions:
+          type: array
+          items:
+            $ref: '#/components/schemas/TenancyActionEnum'
+          readOnly: true
+        assignable_roles:
+          type: array
+          items:
+            $ref: '#/components/schemas/RoleEnum'
+          readOnly: true
+      required:
+      - allowed_actions
+      - assignable_roles
+      - created_at
+      - ended_reason
+      - id
+      - role
+      - status
+      - user
+    OrganizationMemberUser:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        email:
+          type: string
+          readOnly: true
+        name:
+          type: string
+          readOnly: true
+      required:
+      - email
+      - id
+      - name
     OrganizationStatusEnum:
       enum:
       - active
@@ -1463,6 +1753,29 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/MyOrganization'
+    PaginatedOrganizationMemberList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          description: Ruta relativa con la query de la página, o null.
+          example: /api/recurso/?page=4
+        previous:
+          type: string
+          nullable: true
+          description: Ruta relativa con la query de la página, o null.
+          example: /api/recurso/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrganizationMember'
     PaginatedSessionList:
       type: object
       required:
@@ -1499,6 +1812,11 @@ components:
         address:
           type: string
           maxLength: 255
+    PatchedMembershipRoleUpdateRequest:
+      type: object
+      properties:
+        role:
+          $ref: '#/components/schemas/RoleEnum'
     PatchedOrganizationUpdateRequest:
       type: object
       properties:

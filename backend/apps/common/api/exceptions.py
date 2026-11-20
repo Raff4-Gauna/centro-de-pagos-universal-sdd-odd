@@ -6,11 +6,15 @@ string, else the class default; a ``ValidationError`` is ``validation_error`` wi
 its ``problem_reason`` as ``reason`` when it sets one (a ``str`` of a closed list) and the headers
 DRF would send (``WWW-Authenticate``, ``Retry-After``). Django's ``Http404`` and
 ``PermissionDenied`` become ``not_found``/``permission_denied`` *without* their message (it may name
-a model or an id). Anything else is ``500 internal_error`` without detail, also with ``DEBUG``. The
-handler runs inside DRF's ``except``, so it sends ``got_request_exception`` there: the access log
-keeps the exception type and frames under the same ``request_id`` (T-PLT-13 review N-5), and the
-test client re-raises it unless built with ``raise_request_exception=False``. Like DRF, it rolls
-back an ``ATOMIC_REQUESTS`` transaction.
+a model or an id). A lock of the organization that waited past ``lock_timeout`` (PostgreSQL's
+``lock_not_available``, ``55P03``: only ``bounded_lock_wait`` sets a lock timeout) is
+``503 organization_busy`` with ``Retry-After: 2`` (SPEC-02 Q-230): the transaction rolled back, so
+nothing was written and the request may be sent again; it is logged as ``api.organization_busy``,
+not as an unhandled exception. Anything else is ``500 internal_error`` without detail, also with
+``DEBUG``. The handler runs inside DRF's ``except``, so it sends ``got_request_exception`` there:
+the access log keeps the exception type and frames under the same ``request_id`` (T-PLT-13 review
+N-5), and the test client re-raises it unless built with ``raise_request_exception=False``. Like
+DRF, it rolls back an ``ATOMIC_REQUESTS`` transaction.
 
 ``not_found``/``server_error`` (``config.urls``; Django uses them only with ``DEBUG=False``): the
 same envelope for paths under ``/api/`` (an unknown route, a plain Django view that fails), Django's
@@ -24,6 +28,7 @@ from typing import Any
 
 from django.core.exceptions import PermissionDenied
 from django.core.signals import got_request_exception
+from django.db import OperationalError
 from django.http import Http404, HttpRequest, HttpResponse, JsonResponse
 from django.views import defaults
 from rest_framework import exceptions
@@ -34,14 +39,30 @@ from rest_framework.views import set_rollback
 from apps.common.api.problems import (
     INTERNAL_ERROR,
     NOT_FOUND,
+    ORGANIZATION_BUSY,
     PROBLEM_CONTENT_TYPE,
+    RETRY_AFTER_BUSY,
     VALIDATION_ERROR,
     build_problem,
     validation_errors,
 )
+from apps.common.logging import get_logger
 from apps.common.logging.context import current_request_id
 
 API_PREFIX = "/api/"
+# SQLSTATE of a lock not taken within lock_timeout (or NOWAIT, which the Hub does not use).
+LOCK_NOT_AVAILABLE = "55P03"
+BUSY_EVENT = "api.organization_busy"
+
+logger = get_logger(__name__)
+
+
+def is_lock_timeout(exc: BaseException) -> bool:
+    """Whether ``exc`` is Django's wrapper of PostgreSQL's ``lock_not_available``."""
+    cause = exc.__cause__
+    return isinstance(exc, OperationalError) and getattr(cause, "sqlstate", None) == (
+        LOCK_NOT_AVAILABLE
+    )
 
 
 def problem_exception_handler(exc: Exception, context: Mapping[str, Any]) -> Response:
@@ -51,6 +72,10 @@ def problem_exception_handler(exc: Exception, context: Mapping[str, Any]) -> Res
     elif isinstance(exc, PermissionDenied):
         exc = exceptions.PermissionDenied()
     set_rollback()
+    if is_lock_timeout(exc):
+        logger.warning(BUSY_EVENT)
+        problem = build_problem(code=ORGANIZATION_BUSY, status=503, request_id=current_request_id())
+        return _response(problem, 503, {"Retry-After": str(RETRY_AFTER_BUSY)})
     if not isinstance(exc, exceptions.APIException):
         request = context.get("request")
         got_request_exception.send(sender=None, request=getattr(request, "_request", request))

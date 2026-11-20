@@ -18,7 +18,8 @@ class exists (``V.permission_classes = ...``, ``as_view(permission_classes=...)`
 on every request, before any permission runs, and answers a generic ``500``.
 
 The schema declares ``X-Organization-Id`` as a required header of every operation (design.md §6),
-so the frontend's generated types demand it.
+so the frontend's generated types demand it. ``ORGANIZATION_BUSY_RESPONSE`` is the ``503`` every
+operation that takes a lock of the organization documents (Q-230).
 """
 
 from __future__ import annotations
@@ -29,9 +30,11 @@ from typing import TYPE_CHECKING, Any, ClassVar
 from django.core.exceptions import ImproperlyConfigured
 from drf_spectacular.openapi import AutoSchema
 from drf_spectacular.types import OpenApiTypes
-from drf_spectacular.utils import OpenApiParameter
+from drf_spectacular.utils import OpenApiParameter, OpenApiResponse
 from rest_framework import viewsets
 
+from apps.common.api.problems import RETRY_AFTER_BUSY
+from apps.common.api.schema import PROBLEM
 from apps.common.authz.actions import ActionSpec
 from apps.common.tenancy.context import TenantContext
 from apps.identity.api.authentication import IsAuthenticated
@@ -53,6 +56,15 @@ ORGANIZATION_HEADER = OpenApiParameter(
     location=OpenApiParameter.HEADER,
     required=True,
     description="Organización activa de la request (RN-TEN-03).",
+)
+
+
+ORGANIZATION_BUSY_RESPONSE = OpenApiResponse(
+    response={"$ref": f"#/components/schemas/{PROBLEM}"},
+    description=(
+        "code: organization_busy (otra operación tiene tomada la organización; no se escribió "
+        f"nada: se puede reenviar la misma request después de Retry-After: {RETRY_AFTER_BUSY} s)"
+    ),
 )
 
 
