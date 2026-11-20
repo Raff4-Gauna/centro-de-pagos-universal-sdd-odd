@@ -2,10 +2,10 @@
 
 Every ``TenantViewSet`` route of the module registers one ``CrossTenantCase`` per method here, in
 the PR that adds it (DoD, ``tasks.md``). A route that runs without an active organization
-(``GET /api/organizations/``, accepting an invitation, design.md §3.5) goes to ``EXEMPT`` with its
-reason; a ``GET`` behind the login also gives ``read``, the URL the suite reads as A's member to
-check it is scoped to the person. Until a route exists, its entry would be stale: the walker fails
-on both. The first one is ``GET /api/organizations/`` (T-TEN-12).
+(``GET /api/organizations/``, ``POST /api/invitations/accept/``, design.md §3.5) goes to ``EXEMPT``
+with its reason; a ``GET`` behind the login also gives ``read``, the URL the suite reads as A's
+member to check it is scoped to the person. Until a route exists, its entry would be stale: the
+walker fails on both. The first one is ``GET /api/organizations/`` (T-TEN-12).
 
 ``/api/organizations/current/`` (T-TEN-13) names no object: the organization is the header's.
 ``SEEDS`` adds the organization's own editable row, so the suite sees an edit that lands on B, or
@@ -28,6 +28,10 @@ from tests.tenancy.api.probe import PLATFORM, platform_ctx
 _MINE = (
     "ruta de alcance de usuario: las organizaciones de la persona, exenta de la organización activa"
     " (design.md §3.5)"
+)
+_ACCEPT = (
+    "aceptar una invitación con su token: la persona todavía no es miembro; la organización es la "
+    "de la invitación, no la del header (design.md §3.5, §4.4)"
 )
 CURRENT = "api/organizations/current/"
 _FIELDS = ("id", "name", "legal_name", "tax_id", "timezone", "status")
@@ -82,6 +86,7 @@ CASES: tuple[CrossTenantCase, ...] = (
 )
 EXEMPT: tuple[Exemption, ...] = (
     Exemption("api/organizations/", _MINE, read=lambda organization: "/api/organizations/"),
+    Exemption("api/invitations/accept/", _ACCEPT),
 )
 SEEDS: tuple[Seed, ...] = (
     Seed(create=_no_rows, rows=_organization_row),

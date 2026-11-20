@@ -138,7 +138,8 @@ def test_AC_PLT_23_problem_component_on_4xx_5xx() -> None:
             assert content == {PROBLEM_CONTENT_TYPE: {"schema": {"$ref": PROBLEM_REF}}}
     problem = generated["components"]["schemas"]["Problem"]
     assert problem["required"] == ["type", "title", "status", "code", "request_id"]
-    assert set(problem["properties"]) == {*problem["required"], "detail", "errors"}
+    # `reason` (SPEC-02, invitation_invalid): optional, a closed value, never the input.
+    assert set(problem["properties"]) == {*problem["required"], "detail", "errors", "reason"}
     field_error = generated["components"]["schemas"]["ProblemFieldError"]
     assert field_error["required"] == ["field", "code", "message"]
     # T-PLT-15 review: detail and errors[].message may echo client input; text, never HTML.

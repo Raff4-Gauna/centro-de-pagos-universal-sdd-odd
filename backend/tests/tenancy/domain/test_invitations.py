@@ -16,6 +16,9 @@ from apps.identity.domain import emails as identity_emails
 from apps.tenancy.domain import invitations
 from apps.tenancy.domain.invitations import (
     INVITATION_TTL,
+    InvalidReason,
+    InvitationStatus,
+    decide_accept,
     emails_match,
     expires_at_for,
     hash_token,
@@ -135,3 +138,57 @@ def test_RNF_TEN_03_hash_is_sha256_hex() -> None:
 def test_RNF_TEN_03_empty_token_has_no_hash() -> None:
     with pytest.raises(ValueError, match="empty"):
         hash_token("")
+
+
+# --- decide_accept: the order of design.md §4.4 ----------------------------------------------
+
+EXPIRES = ISSUED + INVITATION_TTL
+
+
+def decide(status: str = "pending", email: str = "x@dominio.com", **now: datetime) -> object:
+    return decide_accept(
+        status=InvitationStatus(status),
+        expires_at=EXPIRES,
+        invited_email="x@dominio.com",
+        user_email=email,
+        now=now.get("now", EXPIRES - timedelta(minutes=1)),
+    )
+
+
+@pytest.mark.parametrize(
+    ("status", "reason"),
+    [
+        ("pending", None),
+        ("accepted", InvalidReason.USED),
+        ("revoked", InvalidReason.REVOKED),
+        ("expired", InvalidReason.EXPIRED),
+    ],
+)
+def test_AC_TEN_19_each_status_has_its_reason(status: str, reason: InvalidReason | None) -> None:
+    assert decide(status) is reason
+
+
+def test_AC_TEN_25_decide_at_the_edge() -> None:
+    assert decide(now=EXPIRES - timedelta(minutes=1)) is None
+    assert decide(now=EXPIRES) is InvalidReason.EXPIRED
+
+
+def test_AC_TEN_18_other_email_comes_first() -> None:
+    """Another person learns nothing of the status nor the clock of someone else's invitation."""
+    for status in ("pending", "accepted", "revoked", "expired"):
+        assert decide(status, "y@dominio.com", now=EXPIRES) is InvalidReason.EMAIL_MISMATCH
+
+
+def test_AC_TEN_35_decide_ignores_case_and_ends_not_aliases() -> None:
+    assert decide(email="  X@DOMINIO.com ") is None
+    assert decide(email="x+1@dominio.com") is InvalidReason.EMAIL_MISMATCH
+
+
+def test_RN_TEN_12_reasons_are_the_contract() -> None:
+    assert [r.value for r in InvalidReason] == [
+        "not_found",
+        "email_mismatch",
+        "revoked",
+        "used",
+        "expired",
+    ]

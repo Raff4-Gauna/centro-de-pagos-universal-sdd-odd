@@ -6,6 +6,7 @@ from django.urls import URLPattern, URLResolver, path
 from rest_framework.routers import SimpleRouter
 
 from apps.tenancy.api.branches import BranchViewSet
+from apps.tenancy.api.invitations import AcceptInvitationView
 from apps.tenancy.api.organizations import CurrentOrganizationViewSet, MyOrganizationsView
 
 app_name = "tenancy"
@@ -24,4 +25,6 @@ urlpatterns: list[URLPattern | URLResolver] = [
         name="organization-current",
     ),
     *router.urls,
+    # Exempt (design.md §3.5): the person has no membership in the invitation's organization yet.
+    path("invitations/accept/", AcceptInvitationView.as_view(), name="invitation-accept"),
 ]

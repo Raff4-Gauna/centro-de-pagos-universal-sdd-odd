@@ -23,12 +23,18 @@ class OrgStatus(StrEnum):
 
 
 class SystemReason(StrEnum):
-    """Why a process acts without a user (design.md §3.6)."""
+    """Why a process acts without a user (design.md §3.6).
+
+    ``INVITATION_ACCEPT``: accepting an invitation writes in an organization where the person has
+    no membership yet (design.md §4.4; tasks.md, "Ajustes al diseño"). The service checks the
+    suspension itself and audits the person as the actor.
+    """
 
     WEBHOOK = "webhook"
     POLLER = "poller"
     CELERY = "celery"
     PLATFORM_COMMAND = "platform_command"
+    INVITATION_ACCEPT = "invitation_accept"
 
 
 @dataclass(frozen=True, slots=True)

@@ -109,7 +109,13 @@ def test_RF_TEN_01_context_is_suspended_flag() -> None:
 
 def test_RF_TEN_01_enum_values_are_the_contract() -> None:
     assert {s.value for s in OrgStatus} == {"active", "suspended"}
-    assert {r.value for r in SystemReason} == {"webhook", "poller", "celery", "platform_command"}
+    assert {r.value for r in SystemReason} == {
+        "webhook",
+        "poller",
+        "celery",
+        "platform_command",
+        "invitation_accept",
+    }
 
 
 # --- tenant_scope / current_tenant ---

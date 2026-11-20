@@ -62,9 +62,11 @@ FLOAT_ALLOWLIST: tuple[AllowEntry, ...] = ()
 TENANT_SCOPES: frozenset[str] = frozenset({"for_tenant", "unscoped"})
 
 # Scopes that one model declares on its own queryset (design.md §3.4): they open the manager of
-# that model only, by model label. ``Invitation.by_token_hash``/``pending_for_email`` join with
-# ``Invitation`` (T-TEN-14); ``for_session_accept`` is per file too (T-TEN-16).
+# that model only, by model label. ``Invitation.by_token_hash`` came with accepting by token
+# (T-TEN-15); ``pending_for_email`` comes with "my invitations" and ``for_session_accept``, which is
+# per file too, with accepting from the session (T-TEN-16).
 MODEL_SCOPES: dict[str, frozenset[str]] = {
+    "tenancy.Invitation": frozenset({"by_token_hash"}),
     "tenancy.Membership": frozenset({"for_user"}),
 }
 
@@ -81,8 +83,8 @@ UNSCOPED_ALLOWLIST: tuple[AllowEntry, ...] = (
     ),
 )
 
-# Raw SQL and Django's persistence internals in business code
-# (tenant_rules.tenant_query_violations).
+# Raw SQL, Django's persistence internals and the restricted names of ``tenant_instance_rules``
+# (``system_context``) in business code (tenant_rules.tenant_query_violations).
 # ``count``: one more occurrence in the same file fails, so a second cursor needs its own review.
 _NO_TABLES = "SELECT 1 de /readyz (AC-PLT-02): no lee ninguna tabla"
 _THROWAWAY_DB = "herramienta del operador sobre una BD descartable (AC-PLT-17), no es negocio"
@@ -108,6 +110,14 @@ TENANT_QUERY_ALLOWLIST: tuple[AllowEntry, ...] = (
         "connection.cursor",
         "estado de la organización por id (design.md §3.1, §3.7): SELECT status ... FOR KEY SHARE "
         "y lock_timeout; common no importa Organization y su manager exige un TenantContext",
+        count=1,
+    ),
+    AllowEntry(
+        "apps/tenancy/services/invitation_accept.py",
+        "system_context",
+        "aceptar una invitación (design.md §4.4): la persona todavía no tiene membership, así que "
+        "no hay UserActor; el scope es la organización de la invitación, con "
+        "SystemReason.INVITATION_ACCEPT, y el servicio chequea la suspensión él mismo",
         count=1,
     ),
 )

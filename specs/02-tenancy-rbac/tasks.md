@@ -48,12 +48,15 @@ Donde el diseño y el código de SPEC-00, o el orden real, difieren, manda esta 
 | `TENANT_MODEL`, `PLATFORM_OPERATOR_EMAILS`, etc. | Campos en `PlatformEnv` los que vienen del entorno; constantes en `base.py` los demás | `env.py` es el único que lee el entorno (RN-PLT-02) |
 | Auditoría `apps/common/audit` y `AuditPort` de identity | Conviven; los dos escriben al canal `audit` | El diseño aprobado define ambos; unificarlos queda para SPEC-10, que aporta el sink real |
 | `TenantModel.save()` exige que coincida con el `TenantContext` activo | Sin tenant activo, `save()`, `delete()` y el `UPDATE`/`INSERT` de `save_base()` de un `TenantModel` fallan cerrado (T-TEN-03). Aceptar una invitación desde la sesión (§4.4) y el puerto `accept_invitations` de SPEC-01, que cruzan organizaciones, abren un `tenant_scope` por organización antes de escribir, y `SystemReason` suma un valor para ese caso | Lo resuelven T-TEN-05 y T-TEN-15. El diseño no lo contradice: el `ContextVar` es justamente lo que lee la guarda de `save()` (ADR-0001) |
+| `SystemReason` suma un valor para aceptar una invitación (fila de arriba) | `SystemReason.INVITATION_ACCEPT = "invitation_accept"`: el servicio abre `tenant_scope(system_context(org_de_la_invitación, INVITATION_ACCEPT))`. Chequea la suspensión él mismo con el estado leído bajo el mutex, y la auditoría nombra a la persona como actor (`AuditActor` de usuario), no al sistema. `invitation.expired` sí lleva actor sistema (Q-225). `system_context` entra en `TENANT_QUERY_ALLOWLIST` para ese archivo, con `count=1` (T-TEN-15) | La persona todavía no tiene membership: no hay `UserActor` que construir. Con `SystemActor`, `lock_membership_mutex` no rechaza la suspensión, y AC-TEN-28 pide `409 organization_suspended` |
+| `400 invitation_invalid` + `reason` (`design.md §6`) | El sobre `problem+json` de SPEC-00 suma un miembro opcional `reason` (extensión de RFC 9457): lo pone el handler cuando la excepción declara `problem_reason`. Solo `invitation_invalid` lo usa. `title` propio para `invitation_invalid` y `already_member` (T-TEN-15) | El sobre de SPEC-00 (`design.md §3.2.4` de 00) no tenía dónde poner `reason`, y el test de contrato fijaba sus propiedades. Es un cambio compatible: campo opcional, versión menor |
+| `Invitation.by_token_hash` se lee desde el servicio (`design.md §4.4`) | `selectors/invitations.py::find_by_token`, que devuelve `InvitationRef(id, organization_id)` (T-TEN-15) | La regla C-01 (`ast_rules.py`) solo deja pasar `TENANT_SCOPES` en `services/`, no los scopes por modelo; los selectors son la capa de lectura. T-TEN-16 y T-TEN-17 suman ahí sus lecturas |
 | `TENANT_HEADER = "X-Organization-Id"` entre los settings nuevos (`design.md §3.1`) | Constante `TENANT_HEADER` en `apps/tenancy/api/permissions.py` | El nombre del header es contrato (`design.md §6`), no configuración: un setting permitiría cambiarlo sin cambiar el contrato ni el frontend |
 | `GET /api/organizations/` → `200 [{id, name, status, role}]` (`design.md §6`, una lista) | La página de SPEC-00: `{count, next, previous, results: [{id, name, status, role}]}` con `HubPageNumberPagination` (T-TEN-12) | La cabecera de §6 fija la paginación por defecto de SPEC-00 para las listas, como `/api/auth/sessions/`; la tabla de §6 muestra solo la forma de cada fila |
 
 ## Resumen
 
-> T-TEN-01, T-TEN-02, T-TEN-03, T-TEN-04, T-TEN-05, T-TEN-06, T-TEN-07, T-TEN-08, T-TEN-09, T-TEN-10, T-TEN-11, T-TEN-12, T-TEN-13, T-TEN-14, T-TEN-24 y T-TEN-29 en revisión; las demás sin empezar. La columna **Evidencia** es obligatoria para `✅` y la verifica `scripts/check_spec_state.py`.
+> T-TEN-01, T-TEN-02, T-TEN-03, T-TEN-04, T-TEN-05, T-TEN-06, T-TEN-07, T-TEN-08, T-TEN-09, T-TEN-10, T-TEN-11, T-TEN-12, T-TEN-13, T-TEN-14, T-TEN-15, T-TEN-24 y T-TEN-29 en revisión; las demás sin empezar. La columna **Evidencia** es obligatoria para `✅` y la verifica `scripts/check_spec_state.py`.
 
 | ID | Título | AC | Capa | Archivos esperados (ver detalle) | Depende de | Agente | Tamaño | Zona roja | Estado | Evidencia |
 |---|---|---|---|---|---|---|---|---|---|---|
@@ -71,7 +74,7 @@ Donde el diseño y el código de SPEC-00, o el orden real, difieren, manda esta 
 | T-TEN-12 | `GET /api/organizations/` y selector para `/api/me` | AC-TEN-08, AC-TEN-21, AC-IDA-21 | API | `apps/tenancy/api/organizations.py`, `selectors/memberships.py`, `services/membership_selector.py` | T-TEN-08, T-IDA-07 | backend-dev | M | Sí | 🟡 | rama `task/T-TEN-12-organizations-list`, PR #113 |
 | T-TEN-13 | Datos de la organización activa | AC-TEN-29 (API) | API | `apps/tenancy/api/organizations.py`, `services/organizations.py`, `domain/tax_id.py` | T-TEN-10, T-TEN-11, T-TEN-12 | backend-dev | L | Sí | 🟡 | rama `task/T-TEN-13-active-org-data`, sin PR |
 | T-TEN-14 | `Invitation` + migración 0003 + reglas puras | AC-TEN-25, AC-TEN-35 (unidad) | DB | `apps/tenancy/models/invitation.py`, `domain/invitations.py` | T-TEN-05 | backend-dev | L | Sí | 🟡 | rama `task/T-TEN-14-invitation-model`, sin PR |
-| T-TEN-15 | Aceptar invitación con token | AC-TEN-17, AC-TEN-18, AC-TEN-19, AC-TEN-25, AC-TEN-35 | Servicio/API | `services/invitation_accept.py`, `api/invitations.py` | T-TEN-10, T-TEN-11, T-TEN-14 | backend-dev | L | Sí | ☐ | |
+| T-TEN-15 | Aceptar invitación con token | AC-TEN-17, AC-TEN-18, AC-TEN-19, AC-TEN-25, AC-TEN-35 | Servicio/API | `services/invitation_accept.py`, `api/invitations.py` | T-TEN-10, T-TEN-11, T-TEN-14 | backend-dev | L | Sí | 🟡 | rama `task/T-TEN-15-accept-invitation`, sin PR |
 | T-TEN-16 | Mis invitaciones y aceptar desde la sesión (Q-124) | AC-TEN-39, AC-TEN-28, AC-TEN-10 | Servicio/API | `selectors/invitations.py`, `api/invitations.py`, `services/invitation_accept.py` | T-TEN-15 | backend-dev | L | Sí | ☐ | |
 | T-TEN-17 | `TenancyInvitationPort` (puerto de SPEC-01) | AC-TEN-17 (vía puerto), AC-IDA-02, AC-IDA-04, AC-IDA-05, AC-IDA-31 | Servicio | `services/invitation_port.py`, `config/settings/base.py` | T-TEN-15, T-IDA-13 | backend-dev | M | Sí | ☐ | |
 | T-TEN-18 | Comando `tenancy_create_org` | AC-TEN-22, AC-TEN-40, AC-IDA-32 | Comandos | `services/platform_org.py`, `management/commands/tenancy_create_org.py` | T-TEN-16, T-TEN-17 | backend-dev | L | Sí | ☐ | |
@@ -534,7 +537,8 @@ T-TEN-30 · suspendida → T-TEN-29.
 ### T-TEN-15 — Aceptar invitación con token
 - **AC:** AC-TEN-17, 18, 19, 25, 35. RN-TEN-11, RN-TEN-12. **Zona roja:** sí.
 - **Archivos:** `services/invitation_accept.py`, `api/invitations.py`, `api/serializers/invitations.py`, `api/urls.py`,
-  `openapi.yaml`, `api.d.ts`, tests.
+  `models/invitation.py` (scope `by_token_hash`), `backend/tests/architecture/allowlists.py`, `openapi.yaml`, `api.d.ts`,
+  tests.
 - **Cambios:** `design.md §4.4`. Servicio único: lo reusan `T-TEN-16` y `T-TEN-17`.
   Abre un `tenant_scope` por organización antes de escribir la membership y suma a `SystemReason` el valor de ese
   caso ("Ajustes al diseño"; T-TEN-05 lo dejó acá).

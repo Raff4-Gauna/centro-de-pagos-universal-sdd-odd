@@ -10,6 +10,10 @@
   the edge (``T + 7d - 1min`` accepts, ``T + 7d`` does not) is a unit test. A naive datetime raises.
 - **Token** (RNF-TEN-03): ``new_token`` has 256 bits of entropy and is shown once; the row keeps
   only ``hash_token(token)``, its SHA-256 in hex (64 characters). Nothing here logs.
+- **Accepting** (AC-TEN-17/18/19/25/35, design.md §4.4): ``decide_accept`` gives the
+  ``InvalidReason`` of an invitation that cannot be accepted, or ``None``, in the order of the
+  diagram: another email first, then a status other than ``pending``, then the clock. What needs the
+  database (a suspended organization, already a member) is the service's.
 """
 
 from __future__ import annotations
@@ -50,6 +54,24 @@ class RevokedReason(StrEnum):
     OPERATOR = "operator"
 
 
+class InvalidReason(StrEnum):
+    """The ``reason`` of ``invitation_invalid`` (design.md §6); never says more than this."""
+
+    NOT_FOUND = "not_found"
+    EMAIL_MISMATCH = "email_mismatch"
+    REVOKED = "revoked"
+    USED = "used"
+    EXPIRED = "expired"
+
+
+# A status other than ``pending`` and what it answers: ``accepted`` is a token used already.
+_CLOSED = {
+    InvitationStatus.ACCEPTED: InvalidReason.USED,
+    InvitationStatus.REVOKED: InvalidReason.REVOKED,
+    InvitationStatus.EXPIRED: InvalidReason.EXPIRED,
+}
+
+
 def normalize_email(email: str) -> str:
     return email.strip().lower()
 
@@ -84,3 +106,22 @@ def hash_token(token: str) -> str:
     if not token:
         raise ValueError("an empty token has no hash")
     return hashlib.sha256(token.encode()).hexdigest()
+
+
+def decide_accept(
+    *,
+    status: InvitationStatus,
+    expires_at: datetime,
+    invited_email: str,
+    user_email: str,
+    now: datetime,
+) -> InvalidReason | None:
+    """Why the user cannot accept it, or ``None`` if the invitation itself allows it."""
+    if not emails_match(invited_email, user_email):
+        return InvalidReason.EMAIL_MISMATCH
+    closed = _CLOSED.get(InvitationStatus(status))
+    if closed is not None:
+        return closed
+    if is_expired(expires_at, now):
+        return InvalidReason.EXPIRED
+    return None
