@@ -44,8 +44,11 @@ import {
 // - `404 organization_not_found` for the company the tab shows: reread the list; if the company
 //   is gone, move to the next one and say so, or, with none left, go to "sin organización".
 // - `409 organization_suspended`: reread the list, so the status (and SuspendedBanner) is current.
+// A person with no company goes to "sin organización"; once the list brings one (an invitation
+// accepted from the session, T-TEN-30), the tab leaves it for "Inicio".
 // The UI never decides permissions: this only picks which company the requests name.
 export const NO_ORGANIZATION_PATH = "/sin-organizacion";
+export const HOME_PATH = "/inicio";
 export const LOST_ACCESS_TEXT = "Ya no tenés acceso a esa empresa";
 
 type ActiveOrgContextValue = Readonly<{
@@ -92,6 +95,7 @@ export function ActiveOrgProvider({ defaultOrganizationId, children }: ActiveOrg
       : resolveActiveOrganization(organizations.data, tabOrganizationId, defaultOrganizationId);
   const activeId = active?.id ?? null;
   const hasNoOrganization = organizations.data?.length === 0;
+  const hasOrganization = (organizations.data?.length ?? 0) > 0;
 
   // The company the tab shows, for the handlers below (they outlive a render).
   const currentRef = useRef<string | null>(null);
@@ -137,8 +141,10 @@ export function ActiveOrgProvider({ defaultOrganizationId, children }: ActiveOrg
   useEffect(() => {
     if (hasNoOrganization && pathname !== NO_ORGANIZATION_PATH) {
       router.replace(NO_ORGANIZATION_PATH);
+    } else if (hasOrganization && pathname === NO_ORGANIZATION_PATH) {
+      router.replace(HOME_PATH);
     }
-  }, [hasNoOrganization, pathname, router]);
+  }, [hasNoOrganization, hasOrganization, pathname, router]);
 
   useEffect(() => {
     async function moveAwayFrom(lostId: string) {

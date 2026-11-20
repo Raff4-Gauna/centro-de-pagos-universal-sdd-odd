@@ -8,6 +8,11 @@ import HomePage from "@/app/(dashboard)/inicio/page";
 
 import { HOME_EMPTY_TEXT, HOME_EMPTY_TITLE, HOME_TITLE } from "./HomeEmpty";
 
+// The invitations notice of Inicio has its own tests (PendingInvitationsNotice.test.tsx).
+vi.mock("@/modules/tenancy/components/PendingInvitationsNotice", () => ({
+  PendingInvitationsNotice: () => null,
+}));
+
 describe("Inicio (AC-PLT-28, spec §14, 07 §2)", () => {
   it("test_AC_PLT_28_home_shows_empty_state_never_blank", () => {
     render(<HomePage />);
