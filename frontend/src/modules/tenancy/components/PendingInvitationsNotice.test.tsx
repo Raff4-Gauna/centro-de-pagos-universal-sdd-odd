@@ -134,10 +134,11 @@ describe("PendingInvitationsNotice (AC-TEN-39, Q-121, Q-124, design.md §3.9)", 
     expect(screen.getByRole("status", { name: PENDING_INVITATIONS_TEXTS.loading })).toBeVisible();
     const notice = await screen.findByRole("region", { name: PENDING_INVITATIONS_TEXTS.title });
     const beta = within(notice).getByRole("row", { name: /Beta/ });
-    expect(beta).toHaveTextContent("owner");
+    expect(beta).toHaveTextContent("Dueño");
+    expect(beta).not.toHaveTextContent("owner");
     // Buenos Aires time (UTC-3), whatever the zone of the browser.
     expect(beta).toHaveTextContent("27/11/2026, 12:30");
-    expect(within(notice).getByRole("row", { name: /Gamma/ })).toHaveTextContent("viewer");
+    expect(within(notice).getByRole("row", { name: /Gamma/ })).toHaveTextContent("Solo lectura");
     expect(container.innerHTML).not.toContain(BETA_INVITATION.id);
 
     const [request] = network.requests;

@@ -6,6 +6,7 @@ import Button from "@mui/material/Button";
 import Paper from "@mui/material/Paper";
 import Skeleton from "@mui/material/Skeleton";
 import Typography from "@mui/material/Typography";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
@@ -17,6 +18,7 @@ import { type AcceptedInvitation } from "../hooks/useMyInvitations";
 import { useAcceptInvitation } from "../hooks/useAcceptInvitation";
 import { saveDefaultOrganization, writeTabOrganization } from "../lib/active-organization";
 import { storeToken, takeInvitationToken } from "../lib/invitation-token";
+import { roleLabel } from "../lib/role-labels";
 import { PENDING_INVITATIONS_TEXTS } from "./PendingInvitationsNotice";
 
 // "Aceptar invitación" (spec §14, RN-TEN-12, AC-TEN-17/18/19, design.md §3.9): the page of the
@@ -26,8 +28,9 @@ import { PENDING_INVITATIONS_TEXTS } from "./PendingInvitationsNotice";
 // `POST /api/invitations/accept/`. The invitation is shown as accepted only after the backend's
 // `200`, with "Ir a la empresa", which picks that company for this tab. A refusal shows the fixed
 // text of its state, from its `code` and `reason` (never `detail`, C-08); only a network or
-// server failure offers "Reintentar". The UI decides nothing: the backend checks the email, the
-// expiry and the status of the organization.
+// server failure offers "Reintentar"; every other refusal, and a link without token, offers "Ir a
+// Inicio" (Q-233). The UI decides nothing: the backend checks the email, the expiry and the status
+// of the organization. The role shows its label (Q-232).
 // Texts: the states of spec §14 and design.md §3.9, in their words.
 export const ACCEPT_INVITATION_TEXTS = {
   title: "Aceptar invitación",
@@ -40,6 +43,7 @@ export const ACCEPT_INVITATION_TEXTS = {
   suspended: "Organización suspendida",
   notFound: "Invitación no encontrada",
   goToOrganization: PENDING_INVITATIONS_TEXTS.goToOrganization,
+  goHome: "Ir a Inicio",
 } as const;
 
 export const INVITATION_PATH = "/invitacion";
@@ -101,7 +105,7 @@ function Accepted({ result }: Readonly<{ result: AcceptedInvitation }>) {
       <Alert severity="success">
         <AlertTitle>{ACCEPT_INVITATION_TEXTS.accepted}</AlertTitle>
         <div>{`${PENDING_INVITATIONS_TEXTS.organization}: ${result.organization.name}`}</div>
-        <div>{`${PENDING_INVITATIONS_TEXTS.role}: ${result.role}`}</div>
+        <div>{`${PENDING_INVITATIONS_TEXTS.role}: ${roleLabel(result.role)}`}</div>
       </Alert>
       <Button variant="contained" onClick={goTo} className="tw-self-start">
         {ACCEPT_INVITATION_TEXTS.goToOrganization}
@@ -112,20 +116,36 @@ function Accepted({ result }: Readonly<{ result: AcceptedInvitation }>) {
 
 type Refusal = Readonly<{ error: ApiError; onRetry: () => void; retrying: boolean }>;
 
-function Refused({ error, onRetry, retrying }: Refusal) {
+// The way out of a refusal (Q-233): "Inicio". A person without a company is taken from there to
+// "sin organización" by the provider, which lists their pending invitations.
+function GoHome() {
   return (
-    <Alert
-      severity="error"
-      action={
-        isRetryable(error) ? (
+    <Button component={Link} href={HOME_PATH} variant="contained" className="tw-self-start">
+      {ACCEPT_INVITATION_TEXTS.goHome}
+    </Button>
+  );
+}
+
+function Refused({ error, onRetry, retrying }: Refusal) {
+  if (isRetryable(error)) {
+    return (
+      <Alert
+        severity="error"
+        action={
           <Button color="inherit" size="small" onClick={onRetry} loading={retrying}>
             {RETRY_LABEL}
           </Button>
-        ) : undefined
-      }
-    >
-      {refusalText(error)}
-    </Alert>
+        }
+      >
+        {refusalText(error)}
+      </Alert>
+    );
+  }
+  return (
+    <>
+      <Alert severity="error">{refusalText(error)}</Alert>
+      <GoHome />
+    </>
   );
 }
 
@@ -179,7 +199,12 @@ export function AcceptInvitation({ hasSession }: AcceptInvitationProps) {
 
   let body;
   if (missing) {
-    body = <Alert severity="error">{ACCEPT_INVITATION_TEXTS.notFound}</Alert>;
+    body = (
+      <>
+        <Alert severity="error">{ACCEPT_INVITATION_TEXTS.notFound}</Alert>
+        <GoHome />
+      </>
+    );
   } else if (isSuccess) {
     body = <Accepted result={data} />;
   } else if (isError && error.status !== 401) {

@@ -24,6 +24,7 @@ import {
   useAcceptMyInvitation,
   useMyInvitations,
 } from "../hooks/useMyInvitations";
+import { roleLabel } from "../lib/role-labels";
 
 // "Invitaciones pendientes en la sesión" (spec §14, RN-TEN-11, AC-TEN-39, Q-121, Q-124, design.md
 // §3.9): on "Inicio" and on "sin organización", each pending invitation of the person's email with
@@ -31,7 +32,7 @@ import {
 // shown as accepted only after the backend's `200`: then its row offers "Ir a la empresa", which
 // picks that company for this tab. A refused accept shows the fixed title of its code
 // (`ApiError.title`, never `detail`, C-08); only a network or server failure offers "Reintentar".
-// Texts: the words of spec §14 and design.md §3.9; the role is the code of 07 §5.3.
+// Texts: the words of spec §14 and design.md §3.9; the role shows its label (Q-232).
 export const PENDING_INVITATIONS_TEXTS = {
   title: "Invitaciones pendientes",
   organization: "Empresa",
@@ -91,7 +92,7 @@ function InvitationRow({ invitation, accepted, accepting, busy, onAccept, onGoTo
       <TableCell>
         <span id={companyId}>{invitation.organization.name}</span>
       </TableCell>
-      <TableCell>{invitation.role}</TableCell>
+      <TableCell>{roleLabel(invitation.role)}</TableCell>
       <TableCell>{formatDateTime(invitation.expires_at)}</TableCell>
       <TableCell align="right">
         {accepted ? (

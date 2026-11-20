@@ -108,6 +108,14 @@ function stored(): string | null {
   return window.sessionStorage.getItem(INVITATION_TOKEN_KEY);
 }
 
+// Q-233: a refusal's only way out is "Ir a Inicio", a link to `/inicio`; never "Reintentar".
+function expectGoHomeOnly() {
+  const home = screen.getByRole("link", { name: TEXTS.goHome });
+  expect(home).toHaveAttribute("href", HOME_PATH);
+  expect(HOME_PATH).toBe("/inicio");
+  expect(screen.queryByRole("button", { name: "Reintentar" })).not.toBeInTheDocument();
+}
+
 function expectNoTokenLeft() {
   expect(window.location.href).not.toContain(TOKEN);
   expect(window.location.hash).toBe("");
@@ -156,7 +164,9 @@ describe("AcceptInvitation (AC-TEN-17, design.md §3.9)", () => {
     answer(json(ACCEPTED));
     expect(await screen.findByText(TEXTS.accepted)).toBeInTheDocument();
     expect(screen.getByText("Empresa: Acme")).toBeInTheDocument();
-    expect(screen.getByText("Rol: operator")).toBeInTheDocument();
+    expect(screen.getByText("Rol: Operador")).toBeInTheDocument();
+    expect(screen.queryByText(/operator/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: TEXTS.goHome })).not.toBeInTheDocument();
     expectNoTokenLeft();
   });
 
@@ -186,7 +196,7 @@ describe("AcceptInvitation (AC-TEN-17, design.md §3.9)", () => {
     expect(await screen.findByText(text)).toBeInTheDocument();
     expect(screen.queryByText(TEXTS.accepted)).not.toBeInTheDocument();
     expect(screen.queryByText("detalle-que-no-se-muestra")).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Reintentar" })).not.toBeInTheDocument();
+    expectGoHomeOnly();
     expectNoTokenLeft();
   });
 
@@ -194,6 +204,7 @@ describe("AcceptInvitation (AC-TEN-17, design.md §3.9)", () => {
     network.respond = () => problem(409, "organization_suspended", "Organización suspendida");
     renderScreen();
     expect(await screen.findByText(TEXTS.suspended)).toBeInTheDocument();
+    expectGoHomeOnly();
     expectNoTokenLeft();
   });
 
@@ -204,6 +215,7 @@ describe("AcceptInvitation (AC-TEN-17, design.md §3.9)", () => {
     network.respond = () => response;
     renderScreen();
     expect(await screen.findByText(title)).toBeInTheDocument();
+    expectGoHomeOnly();
     expectNoTokenLeft();
   });
 
@@ -211,6 +223,7 @@ describe("AcceptInvitation (AC-TEN-17, design.md §3.9)", () => {
     openLink("/invitacion");
     renderScreen();
     expect(await screen.findByText(TEXTS.notFound)).toBeInTheDocument();
+    expectGoHomeOnly();
     expect(network.requests).toHaveLength(0);
     expect(replace).not.toHaveBeenCalled();
   });
@@ -247,6 +260,7 @@ describe("AcceptInvitation (AC-TEN-17, design.md §3.9)", () => {
     network.respond = () => problem(503, "organization_busy", "Hay otra operación en curso");
     renderScreen();
     expect(await screen.findByText("Hay otra operación en curso")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: TEXTS.goHome })).not.toBeInTheDocument();
     expect(stored()).toBeNull();
 
     network.respond = () => json(ACCEPTED);
@@ -263,6 +277,7 @@ describe("AcceptInvitation (AC-TEN-17, design.md §3.9)", () => {
     };
     renderScreen();
     expect(await screen.findByRole("button", { name: "Reintentar" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: TEXTS.goHome })).not.toBeInTheDocument();
     expectNoTokenLeft();
   });
 
