@@ -61,7 +61,7 @@ Donde el diseño y el código de SPEC-00, o el orden real, difieren, manda esta 
 
 ## Resumen
 
-> T-TEN-01, T-TEN-02, T-TEN-03, T-TEN-04, T-TEN-05, T-TEN-06, T-TEN-07, T-TEN-08, T-TEN-09, T-TEN-10, T-TEN-11, T-TEN-12, T-TEN-13, T-TEN-14, T-TEN-15, T-TEN-16, T-TEN-17, T-TEN-22, T-TEN-24, T-TEN-25, T-TEN-29 y T-TEN-30 en revisión; las demás sin empezar. La columna **Evidencia** es obligatoria para `✅` y la verifica `scripts/check_spec_state.py`.
+> T-TEN-01, T-TEN-02, T-TEN-03, T-TEN-04, T-TEN-05, T-TEN-06, T-TEN-07, T-TEN-08, T-TEN-09, T-TEN-10, T-TEN-11, T-TEN-12, T-TEN-13, T-TEN-14, T-TEN-15, T-TEN-16, T-TEN-17, T-TEN-20, T-TEN-22, T-TEN-24, T-TEN-25, T-TEN-29 y T-TEN-30 en revisión; las demás sin empezar. La columna **Evidencia** es obligatoria para `✅` y la verifica `scripts/check_spec_state.py`.
 
 | ID | Título | AC | Capa | Archivos esperados (ver detalle) | Depende de | Agente | Tamaño | Zona roja | Estado | Evidencia |
 |---|---|---|---|---|---|---|---|---|---|---|
@@ -84,7 +84,7 @@ Donde el diseño y el código de SPEC-00, o el orden real, difieren, manda esta 
 | T-TEN-17 | `TenancyInvitationPort` (puerto de SPEC-01) | AC-TEN-17 (vía puerto), AC-IDA-02, AC-IDA-04, AC-IDA-05, AC-IDA-31 | Servicio | `services/invitation_port.py`, `config/settings/base.py` | T-TEN-15, T-IDA-13 | backend-dev | M | Sí | 🟡 | rama `task/T-TEN-17-invitation-port`, sin PR |
 | T-TEN-18 | Comando `tenancy_create_org` | AC-TEN-22, AC-TEN-40, AC-IDA-32 | Comandos | `services/platform_org.py`, `management/commands/tenancy_create_org.py` | T-TEN-16, T-TEN-17 | backend-dev | L | Sí | ☐ | |
 | T-TEN-19 | Comandos de suspensión y primer owner | AC-TEN-28, AC-TEN-29 | Comandos | `management/commands/{tenancy_set_org_status,tenancy_owner_invite}.py` | T-TEN-18 | backend-dev | M | Sí | ☐ | |
-| T-TEN-20 | Crear y listar invitaciones | AC-TEN-15, AC-TEN-20, AC-TEN-24, AC-TEN-26, AC-TEN-34 | Servicio/API | `services/invitations.py`, `api/invitations.py`, `api/serializers/invitations.py` | T-TEN-07, T-TEN-15 | backend-dev | L | Sí | ☐ | |
+| T-TEN-20 | Crear y listar invitaciones | AC-TEN-15, AC-TEN-20, AC-TEN-24, AC-TEN-26, AC-TEN-34 | Servicio/API | `services/invitations.py`, `api/invitations.py`, `api/serializers/invitations.py` | T-TEN-07, T-TEN-15 | backend-dev | L | Sí | 🟡 | rama `task/T-TEN-20-create-invitations`, PR #131 |
 | T-TEN-21 | Reenviar y revocar invitaciones | AC-TEN-02, AC-TEN-15, AC-TEN-24, AC-TEN-26, AC-TEN-37 | Servicio/API | `services/invitations.py`, `api/invitations.py` | T-TEN-20 | backend-dev | M | Sí | ☐ | |
 | T-TEN-22 | Listar memberships y cambiar rol | AC-TEN-02, AC-TEN-05, AC-TEN-13, AC-TEN-15, AC-TEN-16, AC-TEN-27, AC-TEN-34 | Servicio/API | `services/memberships.py`, `api/memberships.py` | T-TEN-07, T-TEN-11 | backend-dev | L | Sí | 🟡 | rama `task/T-TEN-22-memberships`, sin PR |
 | T-TEN-23 | Revocar, abandonar y autorrevocar invitaciones | AC-TEN-04, AC-TEN-13, AC-TEN-14, AC-TEN-15, AC-TEN-31, AC-TEN-36 | Servicio/API | `services/memberships.py`, `api/memberships.py` | T-TEN-21, T-TEN-22 | backend-dev | L | Sí | ☐ | |
@@ -619,11 +619,46 @@ T-TEN-30 · suspendida → T-TEN-29.
 ### T-TEN-20 — Crear y listar invitaciones
 - **AC:** AC-TEN-15, 20, 24, 26, 34. RF-TEN-05, RN-TEN-13, RNF-TEN-03, Q-207. **Zona roja:** sí.
 - **Archivos:** `services/invitations.py`, `api/invitations.py`, `api/serializers/invitations.py`,
-  `backend/tests/cross_tenant/cases/tenancy.py`, `openapi.yaml`, `api.d.ts`, tests.
+  `backend/tests/cross_tenant/cases/tenancy.py`, `openapi.yaml`, `api.d.ts`, `infra/docker-compose.ci.yml`, tests.
 - **Cambios:** `design.md §4.3`, `accept_url` con fragmento `#token=`, una sola vez; `IntegrityError` → `invitation_pending`.
 - **Pruebas:** `test_AC_TEN_15_admin_cannot_invite_owner`, `test_AC_TEN_20_already_member`,
   `test_AC_TEN_24_token_only_in_create_response`, `test_AC_TEN_26_second_pending_rejected`,
   `test_AC_TEN_34_operator_cannot_list`.
+- **Sumados, con su porqué:**
+  - `selectors/invitations.py`: `list_pending` (perezoso, para el paginador), `to_invitations` y `get_invitation`;
+    la API no toca managers (`design.md §3.3`).
+  - `api/urls.py` (monta `invitations` en el router) y `apps/common/api/schema.py` (`API_VERSION` 0.16.0; enums
+    `InvitationStatusEnum` e `InvitationPurposeEnum`).
+  - `FRONTEND_BASE_URL` (`design.md §3.1` lo nombra y `§6` arma `accept_url` con él, pero no existía):
+    `config/settings/{env,dev,test,prod}.py`, `env.example`, `infra/docker-compose.yml` e
+    `infra/docker-compose.ci.yml` (el smoke corre con prod settings y `--env-file env.example`, cuyo valor
+    es `http`: el override fija `https://hub.invalid`, como ya hace con `IDENTITY_BFF_CREDENTIALS`). Solo un origen
+    (`scheme://host[:port]`, sin ruta, query, fragmento ni credenciales); en prod solo `https`; vacío = sin
+    configurar, y crear una invitación falla cerrado (`500`, nada escrito). En test es fijo
+    (`http://localhost:3000`), sin variable de CI.
+  - Tests que fijan `info.version` (pasa a 0.16.0), `tests/tenancy/test_Q_230_organization_busy.py` (crear
+    invitación es otra escritura con lock), `tests/tenancy/api/invitation_api_setup.py` (armado común) y
+    `tests/config/test_RNF_TEN_03_frontend_base_url.py`.
+- **Implementado:**
+  - `GET /api/invitations/` (`invitation.list`): solo `pending` con `expires_at > now`, paginado, por
+    `created_at` e id, `Cache-Control: no-store`. Fila: `{id, email, role, status, purpose, expires_at,
+    invited_by, created_at, allowed_actions}`; `invited_by` = `{id, email, name}` de quien la emitió, `null` si la
+    emitió el operador. `allowed_actions` = la matriz (rol y suspensión) **y** `decide_manage_invitation`:
+    `invitation.resend` y `invitation.revoke` (suspendida: solo `revoke`).
+  - `POST /api/invitations/` (`invitation.create`), cuerpo estricto `{email, role}`: email normalizado y validado
+    con `EmailValidator` (254), mensaje fijo sin eco. Bajo `lock_membership_mutex`: actor releído (revocado →
+    `404 organization_not_found`; `decide_invite` con el rol vigente → `403`), miembro activo con ese email →
+    `409 already_member`, `pending` vencida → `expired` + `invitation.expired` (actor sistema
+    `invitation_expiry`), `pending` vigente → `409 invitation_pending`, `INSERT` en savepoint
+    (`invitation_one_pending_per_org_email` → `invitation_pending`) e `invitation.created` (ids, rol y `purpose`;
+    sin email ni token). `201` = la fila + `accept_url` (`{FRONTEND_BASE_URL}/invitacion#token=<token>`), única
+    respuesta con el token. Los rechazos no se auditan.
+  - `AUDIT_TRIGGERS`: `create_invitation` registra `invitation.created`; `invitation.expired` sigue sin
+    disparador propio (lo trae `T-TEN-26`).
+  - Pruebas extra: `test_AC_TEN_26_two_creations_at_once_leave_one_pending` (hilos),
+    `test_AC_TEN_26_the_unique_constraint_is_invitation_pending`, `test_AC_TEN_26_expired_pending_is_closed_and_replaced`,
+    `test_RN_TEN_08_*` (rol perdido o membership revocada bajo el lock), `test_RNF_TEN_03_*` (setting, contrato,
+    `repr`), `test_AC_TEN_28_suspended_*` y la suite cross-tenant con `GET`/`POST /api/invitations/`.
 
 ### T-TEN-21 — Reenviar y revocar invitaciones
 - **AC:** AC-TEN-02, 15, 24, 26, 37. RF-TEN-05. **Zona roja:** sí.

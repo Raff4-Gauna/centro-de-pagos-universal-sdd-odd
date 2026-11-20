@@ -9,6 +9,7 @@ from apps.tenancy.api.branches import BranchViewSet
 from apps.tenancy.api.invitations import (
     AcceptInvitationView,
     AcceptMyInvitationView,
+    InvitationViewSet,
     MyInvitationsView,
 )
 from apps.tenancy.api.memberships import MembershipViewSet
@@ -20,6 +21,7 @@ app_name = "tenancy"
 router = SimpleRouter()
 router.register("branches", BranchViewSet, basename="branch")
 router.register("memberships", MembershipViewSet, basename="membership")
+router.register("invitations", InvitationViewSet, basename="invitation")
 
 urlpatterns: list[URLPattern | URLResolver] = [
     # Exempt from the active organization (design.md §3.5): the organizations a user can pick.

@@ -33,6 +33,11 @@ invitation id. Accepting by id is a ``POST``, so it gives no ``read``; its isola
 ids, and a ``PATCH`` names B's colleague by id with A active (``404``, AC-TEN-02). The rows are
 every membership with its role and status: a role changed in B, or in A while it is suspended,
 shows up.
+
+``/api/invitations/`` (T-TEN-20): the ``pending`` invitation of each organization's ``Seed`` is what
+a listing that leaks B's carries (B's invitation id). A ``POST`` invites a new email named after the
+organization it is built for; built for B it also carries B's ``organization_id``: the strict body
+refuses it and nothing lands in B. Built for A it creates the invitation in A (``201``).
 """
 
 from __future__ import annotations
@@ -70,6 +75,7 @@ BRANCH = "api/branches/(?P<id>[^/.]+)/"
 OTHER_ORGANIZATION = "B"
 MEMBERSHIPS = "api/memberships/"
 MEMBERSHIP = "api/memberships/(?P<id>[^/.]+)/"
+INVITATIONS = "api/invitations/"
 
 
 def _current(organization: Organization) -> str:
@@ -174,6 +180,17 @@ def _demoted(organization: Organization) -> dict[str, str]:
     return {"role": Role.VIEWER.value}
 
 
+def _invitations(organization: Organization) -> str:
+    return f"/{INVITATIONS}"
+
+
+def _new_invitation(organization: Organization) -> dict[str, str]:
+    body = {"email": f"invitee-of-{organization.name.lower()}@hub.test", "role": "viewer"}
+    if organization.name == OTHER_ORGANIZATION:
+        body["organization_id"] = str(organization.id)
+    return body
+
+
 CASES: tuple[CrossTenantCase, ...] = (
     CrossTenantCase(CURRENT, "GET", _current),
     CrossTenantCase(CURRENT, "PATCH", _current, body=_renamed),
@@ -185,6 +202,8 @@ CASES: tuple[CrossTenantCase, ...] = (
     CrossTenantCase("api/branches/<str:id>/reactivate/", "POST", _to_reactivate),
     CrossTenantCase(MEMBERSHIPS, "GET", _memberships),
     CrossTenantCase(MEMBERSHIP, "PATCH", _colleague, body=_demoted),
+    CrossTenantCase(INVITATIONS, "GET", _invitations),
+    CrossTenantCase(INVITATIONS, "POST", _invitations, body=_new_invitation),
 )
 EXEMPT: tuple[Exemption, ...] = (
     Exemption("api/organizations/", _MINE, read=lambda organization: "/api/organizations/"),

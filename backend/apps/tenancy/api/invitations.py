@@ -1,6 +1,22 @@
-"""Accept an invitation and list one's own (RN-TEN-11, RN-TEN-12, design.md §3.5, §4.4, §6).
+"""Invitations: of the active organization, and accepting one's own (RF-TEN-05, design.md §6).
 
-Three routes, all exempt from the active organization (design.md §3.5): the person has no
+``/api/invitations/`` (``InvitationViewSet``) is a ``TenantViewSet``: ``X-Organization-Id`` names
+the organization and the resolution checks the membership on every request (RN-TEN-03).
+
+- ``GET`` is ``invitation.list``: owner and admin only (Q-218), so an operator or a viewer gets
+  ``403`` and no email (AC-TEN-34). The ``pending`` and still valid ones, paginated as the other
+  lists (``HubPageNumberPagination``), by creation; never a token (AC-TEN-24).
+- ``POST`` with ``{email, role}`` is ``invitation.create`` (owner and admin, a ``WRITE``):
+  ``services.invitations.create_invitation`` decides under the organization's lock (design.md
+  §4.3). ``201`` is the invitation and its ``accept_url``, the only response that carries the
+  token, once (RNF-TEN-03, Q-207). Refusals: ``403`` (an admin inviting an ``owner``, AC-TEN-15),
+  ``409 already_member`` (AC-TEN-20), ``409 invitation_pending`` (AC-TEN-26),
+  ``409 organization_suspended``, ``400 validation_error`` and ``503 organization_busy`` (Q-230).
+
+Both answer ``Cache-Control: no-store`` (invitees' emails, and the link). Resending and revoking
+come with T-TEN-21.
+
+The other three routes are exempt from the active organization (design.md §3.5): the person has no
 membership in the invitation's organization yet, so none is a ``TenantViewSet`` and
 ``X-Organization-Id`` is neither required nor read; the organization is the invitation's. Only a
 person with a Hub session reaches them (``401`` otherwise); the invitee is always the
@@ -32,7 +48,7 @@ from typing import Any
 
 from django.utils import timezone
 from drf_spectacular.utils import OpenApiResponse, extend_schema
-from rest_framework import generics, serializers
+from rest_framework import generics, serializers, status
 from rest_framework.exceptions import ValidationError
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -44,19 +60,31 @@ from apps.common.api.schema import PROBLEM
 from apps.common.authz.roles import Role
 from apps.identity.api.authentication import Unauthenticated
 from apps.identity.selectors.auth_sessions import RequestAuthContext
-from apps.tenancy.api.base import ORGANIZATION_BUSY_RESPONSE
+from apps.tenancy.api.base import ORGANIZATION_BUSY_RESPONSE, TenantViewSet
 from apps.tenancy.api.serializers.invitations import (
     AcceptedInvitationSerializer,
+    CreatedInvitationSerializer,
     InvitationAcceptSerializer,
+    InvitationCreateSerializer,
+    InvitationSerializer,
     JoinedOrganizationSerializer,
+    invitation_view,
 )
-from apps.tenancy.selectors.invitations import MyInvitation, list_my_pending
+from apps.tenancy.domain.permissions import TENANCY_ACTIONS, TenancyAction
+from apps.tenancy.selectors.invitations import (
+    MyInvitation,
+    get_invitation,
+    list_my_pending,
+    list_pending,
+    to_invitations,
+)
 from apps.tenancy.services.fields import unknown_field_errors
 from apps.tenancy.services.invitation_accept import (
     Invitee,
     accept_by_token,
     accept_from_session,
 )
+from apps.tenancy.services.invitations import create_invitation
 
 INVITATIONS_TAG = "tenancy"
 
@@ -106,6 +134,68 @@ class MyInvitationSerializer(serializers.Serializer[MyInvitation]):
 
     class Meta:
         ref_name = "MyInvitation"
+
+
+class InvitationViewSet(TenantViewSet):
+    serializer_class = InvitationSerializer
+    pagination_class = HubPageNumberPagination
+    action_specs = {  # noqa: RUF012 - read once by TenantViewSet.__init_subclass__
+        "list": TENANCY_ACTIONS[TenancyAction.INVITATION_LIST],
+        "create": TENANCY_ACTIONS[TenancyAction.INVITATION_CREATE],
+    }
+
+    def finalize_response(
+        self, request: Request, response: Response, *args: object, **kwargs: object
+    ) -> Response:
+        return _no_store(super().finalize_response(request, response, *args, **kwargs))
+
+    @extend_schema(
+        operation_id="invitations_list",
+        summary="Las invitaciones pendientes de la organización activa (owner y admin)",
+        tags=[INVITATIONS_TAG],
+        responses={
+            200: InvitationSerializer(many=True),
+            (403, PROBLEM_CONTENT_TYPE): _problem("code: forbidden (operator y viewer)"),
+        },
+    )
+    def list(self, request: Request) -> Response:
+        ctx = self.tenant
+        page = self.paginate_queryset(list_pending(ctx, now=timezone.now()))
+        views = [invitation_view(row, ctx) for row in to_invitations(page or [])]
+        return self.get_paginated_response(self.get_serializer(views, many=True).data)
+
+    @extend_schema(
+        operation_id="invitations_create",
+        summary="Invitar a alguien a la organización activa (el link se muestra una sola vez)",
+        tags=[INVITATIONS_TAG],
+        request=InvitationCreateSerializer,
+        responses={
+            201: CreatedInvitationSerializer,
+            (400, PROBLEM_CONTENT_TYPE): _problem(
+                "code: validation_error (email inválido, rol desconocido u otra clave: "
+                "unknown_field) · organization_required"
+            ),
+            (403, PROBLEM_CONTENT_TYPE): _problem(
+                "code: forbidden (el rol no alcanza: un admin no invita owners)"
+            ),
+            (409, PROBLEM_CONTENT_TYPE): _problem(
+                "code: already_member · invitation_pending (hay una vigente: reenviarla) · "
+                "organization_suspended"
+            ),
+            (503, PROBLEM_CONTENT_TYPE): ORGANIZATION_BUSY_RESPONSE,
+        },
+    )
+    def create(self, request: Request) -> Response:
+        body = InvitationCreateSerializer(data=request.data)
+        body.is_valid(raise_exception=True)
+        ctx = self.tenant
+        created = create_invitation(ctx, body.invitee_email(), body.invited_role())
+        invitation = get_invitation(ctx, created.invitation_id)
+        if invitation is None:  # just inserted in this organization; an invitation is never deleted
+            raise AssertionError("the invitation just created is not found")
+        view = invitation_view(invitation, ctx, actor_role=created.actor_role)
+        data = {**self.get_serializer(view).data, "accept_url": created.accept_url}
+        return Response(data, status=status.HTTP_201_CREATED)
 
 
 class AcceptInvitationView(APIView):
