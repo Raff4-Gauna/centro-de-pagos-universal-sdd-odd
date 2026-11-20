@@ -63,6 +63,15 @@ class ProdEnv(PlatformEnv):
                 raise PydanticCustomError("bff_credential_too_short", "the credential is too short")
         return value
 
+    @field_validator("FRONTEND_BASE_URL")
+    @classmethod
+    def _app_origin_is_https(cls, value: str) -> str:
+        # The invitation link carries its token: never over plain HTTP outside dev. Unset is
+        # allowed (creating an invitation fails closed), as the smoke stack runs without it.
+        if value and not value.startswith("https://"):
+            raise PydanticCustomError("origin_not_https", "https only in prod")
+        return value
+
     @field_validator("DJANGO_ALLOWED_HOSTS")
     @classmethod
     def _no_wildcard_host(cls, value: list[str]) -> list[str]:
@@ -113,6 +122,9 @@ IDENTITY_OIDC_PROVIDER = _env.IDENTITY_OIDC_PROVIDER
 IDENTITY_GOOGLE_CLIENT_ID = _env.IDENTITY_GOOGLE_CLIENT_ID
 IDENTITY_GOOGLE_CLIENT_SECRET = _env.IDENTITY_GOOGLE_CLIENT_SECRET.get_secret_value()
 IDENTITY_GOOGLE_REDIRECT_URI = _env.IDENTITY_GOOGLE_REDIRECT_URI
+# The app's origin, where the invitation link points (SPEC-02 design.md §6); https only here
+# (ProdEnv), read through apps.tenancy.services.invitations.
+FRONTEND_BASE_URL = _env.FRONTEND_BASE_URL
 # Never the fake OIDC provider here (Q-122): apps.identity does not start with it, and
 # config.urls has no /dev-oidc/*. Set again, not only inherited from base.py, so it stays visible.
 IDENTITY_FAKE_OIDC_ALLOWED = False

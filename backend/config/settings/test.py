@@ -70,6 +70,9 @@ IDENTITY_OIDC_PROVIDER = _env.IDENTITY_OIDC_PROVIDER
 IDENTITY_GOOGLE_CLIENT_ID = _env.IDENTITY_GOOGLE_CLIENT_ID
 IDENTITY_GOOGLE_CLIENT_SECRET = _env.IDENTITY_GOOGLE_CLIENT_SECRET.get_secret_value()
 IDENTITY_GOOGLE_REDIRECT_URI = _env.IDENTITY_GOOGLE_REDIRECT_URI
+# The app's origin of the invitation link (SPEC-02 design.md §6): fixed, so no CI variable is
+# needed; a test that needs another one overrides it.
+FRONTEND_BASE_URL = "http://localhost:3000"
 
 # The fake OIDC provider may run here (Q-122), on the host of Django's test client.
 IDENTITY_FAKE_OIDC_ALLOWED = True

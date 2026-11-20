@@ -18,7 +18,7 @@ import os
 import re
 from collections.abc import Collection
 from typing import Annotated, Any, Literal, Self
-from urllib.parse import unquote
+from urllib.parse import unquote, urlsplit
 
 from django.core.exceptions import ImproperlyConfigured
 from pydantic import (
@@ -97,6 +97,35 @@ def _throttle_rate(value: str) -> str:
     return value
 
 
+_ORIGIN_SCHEMES = {"http", "https"}
+
+
+def _app_origin(value: str) -> str:
+    """``scheme://host[:port]`` and nothing else, or empty (unset). The invitation link is built
+    on it (SPEC-02 design.md §6): a path, query, fragment or credentials would end up in front of
+    the token, so they do not start."""
+    if not value:
+        return value
+    try:
+        parts = urlsplit(value)
+        port = parts.port
+    except ValueError:
+        raise PydanticCustomError("origin_format", "expected scheme://host[:port]") from None
+    if (
+        parts.scheme not in _ORIGIN_SCHEMES
+        or not parts.hostname
+        or parts.username is not None
+        or parts.password is not None
+        or parts.path
+        or parts.query
+        or parts.fragment
+        or value != f"{parts.scheme}://{parts.netloc}"
+        or (port is not None and not 0 < port < 65536)
+    ):
+        raise PydanticCustomError("origin_format", "expected scheme://host[:port]")
+    return value
+
+
 def _json_object(value: object) -> object:
     """A JSON object. Decoded here because pydantic-settings' own failure is no ValidationError:
     ``load_env`` would not catch it."""
@@ -136,6 +165,7 @@ CsvList = Annotated[list[str], NoDecode, BeforeValidator(_csv)]
 NonEmptyStr = Annotated[str, Field(min_length=1)]
 DjangoPostgresDsn = Annotated[PostgresDsn, AfterValidator(_django_postgres_dsn)]
 ThrottleRate = Annotated[str, AfterValidator(_throttle_rate)]
+AppOrigin = Annotated[str, AfterValidator(_app_origin)]
 JwtSigningKey = Annotated[SecretStr, AfterValidator(_jwt_signing_key)]
 JwtVerificationKeys = Annotated[
     dict[str, str],
@@ -219,6 +249,9 @@ class PlatformEnv(BffCredentialEnv):
     IDENTITY_GOOGLE_CLIENT_SECRET: SecretStr = SecretStr("")
     # https://<app>/api/auth/google/callback, one per environment.
     IDENTITY_GOOGLE_REDIRECT_URI: str = ""
+    # The origin of the app the browser opens (SPEC-02 design.md §6): the invitation link is
+    # <origin>/invitacion#token=..., shown once. Unset: creating an invitation fails closed.
+    FRONTEND_BASE_URL: AppOrigin = ""
 
     @model_validator(mode="after")
     def _jwt_signer_verifies_its_own_tokens(self) -> Self:
