@@ -7,15 +7,27 @@ import { logoutResult, ME, meResult } from "@/modules/identity/components/identi
 import { USER_MENU_LABEL } from "@/modules/identity/components/UserMenu";
 import { useLogout } from "@/modules/identity/hooks/useLogout";
 import { useMe } from "@/modules/identity/hooks/useMe";
+import { SUSPENDED_TEXT } from "@/modules/tenancy/components/SuspendedBanner";
+import {
+  ACME,
+  activeOrganizationResult,
+  BETA,
+  organizationsResult,
+} from "@/modules/tenancy/components/tenancy.test-helpers";
+import { useActiveOrganization } from "@/modules/tenancy/context/ActiveOrgProvider";
+import { useOrganizations } from "@/modules/tenancy/hooks/useOrganizations";
 
 import { AppShell } from "./AppShell";
 import { isActive, NAV_LABEL } from "./NavMenu";
-import { ORG_BRANCH_PENDING_TEXT } from "./OrgBranchSelectorPlaceholder";
 import { APP_TITLE, OPEN_NAV_LABEL } from "./TopBar";
 
 vi.mock("next/navigation", () => ({ usePathname: vi.fn() }));
 vi.mock("@/modules/identity/hooks/useMe", () => ({ useMe: vi.fn() }));
 vi.mock("@/modules/identity/hooks/useLogout", () => ({ useLogout: vi.fn() }));
+vi.mock("@/modules/tenancy/hooks/useOrganizations", () => ({ useOrganizations: vi.fn() }));
+vi.mock("@/modules/tenancy/context/ActiveOrgProvider", () => ({
+  useActiveOrganization: vi.fn(),
+}));
 
 const pathname = vi.mocked(usePathname);
 
@@ -32,22 +44,29 @@ describe("AppShell (AC-PLT-28, spec §14, 07 §5)", () => {
     pathname.mockReturnValue("/inicio");
     vi.mocked(useMe).mockReturnValue(meResult({ data: ME }));
     vi.mocked(useLogout).mockReturnValue(logoutResult());
+    vi.mocked(useOrganizations).mockReturnValue(organizationsResult({ data: [ACME, BETA] }));
+    vi.mocked(useActiveOrganization).mockReturnValue(activeOrganizationResult(ACME.id));
   });
 
-  it("test_AC_PLT_28_top_bar_has_disabled_org_branch_selector", () => {
+  it("test_AC_PLT_28_top_bar_has_org_branch_selector", () => {
     renderShell();
     const bar = screen.getByRole("banner");
     expect(bar).toHaveTextContent(APP_TITLE);
     const selector = within(bar).getByRole("group", { name: "Empresa y sucursal" });
-    expect(selector).toHaveAccessibleDescription(ORG_BRANCH_PENDING_TEXT);
-    for (const name of ["Empresa", "Sucursal"]) {
-      const select = within(selector).getByRole("combobox", { name });
-      expect(select).toHaveAttribute("aria-disabled", "true");
-      // No invented organizations nor branches before SPEC-02: nothing selected, no value.
-      expect(select.textContent?.replace("​", "").trim()).toBe("");
-    }
+    // SPEC-02 (T-TEN-29): the company selector replaces the disabled placeholder.
+    expect(within(selector).getByRole("combobox", { name: "Empresa" })).toHaveTextContent(
+      ACME.name,
+    );
+    expect(within(selector).getByRole("combobox", { name: "Sucursal" })).toBeInTheDocument();
     // SPEC-01 (T-IDA-29): the user menu replaces the disabled placeholder.
     expect(within(bar).getByRole("button", { name: USER_MENU_LABEL })).toBeEnabled();
+    expect(screen.queryByText(SUSPENDED_TEXT)).not.toBeInTheDocument();
+  });
+
+  it("test_RF_TEN_02_shell_shows_banner_for_a_suspended_company", () => {
+    vi.mocked(useActiveOrganization).mockReturnValue(activeOrganizationResult(BETA.id));
+    renderShell();
+    expect(within(screen.getByRole("main")).getByRole("alert")).toHaveTextContent(SUSPENDED_TEXT);
   });
 
   it("test_AC_PLT_28_nav_links_to_inicio_and_configuracion", () => {

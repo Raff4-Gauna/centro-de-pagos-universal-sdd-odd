@@ -6,6 +6,11 @@ import { describe, expect, it, vi } from "vitest";
 import { CSRF_HEADER } from "@/lib/api-client";
 import { ApiError, CLIENT_ERROR_CODES } from "@/lib/problem";
 import { makeQueryClient } from "@/lib/query-client";
+import {
+  readTabOrganization,
+  TAB_ORGANIZATION_KEY,
+  writeTabOrganization,
+} from "@/modules/tenancy/lib/active-organization";
 
 import { AFTER_LOGOUT_PATH, LOGOUT_PATH, requestLogout, useLogout } from "./useLogout";
 
@@ -50,6 +55,19 @@ describe("useLogout (RF-IDA-05, AC-IDA-17, design.md §3.4, §4.6)", () => {
     act(() => result.current.mutate());
     await waitFor(() => expect(navigate).toHaveBeenCalledWith(AFTER_LOGOUT_PATH));
     expect(AFTER_LOGOUT_PATH).toBe("/login");
+  });
+
+  // T-TEN-29: as the BFF clears `__Host-cpu_org`, the tab forgets its company (ADR-0004 §7).
+  it("test_RF_IDA_05_logout_204_clears_the_tab_organization", async () => {
+    writeTabOrganization("6a1f0c2e-1b3d-4e5f-8a9b-0c1d2e3f4a5b");
+    const fetchMock = vi.fn(async () => new Response(null, { status: 204 }));
+    const { result } = renderHook(() => useLogout({ navigate: vi.fn(), fetch: fetchMock }), {
+      wrapper,
+    });
+    act(() => result.current.mutate());
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(window.sessionStorage.getItem(TAB_ORGANIZATION_KEY)).toBeNull();
+    expect(readTabOrganization()).toBeNull();
   });
 
   // T-IDA-25, known limitation of #109: a `403` means nothing was cleared, the session is still open.

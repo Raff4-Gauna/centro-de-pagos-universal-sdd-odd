@@ -4,6 +4,7 @@ import { useMutation } from "@tanstack/react-query";
 
 import { CSRF_COOKIE, CSRF_HEADER, cookieValue } from "@/lib/api-client";
 import { apiErrorFromResponse, networkApiError, type ApiError } from "@/lib/problem";
+import { clearTabOrganization } from "@/modules/tenancy/lib/active-organization";
 
 // "Cerrar sesión" (RF-IDA-05, design.md §3.4, §4.6): `POST /api/auth/logout` of the BFF, which
 // revokes the session and clears its cookies. The route is the BFF's own, not part of the OpenAPI
@@ -11,7 +12,8 @@ import { apiErrorFromResponse, networkApiError, type ApiError } from "@/lib/prob
 //
 // Only a `204` means the session is closed. A `403 bff.csrf_failed` cleared nothing (T-IDA-25,
 // review of #109) and a network failure says nothing: both stay errors, the browser keeps the page
-// and the person can retry. Only after the `204` the browser goes to "Ingresar".
+// and the person can retry. Only after the `204` the tab forgets its company (`sessionStorage`, as
+// the BFF clears `__Host-cpu_org`, ADR-0004 §7) and the browser goes to "Ingresar".
 export const LOGOUT_PATH = "/api/auth/logout";
 export const AFTER_LOGOUT_PATH = "/login";
 
@@ -57,6 +59,9 @@ export type UseLogoutOptions = Readonly<{
 export function useLogout({ navigate = goTo, fetch: fetchImpl }: UseLogoutOptions = {}) {
   return useMutation<void, ApiError, void>({
     mutationFn: () => requestLogout(fetchImpl),
-    onSuccess: () => navigate(AFTER_LOGOUT_PATH),
+    onSuccess: () => {
+      clearTabOrganization();
+      navigate(AFTER_LOGOUT_PATH);
+    },
   });
 }

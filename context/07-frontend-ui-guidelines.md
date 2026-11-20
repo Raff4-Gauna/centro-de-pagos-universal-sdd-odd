@@ -89,8 +89,9 @@ frontend/src/
   (`SameSite=Lax`, `Secure`); (2) en cada request a `/api/*` traduce la cookie a `Authorization: Bearer` hacia
   Django, hace el **refresh transparente** (rota y borra cookies) y reintenta una vez ante `token_expired`;
   (3) aplica **CSRF** a toda mutación (`Origin`/`Sec-Fetch-Site` + `X-CSRF-Token` = cookie `__Host-cpu_csrf`);
-  (4) **reenvía** el header `X-Organization-Id` que manda cada pestaña (nunca lo inventa) y guarda la última empresa
-  elegida en la cookie `__Host-cpu_org` solo como valor inicial para pestañas nuevas; (5) informa a Django la IP
+  (4) **reenvía** el header `X-Organization-Id` que manda cada pestaña sin modificarlo (nunca lo inventa; si no es
+  un UUID, lo descarta) y guarda la última empresa elegida en la cookie `__Host-cpu_org` solo como valor inicial
+  para pestañas nuevas; (5) informa a Django la IP
   real del cliente en los endpoints de login (credencial BFF). Rutas: `app/api/auth/*`, `app/api/session/*` y el
   proxy `app/api/[...path]`; código servidor en `lib/server/` (`server-only`).
 - **Qué no hace:** no reimplementa reglas de negocio, no transforma cuerpos de respuesta, no valida memberships ni
@@ -130,11 +131,14 @@ pasos que esa integración concreta soporta (este comportamiento ya está descri
   `context/02-glossary.md`) y, debajo o al lado, **Sucursal** (las `Branch` de la empresa elegida, con una opción
   "Todas las sucursales" para pantallas que agregan datos).
 - Cambiar de empresa **recarga el contexto completo** (integraciones, cajas, cobros visibles): no es un filtro de
-  cliente sobre datos ya traídos, es una nueva query con el `organization_id` elegido. El backend vuelve a
-  validar membership en cada request — el selector es una conveniencia de UI, nunca la fuente de autorización
-  (`C-01`; detalle en `context/08-control-de-versiones-ci-cd.md §8`).
-- La selección persiste en la sesión (no en `localStorage`, para que cambie de forma consistente si el usuario
-  pierde membership en una empresa entre sesiones).
+  cliente sobre datos ya traídos: cada request tenant-scoped lleva la organización elegida en el header
+  `X-Organization-Id`; el backend revalida la membership en cada request (RN-TEN-03) — el selector es una
+  conveniencia de UI, nunca la fuente de autorización (`C-01`; detalle en `context/08-control-de-versiones-ci-cd.md §8`).
+- La selección es **por pestaña** (`sessionStorage`) y viaja en el header `X-Organization-Id` de cada request; la
+  sesión del BFF guarda la última elegida solo como valor por defecto al abrir una pestaña nueva (Q-205). No es
+  fuente de autorización.
+- La sucursal es un filtro: viaja como `branch_id` en la query de las pantallas que filtran; "Todas las sucursales"
+  = sin `branch_id`; el selector lista solo Branch activas; una org `suspended` se muestra con un chip "Suspendida".
 - Si el usuario pertenece a una sola empresa con una sola sucursal, el selector se muestra igual (simplicidad de
   implementación: un único camino, no una variante "sin selector" para ese caso) pero sin interacción relevante.
 
@@ -168,7 +172,7 @@ a la del proveedor y en qué módulo vive:
 | **Seguridad** | "Seguridad" | Sesiones activas, revocar sesión; sin contraseña propia en el MVP (`Q-012`) | `01-identity-access` |
 | **Colaboradores** | "Colaboradores" | Miembros de la empresa actual, su rol (`owner`/`admin`/`operator`/`viewer`), invitar por email | `02-tenancy-rbac` |
 | **Datos de la empresa** | "Datos de tu negocio" | Razón social, rubro, datos fiscales que el Hub necesita (no facturación propia, fuera de MVP) | `02-tenancy-rbac` |
-| **Sucursales y cajas** | "Locales y cajas" | Alta/edición de `Branch` y sus cajas por integración; **una empresa, varias sucursales**, tal como pidió el usuario | `02-tenancy-rbac` + `05-mercadopago-adapter §POS_MANAGEMENT` |
+| **Sucursales y cajas** | "Locales y cajas" | Alta/edición de `Branch` y sus cajas por integración; **una empresa, varias sucursales**, tal como pidió el usuario | `02-tenancy-rbac` (sucursales); el módulo de las cajas queda sujeto a Q-220 (propuesta SPEC-04) |
 | **Integraciones** | "Integraciones" (de cada proveedor) | Alta/baja de integraciones por proveedor (Mercado Pago, luego Payway/Clover), credenciales cifradas, botón "Probar conexión" | `04-integration-management` |
 | **Costos y comisiones** | "Costos y cuotas" | **Solo informativo**: lo que cada proveedor cobra de comisión (si la API lo expone); el Hub no fija comisión propia en el MVP | `08-reconciliation` (cuando exista) |
 | **Dispositivos** | "Lectores Point" | Terminales Point (MP) y dispositivos Clover vinculados — queda vacío/deshabilitado hasta los módulos `12`/`14` | `12-mercadopago-point`, `14-clover-adapter` (futuro) |
