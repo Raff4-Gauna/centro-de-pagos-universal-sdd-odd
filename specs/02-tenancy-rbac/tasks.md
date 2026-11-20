@@ -57,6 +57,7 @@ Donde el diseño y el código de SPEC-00, o el orden real, difieren, manda esta 
 | `400 validation_error` al reactivar con el **nombre** ocupado (`design.md §6`, RN-TEN-19) | El mismo `400 validation_error` (código `taken` en el campo) si lo ocupado es el `code` (T-TEN-25) | §6 no da otro código de error para reactivar: el `409 conflict` es de crear y editar. Q-227 hace único el `code` entre activas con la misma regla que el nombre |
 | Timeout de lock → `OperationalError` de la BD como `500` (`design.md §11`, T-TEN-11, PR #117) | `503 organization_busy` con `Retry-After: 2` y título fijo "Hay otra operación en curso, probá de nuevo", para todo usuario de `lock_org_for_write` / `lock_membership_mutex`; lo mapea `apps/common/api/exceptions.py` por el SQLSTATE `55P03` (T-TEN-22) | Q-230, decidida por el dueño el 2026-11-20. Código nuevo de contrato (versión menor): `design.md §6` no lo lista |
 | `GET /api/memberships/` → `user:{id, email, name}` (`design.md §6`) | `name` es `User.display_name` de SPEC-01 (T-TEN-22) | `User` no tiene un campo `name` |
+| Callback del login con error de Django → `/login?error=<code>` de la lista (SPEC-01 `design.md §6.3`) | `503 organization_busy` del primer login (lock de una organización invitante, Q-230) → `/login?error=google_unavailable`, sin cookies de sesión ni `Retry-After` (T-TEN-17) | Q-231, decidida por el dueño el 2026-11-20: el intento y el `code` ya se gastaron, así que el mismo callback no se puede repetir; se reusa el texto y el "Reintentar" de Q-127 sin cambiar el contrato |
 
 ## Resumen
 
@@ -586,7 +587,7 @@ T-TEN-30 · suspendida → T-TEN-29.
   `test_AC_TEN_10_session_scopes_are_read_only` y `test_RN_TEN_12_accept_from_session_takes_no_body`.
 
 ### T-TEN-17 — `TenancyInvitationPort` (puerto de SPEC-01)
-- **AC:** AC-TEN-17 (vía puerto); AC-IDA-02, 04, 05, 31 con puerto real. RN-TEN-11, RN-IDA-06, Q-108, Q-120. **Zona roja:** sí.
+- **AC:** AC-TEN-17 (vía puerto); AC-IDA-02, 04, 05, 31 con puerto real. RN-TEN-11, RN-IDA-06, Q-108, Q-120, Q-231. **Zona roja:** sí.
 - **Archivos:** `services/invitation_port.py`, `selectors/invitations.py`, `config/settings/base.py`,
   `backend/tests/tenancy/test_invitation_port_contract.py`, `backend/tests/identity/test_login_with_real_port.py`.
 - **Cambios:** firma de `specs/01-identity-access/design.md §6.4`, **todo o nada**; locks en orden de `id`. `apps/identity`

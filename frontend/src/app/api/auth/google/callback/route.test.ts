@@ -221,6 +221,30 @@ describe("GET /api/auth/google/callback (RF-IDA-02, design.md §6.3)", () => {
     }
   });
 
+  it("test_Q_231_organization_busy_starts_the_login_again", async () => {
+    // SPEC-02 Q-230 in the callback: the attempt is spent, so the person starts over (Q-127 text).
+    mockDjango(() =>
+      Response.json(
+        { code: "organization_busy", title: "x", status: 503, detail: "secret detail" },
+        {
+          status: 503,
+          headers: { "content-type": "application/problem+json", "retry-after": "2" },
+        },
+      ),
+    );
+
+    const response = await callback();
+
+    expect(response.status).toBe(302);
+    expect(response.headers.get("location")).toBe(`${APP}/login?error=google_unavailable`);
+    expect(response.headers.get("retry-after")).toBeNull();
+    expect(setCookies(response)).toEqual({ "__Host-cpu_login": CLEARED_LOGIN });
+    const shown = await visible(response);
+    for (const secret of [CODE, STATE, BINDING, CREDENTIAL, "secret detail", "organization_busy"]) {
+      expect(shown).not.toContain(secret);
+    }
+  });
+
   it.each([
     ["access_denied", "access_denied"],
     ["server_error", "provider_error"],

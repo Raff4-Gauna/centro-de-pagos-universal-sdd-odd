@@ -180,9 +180,9 @@ demás, y después hace logout (AC-IDA-01, AC-IDA-33, AC-IDA-17). Cada paso impr
 Contra el stack de desarrollo, con estas variables en el `.env` (valores ficticios, distintos entre sí, RN-IDA-16):
 `IDENTITY_OIDC_PROVIDER=fake`, `IDENTITY_GOOGLE_CLIENT_ID` y `IDENTITY_GOOGLE_CLIENT_SECRET` (cualquiera),
 `IDENTITY_GOOGLE_REDIRECT_URI=http://localhost:3000/api/auth/google/callback`, `HUB_APP_ORIGIN=http://localhost:3000`
-y las claves del JWT (`env.example` explica cómo generarlas). El usuario tiene que existir y estar activo: todavía
-ningún puerto de invitaciones deja entrar a un email nuevo (`not_invited`). Se crea con el `sub` que el proveedor falso
-deriva del email, y se corre el E2E:
+y las claves del JWT (`env.example` explica cómo generarlas). El usuario tiene que existir y estar activo: un email
+nuevo solo entra con una invitación pendiente (puerto de SPEC-02) y el script no emite ninguna, así que sin usuario
+termina en `not_invited`. Se crea con el `sub` que el proveedor falso deriva del email, y se corre el E2E:
 ```
 docker compose -f infra/docker-compose.yml --env-file .env exec -T backend python manage.py shell -c "from apps.identity.domain.emails import normalize_email; from apps.identity.domain.secrets_format import hash_secret; from apps.identity.models import User; e = normalize_email('e2e@example.test'); User.objects.get_or_create(google_sub='dev-' + hash_secret(e)[:24], defaults={'email': e})"
 python scripts/e2e_login.py --email e2e@example.test --frontend-url http://localhost:3000

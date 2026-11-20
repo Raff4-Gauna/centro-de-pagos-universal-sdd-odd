@@ -15,8 +15,9 @@ It talks to the BFF the way a browser does, three browsers with a cookie jar eac
 
 **Prerequisites.** The provider only exists with ``settings.dev`` or ``settings.test`` (T-IDA-20):
 the CI stack (``infra/docker-compose.ci.yml``) runs ``settings.prod`` and does not have it. The
-user must exist and be active: no invitation port accepts anyone yet, so a new email ends in
-``not_invited``. ``infra/README.md`` ("E2E del login") seeds it and raises a throwaway stack.
+user must exist and be active: a new email gets in only with a pending invitation (SPEC-02's
+port), the script issues none, so it ends in ``not_invited``. ``infra/README.md`` ("E2E del login")
+seeds the user and raises a throwaway stack.
 
 ``--frontend-url`` is the app origin, exactly ``HUB_APP_ORIGIN``: unsafe requests send it as
 ``Origin``. ``--provider-url`` replaces the origin of the authorization URL Django builds, for a
