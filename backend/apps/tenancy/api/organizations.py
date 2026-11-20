@@ -34,7 +34,7 @@ from apps.common.authz.roles import Role
 from apps.common.tenancy.context import OrgStatus
 from apps.identity.api.authentication import Unauthenticated
 from apps.identity.selectors.auth_sessions import RequestAuthContext
-from apps.tenancy.api.base import TenantViewSet
+from apps.tenancy.api.base import ORGANIZATION_BUSY_RESPONSE, TenantViewSet
 from apps.tenancy.api.serializers.organizations import (
     CurrentOrganizationSerializer,
     OrganizationUpdateSerializer,
@@ -145,6 +145,7 @@ class CurrentOrganizationViewSet(TenantViewSet):
             (403, PROBLEM_CONTENT_TYPE): _problem("code: forbidden (rol sin org.update)"),
             (404, PROBLEM_CONTENT_TYPE): _ORGANIZATION_NOT_FOUND,
             (409, PROBLEM_CONTENT_TYPE): _problem("code: organization_suspended"),
+            (503, PROBLEM_CONTENT_TYPE): ORGANIZATION_BUSY_RESPONSE,
         },
     )
     def partial_update(self, request: Request) -> Response:

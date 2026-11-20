@@ -11,6 +11,7 @@ from apps.tenancy.api.invitations import (
     AcceptMyInvitationView,
     MyInvitationsView,
 )
+from apps.tenancy.api.memberships import MembershipViewSet
 from apps.tenancy.api.organizations import CurrentOrganizationViewSet, MyOrganizationsView
 
 app_name = "tenancy"
@@ -18,6 +19,7 @@ app_name = "tenancy"
 # Tenant-scoped: the organization of X-Organization-Id (design.md §6).
 router = SimpleRouter()
 router.register("branches", BranchViewSet, basename="branch")
+router.register("memberships", MembershipViewSet, basename="membership")
 
 urlpatterns: list[URLPattern | URLResolver] = [
     # Exempt from the active organization (design.md §3.5): the organizations a user can pick.

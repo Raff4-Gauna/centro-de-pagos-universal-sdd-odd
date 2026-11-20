@@ -23,7 +23,8 @@ Waiting for a lock is bounded (``LOCK_TIMEOUT``, design.md §11): ``bounded_lock
 the lock only and gives the previous value back, also when a database error leaves the block and
 the transaction is still usable (it came out of a savepoint inside the block, which rolled back
 after the ``set_config``: review of PR #117). A timeout raises the database's
-``OperationalError`` and rolls back the write: a bug or a stuck transaction, answered as a 500.
+``OperationalError`` (``lock_not_available``) and rolls back the write; the API answers it as
+``503 organization_busy`` with ``Retry-After`` (``apps/common/api/exceptions.py``, Q-230).
 """
 
 from __future__ import annotations

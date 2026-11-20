@@ -6,6 +6,10 @@ Fields (design.md §3.2.4, §6.2): ``type`` (``urn:hub:problem:<code>``), ``titl
 only, ``errors[]`` of ``field``/``code``/``message`` and, for the codes that refine themselves,
 ``reason`` (``invitation_invalid``, SPEC-02 design.md §6): a closed value, never the input.
 ``code`` is the contract: changing or removing a published one is incompatible (ADR-0005).
+
+``organization_busy`` (SPEC-02 Q-230) is the ``503`` of a lock of the organization that was not
+taken within ``lock_timeout``: nothing was written and the same request may be sent again after
+``Retry-After`` seconds (``RETRY_AFTER_BUSY``). Its title is also the text the UI shows.
 """
 
 from __future__ import annotations
@@ -19,6 +23,8 @@ TYPE_PREFIX = "urn:hub:problem:"
 INTERNAL_ERROR = "internal_error"
 NOT_FOUND = "not_found"
 VALIDATION_ERROR = "validation_error"
+ORGANIZATION_BUSY = "organization_busy"
+RETRY_AFTER_BUSY = 2
 # Code of a validation message that carries none (DRF's ValidationError default).
 DEFAULT_MESSAGE_CODE = "invalid"
 
@@ -52,6 +58,9 @@ TITLES: Mapping[str, str] = {
     "invalid_transition": "Transición inválida",
     "invitation_invalid": "Invitación inválida",
     "already_member": "Ya es miembro",
+    # SPEC-02 memberships (design.md §6) and the lock of the organization (Q-230).
+    "last_owner": "Último owner",
+    ORGANIZATION_BUSY: "Hay otra operación en curso, probá de nuevo",
     INTERNAL_ERROR: "Error interno",
 }
 

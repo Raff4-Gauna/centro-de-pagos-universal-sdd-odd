@@ -55,10 +55,12 @@ Donde el diseño y el código de SPEC-00, o el orden real, difieren, manda esta 
 | Toda lista de `design.md §6` como `200 [...]` (p. ej. `GET /api/organizations/` → `200 [{id, name, status, role}]`) | La página de SPEC-00: `{count, next, previous, results: [...]}` con `HubPageNumberPagination`, en toda lista de §6: `GET /api/organizations/` (T-TEN-12), `GET /api/branches/` (T-TEN-24) y las que vengan (`memberships`, `invitations`, `invitations/mine`) | La cabecera de §6 fija la paginación por defecto de SPEC-00 para las listas, como `/api/auth/sessions/`; la tabla de §6 muestra solo la forma de cada fila. Generalizada en la revisión de #124 para no repetir el argumento en cada PR |
 | `POST /api/branches/{id}/deactivate/` y `.../reactivate/` (`design.md §6`) | Montadas en `api/urls.py` con `BranchViewSet.as_view({"post": ...})`, no con `@action` (T-TEN-25) | drf-spectacular guarda el `@extend_schema` de una `@action` en los `initkwargs` de `as_view()`, y la suite cross-tenant rechaza todo `initkwarg` que pueda reemplazar la guarda (`classifier.py`). `CurrentOrganizationViewSet` ya se monta así |
 | `400 validation_error` al reactivar con el **nombre** ocupado (`design.md §6`, RN-TEN-19) | El mismo `400 validation_error` (código `taken` en el campo) si lo ocupado es el `code` (T-TEN-25) | §6 no da otro código de error para reactivar: el `409 conflict` es de crear y editar. Q-227 hace único el `code` entre activas con la misma regla que el nombre |
+| Timeout de lock → `OperationalError` de la BD como `500` (`design.md §11`, T-TEN-11, PR #117) | `503 organization_busy` con `Retry-After: 2` y título fijo "Hay otra operación en curso, probá de nuevo", para todo usuario de `lock_org_for_write` / `lock_membership_mutex`; lo mapea `apps/common/api/exceptions.py` por el SQLSTATE `55P03` (T-TEN-22) | Q-230, decidida por el dueño el 2026-11-20. Código nuevo de contrato (versión menor): `design.md §6` no lo lista |
+| `GET /api/memberships/` → `user:{id, email, name}` (`design.md §6`) | `name` es `User.display_name` de SPEC-01 (T-TEN-22) | `User` no tiene un campo `name` |
 
 ## Resumen
 
-> T-TEN-01, T-TEN-02, T-TEN-03, T-TEN-04, T-TEN-05, T-TEN-06, T-TEN-07, T-TEN-08, T-TEN-09, T-TEN-10, T-TEN-11, T-TEN-12, T-TEN-13, T-TEN-14, T-TEN-15, T-TEN-16, T-TEN-24, T-TEN-25 y T-TEN-29 en revisión; las demás sin empezar. La columna **Evidencia** es obligatoria para `✅` y la verifica `scripts/check_spec_state.py`.
+> T-TEN-01, T-TEN-02, T-TEN-03, T-TEN-04, T-TEN-05, T-TEN-06, T-TEN-07, T-TEN-08, T-TEN-09, T-TEN-10, T-TEN-11, T-TEN-12, T-TEN-13, T-TEN-14, T-TEN-15, T-TEN-16, T-TEN-22, T-TEN-24, T-TEN-25 y T-TEN-29 en revisión; las demás sin empezar. La columna **Evidencia** es obligatoria para `✅` y la verifica `scripts/check_spec_state.py`.
 
 | ID | Título | AC | Capa | Archivos esperados (ver detalle) | Depende de | Agente | Tamaño | Zona roja | Estado | Evidencia |
 |---|---|---|---|---|---|---|---|---|---|---|
@@ -83,7 +85,7 @@ Donde el diseño y el código de SPEC-00, o el orden real, difieren, manda esta 
 | T-TEN-19 | Comandos de suspensión y primer owner | AC-TEN-28, AC-TEN-29 | Comandos | `management/commands/{tenancy_set_org_status,tenancy_owner_invite}.py` | T-TEN-18 | backend-dev | M | Sí | ☐ | |
 | T-TEN-20 | Crear y listar invitaciones | AC-TEN-15, AC-TEN-20, AC-TEN-24, AC-TEN-26, AC-TEN-34 | Servicio/API | `services/invitations.py`, `api/invitations.py`, `api/serializers/invitations.py` | T-TEN-07, T-TEN-15 | backend-dev | L | Sí | ☐ | |
 | T-TEN-21 | Reenviar y revocar invitaciones | AC-TEN-02, AC-TEN-15, AC-TEN-24, AC-TEN-26, AC-TEN-37 | Servicio/API | `services/invitations.py`, `api/invitations.py` | T-TEN-20 | backend-dev | M | Sí | ☐ | |
-| T-TEN-22 | Listar memberships y cambiar rol | AC-TEN-02, AC-TEN-05, AC-TEN-13, AC-TEN-15, AC-TEN-16, AC-TEN-27, AC-TEN-34 | Servicio/API | `services/memberships.py`, `api/memberships.py` | T-TEN-07, T-TEN-11 | backend-dev | L | Sí | ☐ | |
+| T-TEN-22 | Listar memberships y cambiar rol | AC-TEN-02, AC-TEN-05, AC-TEN-13, AC-TEN-15, AC-TEN-16, AC-TEN-27, AC-TEN-34 | Servicio/API | `services/memberships.py`, `api/memberships.py` | T-TEN-07, T-TEN-11 | backend-dev | L | Sí | 🟡 | rama `task/T-TEN-22-memberships`, sin PR |
 | T-TEN-23 | Revocar, abandonar y autorrevocar invitaciones | AC-TEN-04, AC-TEN-13, AC-TEN-14, AC-TEN-15, AC-TEN-31, AC-TEN-36 | Servicio/API | `services/memberships.py`, `api/memberships.py` | T-TEN-21, T-TEN-22 | backend-dev | L | Sí | ☐ | |
 | T-TEN-24 | `Branch` + migración 0004 + crear y listar | AC-TEN-07, AC-TEN-16, AC-TEN-30, AC-TEN-38 | DB/API | `models/branch.py`, `services/branches.py`, `api/branches.py` | T-TEN-08, T-TEN-11 | backend-dev | L | Sí | 🟡 | rama `task/T-TEN-24-branch-model`, sin PR |
 | T-TEN-25 | Ver, editar, desactivar y reactivar `Branch`, filtro | AC-TEN-01, AC-TEN-05, AC-TEN-09, AC-TEN-30, AC-TEN-32, AC-TEN-37, AC-TEN-38 | Servicio/API | `services/branches.py`, `api/branches.py`, `api/filters.py` | T-TEN-24 | backend-dev | L | Sí | 🟡 | rama `task/T-TEN-25-branch-edit`, sin PR |
@@ -638,6 +640,35 @@ T-TEN-30 · suspendida → T-TEN-29.
 - **Pruebas:** `test_AC_TEN_05_demoted_admin_next_request_403`, `test_AC_TEN_13_last_owner_demotion`,
   `test_AC_TEN_15_admin_cannot_assign_owner`, `test_AC_TEN_16_operator_cannot_change_role`,
   `test_AC_TEN_27_transfer_ownership`, `test_AC_TEN_34_viewer_cannot_list`, `test_AC_TEN_02_other_org_membership_is_404`.
+- **Sumados, con su porqué:**
+  - `selectors/memberships.py`: `list_members` (perezoso, para el paginador), `get_member` y `count_active_owners`;
+    la API no toca managers (`design.md §3.3`).
+  - `api/urls.py` (monta `memberships`), `api/base.py` (`ORGANIZATION_BUSY_RESPONSE`, el `503` documentado de Q-230)
+    y `apps/common/api/schema.py` (`API_VERSION` 0.15.0; enum `MembershipStatusEnum`).
+  - Q-230 (decidida por el dueño el 2026-11-20, primera de T-TEN-20..23): `apps/common/api/{problems,exceptions}.py`
+    (`503 organization_busy` + `Retry-After: 2`), el docstring de `apps/common/tenancy/locks.py`, y el `503` en el
+    contrato de las demás escrituras que toman esos locks: `api/{branches,organizations,invitations}.py`.
+  - Tests que fijan `info.version` (pasa a 0.15.0) y `tests/tenancy/api/membership_setup.py` (armado común).
+- **Implementado:**
+  - `GET /api/memberships/?status=active|revoked` (por defecto `active`), paginado, por `created_at` e id,
+    `Cache-Control: no-store`. Cada fila: `{id, user:{id, email, name}, role, status, ended_reason, created_at,
+    allowed_actions, assignable_roles}`; `name` es `User.display_name`. `allowed_actions` = la matriz (rol y
+    suspensión) **y** `role_rules` sobre esa fila con los owners activos: `member.change_role` si hay algún rol
+    asignable, `member.revoke` en la ajena, `member.leave` en la propia. Una `revoked` no trae ninguna.
+  - `PATCH /api/memberships/{id}/` con `{role}` estricto (`unknown_field`). Bajo el mutex: actor releído (revocado →
+    `404 organization_not_found`; rol que ya no cambia roles → `403`), destino bloqueado (otra organización, inexistente
+    o id no UUID → `404 not_found`; `revoked` → `409 invalid_transition` + `transition.rejected` fuera del `atomic`),
+    `decide_role_change`. `LAST_OWNER` → `owner_protection.rejected` fuera del `atomic` + `409 last_owner`.
+  - **Paso 3 de §4.2 completo:** degradar auto-revoca las `pending` que emitió esa persona y su rol nuevo ya no
+    permite (`inviter_lost_permission`, `revoked_by` = quien degradó, `invitation.auto_revoked`), en la misma
+    transacción (AC-TEN-36, solo la degradación; revocar y abandonar siguen en T-TEN-23, que reusa
+    `auto_revoke_invitations`). Pruebas: `test_AC_TEN_36_auto_revoked_on_demotion`,
+    `test_AC_TEN_36_a_demoted_owner_keeps_what_an_admin_may_issue`.
+  - Q-230: `test_Q_230_lock_timeout_is_organization_busy` (espera real sobre la fila de la organización tomada
+    `FOR UPDATE`, para cambiar rol, crear sucursal, editar la organización y aceptar invitación) y
+    `test_Q_230_only_lock_not_available_is_busy`.
+  - `AUDIT_TRIGGERS`: `change_role` registra `membership.role_changed`, `owner_protection.rejected` e
+    `invitation.auto_revoked`; `transition.rejected` ya lo registra `reactivate_branch` (T-TEN-25).
 
 ### T-TEN-23 — Revocar, abandonar y autorrevocar invitaciones
 - **AC:** AC-TEN-04, 13, 14, 15, 31, 36. RN-TEN-14, RN-TEN-21, Q-221, Q-223. **Zona roja:** sí.
