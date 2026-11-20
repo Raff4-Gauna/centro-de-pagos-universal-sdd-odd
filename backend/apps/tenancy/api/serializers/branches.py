@@ -1,10 +1,11 @@
 """The branches as the API shows them and the shape of what it takes (RF-TEN-06, design.md §6).
 
-``BranchSerializer`` is the branch of every response. ``BranchCreateSerializer`` documents the body
-of ``POST /api/branches/`` for the contract only: ``services/branches.py::create_branch`` validates
-the body itself, strictly (an unknown key is ``unknown_field``, AC-TEN-07), so the API and any other
-caller follow one rule. Its fields and limits come from the service (``CREATE_FIELDS``), and a test
-keeps both in step. ``BranchListQuerySerializer`` reads ``?is_active=true|false``.
+``BranchSerializer`` is the branch of every response. ``BranchCreateSerializer`` and
+``BranchUpdateSerializer`` document the bodies of ``POST /api/branches/`` and
+``PATCH /api/branches/{id}/`` for the contract only: ``services/branches.py`` validates each body
+itself, strictly (an unknown key is ``unknown_field``, AC-TEN-07), so the API and any other caller
+follow one rule. Their fields and limits come from the service (``CREATE_FIELDS``), and a test
+keeps them in step. ``BranchListQuerySerializer`` reads ``?is_active=true|false``.
 
 Comments instead of docstrings on the classes: drf-spectacular would publish a docstring as the
 component's description.
@@ -44,6 +45,15 @@ class BranchCreateSerializer(serializers.Serializer[dict[str, Any]]):
 
     class Meta:
         ref_name = "BranchCreate"
+
+
+# Any of name, code and address; name, when present, not empty. No other key is accepted: the
+# state changes only through deactivate and reactivate.
+class BranchUpdateSerializer(BranchCreateSerializer):
+    name = serializers.CharField(required=False, max_length=CREATE_FIELDS["name"])
+
+    class Meta:
+        ref_name = "BranchUpdate"
 
 
 IS_ACTIVE_CHOICES = {"true": True, "false": False}

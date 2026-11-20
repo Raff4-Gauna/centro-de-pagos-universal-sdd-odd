@@ -153,6 +153,58 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/branches/{id}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Una sucursal de la organización activa, activa o no */
+        get: operations["branches_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Edita el nombre, el código o la dirección de una sucursal */
+        patch: operations["branches_partial_update"];
+        trace?: never;
+    };
+    "/api/branches/{id}/deactivate/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Desactiva una sucursal (no se borra nunca) */
+        post: operations["branches_deactivate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/branches/{id}/reactivate/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reactiva una sucursal inactiva */
+        post: operations["branches_reactivate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/invitations/{invitation_id}/accept/": {
         parameters: {
             query?: never;
@@ -432,6 +484,11 @@ export interface components {
              */
             previous?: string | null;
             results: components["schemas"]["Session"][];
+        };
+        PatchedBranchUpdateRequest: {
+            name?: string;
+            code?: string;
+            address?: string;
         };
         PatchedOrganizationUpdateRequest: {
             name?: string;
@@ -1011,7 +1068,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description code: forbidden */
+            /** @description code: forbidden (rol sin permiso de gestión de sucursales) */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -1021,6 +1078,290 @@ export interface operations {
                 };
             };
             /** @description code: conflict (nombre o código de otra sucursal activa) · organization_suspended */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Error del cliente */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Error del servidor */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    branches_retrieve: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Organización activa de la request (RN-TEN-03). */
+                "X-Organization-Id": string;
+            };
+            path: {
+                /** @description La sucursal. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Branch"];
+                };
+            };
+            /** @description code: not_found (no existe o es de otra organización: el mismo cuerpo) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Error del cliente */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Error del servidor */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    branches_partial_update: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Organización activa de la request (RN-TEN-03). */
+                "X-Organization-Id": string;
+            };
+            path: {
+                /** @description La sucursal. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PatchedBranchUpdateRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Branch"];
+                };
+            };
+            /** @description code: validation_error (unknown_field si el cuerpo trae otra clave, como is_active u organization_id) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description code: forbidden (rol sin permiso de gestión de sucursales) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description code: not_found (no existe o es de otra organización: el mismo cuerpo) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description code: conflict (nombre o código de otra sucursal activa) · organization_suspended */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Error del cliente */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Error del servidor */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    branches_deactivate: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Organización activa de la request (RN-TEN-03). */
+                "X-Organization-Id": string;
+            };
+            path: {
+                /** @description La sucursal. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Branch"];
+                };
+            };
+            /** @description code: forbidden (rol sin permiso de gestión de sucursales) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description code: not_found (no existe o es de otra organización: el mismo cuerpo) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description code: invalid_transition (ya está en ese estado) · organization_suspended */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Error del cliente */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Error del servidor */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    branches_reactivate: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Organización activa de la request (RN-TEN-03). */
+                "X-Organization-Id": string;
+            };
+            path: {
+                /** @description La sucursal. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Branch"];
+                };
+            };
+            /** @description code: validation_error (taken: otra sucursal activa usa su nombre o su código) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description code: forbidden (rol sin permiso de gestión de sucursales) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description code: not_found (no existe o es de otra organización: el mismo cuerpo) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description code: invalid_transition (ya está en ese estado) · organization_suspended */
             409: {
                 headers: {
                     [name: string]: unknown;

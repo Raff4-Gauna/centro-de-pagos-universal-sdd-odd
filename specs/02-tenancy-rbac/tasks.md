@@ -52,11 +52,13 @@ Donde el diseño y el código de SPEC-00, o el orden real, difieren, manda esta 
 | `400 invitation_invalid` + `reason` (`design.md §6`) | El sobre `problem+json` de SPEC-00 suma un miembro opcional `reason` (extensión de RFC 9457): lo pone el handler cuando la excepción declara `problem_reason`. Solo `invitation_invalid` lo usa. `title` propio para `invitation_invalid` y `already_member` (T-TEN-15) | El sobre de SPEC-00 (`design.md §3.2.4` de 00) no tenía dónde poner `reason`, y el test de contrato fijaba sus propiedades. Es un cambio compatible: campo opcional, versión menor |
 | `Invitation.by_token_hash` se lee desde el servicio (`design.md §4.4`) | `selectors/invitations.py::find_by_token`, que devuelve `InvitationRef(id, organization_id)` (T-TEN-15) | La regla C-01 (`ast_rules.py`) solo deja pasar `TENANT_SCOPES` en `services/`, no los scopes por modelo; los selectors son la capa de lectura. T-TEN-16 y T-TEN-17 suman ahí sus lecturas |
 | `TENANT_HEADER = "X-Organization-Id"` entre los settings nuevos (`design.md §3.1`) | Constante `TENANT_HEADER` en `apps/tenancy/api/permissions.py` | El nombre del header es contrato (`design.md §6`), no configuración: un setting permitiría cambiarlo sin cambiar el contrato ni el frontend |
-| `GET /api/organizations/` → `200 [{id, name, status, role}]` (`design.md §6`, una lista) | La página de SPEC-00: `{count, next, previous, results: [{id, name, status, role}]}` con `HubPageNumberPagination` (T-TEN-12) | La cabecera de §6 fija la paginación por defecto de SPEC-00 para las listas, como `/api/auth/sessions/`; la tabla de §6 muestra solo la forma de cada fila |
+| Toda lista de `design.md §6` como `200 [...]` (p. ej. `GET /api/organizations/` → `200 [{id, name, status, role}]`) | La página de SPEC-00: `{count, next, previous, results: [...]}` con `HubPageNumberPagination`, en toda lista de §6: `GET /api/organizations/` (T-TEN-12), `GET /api/branches/` (T-TEN-24) y las que vengan (`memberships`, `invitations`, `invitations/mine`) | La cabecera de §6 fija la paginación por defecto de SPEC-00 para las listas, como `/api/auth/sessions/`; la tabla de §6 muestra solo la forma de cada fila. Generalizada en la revisión de #124 para no repetir el argumento en cada PR |
+| `POST /api/branches/{id}/deactivate/` y `.../reactivate/` (`design.md §6`) | Montadas en `api/urls.py` con `BranchViewSet.as_view({"post": ...})`, no con `@action` (T-TEN-25) | drf-spectacular guarda el `@extend_schema` de una `@action` en los `initkwargs` de `as_view()`, y la suite cross-tenant rechaza todo `initkwarg` que pueda reemplazar la guarda (`classifier.py`). `CurrentOrganizationViewSet` ya se monta así |
+| `400 validation_error` al reactivar con el **nombre** ocupado (`design.md §6`, RN-TEN-19) | El mismo `400 validation_error` (código `taken` en el campo) si lo ocupado es el `code` (T-TEN-25) | §6 no da otro código de error para reactivar: el `409 conflict` es de crear y editar. Q-227 hace único el `code` entre activas con la misma regla que el nombre |
 
 ## Resumen
 
-> T-TEN-01, T-TEN-02, T-TEN-03, T-TEN-04, T-TEN-05, T-TEN-06, T-TEN-07, T-TEN-08, T-TEN-09, T-TEN-10, T-TEN-11, T-TEN-12, T-TEN-13, T-TEN-14, T-TEN-15, T-TEN-16, T-TEN-24 y T-TEN-29 en revisión; las demás sin empezar. La columna **Evidencia** es obligatoria para `✅` y la verifica `scripts/check_spec_state.py`.
+> T-TEN-01, T-TEN-02, T-TEN-03, T-TEN-04, T-TEN-05, T-TEN-06, T-TEN-07, T-TEN-08, T-TEN-09, T-TEN-10, T-TEN-11, T-TEN-12, T-TEN-13, T-TEN-14, T-TEN-15, T-TEN-16, T-TEN-24, T-TEN-25 y T-TEN-29 en revisión; las demás sin empezar. La columna **Evidencia** es obligatoria para `✅` y la verifica `scripts/check_spec_state.py`.
 
 | ID | Título | AC | Capa | Archivos esperados (ver detalle) | Depende de | Agente | Tamaño | Zona roja | Estado | Evidencia |
 |---|---|---|---|---|---|---|---|---|---|---|
@@ -84,7 +86,7 @@ Donde el diseño y el código de SPEC-00, o el orden real, difieren, manda esta 
 | T-TEN-22 | Listar memberships y cambiar rol | AC-TEN-02, AC-TEN-05, AC-TEN-13, AC-TEN-15, AC-TEN-16, AC-TEN-27, AC-TEN-34 | Servicio/API | `services/memberships.py`, `api/memberships.py` | T-TEN-07, T-TEN-11 | backend-dev | L | Sí | ☐ | |
 | T-TEN-23 | Revocar, abandonar y autorrevocar invitaciones | AC-TEN-04, AC-TEN-13, AC-TEN-14, AC-TEN-15, AC-TEN-31, AC-TEN-36 | Servicio/API | `services/memberships.py`, `api/memberships.py` | T-TEN-21, T-TEN-22 | backend-dev | L | Sí | ☐ | |
 | T-TEN-24 | `Branch` + migración 0004 + crear y listar | AC-TEN-07, AC-TEN-16, AC-TEN-30, AC-TEN-38 | DB/API | `models/branch.py`, `services/branches.py`, `api/branches.py` | T-TEN-08, T-TEN-11 | backend-dev | L | Sí | 🟡 | rama `task/T-TEN-24-branch-model`, sin PR |
-| T-TEN-25 | Ver, editar, desactivar y reactivar `Branch`, filtro | AC-TEN-01, AC-TEN-05, AC-TEN-09, AC-TEN-30, AC-TEN-32, AC-TEN-37, AC-TEN-38 | Servicio/API | `services/branches.py`, `api/branches.py`, `api/filters.py` | T-TEN-24 | backend-dev | L | Sí | ☐ | |
+| T-TEN-25 | Ver, editar, desactivar y reactivar `Branch`, filtro | AC-TEN-01, AC-TEN-05, AC-TEN-09, AC-TEN-30, AC-TEN-32, AC-TEN-37, AC-TEN-38 | Servicio/API | `services/branches.py`, `api/branches.py`, `api/filters.py` | T-TEN-24 | backend-dev | L | Sí | 🟡 | rama `task/T-TEN-25-branch-edit`, sin PR |
 | T-TEN-26 | Vencimiento de invitaciones y email por flag | AC-TEN-37 | Asíncrono | `apps/tenancy/tasks.py` | T-TEN-11, T-TEN-21 | backend-dev | M | Sí | ☐ | |
 | T-TEN-27 | Completitud de auditoría y suspendida genérica | AC-TEN-23, AC-TEN-28 | Aislamiento | `backend/tests/cross_tenant/*`, `apps/tenancy/tests/test_audit_triggers.py` | T-TEN-13, T-TEN-23, T-TEN-25, T-TEN-26 | backend-dev | M | Sí | ☐ | |
 | T-TEN-28 | Comandos de soporte y recuperación de owner | AC-TEN-23 (`purpose`) | Comandos | `services/platform_access.py`, `management/commands/{tenancy_support_access,tenancy_owner_recovery}.py` | T-TEN-18 | backend-dev | M | Sí | ☐ | |
@@ -681,6 +683,31 @@ T-TEN-30 · suspendida → T-TEN-29.
   `test_AC_TEN_09_foreign_branch_filter_is_404`, `test_AC_TEN_30_reactivate_with_taken_name`, `test_AC_TEN_30_no_physical_delete`,
   `test_AC_TEN_32_operator_filters_any_branch`, `test_AC_TEN_37_reactivate_active_is_invalid_transition`,
   `test_AC_TEN_38_patch_to_taken_name`.
+- **Hecho (2026-11-20):** `GET`/`PATCH /api/branches/{id}/`, `POST .../deactivate/` y `.../reactivate/` sobre
+  `BranchViewSet` (`branch.read`, `branch.update`, `branch.deactivate`, `branch.reactivate`). Contrato 0.14.0.
+  - Por id, una sucursal de otra organización, una inexistente y un id que no es UUID dan el mismo `404 not_found`
+    (AC-TEN-01). Lee `selectors/branches.py::get_branch(ctx, id)`, que también usan 04/05 (RN-TEN-15); las
+    escrituras toman la fila con `lock_branch` (`FOR NO KEY UPDATE`) después de `ensure_writable` (AC-TEN-28).
+  - `PATCH` valida el cuerpo en el servicio con la misma regla estricta que el alta (`unknown_field`, también para
+    `is_active` y `organization_id`); guarda solo lo que cambia, con `branch.updated` y los nombres de los campos
+    (nunca los valores). El `IntegrityError` de las únicas parciales → `409 conflict` (AC-TEN-38).
+  - Desactivar pone `is_active` falso y `deactivated_at`; reactivar los devuelve. Nombre o código ocupado al
+    reactivar → `400 validation_error` (código `taken`) y sigue inactiva (AC-TEN-30). El estado equivocado →
+    `409 invalid_transition` (`apps/tenancy/errors.py`, título propio) y `transition.rejected` con entidad, estado
+    y evento, emitido fuera de la transacción (AC-TEN-37, Q-225). `reactivate_branch` es el trigger de
+    `transition.rejected` en `AUDIT_TRIGGERS`. `DELETE`/`PUT` por id → `405` (AC-TEN-30).
+  - `api/filters.py::resolve_branch_filter(request, ctx)`: `branch_id` de otra organización → `404 not_found`
+    (AC-TEN-09); cualquier rol filtra por cualquier sucursal de la organización, activa o no (AC-TEN-32); un valor
+    que no es UUID → `400 validation_error`. Lo prueba una vista de test (`test_branch_filter.py`): todavía no hay
+    rutas de negocio que filtren por sucursal.
+  - `cases/tenancy.py`: los cuatro casos nuevos y, como pidió la revisión de #124, el `POST` armado para B lleva el
+    `organization_id` de B.
+  - Sumados, con su porqué: `selectors/branches.py` (`get_branch` y `lock_branch`); `apps/tenancy/errors.py`
+    (`InvalidTransition`, que reusan memberships e invitaciones); `api/urls.py` (las dos rutas de estado, ver
+    "Ajustes"); `api/serializers/branches.py` (`BranchUpdateSerializer`, solo contrato); `apps/common/api/problems.py`
+    (título de `invalid_transition`); `apps/common/api/schema.py` (`API_VERSION` 0.14.0) y los tests que fijan
+    `info.version`; `tests/identity/test_AC_IDA_32_no_endpoints.py`, que rechazaba todo segmento `deactivate`/
+    `reactivate`: ahora los permite solo bajo `branches` (el estado de una sucursal, no de un usuario).
 
 ### T-TEN-26 — Vencimiento de invitaciones y email por flag
 - **AC:** AC-TEN-37. RF-TEN-05, Q-207, Q-225. **Zona roja:** sí.

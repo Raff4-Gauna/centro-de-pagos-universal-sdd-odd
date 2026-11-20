@@ -137,4 +137,4 @@ def test_RF_TEN_02_contract_lists_my_organizations_without_the_header() -> None:
     for field, enum in (("role", Role), ("status", OrgStatus)):
         [ref] = organization["properties"][field]["allOf"]
         assert schemas[ref["$ref"].rsplit("/", 1)[1]]["enum"] == [e.value for e in enum]
-    assert contract["info"]["version"] == "0.13.0"
+    assert contract["info"]["version"] == "0.14.0"

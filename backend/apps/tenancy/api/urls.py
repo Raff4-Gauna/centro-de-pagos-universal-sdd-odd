@@ -29,6 +29,17 @@ urlpatterns: list[URLPattern | URLResolver] = [
         name="organization-current",
     ),
     *router.urls,
+    # The state of a branch changes only here (RN-TEN-19, AC-TEN-37); see ``api/branches.py``.
+    path(
+        "branches/<str:id>/deactivate/",
+        BranchViewSet.as_view({"post": "deactivate"}),
+        name="branch-deactivate",
+    ),
+    path(
+        "branches/<str:id>/reactivate/",
+        BranchViewSet.as_view({"post": "reactivate"}),
+        name="branch-reactivate",
+    ),
     # Exempt (design.md §3.5): the person has no membership in the invitation's organization yet.
     path("invitations/accept/", AcceptInvitationView.as_view(), name="invitation-accept"),
     # Exempt (design.md §3.5, Q-124): the invitations of the person's own email, and accepting one.

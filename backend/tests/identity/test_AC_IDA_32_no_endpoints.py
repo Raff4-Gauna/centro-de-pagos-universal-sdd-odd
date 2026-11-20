@@ -7,6 +7,9 @@ no operation for either; and Django's admin is not installed, so it cannot answe
 
 The rule on organizations leaves room for what SPEC-02 publishes (design.md §6 of 02): reading them
 and ``PATCH /api/organizations/current/``, never ``POST``, ``PUT`` or ``DELETE`` (AC-TEN-21/29).
+So does the one on segments: a branch of SPEC-02 is deactivated and reactivated by HTTP
+(``/api/branches/{id}/deactivate/``, ``.../reactivate/``, RN-TEN-19), which is not a user's status;
+under ``branches`` only those two words are allowed, every other one is still refused.
 """
 
 from __future__ import annotations
@@ -41,6 +44,8 @@ FORBIDDEN_SEGMENTS = frozenset(
     }
 )
 ORGANIZATIONS = "/api/organizations"
+# SPEC-02 design.md §6: the state of a branch, not of a user (RN-TEN-19).
+BRANCH_STATE_SEGMENTS = frozenset({"deactivate", "reactivate"})
 ORGANIZATION_METHODS = frozenset({"get", "head", "options", "patch"})
 WRITE_METHODS = frozenset({"post", "put", "patch", "delete"})
 
@@ -70,6 +75,13 @@ def segments(route: str) -> set[str]:
     return {part.strip("{}<>").lower() for part in route.replace("-", "/").split("/") if part}
 
 
+def forbidden_segments(route: str) -> set[str]:
+    found = segments(route) & FORBIDDEN_SEGMENTS
+    if "branches" in segments(route):
+        found -= BRANCH_STATE_SEGMENTS
+    return found
+
+
 def public_routes(
     patterns: list[URLPattern | URLResolver] | None = None, prefix: str = ""
 ) -> Iterator[str]:
@@ -88,7 +100,7 @@ def test_AC_IDA_32_schema_has_no_provisioning_endpoints() -> None:
 
     for path, operations in paths.items():
         methods = {method for method in operations if method != "parameters"}
-        assert not segments(path) & FORBIDDEN_SEGMENTS, path
+        assert not forbidden_segments(path), path
         if path.startswith(ORGANIZATIONS):
             assert methods <= ORGANIZATION_METHODS, path
         # No write takes a user's id: nobody edits another person by HTTP.
@@ -101,7 +113,7 @@ def test_AC_IDA_32_no_public_route_provisions_or_deactivates() -> None:
     assert "api/me/" in routes
 
     for route in routes:
-        assert not segments(route) & FORBIDDEN_SEGMENTS, route
+        assert not forbidden_segments(route), route
 
 
 @pytest.mark.urls("config.urls")
@@ -117,3 +129,16 @@ def test_AC_IDA_32_admin_absent_under_prod_settings(run_django: RunDjango) -> No
 
     assert result.returncode == 0, result.stderr
     assert result.stdout.splitlines()[-1] == "config.urls [] []"
+
+
+@pytest.mark.parametrize(
+    ("route", "found"),
+    [
+        ("/api/branches/{id}/deactivate/", set()),
+        ("api/branches/<str:id>/reactivate/", set()),
+        ("/api/branches/{id}/users/", {"users"}),
+        ("/api/users/{id}/deactivate/", {"users", "deactivate"}),
+    ],
+)
+def test_AC_IDA_32_only_a_branch_may_be_deactivated(route: str, found: set[str]) -> None:
+    assert forbidden_segments(route) == found
