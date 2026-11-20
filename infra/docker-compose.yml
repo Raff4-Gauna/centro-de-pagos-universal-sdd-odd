@@ -187,6 +187,8 @@ services:
       HUB_BFF_CREDENTIAL: ${HUB_BFF_CREDENTIAL:-}
       HUB_APP_ORIGIN: ${HUB_APP_ORIGIN:-}
       HUB_TRUSTED_PROXY_HOPS: ${HUB_TRUSTED_PROXY_HOPS:-}
+      # Optional: the operator contact of "sin organizacion" (Q-205); empty shows none.
+      OPERATOR_CONTACT: ${OPERATOR_CONTACT:-}
       # A bind mount from Windows delivers no inotify events: the dev server polls (infra/README.md).
       WATCHPACK_POLLING: "true"
       NEXT_TELEMETRY_DISABLED: "1"

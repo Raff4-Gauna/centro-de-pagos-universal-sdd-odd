@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { getAppOrigin, getBffCredential, getTrustedProxyHops } from "./env";
+import { getAppOrigin, getBffCredential, getOperatorContact, getTrustedProxyHops } from "./env";
 
 // `server-only` throws outside the react-server condition; that the modules import it is
 // asserted on their source below.
@@ -56,6 +56,15 @@ describe("BFF identity configuration (design.md §8.3, RN-IDA-12)", () => {
       vi.stubEnv("HUB_TRUSTED_PROXY_HOPS", bad);
       expect(() => getTrustedProxyHops(), bad).toThrow(/^HUB_TRUSTED_PROXY_HOPS must be/);
     }
+  });
+
+  it("test_Q_205_operator_contact_is_optional_and_trimmed", () => {
+    vi.stubEnv("OPERATOR_CONTACT", "");
+    expect(getOperatorContact()).toBeNull();
+    vi.stubEnv("OPERATOR_CONTACT", "   ");
+    expect(getOperatorContact()).toBeNull();
+    vi.stubEnv("OPERATOR_CONTACT", "  soporte@example.com ");
+    expect(getOperatorContact()).toBe("soporte@example.com");
   });
 
   it("test_RN_IDA_12_session_modules_are_server_only", () => {
