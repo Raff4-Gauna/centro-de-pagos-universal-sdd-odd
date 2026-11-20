@@ -47,6 +47,15 @@ describe("problem+json to ApiError (AC-PLT-23, design.md §6.2)", () => {
     });
   });
 
+  it("test_AC_TEN_17_reason_reaches_the_api_error", async () => {
+    const body = { ...validationProblem, code: "invitation_invalid", reason: "revoked" };
+    const error = await apiErrorFromResponse(problemResponse(body, 400));
+    expect(error).toMatchObject({ code: "invitation_invalid", reason: "revoked" });
+    expect((await apiErrorFromResponse(problemResponse(validationProblem, 400))).reason).toBe(
+      undefined,
+    );
+  });
+
   it("test_AC_PLT_23_5xx_problem_never_carries_detail", async () => {
     const body = {
       type: "urn:hub:problem:internal_error",
@@ -149,6 +158,17 @@ describe("parseProblem (Problem component of the contract)", () => {
   it("ignores members outside the contract", () => {
     const problem = parseProblem({ ...validationProblem, stack: "at views.py:12" });
     expect(problem).not.toHaveProperty("stack");
+  });
+
+  it("keeps the reason of the codes that refine themselves (SPEC-02 design.md §6)", () => {
+    const problem = parseProblem({ ...validationProblem, reason: "expired" });
+    expect(problem?.reason).toBe("expired");
+  });
+
+  it("drops a reason that is not text", () => {
+    const problem = parseProblem({ ...validationProblem, reason: { html: "<b>" } });
+    expect(problem).not.toBeNull();
+    expect(problem).not.toHaveProperty("reason");
   });
 
   it("accepts a problem without detail nor errors", () => {
