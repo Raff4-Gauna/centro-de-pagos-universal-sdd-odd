@@ -21,6 +21,8 @@ from typing import Annotated, Any, Literal, Self
 from urllib.parse import unquote, urlsplit
 
 from django.core.exceptions import ImproperlyConfigured
+from django.core.exceptions import ValidationError as DjangoValidationError
+from django.core.validators import validate_email
 from pydantic import (
     AfterValidator,
     BeforeValidator,
@@ -126,6 +128,22 @@ def _app_origin(value: str) -> str:
     return value
 
 
+def _operator_emails(value: list[str]) -> list[str]:
+    """The platform operators' emails (SPEC-02 design.md §4.5), normalized as ``--operator`` is:
+    trimmed and lowercased, each one a valid address. Empty (unset) is allowed: every operator
+    command refuses to run."""
+    emails = []
+    for item in value:
+        email = item.strip().lower()
+        try:
+            validate_email(email)
+        except DjangoValidationError:
+            raise PydanticCustomError("operator_email_format", "expected email addresses") from None
+        if email not in emails:
+            emails.append(email)
+    return emails
+
+
 def _json_object(value: object) -> object:
     """A JSON object. Decoded here because pydantic-settings' own failure is no ValidationError:
     ``load_env`` would not catch it."""
@@ -166,6 +184,9 @@ NonEmptyStr = Annotated[str, Field(min_length=1)]
 DjangoPostgresDsn = Annotated[PostgresDsn, AfterValidator(_django_postgres_dsn)]
 ThrottleRate = Annotated[str, AfterValidator(_throttle_rate)]
 AppOrigin = Annotated[str, AfterValidator(_app_origin)]
+OperatorEmails = Annotated[
+    list[str], NoDecode, BeforeValidator(_csv), AfterValidator(_operator_emails)
+]
 JwtSigningKey = Annotated[SecretStr, AfterValidator(_jwt_signing_key)]
 JwtVerificationKeys = Annotated[
     dict[str, str],
@@ -252,6 +273,9 @@ class PlatformEnv(BffCredentialEnv):
     # The origin of the app the browser opens (SPEC-02 design.md §6): the invitation link is
     # <origin>/invitacion#token=..., shown once. Unset: creating an invitation fails closed.
     FRONTEND_BASE_URL: AppOrigin = ""
+    # Who may run the platform operator's commands, by --operator (SPEC-02 design.md §4.5; SPEC-01
+    # design.md §6.5). Unset: no operator command runs.
+    PLATFORM_OPERATOR_EMAILS: OperatorEmails = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _jwt_signer_verifies_its_own_tokens(self) -> Self:

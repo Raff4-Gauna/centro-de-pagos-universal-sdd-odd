@@ -7,6 +7,7 @@ the real route with that Bearer (``HubJWTAuthentication``), so the ``401`` is th
 
 from __future__ import annotations
 
+import getpass
 import json
 from io import StringIO
 from typing import Any
@@ -20,8 +21,8 @@ from django.utils import timezone
 from pytest_django.fixtures import Settings as SettingsWrapper
 from structlog.testing import capture_logs
 
+from apps.common import platform_operators
 from apps.identity.domain.audit_events import AuditActorType, AuditResult, IdentityAuditAction
-from apps.identity.management.commands import _user_status
 from apps.identity.models import AuthSession, RevokeReason, SessionStatus, User
 from apps.identity.services.session_lifecycle import OpenedSession, open_session
 from apps.identity.tokens.access_token import issue_access_token
@@ -31,7 +32,8 @@ pytestmark = pytest.mark.django_db
 
 ME = "/api/me/"
 EMAIL = "ana@example.com"
-OPERATOR = "Ops Team"
+# The one operator of the test settings (PLATFORM_OPERATOR_EMAILS).
+OPERATOR = "ops@hub.test"
 
 
 class Device:
@@ -44,7 +46,7 @@ class Device:
 
 @pytest.fixture
 def ports(settings: SettingsWrapper, monkeypatch: pytest.MonkeyPatch) -> Ports:
-    monkeypatch.setattr(_user_status.getpass, "getuser", lambda: "deploy")
+    monkeypatch.setattr(getpass, "getuser", lambda: "deploy")
     return install_ports(settings)
 
 
@@ -229,6 +231,7 @@ def test_AC_IDA_27_unknown_user_exits_1_without_echoing(ports: Ports, ana: User)
     [
         ("--email", EMAIL, "--operator", "   "),
         ("--email", EMAIL, "--operator", "x" * 151),
+        ("--email", EMAIL, "--operator", "intruso@hub.test"),
         ("--email", EMAIL, "--operator", OPERATOR, "--reason", "x" * 201),
     ],
 )
@@ -241,6 +244,28 @@ def test_AC_IDA_27_invalid_operator_or_reason_exits_2(
     assert raised.value.returncode == 2
     assert User.objects.get(pk=ana.pk).is_active
     assert ports.audit.events == []
+
+
+@pytest.mark.parametrize("command", ["deactivate_user", "reactivate_user"])
+def test_RF_IDA_08_no_operator_configured_runs_nothing(
+    ports: Ports, ana: User, settings: SettingsWrapper, command: str
+) -> None:
+    # The same check as tenancy_create_org (apps.common.platform_operators, T-TEN-18).
+    settings.PLATFORM_OPERATOR_EMAILS = ()
+
+    with pytest.raises(CommandError) as raised:
+        run(command, "--email", EMAIL, "--operator", OPERATOR)
+
+    assert raised.value.returncode == 2
+    assert User.objects.get(pk=ana.pk).is_active
+    assert ports.audit.events == []
+
+
+def test_RF_IDA_08_operator_is_normalized(ports: Ports, ana: User) -> None:
+    run("deactivate_user", "--email", EMAIL, "--operator", "  OPS@Hub.Test ")
+
+    [event] = events(ports, IdentityAuditAction.USER_DEACTIVATED)
+    assert event.metadata["operator"] == OPERATOR
 
 
 @pytest.mark.parametrize(
@@ -265,9 +290,9 @@ def test_AC_IDA_27_os_user_falls_back_to_unknown(monkeypatch: pytest.MonkeyPatch
     def no_user() -> str:
         raise OSError("no login name")
 
-    monkeypatch.setattr(_user_status.getpass, "getuser", no_user)
+    monkeypatch.setattr(getpass, "getuser", no_user)
 
-    assert _user_status.os_user() == "unknown"
+    assert platform_operators.os_user() == "unknown"
 
 
 def test_AC_IDA_27_audit_failure_rolls_everything_back(
