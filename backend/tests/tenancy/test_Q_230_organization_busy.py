@@ -93,6 +93,18 @@ def accept_an_invitation(org: Organization) -> Write:
     )
 
 
+def create_an_invitation(org: Organization) -> Write:
+    owner, _ = member(org, Role.OWNER)
+    rows = Invitation.objects.unscoped(PLATFORM).filter(organization=org)
+    return Write(
+        "POST",
+        "/api/invitations/",
+        {"email": "x@hub.test", "role": "viewer"},
+        as_member(owner, org.id),
+        lambda: not rows.exists(),
+    )
+
+
 class Request(threading.Thread):
     def __init__(self, write: Write) -> None:
         super().__init__(daemon=True)
@@ -117,7 +129,14 @@ def hold_the_organization(org: Organization) -> Callable[[], Organization]:
 
 
 @pytest.mark.parametrize(
-    "build", [change_a_role, create_a_branch, edit_the_organization, accept_an_invitation]
+    "build",
+    [
+        change_a_role,
+        create_a_branch,
+        edit_the_organization,
+        accept_an_invitation,
+        create_an_invitation,
+    ],
 )
 def test_Q_230_lock_timeout_is_organization_busy(
     build: Callable[[Organization], Write], monkeypatch: pytest.MonkeyPatch

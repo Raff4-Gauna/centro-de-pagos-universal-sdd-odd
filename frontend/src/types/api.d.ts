@@ -205,6 +205,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/invitations/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Las invitaciones pendientes de la organización activa (owner y admin) */
+        get: operations["invitations_list"];
+        put?: never;
+        /** Invitar a alguien a la organización activa (el link se muestra una sola vez) */
+        post: operations["invitations_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/invitations/{invitation_id}/accept/": {
         parameters: {
             query?: never;
@@ -367,6 +385,21 @@ export interface components {
             code?: string;
             address?: string;
         };
+        CreatedInvitation: {
+            /** Format: uuid */
+            readonly id: string;
+            readonly email: string;
+            readonly role: components["schemas"]["RoleEnum"];
+            readonly status: components["schemas"]["InvitationStatusEnum"];
+            readonly purpose: components["schemas"]["InvitationPurposeEnum"];
+            /** Format: date-time */
+            readonly expires_at: string;
+            readonly invited_by: components["schemas"]["OrganizationMemberUser"] | null;
+            /** Format: date-time */
+            readonly created_at: string;
+            readonly allowed_actions: components["schemas"]["TenancyActionEnum"][];
+            readonly accept_url: string;
+        };
         CurrentOrganization: {
             /** Format: uuid */
             readonly id: string;
@@ -390,6 +423,26 @@ export interface components {
         InvitationAcceptRequest: {
             token: string;
         };
+        InvitationCreateRequest: {
+            email: string;
+            role: components["schemas"]["RoleEnum"];
+        };
+        /**
+         * @description * `standard` - standard
+         *     * `first_owner` - first_owner
+         *     * `support` - support
+         *     * `owner_recovery` - owner_recovery
+         * @enum {string}
+         */
+        InvitationPurposeEnum: "standard" | "first_owner" | "support" | "owner_recovery";
+        /**
+         * @description * `pending` - pending
+         *     * `accepted` - accepted
+         *     * `revoked` - revoked
+         *     * `expired` - expired
+         * @enum {string}
+         */
+        InvitationStatusEnum: "pending" | "accepted" | "revoked" | "expired";
         JoinedOrganization: {
             /** Format: uuid */
             readonly id: string;
@@ -467,6 +520,20 @@ export interface components {
         };
         /** @enum {unknown} */
         NullEnum: null;
+        OrganizationInvitation: {
+            /** Format: uuid */
+            readonly id: string;
+            readonly email: string;
+            readonly role: components["schemas"]["RoleEnum"];
+            readonly status: components["schemas"]["InvitationStatusEnum"];
+            readonly purpose: components["schemas"]["InvitationPurposeEnum"];
+            /** Format: date-time */
+            readonly expires_at: string;
+            readonly invited_by: components["schemas"]["OrganizationMemberUser"] | null;
+            /** Format: date-time */
+            readonly created_at: string;
+            readonly allowed_actions: components["schemas"]["TenancyActionEnum"][];
+        };
         OrganizationMember: {
             /** Format: uuid */
             readonly id: string;
@@ -535,6 +602,21 @@ export interface components {
              */
             previous?: string | null;
             results: components["schemas"]["MyOrganization"][];
+        };
+        PaginatedOrganizationInvitationList: {
+            /** @example 123 */
+            count: number;
+            /**
+             * @description Ruta relativa con la query de la página, o null.
+             * @example /api/recurso/?page=4
+             */
+            next?: string | null;
+            /**
+             * @description Ruta relativa con la query de la página, o null.
+             * @example /api/recurso/?page=2
+             */
+            previous?: string | null;
+            results: components["schemas"]["OrganizationInvitation"][];
         };
         PaginatedOrganizationMemberList: {
             /** @example 123 */
@@ -1473,6 +1555,140 @@ export interface operations {
                 };
             };
             /** @description code: invalid_transition (ya está en ese estado) · organization_suspended */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description code: organization_busy (otra operación tiene tomada la organización; no se escribió nada: se puede reenviar la misma request después de Retry-After: 2 s) */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Error del cliente */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Error del servidor */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    invitations_list: {
+        parameters: {
+            query?: {
+                /** @description Un número de página dentro del conjunto de resultados paginado. */
+                page?: number;
+                /** @description Número de resultados a devolver por página. */
+                page_size?: number;
+            };
+            header: {
+                /** @description Organización activa de la request (RN-TEN-03). */
+                "X-Organization-Id": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedOrganizationInvitationList"];
+                };
+            };
+            /** @description code: forbidden (operator y viewer) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Error del cliente */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Error del servidor */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    invitations_create: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Organización activa de la request (RN-TEN-03). */
+                "X-Organization-Id": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InvitationCreateRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreatedInvitation"];
+                };
+            };
+            /** @description code: validation_error (email inválido, rol desconocido u otra clave: unknown_field) · organization_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description code: forbidden (el rol no alcanza: un admin no invita owners) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description code: already_member · invitation_pending (hay una vigente: reenviarla) · organization_suspended */
             409: {
                 headers: {
                     [name: string]: unknown;

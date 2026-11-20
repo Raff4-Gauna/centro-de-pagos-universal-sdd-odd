@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Centro de Pagos Universal API
-  version: 0.15.0
+  version: 0.16.0
 paths:
   /api/auth/bff/login/complete/:
     post:
@@ -725,6 +725,128 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
+  /api/invitations/:
+    get:
+      operationId: invitations_list
+      summary: Las invitaciones pendientes de la organización activa (owner y admin)
+      parameters:
+      - in: header
+        name: X-Organization-Id
+        schema:
+          type: string
+          format: uuid
+        description: Organización activa de la request (RN-TEN-03).
+        required: true
+      - name: page
+        required: false
+        in: query
+        description: Un número de página dentro del conjunto de resultados paginado.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Número de resultados a devolver por página.
+        schema:
+          type: integer
+      tags:
+      - tenancy
+      security:
+      - HubBearer: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedOrganizationInvitationList'
+          description: ''
+        '403':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: 'code: forbidden (operator y viewer)'
+        4XX:
+          description: Error del cliente
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        5XX:
+          description: Error del servidor
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+    post:
+      operationId: invitations_create
+      summary: Invitar a alguien a la organización activa (el link se muestra una
+        sola vez)
+      parameters:
+      - in: header
+        name: X-Organization-Id
+        schema:
+          type: string
+          format: uuid
+        description: Organización activa de la request (RN-TEN-03).
+        required: true
+      tags:
+      - tenancy
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InvitationCreateRequest'
+        required: true
+      security:
+      - HubBearer: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreatedInvitation'
+          description: ''
+        '400':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: 'code: validation_error (email inválido, rol desconocido u
+            otra clave: unknown_field) · organization_required'
+        '403':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: 'code: forbidden (el rol no alcanza: un admin no invita owners)'
+        '409':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: 'code: already_member · invitation_pending (hay una vigente:
+            reenviarla) · organization_suspended'
+        '503':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: 'code: organization_busy (otra operación tiene tomada la organización;
+            no se escribió nada: se puede reenviar la misma request después de Retry-After:
+            2 s)'
+        4XX:
+          description: Error del cliente
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        5XX:
+          description: Error del servidor
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
   /api/invitations/{invitation_id}/accept/:
     post:
       operationId: invitations_accept_mine
@@ -1331,6 +1453,60 @@ components:
           maxLength: 255
       required:
       - name
+    CreatedInvitation:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        email:
+          type: string
+          readOnly: true
+        role:
+          allOf:
+          - $ref: '#/components/schemas/RoleEnum'
+          readOnly: true
+        status:
+          allOf:
+          - $ref: '#/components/schemas/InvitationStatusEnum'
+          readOnly: true
+        purpose:
+          allOf:
+          - $ref: '#/components/schemas/InvitationPurposeEnum'
+          readOnly: true
+        expires_at:
+          type: string
+          format: date-time
+          readOnly: true
+        invited_by:
+          allOf:
+          - $ref: '#/components/schemas/OrganizationMemberUser'
+          readOnly: true
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        allowed_actions:
+          type: array
+          items:
+            $ref: '#/components/schemas/TenancyActionEnum'
+          readOnly: true
+        accept_url:
+          type: string
+          readOnly: true
+      required:
+      - accept_url
+      - allowed_actions
+      - created_at
+      - email
+      - expires_at
+      - id
+      - invited_by
+      - purpose
+      - role
+      - status
     CurrentOrganization:
       type: object
       properties:
@@ -1401,6 +1577,41 @@ components:
           maxLength: 128
       required:
       - token
+    InvitationCreateRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          minLength: 1
+        role:
+          $ref: '#/components/schemas/RoleEnum'
+      required:
+      - email
+      - role
+    InvitationPurposeEnum:
+      enum:
+      - standard
+      - first_owner
+      - support
+      - owner_recovery
+      type: string
+      description: |-
+        * `standard` - standard
+        * `first_owner` - first_owner
+        * `support` - support
+        * `owner_recovery` - owner_recovery
+    InvitationStatusEnum:
+      enum:
+      - pending
+      - accepted
+      - revoked
+      - expired
+      type: string
+      description: |-
+        * `pending` - pending
+        * `accepted` - accepted
+        * `revoked` - revoked
+        * `expired` - expired
     JoinedOrganization:
       type: object
       properties:
@@ -1611,6 +1822,56 @@ components:
     NullEnum:
       enum:
       - null
+    OrganizationInvitation:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        email:
+          type: string
+          readOnly: true
+        role:
+          allOf:
+          - $ref: '#/components/schemas/RoleEnum'
+          readOnly: true
+        status:
+          allOf:
+          - $ref: '#/components/schemas/InvitationStatusEnum'
+          readOnly: true
+        purpose:
+          allOf:
+          - $ref: '#/components/schemas/InvitationPurposeEnum'
+          readOnly: true
+        expires_at:
+          type: string
+          format: date-time
+          readOnly: true
+        invited_by:
+          allOf:
+          - $ref: '#/components/schemas/OrganizationMemberUser'
+          readOnly: true
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        allowed_actions:
+          type: array
+          items:
+            $ref: '#/components/schemas/TenancyActionEnum'
+          readOnly: true
+      required:
+      - allowed_actions
+      - created_at
+      - email
+      - expires_at
+      - id
+      - invited_by
+      - purpose
+      - role
+      - status
     OrganizationMember:
       type: object
       properties:
@@ -1753,6 +2014,29 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/MyOrganization'
+    PaginatedOrganizationInvitationList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          description: Ruta relativa con la query de la página, o null.
+          example: /api/recurso/?page=4
+        previous:
+          type: string
+          nullable: true
+          description: Ruta relativa con la query de la página, o null.
+          example: /api/recurso/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrganizationInvitation'
     PaginatedOrganizationMemberList:
       type: object
       required:

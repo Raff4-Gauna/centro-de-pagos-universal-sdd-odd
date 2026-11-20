@@ -19,18 +19,36 @@ now=)`` is the first: the ids of the ``active`` organizations with a valid ``pen
 for that email, with no lock and in ``id`` order, the order the port locks them in. Under each
 organization's mutex, ``lock_pending_for_email(mutex, email, now=)`` locks (``FOR UPDATE``, in
 ``id`` order) the ones still ``pending`` and valid, read again through ``for_tenant``.
+
+The invitations of the active organization (RF-TEN-05, design.md §6, ``GET /api/invitations/``)
+read only ``ctx``'s organization (``for_tenant``), for owner and admin (``invitation.list``, Q-218).
+``list_pending(ctx, now=)`` gives the ``pending`` ones still valid (``expires_at > now``: one past
+it is expired already, RN-TEN-12, though nobody wrote it yet), ordered by creation, then id; it is
+lazy, so the paginator slices it in the database, and ``to_invitations`` maps a page.
+``get_invitation(ctx, id)`` is one of them, any status, or ``None``. Each row carries who invited
+(``invited_by``: the person's id, email and display name; ``None`` for one the platform operator
+issued, whose identity is not the organization's) and never the token nor its hash.
 """
 
 from __future__ import annotations
 
 import uuid
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Any
+
+from django.db.models import QuerySet
 
 from apps.common.authz.roles import Role
-from apps.common.tenancy.context import OrgStatus
+from apps.common.tenancy.context import OrgStatus, TenantContext
 from apps.common.tenancy.locks import bounded_lock_wait
-from apps.tenancy.domain.invitations import InvitationStatus, hash_token, normalize_email
+from apps.tenancy.domain.invitations import (
+    InvitationPurpose,
+    InvitationStatus,
+    hash_token,
+    normalize_email,
+)
 from apps.tenancy.models import Invitation
 from apps.tenancy.selectors.locks import MembershipMutex
 
@@ -102,3 +120,87 @@ def lock_pending_for_email(mutex: MembershipMutex, email: str, *, now: datetime)
             .values_list("id", flat=True)
         )
         return list(rows)
+
+
+@dataclass(frozen=True, slots=True)
+class Inviter:
+    """Who issued an invitation: a person of the Hub (the operator's name no invitation)."""
+
+    id: uuid.UUID
+    email: str
+    name: str
+
+
+@dataclass(frozen=True, slots=True)
+class OrganizationInvitation:
+    """An invitation of the active organization, as owner and admin see it: never its token."""
+
+    id: uuid.UUID
+    email: str
+    role: Role
+    status: InvitationStatus
+    purpose: InvitationPurpose
+    expires_at: datetime
+    invited_by: Inviter | None
+    created_at: datetime
+
+
+_INVITATION_FIELDS = (
+    "id",
+    "email",
+    "role",
+    "status",
+    "purpose",
+    "expires_at",
+    "invited_by_user_id",
+    "invited_by_user__email",
+    "invited_by_user__display_name",
+    "created_at",
+)
+
+
+def _invitation(row: tuple[Any, ...]) -> OrganizationInvitation:
+    values = dict(zip(_INVITATION_FIELDS, row, strict=True))
+    inviter_id = values["invited_by_user_id"]
+    inviter = None
+    if inviter_id is not None:
+        inviter = Inviter(
+            inviter_id,
+            str(values["invited_by_user__email"]),
+            str(values["invited_by_user__display_name"]),
+        )
+    return OrganizationInvitation(
+        id=values["id"],
+        email=str(values["email"]),
+        role=Role(values["role"]),
+        status=InvitationStatus(values["status"]),
+        purpose=InvitationPurpose(values["purpose"]),
+        expires_at=values["expires_at"],
+        invited_by=inviter,
+        created_at=values["created_at"],
+    )
+
+
+def list_pending(ctx: TenantContext, *, now: datetime) -> QuerySet[Invitation, Any]:
+    """The rows, lazy, so the paginator slices them in the database; ``to_invitations`` maps a
+    page."""
+    return (
+        Invitation.objects.for_tenant(ctx)
+        .filter(status=InvitationStatus.PENDING.value, expires_at__gt=now)
+        .order_by("created_at", "id")
+        .values_list(*_INVITATION_FIELDS)
+    )
+
+
+def to_invitations(rows: Iterable[tuple[Any, ...]]) -> list[OrganizationInvitation]:
+    return [_invitation(row) for row in rows]
+
+
+def get_invitation(ctx: TenantContext, invitation_id: uuid.UUID) -> OrganizationInvitation | None:
+    row = (
+        Invitation.objects.for_tenant(ctx)
+        .filter(pk=invitation_id)
+        .values_list(*_INVITATION_FIELDS)
+        .first()
+    )
+    return None if row is None else _invitation(row)
