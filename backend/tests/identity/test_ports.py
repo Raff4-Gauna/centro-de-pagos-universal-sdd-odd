@@ -53,6 +53,7 @@ REVOCATIONS = {"user_revoked", "revoked_others", "user_deactivated", "refresh_re
 NOT_AUDITED = {"rate_limited", "google_unavailable", "login_cancelled"}
 TENANCY = "apps.tenancy.services."
 TENANCY_SELECTOR = f"{TENANCY}membership_selector.TenancyMembershipSelector"
+TENANCY_INVITATIONS = f"{TENANCY}invitation_port.TenancyInvitationPort"
 PORT_SETTINGS = ("IDENTITY_INVITATION_PORT", "IDENTITY_MEMBERSHIP_SELECTOR", "IDENTITY_AUDIT_PORT")
 
 
@@ -168,9 +169,14 @@ def test_RF_IDA_06_empty_selector_has_no_memberships() -> None:
     assert selector.list_active_memberships(uuid.uuid4()) == []
 
 
-def test_RF_IDA_09_registry_defaults_to_the_stubs() -> None:
-    assert isinstance(get_invitation_port(), NullInvitationPort)
+def test_RF_IDA_09_audit_port_defaults_to_the_stub() -> None:
     assert isinstance(get_audit_port(), LogAuditPort)
+
+
+def test_RF_IDA_09_invitation_port_is_the_one_of_spec_02() -> None:
+    # SPEC-02 registers its port by settings (T-TEN-17), without touching identity.
+    assert django_settings.IDENTITY_INVITATION_PORT == TENANCY_INVITATIONS
+    assert type(get_invitation_port()).__name__ == "TenancyInvitationPort"
 
 
 def test_RF_IDA_09_membership_selector_is_the_one_of_spec_02() -> None:

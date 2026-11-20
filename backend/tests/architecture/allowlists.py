@@ -144,6 +144,15 @@ TENANT_QUERY_ALLOWLIST: tuple[AllowEntry, ...] = (
         "SystemReason.INVITATION_ACCEPT, y el servicio chequea la suspensión él mismo",
         count=1,
     ),
+    AllowEntry(
+        "apps/tenancy/services/invitation_port.py",
+        "system_context",
+        "puerto de invitaciones de SPEC-01 (design.md §4.4, T-TEN-17): el primer login acepta "
+        "invitaciones de organizaciones donde la persona no tiene membership; mismo "
+        "SystemReason.INVITATION_ACCEPT, relee la suspensión bajo el mutex y decide con "
+        "accept_locked, como los otros caminos de aceptación",
+        count=1,
+    ),
 )
 
 # Concrete models of ``apps/`` that are not tenant models (RN-TEN-01; ``TenantModel`` subclasses
