@@ -58,6 +58,7 @@ Donde el diseño y el código de SPEC-00, o el orden real, difieren, manda esta 
 | Timeout de lock → `OperationalError` de la BD como `500` (`design.md §11`, T-TEN-11, PR #117) | `503 organization_busy` con `Retry-After: 2` y título fijo "Hay otra operación en curso, probá de nuevo", para todo usuario de `lock_org_for_write` / `lock_membership_mutex`; lo mapea `apps/common/api/exceptions.py` por el SQLSTATE `55P03` (T-TEN-22) | Q-230, decidida por el dueño el 2026-11-20. Código nuevo de contrato (versión menor): `design.md §6` no lo lista |
 | `GET /api/memberships/` → `user:{id, email, name}` (`design.md §6`) | `name` es `User.display_name` de SPEC-01 (T-TEN-22) | `User` no tiene un campo `name` |
 | Callback del login con error de Django → `/login?error=<code>` de la lista (SPEC-01 `design.md §6.3`) | `503 organization_busy` del primer login (lock de una organización invitante, Q-230) → `/login?error=google_unavailable`, sin cookies de sesión ni `Retry-After` (T-TEN-17) | Q-231, decidida por el dueño el 2026-11-20: el intento y el `code` ya se gastaron, así que el mismo callback no se puede repetir; se reusa el texto y el "Reintentar" de Q-127 sin cambiar el contrato |
+| El rol se muestra como código (`context/07 §5.3`, spec §14) y los rechazos de `/invitacion` sin acción (`design.md §3.9`) | Etiquetas en español en un único módulo, `frontend/src/modules/tenancy/lib/role-labels.ts` (`Record<RoleEnum, string>`), que usan el aviso de invitaciones y la invitación aceptada; todo rechazo de `/invitacion` y el link sin token muestran un único botón "Ir a Inicio" hacia `/inicio`, y la falla de red/5xx conserva "Reintentar" | Q-232 y Q-233, decididas por el dueño el 2026-11-20. La API sigue con los códigos; un rol nuevo no compila sin su etiqueta. Worklog `context/worklog/2026-11-20-role-labels-exit.md` |
 
 ## Resumen
 
@@ -847,6 +848,8 @@ T-TEN-30 · suspendida → T-TEN-29.
 - **Archivos:** `src/app/(dashboard)/configuracion/colaboradores/page.tsx`, `src/modules/tenancy/components/MembersTable.tsx`,
   `src/modules/tenancy/hooks/useMembers.ts`, `settings-sections.ts`, tests.
 - **Pruebas:** sin permiso muestra el estado; acciones por fila según `allowed_actions` y `assignable_roles`.
+- **Roles:** se muestran con las etiquetas compartidas de `src/modules/tenancy/lib/role-labels.ts` (Q-232), en la
+  tabla y en el selector de rol; nunca el código ni una traducción propia.
 
 ### T-TEN-35 — Colaboradores: invitaciones y link de una sola vez
 - **AC:** AC-TEN-24 (UI). Q-207. **Zona roja:** sí (muestra el token).
