@@ -4,7 +4,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useLogout } from "../hooks/useLogout";
 import { CSRF_REFUSED, logoutResult } from "./identity.test-helpers";
-import { NO_ORGANIZATION_TITLE, NoOrganizationState } from "./NoOrganizationState";
+import {
+  NO_ORGANIZATION_TITLE,
+  NoOrganizationState,
+  OPERATOR_CONTACT_LABEL,
+} from "./NoOrganizationState";
 import { LOGOUT_LABEL } from "./UserMenu";
 
 vi.mock("../hooks/useLogout", () => ({ useLogout: vi.fn() }));
@@ -24,6 +28,20 @@ describe("NoOrganizationState (AC-IDA-30, Q-109, spec §14, design.md §3.4)", (
     expect(screen.getByRole("heading", { name: NO_ORGANIZATION_TITLE })).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: LOGOUT_LABEL }));
     expect(result.mutate).toHaveBeenCalledTimes(1);
+  });
+
+  it("test_Q_205_operator_contact_and_invitations_are_shown_when_given", () => {
+    const { rerender } = render(
+      <NoOrganizationState operatorContact="soporte@example.com">
+        <p>invitaciones</p>
+      </NoOrganizationState>,
+    );
+    expect(screen.getByText(`${OPERATOR_CONTACT_LABEL}: soporte@example.com`)).toBeInTheDocument();
+    expect(screen.getByText("invitaciones")).toBeInTheDocument();
+
+    rerender(<NoOrganizationState operatorContact={null} />);
+    expect(screen.queryByText(new RegExp(OPERATOR_CONTACT_LABEL))).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: NO_ORGANIZATION_TITLE })).toBeInTheDocument();
   });
 
   it("test_AC_IDA_30_logout_in_progress_blocks_a_second_click", () => {

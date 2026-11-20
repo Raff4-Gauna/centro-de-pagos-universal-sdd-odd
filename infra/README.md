@@ -55,8 +55,8 @@ Opcionales (vacías = valor por defecto de `config/settings/env.py`): `DJANGO_AL
 los fija el Compose. Si la contraseña de `POSTGRES_PASSWORD` tiene caracteres especiales, en `DATABASE_URL` va
 percent-encoded.
 
-El servicio `frontend` recibe además las del BFF (`HUB_BFF_CREDENTIAL`, `HUB_APP_ORIGIN`, `HUB_TRUSTED_PROXY_HOPS`);
-sin las dos primeras, las rutas de login mandan a `/login?error=internal_error`. Si el `.env` se editó en Windows y
+El servicio `frontend` recibe además las del BFF (`HUB_BFF_CREDENTIAL`, `HUB_APP_ORIGIN`, `HUB_TRUSTED_PROXY_HOPS`
+y `OPERATOR_CONTACT`, opcional); sin las dos primeras, las rutas de login mandan a `/login?error=internal_error`. Si el `.env` se editó en Windows y
 quedó con fin de línea CRLF y la credencial llega con un `\r` (o un espacio) al final, el BFF la rechaza por no ser
 ASCII visible y las mismas rutas fallan igual: guardar el `.env` con LF y sin espacios al final de cada valor.
 

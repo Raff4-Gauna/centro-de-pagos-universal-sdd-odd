@@ -78,3 +78,12 @@ export function getTrustedProxyHops(): number {
   }
   return hops;
 }
+
+// How a person without a company reaches the platform operator ("sin organización", Q-205,
+// SPEC-02 design.md §3.9): an email, a phone or a URL, shown as plain text. A server variable, never
+// one exposed to the browser (Q-050): the page reads it on every request and passes it down by prop, so a
+// new value needs no new build. Unset or blank: null, and the page shows no contact.
+export function getOperatorContact(): string | null {
+  const value = process.env.OPERATOR_CONTACT?.trim();
+  return value ? value : null;
+}

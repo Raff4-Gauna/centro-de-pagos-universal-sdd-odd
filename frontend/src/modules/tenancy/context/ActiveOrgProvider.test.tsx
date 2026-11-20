@@ -15,6 +15,7 @@ import {
 } from "../lib/active-organization";
 import {
   ActiveOrgProvider,
+  HOME_PATH,
   LOST_ACCESS_TEXT,
   NO_ORGANIZATION_PATH,
   useActiveOrganization,
@@ -254,6 +255,21 @@ describe("ActiveOrgProvider (RF-TEN-02, spec §14, Q-119, Q-205, design.md §3.9
     renderProvider(null);
     await waitFor(() => expect(active()).toHaveTextContent("none"));
     expect(replace).not.toHaveBeenCalled();
+  });
+
+  it("test_AC_TEN_39_a_company_on_no_organization_goes_to_home", async () => {
+    // An invitation accepted from "sin organización" brings the first company to the list.
+    vi.mocked(usePathname).mockReturnValue(NO_ORGANIZATION_PATH);
+    listOrganizations.mockResolvedValue([]);
+    renderProvider(null);
+    await waitFor(() => expect(active()).toHaveTextContent("none"));
+    expect(replace).not.toHaveBeenCalled();
+
+    listOrganizations.mockResolvedValue([BETA]);
+    await act(() => queryClient.invalidateQueries({ queryKey: ["organizations"] }));
+
+    await waitFor(() => expect(replace).toHaveBeenCalledExactlyOnceWith(HOME_PATH));
+    expect(active()).toHaveTextContent(BETA.id);
   });
 
   it("test_RF_TEN_02_hook_outside_the_provider_fails", () => {
