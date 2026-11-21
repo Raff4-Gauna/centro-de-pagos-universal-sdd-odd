@@ -36,7 +36,10 @@ RNF-TEN-04). A lock not taken within ``lock_timeout`` is ``503 organization_busy
 carry ids, never an email nor the token (C-06, RNF-TEN-06).
 
 ``insert_invitation`` (step 5) and ``expire_invitation`` (the lazy expiry of step 4) are shared
-with resending and revoking, in ``services/invitation_manage.py`` (``C-14``).
+with resending and revoking, in ``services/invitation_manage.py`` (``C-14``); accepting
+(``services/invitation_accept.py``) and the expiry task (``expire_due_invitation``, AC-TEN-37) use
+``expire_invitation`` too, so every ``invitation.expired`` names the same actor:
+``SystemReason.INVITATION_EXPIRY`` (Q-225).
 """
 
 from __future__ import annotations
@@ -54,11 +57,11 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.exceptions import APIException, ErrorDetail, ValidationError
 
-from apps.common.audit.port import AuditActor, AuditActorKind
+from apps.common.audit.port import AuditActor
 from apps.common.authz.actions import ActionKind
 from apps.common.authz.roles import Role
 from apps.common.logging import get_logger
-from apps.common.tenancy.context import TenantContext
+from apps.common.tenancy.context import SystemActor, SystemReason, TenantContext
 from apps.common.tenancy.errors import Forbidden, OrganizationNotFound
 from apps.common.tenancy.locks import bounded_lock_wait
 from apps.tenancy.domain.audit_events import TenancyAuditAction
@@ -81,11 +84,12 @@ from apps.tenancy.services.audit import audit_trigger, record_event
 logger = get_logger(__name__)
 
 CREATED_EVENT = "tenancy.invitation_created"
+EXPIRED_EVENT = "tenancy.invitation_expired"
 ACCEPT_PATH = "/invitacion"
 INVALID_EMAIL = "Tiene que ser un email válido."
 PENDING_CONSTRAINT = "invitation_one_pending_per_org_email"
-# ``invitation.expired`` has the system as its actor (RNF-TEN-04): the request only noticed it.
-EXPIRY_ACTOR = AuditActor(kind=AuditActorKind.SYSTEM, name="invitation_expiry")
+# ``invitation.expired`` has the system as its actor (RNF-TEN-04): a request only noticed it.
+EXPIRY_ACTOR = AuditActor.for_tenant_actor(SystemActor(SystemReason.INVITATION_EXPIRY))
 _EMAIL_VALIDATOR = EmailValidator(message=INVALID_EMAIL)
 
 
@@ -212,6 +216,33 @@ def _expire_or_refuse_pending(mutex: MembershipMutex, email: str, now: datetime)
     if not is_expired(pending.expires_at, now):
         raise InvitationPending
     expire_invitation(ctx, pending)
+
+
+@audit_trigger(TenancyAuditAction.INVITATION_EXPIRED)
+def expire_due_invitation(
+    ctx: TenantContext, invitation_id: uuid.UUID, *, now: datetime | None = None
+) -> bool:
+    """The expiry task's case (AC-TEN-37): that invitation, if it is still ``pending`` and past
+    its expiry, becomes ``expired``; anything else (accepted, revoked, already expired, renewed,
+    of another organization) is left alone. Same lock order as every other change: organization,
+    then invitation. A system actor is not stopped by a suspended organization (RN-TEN-18)."""
+    if not isinstance(invitation_id, uuid.UUID):
+        raise TypeError("invitation_id must be a UUID")
+    moment = timezone.now() if now is None else now
+    with transaction.atomic():
+        mutex = lock_membership_mutex(ctx, ActionKind.WRITE)
+        with bounded_lock_wait():
+            invitation = (
+                Invitation.objects.for_tenant(mutex.ctx)
+                .select_for_update()
+                .filter(pk=invitation_id, status=InvitationStatus.PENDING.value)
+                .first()
+            )
+        if invitation is None or not is_expired(invitation.expires_at, moment):
+            return False
+        expire_invitation(ctx, invitation)
+    logger.info(EXPIRED_EVENT, invitation_id=str(invitation_id))
+    return True
 
 
 def expire_invitation(ctx: TenantContext, invitation: Invitation) -> None:
