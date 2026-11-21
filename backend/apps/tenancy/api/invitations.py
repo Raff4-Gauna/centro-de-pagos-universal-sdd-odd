@@ -102,6 +102,7 @@ from apps.tenancy.services.invitation_manage import (
     revoke_invitation,
 )
 from apps.tenancy.services.invitations import create_invitation
+from apps.tenancy.tasks import queue_invitation_email
 
 INVITATIONS_TAG = "tenancy"
 LOOKUP = "id"
@@ -225,6 +226,7 @@ class InvitationViewSet(TenantViewSet):
         body.is_valid(raise_exception=True)
         ctx = self.tenant
         created = create_invitation(ctx, body.invitee_email(), body.invited_role())
+        queue_invitation_email(ctx, created.invitation_id, created.accept_url)  # flag, Q-207
         invitation = get_invitation(ctx, created.invitation_id)
         if invitation is None:  # just inserted in this organization; an invitation is never deleted
             raise AssertionError("the invitation just created is not found")
@@ -260,6 +262,7 @@ class InvitationViewSet(TenantViewSet):
         NoBodySerializer(data=request.data).is_valid(raise_exception=True)
         ctx = self.tenant
         resent = resend_invitation(ctx, self._invitation_id())
+        queue_invitation_email(ctx, resent.invitation_id, resent.accept_url)  # flag, Q-207
         view = invitation_view(self._read(resent.invitation_id), ctx, actor_role=resent.actor_role)
         data = {**self.get_serializer(view).data, "accept_url": resent.accept_url}
         return Response(data, status=status.HTTP_201_CREATED)
