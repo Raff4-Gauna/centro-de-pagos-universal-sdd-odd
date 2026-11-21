@@ -55,6 +55,8 @@ IDENTITY_GOOGLE_REDIRECT_URI = _env.IDENTITY_GOOGLE_REDIRECT_URI
 # The app's origin, where the invitation link points (SPEC-02 design.md §6); read through
 # apps.tenancy.services.invitations.
 FRONTEND_BASE_URL = _env.FRONTEND_BASE_URL
+# Who may run the operator's commands (--operator), read through apps.common.platform_operators.
+PLATFORM_OPERATOR_EMAILS = tuple(_env.PLATFORM_OPERATOR_EMAILS)
 
 # The fake OIDC provider may run here (Q-122), with IDENTITY_OIDC_PROVIDER=fake: the port of the
 # dev stack, which the browser and this backend both reach (infra/docker-compose.yml).

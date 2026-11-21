@@ -126,6 +126,9 @@ IDENTITY_GOOGLE_REDIRECT_URI = _env.IDENTITY_GOOGLE_REDIRECT_URI
 # The app's origin, where the invitation link points (SPEC-02 design.md §6); https only here
 # (ProdEnv), read through apps.tenancy.services.invitations.
 FRONTEND_BASE_URL = _env.FRONTEND_BASE_URL
+# Who may run the operator's commands (--operator), read through apps.common.platform_operators.
+# Unset is allowed: the Hub starts and every operator command refuses to run.
+PLATFORM_OPERATOR_EMAILS = tuple(_env.PLATFORM_OPERATOR_EMAILS)
 # Never the fake OIDC provider here (Q-122): apps.identity does not start with it, and
 # config.urls has no /dev-oidc/*. Set again, not only inherited from base.py, so it stays visible.
 IDENTITY_FAKE_OIDC_ALLOWED = False

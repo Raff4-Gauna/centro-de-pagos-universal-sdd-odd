@@ -43,6 +43,8 @@ x-backend-environment: &backend-environment
   IDENTITY_GOOGLE_REDIRECT_URI: ${IDENTITY_GOOGLE_REDIRECT_URI:-}
   # SPEC-02: the app's origin of the invitation link; without it, creating an invitation fails.
   FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:-}
+  # Who may run the operator's commands (--operator); without it none of them runs.
+  PLATFORM_OPERATOR_EMAILS: ${PLATFORM_OPERATOR_EMAILS:-}
   # Feature flags (RF-PLT-19). On in the dev stack on purpose, like DJANGO_DEBUG: prod leaves it
   # off until login with Google is verified there (design.md §10 of SPEC-01).
   FEATURE_IDENTITY_GOOGLE_LOGIN: "true"

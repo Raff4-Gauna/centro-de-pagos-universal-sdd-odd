@@ -1,9 +1,11 @@
 """Catalog of SPEC-02's audit events (RNF-TEN-04, RN-TEN-17, Q-225). Pure: no Django, no I/O.
 
 Exactly the list of RNF-TEN-04, the three of the approval gate included (``invitation.expired``,
-``invitation.auto_revoked``, ``transition.rejected``). Support access and owner recovery have no
-event of their own: ``invitation.created`` carries their ``purpose`` (Q-225). Denied attempts on
-another organization are not here: operational log and metric (Q-217).
+``invitation.auto_revoked``, ``transition.rejected``), plus ``organization.create_repeated``
+(Q-235: RN-IDA-23 audits every run of the operator's bootstrap command, a repeat too). Support
+access and owner recovery have no event of their own: ``invitation.created`` carries their
+``purpose`` (Q-225). Denied attempts on another organization are not here: operational log and
+metric (Q-217).
 
 The closed lists of reasons (``invitation.rejected``, ``invitation.auto_revoked``) arrive with the
 services that emit them.
@@ -16,6 +18,8 @@ from enum import StrEnum
 
 class TenancyAuditAction(StrEnum):
     ORGANIZATION_CREATED = "organization.created"
+    # Q-235 (2026-11-20): every repeat of tenancy_create_org's --key, outcome no_change | conflict.
+    ORGANIZATION_CREATE_REPEATED = "organization.create_repeated"
     ORGANIZATION_UPDATED = "organization.updated"
     ORGANIZATION_SUSPENDED = "organization.suspended"
     ORGANIZATION_REACTIVATED = "organization.reactivated"
