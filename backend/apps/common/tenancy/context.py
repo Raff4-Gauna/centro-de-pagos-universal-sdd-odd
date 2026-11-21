@@ -28,6 +28,9 @@ class SystemReason(StrEnum):
     ``INVITATION_ACCEPT``: accepting an invitation writes in an organization where the person has
     no membership yet (design.md §4.4; tasks.md, "Ajustes al diseño"). The service checks the
     suspension itself and audits the person as the actor.
+
+    ``INVITATION_EXPIRY``: the actor of ``invitation.expired`` (Q-225, AC-TEN-37), whoever noticed
+    it: the expiry task, or a request that met a ``pending`` one past its expiry (lazy expiry).
     """
 
     WEBHOOK = "webhook"
@@ -35,6 +38,7 @@ class SystemReason(StrEnum):
     CELERY = "celery"
     PLATFORM_COMMAND = "platform_command"
     INVITATION_ACCEPT = "invitation_accept"
+    INVITATION_EXPIRY = "invitation_expiry"
 
 
 @dataclass(frozen=True, slots=True)

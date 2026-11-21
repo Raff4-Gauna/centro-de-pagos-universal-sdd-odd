@@ -115,6 +115,7 @@ def test_RF_TEN_01_enum_values_are_the_contract() -> None:
         "celery",
         "platform_command",
         "invitation_accept",
+        "invitation_expiry",
     }
 
 
