@@ -2,15 +2,16 @@
 
 Expiry (AC-TEN-37), on beat (``beat.py``):
 
-- ``expire_invitations`` is a ``SystemFanoutTask``: with no tenant it **only** lists
-  ``(organization_id, id)`` of the ``pending`` invitations past their expiry, with
-  ``unscoped(SYSTEM_FANOUT)`` (``allowlists.UNSCOPED_ALLOWLIST``), and enqueues one
+- ``expire_invitations_fanout`` (``tenancy.expire_invitations``) is a ``SystemFanoutTask``: with no
+  tenant it **only** lists ``(organization_id, id)`` of the ``pending`` invitations past their
+  expiry, with ``unscoped(SYSTEM_FANOUT)`` (``allowlists.UNSCOPED_ALLOWLIST``), and enqueues one
   ``expire_invitation`` per pair through ``fan_out``. It reads nothing else and writes nothing.
 - ``expire_invitation`` is a ``TenantTask``: in its organization's scope it runs
   ``services.invitations.expire_due_invitation``, which re-reads the row under the locks and only
   expires it if it is still due, with ``invitation.expired`` and ``SystemReason.INVITATION_EXPIRY``
   as the actor (Q-225). A pair that changed since the listing (accepted, revoked, renewed) is a
-  no-op, so a late or repeated run does no harm.
+  no-op, so a late or repeated run does no harm. Each one ``expires`` before the next hourly
+  fan-out (``EXPIRE_ONE_EXPIRES_SECONDS``): a stopped worker does not come back to duplicates.
 
 Invitation email (Q-207), behind the flag ``TENANCY_INVITATION_EMAIL_ENABLED`` (off):
 
@@ -21,17 +22,24 @@ Invitation email (Q-207), behind the flag ``TENANCY_INVITATION_EMAIL_ENABLED`` (
   message ``expires`` in 15 minutes, so a stopped worker does not keep it for long.
 - ``send_invitation_email`` reads the flag again, and sends only if the invitation is still
   ``pending`` and valid: a revoked or renewed one is skipped (its link no longer works). There is
-  no email provider yet (Q-207): dev uses Django's console backend. It has no automatic retry: a
-  Celery retry re-publishes the kwargs without ``kwargsrepr``, so the link would reach the worker's
-  events in clear; a failed send is a ``FAILURE`` (logged without kwargs, ``celery_signals.py``)
-  and the owner or admin resends (the link was shown once anyway).
+  no email provider yet (Q-207): dev uses Django's console backend, and ``tenancy.E001``
+  (``checks.py``) stops a deploy that turns the flag on without one.
+- A failed send is retried asynchronously (clarifications.md §3, "fallas parciales"): up to
+  ``EMAIL_MAX_RETRIES`` times with exponential backoff. ``Task.retry`` rebuilds the message from
+  the request, which keeps ``expires`` (the original 15 minutes: a retry never outlives it) but
+  not ``kwargsrepr``, so every retry passes the redacted one again; and it always passes ``exc``:
+  without it, the last retry raises ``MaxRetriesExceededError`` with the kwargs, link included, in
+  its message. After the last one the task ends in ``FAILURE`` with the provider's own error
+  (logged without kwargs, ``celery_signals.py``) and the owner or admin can resend.
 
 Logs carry ids, never an email, the link nor the token (C-06, RNF-TEN-06).
 """
 
 from __future__ import annotations
 
+import smtplib
 import uuid
+from collections.abc import Mapping
 from datetime import UTC
 from typing import Any
 
@@ -47,6 +55,7 @@ from apps.common.tenancy.context import TenantContext
 from apps.common.tenancy.current import require_current_tenant
 from apps.common.tenancy.querysets import UnscopedReason
 from apps.tenancy.beat import EXPIRE_TASK
+from apps.tenancy.checks import EMAIL_FLAG
 from apps.tenancy.domain.invitations import InvitationStatus, is_expired
 from apps.tenancy.models import Invitation
 from apps.tenancy.selectors.invitations import get_invitation
@@ -57,12 +66,18 @@ logger = get_logger(__name__)
 
 EXPIRE_ONE_TASK = "tenancy.expire_invitation"
 EMAIL_TASK = "tenancy.send_invitation_email"
-EMAIL_FLAG = "TENANCY_INVITATION_EMAIL_ENABLED"
 EMAIL_EXPIRES_SECONDS = 15 * 60
+EMAIL_MAX_RETRIES = 3
+EMAIL_RETRY_BASE_SECONDS = 30
+# The errors of an email backend that is down or refuses (SMTP and the socket under it).
+EMAIL_RETRY_ERRORS = (smtplib.SMTPException, OSError)
+# Under the hourly period of beat.py: a run that waited for the next fan-out is dropped.
+EXPIRE_ONE_EXPIRES_SECONDS = 50 * 60
 REDACTED = "[redacted]"
 LINK_KWARG = "accept_url"
 EMAIL_SENT_EVENT = "tenancy.invitation_email_sent"
 EMAIL_SKIPPED_EVENT = "tenancy.invitation_email_skipped"
+EMAIL_FAILED_EVENT = "tenancy.invitation_email_failed"
 FANOUT_EVENT = "tenancy.invitation_expiry_fanout"
 SUBJECT = "Te invitaron a {organization} en el Centro de Pagos"
 BODY = (
@@ -73,14 +88,16 @@ BODY = (
 )
 
 
-@shared_task(base=TenantTask, name=EXPIRE_ONE_TASK, ignore_result=True)
+@shared_task(
+    base=TenantTask, name=EXPIRE_ONE_TASK, ignore_result=True, expires=EXPIRE_ONE_EXPIRES_SECONDS
+)
 def expire_invitation(*, organization_id: str, invitation_id: str) -> bool:
     """One due invitation of the task's organization; ``False`` if it is no longer due."""
     return expire_due_invitation(require_current_tenant(), uuid.UUID(invitation_id))
 
 
 @shared_task(base=SystemFanoutTask, bind=True, name=EXPIRE_TASK, ignore_result=True)
-def expire_invitations(self: Any) -> int:
+def expire_invitations_fanout(self: Any) -> int:
     """Enqueue one ``expire_invitation`` per due ``pending`` invitation; how many."""
     due = Invitation.objects.unscoped(UnscopedReason.SYSTEM_FANOUT).filter(
         status=InvitationStatus.PENDING.value, expires_at__lte=timezone.now()
@@ -105,15 +122,22 @@ def queue_invitation_email(ctx: TenantContext, invitation_id: uuid.UUID, accept_
     }
     # ``kwargsrepr`` is a message option the stubs of ``apply_async`` do not list.
     options: dict[str, Any] = {
-        "kwargsrepr": repr({**kwargs, LINK_KWARG: REDACTED}),
+        "kwargsrepr": redacted_repr(kwargs),
         "expires": EMAIL_EXPIRES_SECONDS,
     }
     transaction.on_commit(lambda: send_invitation_email.apply_async(kwargs=kwargs, **options))
     return True
 
 
-@shared_task(base=TenantTask, name=EMAIL_TASK, ignore_result=True)
-def send_invitation_email(*, organization_id: str, invitation_id: str, accept_url: str) -> bool:
+def redacted_repr(kwargs: Mapping[str, object]) -> str:
+    """What the worker's events and ``inspect`` show of the kwargs: the link as ``[redacted]``."""
+    return repr({**kwargs, LINK_KWARG: REDACTED})
+
+
+@shared_task(base=TenantTask, bind=True, name=EMAIL_TASK, ignore_result=True)
+def send_invitation_email(
+    self: Any, *, organization_id: str, invitation_id: str, accept_url: str
+) -> bool:
     """Send the link to the invitee if the flag is on and the invitation still works."""
     if not is_enabled(EMAIL_FLAG):  # turned off after it was enqueued
         logger.info(EMAIL_SKIPPED_EVENT, invitation_id=invitation_id, reason="flag_off")
@@ -129,11 +153,22 @@ def send_invitation_email(*, organization_id: str, invitation_id: str, accept_ur
         return False
     organization = get_organization(ctx).name
     expires = invitation.expires_at.astimezone(UTC).strftime("%d/%m/%Y %H:%M")
-    send_mail(
-        SUBJECT.format(organization=organization),
-        BODY.format(organization=organization, link=accept_url, expires=expires),
-        None,  # DEFAULT_FROM_EMAIL, until the provider's ADR (Q-207)
-        [invitation.email],
-    )
+    try:
+        send_mail(
+            SUBJECT.format(organization=organization),
+            BODY.format(organization=organization, link=accept_url, expires=expires),
+            None,  # DEFAULT_FROM_EMAIL, until the provider's ADR (Q-207)
+            [invitation.email],
+        )
+    except EMAIL_RETRY_ERRORS as error:
+        retries = self.request.retries
+        logger.warning(EMAIL_FAILED_EVENT, invitation_id=invitation_id, retries=retries)
+        kwargs = {ORGANIZATION_KWARG: organization_id, "invitation_id": invitation_id}
+        raise self.retry(
+            exc=error,  # never None: the last retry re-raises it instead of a message with kwargs
+            countdown=EMAIL_RETRY_BASE_SECONDS * 2**retries,
+            max_retries=EMAIL_MAX_RETRIES,
+            kwargsrepr=redacted_repr({**kwargs, LINK_KWARG: accept_url}),
+        ) from None
     logger.info(EMAIL_SENT_EVENT, invitation_id=invitation_id)
     return True

@@ -21,11 +21,11 @@ from pytest_django.fixtures import Settings as SettingsWrapper
 
 from apps.common import feature_flags
 from apps.common.authz.roles import Role
+from apps.tenancy.checks import EMAIL_FLAG
 from apps.tenancy.domain.invitations import InvitationStatus
 from apps.tenancy.models import Organization
 from apps.tenancy.tasks import (
     EMAIL_EXPIRES_SECONDS,
-    EMAIL_FLAG,
     queue_invitation_email,
     send_invitation_email,
 )
@@ -73,12 +73,12 @@ def flag(settings: SettingsWrapper, on: bool) -> None:
     settings.FEATURE_FLAGS = {**settings.FEATURE_FLAGS, EMAIL_FLAG: on}
 
 
-def test_the_flag_is_registered_and_off_by_default(settings: SettingsWrapper) -> None:
+def test_RF_TEN_05_the_flag_is_registered_and_off_by_default(settings: SettingsWrapper) -> None:
     assert EMAIL_FLAG in feature_flags.REGISTRY
     assert settings.FEATURE_FLAGS[EMAIL_FLAG] is False
 
 
-def test_token_never_reaches_broker_with_flag_off(
+def test_RF_TEN_05_token_never_reaches_broker_with_flag_off(
     client: Client,
     org_a: Organization,
     published: list[dict[str, Any]],
@@ -97,7 +97,7 @@ def test_token_never_reaches_broker_with_flag_off(
     assert mail.outbox == []
 
 
-def test_queue_does_nothing_with_flag_off(
+def test_RF_TEN_05_queue_does_nothing_with_flag_off(
     django_capture_on_commit_callbacks: Any, enqueued: list[dict[str, Any]]
 ) -> None:
     with django_capture_on_commit_callbacks() as callbacks:
@@ -107,7 +107,7 @@ def test_queue_does_nothing_with_flag_off(
     assert enqueued == []
 
 
-def test_flag_on_enqueues_after_commit_with_the_link_redacted(
+def test_RF_TEN_05_flag_on_enqueues_after_commit_with_the_link_redacted(
     client: Client,
     org_a: Organization,
     settings: SettingsWrapper,
@@ -135,7 +135,7 @@ def test_flag_on_enqueues_after_commit_with_the_link_redacted(
     assert job["expires"] == EMAIL_EXPIRES_SECONDS <= 3600
 
 
-def test_flag_on_resend_enqueues_the_new_link(
+def test_RF_TEN_05_flag_on_resend_enqueues_the_new_link(
     client: Client,
     org_a: Organization,
     settings: SettingsWrapper,
@@ -154,7 +154,7 @@ def test_flag_on_resend_enqueues_the_new_link(
     assert job["kwargs"]["accept_url"] == f"{ACCEPT_PREFIX}{token_of(resent)}"
 
 
-def test_flag_on_task_sends_the_link_to_the_invitee(
+def test_RF_TEN_05_flag_on_task_sends_the_link_to_the_invitee(
     org_a: Organization, settings: SettingsWrapper, mailoutbox: list[Any]
 ) -> None:
     flag(settings, True)
@@ -174,7 +174,7 @@ def test_flag_on_task_sends_the_link_to_the_invitee(
 
 
 @pytest.mark.parametrize("status", [InvitationStatus.REVOKED, InvitationStatus.EXPIRED])
-def test_flag_on_task_skips_an_invitation_that_no_longer_works(
+def test_RF_TEN_05_flag_on_task_skips_an_invitation_that_no_longer_works(
     org_a: Organization,
     settings: SettingsWrapper,
     mailoutbox: list[Any],
@@ -193,7 +193,7 @@ def test_flag_on_task_skips_an_invitation_that_no_longer_works(
     assert mailoutbox == []
 
 
-def test_task_sends_nothing_once_the_flag_is_off(
+def test_RF_TEN_05_task_sends_nothing_once_the_flag_is_off(
     org_a: Organization, mailoutbox: list[Any]
 ) -> None:
     """Enqueued while on, run after it was turned off: nothing is sent."""
@@ -208,7 +208,7 @@ def test_task_sends_nothing_once_the_flag_is_off(
     assert mailoutbox == []
 
 
-def test_task_does_not_send_another_organizations_invitation(
+def test_RF_TEN_05_task_does_not_send_another_organizations_invitation(
     org_a: Organization, settings: SettingsWrapper, mailoutbox: list[Any]
 ) -> None:
     flag(settings, True)

@@ -1,10 +1,10 @@
 """The expiry of invitations on beat (AC-TEN-37, Q-225, RF-TEN-05, design.md §3.6): ``tasks.py``.
 
-``expire_invitations`` (a ``SystemFanoutTask``) lists the due ``pending`` invitations and enqueues
-one ``expire_invitation`` (a ``TenantTask``) per pair; the tests catch what it enqueues by patching
-``apply_async`` and run each job with ``Task.apply``, outside any tenant, as a worker would. Every
-``invitation.expired`` (the task's, a creation's lazy expiry, an acceptance's) names the same actor:
-``SystemReason.INVITATION_EXPIRY`` (review of PR #131).
+``expire_invitations_fanout`` (a ``SystemFanoutTask``) lists the due ``pending`` invitations and
+enqueues one ``expire_invitation`` (a ``TenantTask``) per pair; the tests catch what it enqueues by
+patching ``apply_async`` and run each job with ``Task.apply``, outside any tenant, as a worker
+would. Every ``invitation.expired`` (the task's, a creation's lazy expiry, an acceptance's) names
+the same actor: ``SystemReason.INVITATION_EXPIRY`` (review of PR #131).
 """
 
 from __future__ import annotations
@@ -30,7 +30,7 @@ from apps.tenancy.models import Invitation, Organization
 from apps.tenancy.services.audit import AUDIT_TRIGGERS
 from apps.tenancy.services.invitation_accept import InvitationInvalid, accept_by_token
 from apps.tenancy.services.invitations import create_invitation, expire_due_invitation
-from apps.tenancy.tasks import expire_invitation, expire_invitations
+from apps.tenancy.tasks import expire_invitation, expire_invitations_fanout
 from config import celery_app
 from tests.tenancy.api.probe import PLATFORM, add_member, new_org, new_user
 from tests.tenancy.invitation_setup import invitee, issue, make_due, set_status, status_of
@@ -78,7 +78,7 @@ def test_AC_TEN_37_expiry_task_emits_system_event(
     due_a, due_b = due(a, "ana@hub.test"), due(b, "beto@hub.test")
     valid, _ = issue(a, "caro@hub.test")
 
-    assert expire_invitations.apply().get() == 2
+    assert expire_invitations_fanout.apply().get() == 2
     for job in sent:
         assert expire_invitation.apply(kwargs=job["kwargs"]).get() is True
 
@@ -105,7 +105,7 @@ def test_fanout_only_enumerates_ids(
     set_status(revoked, InvitationStatus.REVOKED)  # past its date, but no longer pending
 
     with django_assert_num_queries(1):
-        assert expire_invitations.apply().get() == 2
+        assert expire_invitations_fanout.apply().get() == 2
 
     assert {frozenset(job) for job in sent} == {frozenset({"kwargs"})}
     jobs = [job["kwargs"] for job in sent]
@@ -152,7 +152,7 @@ def test_AC_TEN_37_expiry_tasks_do_not_run_inside_a_tenant(sent: list[dict[str, 
 
     with tenant_scope(system_ctx(org.id)):
         with pytest.raises(TenantScopeError):
-            expire_invitations.apply().get()
+            expire_invitations_fanout.apply().get()
         with pytest.raises(TenantScopeError):
             expire_invitation.apply(kwargs=job).get()
 
@@ -221,6 +221,13 @@ def test_AC_TEN_37_expiry_tasks_are_registered_under_their_names() -> None:
     celery_app.loader.import_default_modules()
 
     # Bound (``bind=True``): each access is a new bound method of the same task and function.
-    assert celery_app.tasks["tenancy.expire_invitations"].run == expire_invitations.run
+    assert celery_app.tasks["tenancy.expire_invitations"].run == expire_invitations_fanout.run
     assert celery_app.tasks["tenancy.expire_invitation"].run is expire_invitation.run
-    assert expire_invitations.__module__ == "apps.tenancy.tasks"
+    assert expire_invitations_fanout.__module__ == "apps.tenancy.tasks"
+
+
+def test_AC_TEN_37_per_organization_expiry_expires_before_the_next_fanout() -> None:
+    """A job that waited for the next hourly fan-out is dropped, not run twice."""
+    expires = expire_invitation.expires  # the default ``expires`` of every apply_async
+    assert isinstance(expires, int)
+    assert 0 < expires < 3600  # the fan-out runs every hour (beat.py)

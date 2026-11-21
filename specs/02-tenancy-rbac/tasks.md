@@ -93,7 +93,7 @@ Donde el diseño y el código de SPEC-00, o el orden real, difieren, manda esta 
 | T-TEN-23 | Revocar, abandonar y autorrevocar invitaciones | AC-TEN-04, AC-TEN-13, AC-TEN-14, AC-TEN-15, AC-TEN-31, AC-TEN-36 | Servicio/API | `services/memberships.py`, `api/memberships.py` | T-TEN-21, T-TEN-22 | backend-dev | L | Sí | ☐ | |
 | T-TEN-24 | `Branch` + migración 0004 + crear y listar | AC-TEN-07, AC-TEN-16, AC-TEN-30, AC-TEN-38 | DB/API | `models/branch.py`, `services/branches.py`, `api/branches.py` | T-TEN-08, T-TEN-11 | backend-dev | L | Sí | 🟡 | rama `task/T-TEN-24-branch-model`, sin PR |
 | T-TEN-25 | Ver, editar, desactivar y reactivar `Branch`, filtro | AC-TEN-01, AC-TEN-05, AC-TEN-09, AC-TEN-30, AC-TEN-32, AC-TEN-37, AC-TEN-38 | Servicio/API | `services/branches.py`, `api/branches.py`, `api/filters.py` | T-TEN-24 | backend-dev | L | Sí | 🟡 | rama `task/T-TEN-25-branch-edit`, sin PR |
-| T-TEN-26 | Vencimiento de invitaciones y email por flag | AC-TEN-37 | Asíncrono | `apps/tenancy/tasks.py` | T-TEN-11, T-TEN-21 | backend-dev | M | Sí | 🟡 | rama `task/T-TEN-26-invitation-expiry`, sin PR |
+| T-TEN-26 | Vencimiento de invitaciones y email por flag | AC-TEN-37 | Asíncrono | `apps/tenancy/tasks.py` | T-TEN-11, T-TEN-21 | backend-dev | M | Sí | 🟡 | rama `task/T-TEN-26-invitation-expiry`, PR #137 |
 | T-TEN-27 | Completitud de auditoría y suspendida genérica | AC-TEN-23, AC-TEN-28 | Aislamiento | `backend/tests/cross_tenant/*`, `apps/tenancy/tests/test_audit_triggers.py` | T-TEN-13, T-TEN-23, T-TEN-25, T-TEN-26 | backend-dev | M | Sí | ☐ | |
 | T-TEN-28 | Comandos de soporte y recuperación de owner | AC-TEN-23 (`purpose`) | Comandos | `services/platform_access.py`, `management/commands/{tenancy_support_access,tenancy_owner_recovery}.py` | T-TEN-18 | backend-dev | M | Sí | ☐ | |
 | T-TEN-29 | Organización activa en el frontend y selector | — (RF-TEN-02, spec §14) | UI | `src/modules/tenancy/context/ActiveOrgProvider.tsx`, `src/lib/api-client.ts`, `context/07-frontend-ui-guidelines.md` | T-TEN-12, T-IDA-27 | frontend-dev | L | No | 🟡 | rama `task/T-TEN-29-active-org-frontend`, PR #122 |
@@ -884,10 +884,17 @@ T-TEN-30 · suspendida → T-TEN-29.
 ### T-TEN-26 — Vencimiento de invitaciones y email por flag
 - **AC:** AC-TEN-37. RF-TEN-05, Q-207, Q-225. **Zona roja:** sí.
 - **Archivos:** `apps/tenancy/tasks.py`, `apps/tenancy/beat.py`, `config/celery.py`, `apps/common/feature_flags.py`, `env.example`, tests.
+  Agregados en la implementación (revisión de #137): `apps/common/tenancy/context.py` (`SystemReason.INVITATION_EXPIRY`,
+  un solo actor para todo `invitation.expired`, revisión de #131), `services/invitations.py` (`expire_due_invitation`,
+  disparador de `invitation.expired`) y `services/invitation_accept.py` (usa el `expire_invitation` compartido),
+  `api/invitations.py` (encola el email al crear y reenviar), `apps/tenancy/checks.py` y `apps/tenancy/apps.py`
+  (`tenancy.E001`: el flag encendido sin `EMAIL_BACKEND` no arranca), `config/settings/dev.py` (backend de consola,
+  Q-207) y `tests/architecture/allowlists.py` (el `unscoped(SYSTEM_FANOUT)` del fan-out, design.md §3.6).
 - **Cambios:** `expire_invitations` por fan-out; `send_invitation_email` detrás de `TENANCY_INVITATION_EMAIL_ENABLED`,
-  apagado. Sin proveedor (Q-207): backend de consola en dev.
+  apagado. Sin proveedor (Q-207): backend de consola en dev. El envío fallido se reintenta (checklist de
+  `clarifications.md §3`) con el `kwargsrepr` redactado y el `expires` original.
 - **Pruebas:** `test_AC_TEN_37_expiry_task_emits_system_event`, `test_fanout_only_enumerates_ids`,
-  `test_token_never_reaches_broker_with_flag_off`.
+  `test_token_never_reaches_broker_with_flag_off` (como `test_RF_TEN_05_token_never_reaches_broker_with_flag_off`).
 
 ### T-TEN-27 — Completitud de auditoría y suspendida genérica
 - **AC:** AC-TEN-23, AC-TEN-28. RF-TEN-09, RNF-TEN-04. **Zona roja:** sí.
