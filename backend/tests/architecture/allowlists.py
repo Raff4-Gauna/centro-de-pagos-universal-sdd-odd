@@ -170,6 +170,22 @@ TENANT_QUERY_ALLOWLIST: tuple[AllowEntry, ...] = (
         "dice el diseño, y los eventos nombran al operador como actor",
         count=1,
     ),
+    AllowEntry(
+        "apps/tenancy/services/platform_org_status.py",
+        "system_context",
+        "comando del operador tenancy_set_org_status (design.md §4.5, T-TEN-19): el operador no "
+        "es miembro, así que no hay UserActor; SystemReason.PLATFORM_COMMAND, lock FOR UPDATE de "
+        "la organización y los eventos nombran al operador como actor",
+        count=1,
+    ),
+    AllowEntry(
+        "apps/tenancy/services/platform_owner_invite.py",
+        "system_context",
+        "comando del operador tenancy_owner_invite (design.md §4.5, Q-213, T-TEN-19): la "
+        "organización todavía no tiene owner, así que no hay UserActor; "
+        "SystemReason.PLATFORM_COMMAND y los eventos nombran al operador como actor",
+        count=1,
+    ),
 )
 
 # Concrete models of ``apps/`` that are not tenant models (RN-TEN-01; ``TenantModel`` subclasses
