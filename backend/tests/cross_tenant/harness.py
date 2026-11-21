@@ -7,8 +7,12 @@ whom AC-TEN-33 also gives the superuser/staff flags). ``check_endpoint`` sends, 
 1. no ``X-Organization-Id`` → ``400 organization_required`` (AC-TEN-06);
 2. an unknown UUID → ``404 organization_not_found``; B's id → the same body (AC-TEN-03);
 3. A active, the URL and body of B's objects → ``404`` if the route names an object;
-4. A ``suspended``, a ``WRITE`` → ``409 organization_suspended``, nothing written (RN-TEN-18);
-5. A active, A's own objects → ``2xx``: the case is right and the guard is not denying everything.
+4. A active, A's own objects → ``2xx``: the case is right and the guard is not denying everything.
+
+``check_suspended`` sends A's own request with A ``suspended`` (RN-TEN-18, Q-221, AC-TEN-28): a
+``WRITE`` → ``409 organization_suspended`` with nothing written and no audit event; a kind of
+``SUSPENDED_ALLOWED_KINDS`` (``READ``, ``REDUCE_ACCESS``) → ``2xx``. An action without its
+``ActionSpec`` fails instead of being skipped.
 
 ``check_exempt`` reads an exempt route scoped to the person (``Exemption.read``) as A's member, with
 no header and with B's: ``2xx`` and nothing of B, of its owner or of the owner's session.
@@ -23,14 +27,16 @@ from __future__ import annotations
 
 import json
 import uuid
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
 from django.test import Client
 from django.utils import timezone
 
-from apps.common.authz.actions import SUSPENDED_ALLOWED_KINDS
+from apps.common.audit.port import AuditEvent, get_sink
+from apps.common.audit.sinks import RecordingSink
+from apps.common.authz.actions import SUSPENDED_ALLOWED_KINDS, ActionSpec
 from apps.common.authz.roles import Role
 from apps.common.tenancy.context import OrgStatus
 from apps.common.tenancy.querysets import UnscopedReason
@@ -135,8 +141,13 @@ class _Run:
         self.b_before = world.snapshot(world.org_b)
         self.b_marks = world.marks_of_b()
 
+    def restore(self) -> None:
+        if self.case.restore is not None:
+            self.case.restore(self.world.org_a)
+
     def request(self, step: str, target: Organization, headers: Mapping[str, str]) -> Any:
         case = self.case
+        self.restore()
         body = case.body(target) if case.body is not None else None
         response = send(self.client, self.endpoint.method, case.path(target), headers, body)
         text = response.content.decode(errors="replace")
@@ -171,7 +182,6 @@ def check_endpoint(
     if found and known and constant_part(foreign) != constant_part(unknown):
         run.fail("org B", "the 404 body differs from an unknown organization's")
     _check_objects_of_b(run)
-    _check_suspended(run)
     own = run.request("own objects", org_a, world.headers(member, org_a.id))
     if not 200 <= own.status_code < 300:
         run.fail("own objects", f"answered {own.status_code}, not 2xx (wrong case or guard)")
@@ -185,21 +195,59 @@ def _check_objects_of_b(run: _Run) -> None:
         run.fail("B's objects", f"answered {response.status_code}, not 404")
 
 
-def _check_suspended(run: _Run) -> None:
-    world, endpoint = run.world, run.endpoint
+def spec_of(endpoint: Endpoint) -> ActionSpec | None:
     spec = endpoint.view_class.action_specs.get(endpoint.action)
-    if spec is None or spec.kind in SUSPENDED_ALLOWED_KINDS:
-        return
+    return spec if isinstance(spec, ActionSpec) else None
+
+
+def check_suspended(
+    client: Client, world: World, endpoint: Endpoint, case: CrossTenantCase
+) -> list[str]:
+    """A's member on A's own objects with A ``suspended``: what its ``ActionKind`` allows."""
+    run = _Run(client, world, endpoint, case)
+    spec = spec_of(endpoint)
+    if spec is None:
+        run.fail("suspended", f"action {endpoint.action!r} has no ActionSpec")
+        return run.failures
     _set_status(world.org_a, OrgStatus.SUSPENDED)
     try:
-        before = world.snapshot(world.org_a)
+        run.restore()
+        before, events_before = world.snapshot(world.org_a), len(recording_sink().events)
         headers = world.headers(world.member, world.org_a.id)
         response = run.request("suspended", world.org_a, headers)
+        if spec.kind in SUSPENDED_ALLOWED_KINDS:
+            if not 200 <= response.status_code < 300:
+                run.fail("suspended", f"a {spec.kind} answered {response.status_code}, not 2xx")
+            return run.failures
         run.expect("suspended", response, 409, "organization_suspended")
         if world.snapshot(world.org_a) != before:
             run.fail("suspended", "A's rows changed")
+        if emitted := events_of(world.org_a, recording_sink().events[events_before:]):
+            run.fail("suspended", f"audit events of A were emitted: {emitted}")
     finally:
         _set_status(world.org_a, OrgStatus.ACTIVE)
+    return run.failures
+
+
+def own_request(
+    client: Client, world: World, endpoint: Endpoint, case: CrossTenantCase
+) -> tuple[Any, list[AuditEvent], list[str]]:
+    """A's member on A's own objects, A active: the response, its audit events and any leak."""
+    run = _Run(client, world, endpoint, case)
+    start = len(recording_sink().events)
+    headers = world.headers(world.member, world.org_a.id)
+    response = run.request("own objects", world.org_a, headers)
+    return response, recording_sink().events[start:], run.failures
+
+
+def recording_sink() -> RecordingSink:
+    sink = get_sink()
+    assert isinstance(sink, RecordingSink), "the test settings record audit in memory"
+    return sink
+
+
+def events_of(organization: Organization, events: Iterable[AuditEvent]) -> list[str]:
+    return [event.action for event in events if event.organization_id == organization.id]
 
 
 def _set_status(organization: Organization, status: OrgStatus) -> None:

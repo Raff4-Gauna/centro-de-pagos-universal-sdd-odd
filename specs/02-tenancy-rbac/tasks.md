@@ -65,7 +65,7 @@ Donde el diseño y el código de SPEC-00, o el orden real, difieren, manda esta 
 
 ## Resumen
 
-> T-TEN-01, T-TEN-02, T-TEN-03, T-TEN-04, T-TEN-05, T-TEN-06, T-TEN-07, T-TEN-08, T-TEN-09, T-TEN-10, T-TEN-11, T-TEN-12, T-TEN-13, T-TEN-14, T-TEN-15, T-TEN-16, T-TEN-17, T-TEN-18, T-TEN-19, T-TEN-20, T-TEN-21, T-TEN-22, T-TEN-23, T-TEN-24, T-TEN-25, T-TEN-28, T-TEN-29, T-TEN-30 y T-TEN-33 en revisión; las demás sin empezar. La columna **Evidencia** es obligatoria para `✅` y la verifica `scripts/check_spec_state.py`.
+> T-TEN-01, T-TEN-02, T-TEN-03, T-TEN-04, T-TEN-05, T-TEN-06, T-TEN-07, T-TEN-08, T-TEN-09, T-TEN-10, T-TEN-11, T-TEN-12, T-TEN-13, T-TEN-14, T-TEN-15, T-TEN-16, T-TEN-17, T-TEN-18, T-TEN-19, T-TEN-20, T-TEN-21, T-TEN-22, T-TEN-23, T-TEN-24, T-TEN-25, T-TEN-27, T-TEN-28, T-TEN-29, T-TEN-30 y T-TEN-33 en revisión; las demás sin empezar. La columna **Evidencia** es obligatoria para `✅` y la verifica `scripts/check_spec_state.py`.
 
 | ID | Título | AC | Capa | Archivos esperados (ver detalle) | Depende de | Agente | Tamaño | Zona roja | Estado | Evidencia |
 |---|---|---|---|---|---|---|---|---|---|---|
@@ -95,7 +95,7 @@ Donde el diseño y el código de SPEC-00, o el orden real, difieren, manda esta 
 | T-TEN-24 | `Branch` + migración 0004 + crear y listar | AC-TEN-07, AC-TEN-16, AC-TEN-30, AC-TEN-38 | DB/API | `models/branch.py`, `services/branches.py`, `api/branches.py` | T-TEN-08, T-TEN-11 | backend-dev | L | Sí | 🟡 | rama `task/T-TEN-24-branch-model`, sin PR |
 | T-TEN-25 | Ver, editar, desactivar y reactivar `Branch`, filtro | AC-TEN-01, AC-TEN-05, AC-TEN-09, AC-TEN-30, AC-TEN-32, AC-TEN-37, AC-TEN-38 | Servicio/API | `services/branches.py`, `api/branches.py`, `api/filters.py` | T-TEN-24 | backend-dev | L | Sí | 🟡 | rama `task/T-TEN-25-branch-edit`, sin PR |
 | T-TEN-26 | Vencimiento de invitaciones y email por flag | AC-TEN-37 | Asíncrono | `apps/tenancy/tasks.py` | T-TEN-11, T-TEN-21 | backend-dev | M | Sí | 🟡 | rama `task/T-TEN-26-invitation-expiry`, PR #137 |
-| T-TEN-27 | Completitud de auditoría y suspendida genérica | AC-TEN-23, AC-TEN-28 | Aislamiento | `backend/tests/cross_tenant/*`, `apps/tenancy/tests/test_audit_triggers.py` | T-TEN-13, T-TEN-23, T-TEN-25, T-TEN-26 | backend-dev | M | Sí | ☐ | |
+| T-TEN-27 | Completitud de auditoría y suspendida genérica | AC-TEN-23, AC-TEN-28 | Aislamiento | `backend/tests/cross_tenant/*`, `tests/tenancy/test_audit_triggers.py` | T-TEN-13, T-TEN-23, T-TEN-25, T-TEN-26 | backend-dev | M | Sí | 🟡 | PR #142, rama `task/T-TEN-27-audit-completeness` |
 | T-TEN-28 | Comandos de soporte y recuperación de owner | AC-TEN-23 (`purpose`) | Comandos | `services/platform_access.py`, `management/commands/{tenancy_support_access,tenancy_owner_recovery}.py` | T-TEN-18 | backend-dev | M | Sí | 🟡 | PR #141, rama `task/T-TEN-28-support-and-recovery` |
 | T-TEN-29 | Organización activa en el frontend y selector | — (RF-TEN-02, spec §14) | UI | `src/modules/tenancy/context/ActiveOrgProvider.tsx`, `src/lib/api-client.ts`, `context/07-frontend-ui-guidelines.md` | T-TEN-12, T-IDA-27 | frontend-dev | L | No | 🟡 | rama `task/T-TEN-29-active-org-frontend`, PR #122 |
 | T-TEN-30 | Sin organización y aviso de invitaciones (Q-124) | AC-TEN-39 (UI) | UI | `app/(dashboard)/sin-organizacion/page.tsx`, `src/modules/tenancy/components/PendingInvitationsNotice.tsx` | T-TEN-16, T-TEN-29, T-IDA-29 | frontend-dev | M | Sí | 🟡 | rama `task/T-TEN-30-no-org-invitations`, PR #129 |
@@ -933,6 +933,32 @@ T-TEN-30 · suspendida → T-TEN-29.
 - **Archivos:** `backend/tests/cross_tenant/harness.py`, `apps/tenancy/tests/test_audit_triggers.py`, los servicios a los que les falte un evento.
 - **Pruebas:** `test_AC_TEN_23_every_action_has_trigger_and_fields`, `test_AC_TEN_28_every_write_case_is_409_when_suspended`,
   `test_AC_TEN_28_reads_pass_when_suspended`.
+- **Hecho (2026-11-21):** solo tests; ningún servicio quedó sin su evento, así que no se tocó código de producción.
+  - **Archivos reales:** `tests/tenancy/test_audit_triggers.py` (el repo no tiene `apps/tenancy/tests/`),
+    `tests/cross_tenant/{harness,registry}.py`, `tests/cross_tenant/cases/tenancy.py` y
+    `tests/cross_tenant/test_action_kinds.py` (nuevo: suspendida y auditoría por ruta, para no pasar de 400 líneas).
+  - **AC-TEN-23, por servicio:** `test_AC_TEN_23_every_action_has_trigger_and_fields`, parametrizado sobre
+    `TenancyAuditAction` (22 acciones, `organization.create_repeated` incluida): llama a la función que nombra
+    `AUDIT_TRIGGERS` y exige el evento con actor del tipo que corresponde (operador para los comandos, Q-212; sistema
+    para `invitation.expired`; persona para el resto), organización y fecha UTC. `DRIVERS` y `AUDIT_TRIGGERS` deben
+    cubrir el catálogo exacto (`test_AC_TEN_23_drivers_and_triggers_cover_the_catalog`). El registro se llena al
+    importar cada servicio: el test importa todo `apps.tenancy.services` en vez de depender del orden de los tests
+    (corrido solo, 16 de 22 acciones no tenían disparador registrado).
+  - **AC-TEN-23, por ruta:** `test_AC_TEN_23_every_write_route_emits_its_event`: cada ruta de escritura de SPEC-02
+    (`WRITE` o `REDUCE_ACCESS`) que encuentra el walker emite su evento de RNF-TEN-04 sobre A, con el miembro como
+    actor. `EXPECTED_EVENT` empareja cada acción de escritura de la matriz con su evento y
+    `test_AC_TEN_23_every_write_action_names_its_event` falla si una acción nueva no lo tiene.
+  - **AC-TEN-28, genérica:** `harness.check_suspended` reemplaza el paso 4 de `check_endpoint`: con A `suspended`,
+    `WRITE` → `409 organization_suspended` sin filas cambiadas ni eventos de A; `READ` y `REDUCE_ACCESS` (Q-221) → `2xx`;
+    una acción sin `ActionSpec` falla (antes se salteaba). Tres tests parametrizados por `ActionKind`
+    (`test_AC_TEN_28_every_write_case_is_409_when_suspended`, `test_AC_TEN_28_reads_pass_when_suspended`,
+    `test_AC_TEN_28_reduce_access_passes_when_suspended`), `test_AC_TEN_28_every_route_declares_its_kind` (ninguna sin
+    spec y cada tipo con al menos una ruta) y un control negativo
+    (`test_AC_TEN_28_a_guard_that_forgets_the_suspension_is_caught`: el guard que deja pasar todo se detecta). Aceptar
+    una invitación es ruta exenta sin `TenantViewSet`: su `409` sigue en `test_my_invitations_api.py` y
+    `test_invitation_accept_api.py`.
+  - **Revisión de #138:** `CrossTenantCase.restore` (nuevo, opcional): el harness lo llama antes de cada pedido. El caso
+    de abandonar usa `restore=_rejoin` y su URL ya no tiene efectos laterales.
 
 ### T-TEN-28 — Comandos de soporte y recuperación de owner
 - **AC:** AC-TEN-23 (`purpose`). RF-TEN-07, RN-TEN-20, Q-222, Q-224, Q-225. **Zona roja:** sí.

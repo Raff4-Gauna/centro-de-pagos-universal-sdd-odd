@@ -38,9 +38,9 @@ shows up.
 ``DELETE`` names B's colleague by id with A active (``404``) and revokes A's colleague on the last
 step. Each organization also gets a second owner, so A's member is not the last one and may leave.
 Leaving names no object: on the step that builds B's URL the request still goes to A, so A's member
-leaves A there (B's rows must stay as they are); the URL for A first gives back the membership of
-whoever left A, so the last step has one to leave. Both reduce access: the suite does not expect
-them refused with A suspended (Q-221).
+leaves A there (B's rows must stay as they are). Its ``restore`` gives back, before every request,
+the membership of whoever left A, so the last step has one to leave; the URL itself has no side
+effects. Both reduce access: with A suspended the suite expects them to go through (Q-221).
 
 ``/api/invitations/`` (T-TEN-20): the ``pending`` invitation of each organization's ``Seed`` is what
 a listing that leaks B's carries (B's invitation id). A ``POST`` invites a new email named after the
@@ -50,7 +50,7 @@ refuses it and nothing lands in B. Built for A it creates the invitation in A (`
 ``/api/invitations/{id}/resend/`` and ``revoke/`` (T-TEN-21) name that ``pending`` invitation by id:
 B's with A active is ``404`` (AC-TEN-02), and a resend or revoke that lands in B changes the status
 of B's row (or adds one). A resend with A suspended is ``409``; a revoke reduces access, so the
-suite does not expect it refused there (Q-221).
+suite expects it to go through there (Q-221).
 """
 
 from __future__ import annotations
@@ -196,9 +196,7 @@ def _demoted(organization: Organization) -> dict[str, str]:
     return {"role": Role.VIEWER.value}
 
 
-def _to_leave(organization: Organization) -> str:
-    if organization.name != OTHER_ORGANIZATION:
-        _rejoin(organization)
+def _leave(organization: Organization) -> str:
     return f"/{LEAVE}"
 
 
@@ -250,7 +248,7 @@ CASES: tuple[CrossTenantCase, ...] = (
     CrossTenantCase(MEMBERSHIPS, "GET", _memberships),
     CrossTenantCase(MEMBERSHIP, "PATCH", _colleague, body=_demoted),
     CrossTenantCase(MEMBERSHIP, "DELETE", _colleague),
-    CrossTenantCase(LEAVE, "POST", _to_leave),
+    CrossTenantCase(LEAVE, "POST", _leave, restore=_rejoin),
     CrossTenantCase(INVITATIONS, "GET", _invitations),
     CrossTenantCase(INVITATIONS, "POST", _invitations, body=_new_invitation),
     CrossTenantCase("api/invitations/<str:id>/resend/", "POST", _to_resend),
