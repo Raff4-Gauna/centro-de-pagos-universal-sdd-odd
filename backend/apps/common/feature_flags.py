@@ -19,6 +19,12 @@ REGISTRY: dict[str, str] = {
         "Gates login/start and login/complete (503 login_disabled); refresh, logout and open "
         "sessions go on. Goes away once login with Google is verified in production (ADR-0004 §14)."
     ),
+    "TENANCY_INVITATION_EMAIL_ENABLED": (
+        "Gates the invitation email (apps/tenancy/tasks.py, send_invitation_email): off, creating "
+        "or resending an invitation enqueues nothing and the link is only shown once. Stays off "
+        "until the ADR of the email provider (Q-207, C-13); dev prints the email to the console. "
+        "Goes away once that provider sends in production."
+    ),
 }
 
 

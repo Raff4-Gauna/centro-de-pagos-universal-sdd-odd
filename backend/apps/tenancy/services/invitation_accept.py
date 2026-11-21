@@ -70,6 +70,7 @@ from apps.tenancy.models.membership import MembershipStatus
 from apps.tenancy.selectors.invitations import InvitationRef, find_by_token
 from apps.tenancy.selectors.locks import MembershipMutex, lock_membership_mutex
 from apps.tenancy.services.audit import audit_trigger, record_event
+from apps.tenancy.services.invitations import expire_invitation
 
 logger = get_logger(__name__)
 
@@ -200,7 +201,7 @@ def accept_locked(
         now=now,
     )
     if reason is InvalidReason.EXPIRED and invitation.status == InvitationStatus.PENDING:
-        _expire(ctx, invitation)
+        expire_invitation(ctx, invitation)  # Q-225: the system, not this acceptance, is the actor
     if reason is not None:
         return reason
     if mutex.organization_status is OrgStatus.SUSPENDED:
@@ -235,17 +236,6 @@ def _accept(
         record_event(action, ctx=ctx, actor=_person(invitee), metadata=metadata)
     name = Organization.objects.for_tenant(ctx).values_list("name", flat=True).get()
     return AcceptedInvitation(ctx.organization_id, name, Role(invitation.role), membership.pk)
-
-
-def _expire(ctx: TenantContext, invitation: Invitation) -> None:
-    """Seen past its expiry while ``pending``: ``expired`` for good, by the system (Q-225)."""
-    invitation.status = InvitationStatus.EXPIRED.value
-    invitation.save(update_fields=["status", "updated_at"])
-    record_event(
-        TenancyAuditAction.INVITATION_EXPIRED,
-        ctx=ctx,
-        metadata={"invitation_id": str(invitation.pk)},
-    )
 
 
 def _accept_context(organization_id: uuid.UUID) -> TenantContext:
