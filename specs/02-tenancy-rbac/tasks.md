@@ -64,7 +64,7 @@ Donde el diseño y el código de SPEC-00, o el orden real, difieren, manda esta 
 
 ## Resumen
 
-> T-TEN-01, T-TEN-02, T-TEN-03, T-TEN-04, T-TEN-05, T-TEN-06, T-TEN-07, T-TEN-08, T-TEN-09, T-TEN-10, T-TEN-11, T-TEN-12, T-TEN-13, T-TEN-14, T-TEN-15, T-TEN-16, T-TEN-17, T-TEN-18, T-TEN-19, T-TEN-20, T-TEN-21, T-TEN-22, T-TEN-23, T-TEN-24, T-TEN-25, T-TEN-29, T-TEN-30 y T-TEN-33 en revisión; las demás sin empezar. La columna **Evidencia** es obligatoria para `✅` y la verifica `scripts/check_spec_state.py`.
+> T-TEN-01, T-TEN-02, T-TEN-03, T-TEN-04, T-TEN-05, T-TEN-06, T-TEN-07, T-TEN-08, T-TEN-09, T-TEN-10, T-TEN-11, T-TEN-12, T-TEN-13, T-TEN-14, T-TEN-15, T-TEN-16, T-TEN-17, T-TEN-18, T-TEN-19, T-TEN-20, T-TEN-21, T-TEN-22, T-TEN-23, T-TEN-24, T-TEN-25, T-TEN-28, T-TEN-29, T-TEN-30 y T-TEN-33 en revisión; las demás sin empezar. La columna **Evidencia** es obligatoria para `✅` y la verifica `scripts/check_spec_state.py`.
 
 | ID | Título | AC | Capa | Archivos esperados (ver detalle) | Depende de | Agente | Tamaño | Zona roja | Estado | Evidencia |
 |---|---|---|---|---|---|---|---|---|---|---|
@@ -95,7 +95,7 @@ Donde el diseño y el código de SPEC-00, o el orden real, difieren, manda esta 
 | T-TEN-25 | Ver, editar, desactivar y reactivar `Branch`, filtro | AC-TEN-01, AC-TEN-05, AC-TEN-09, AC-TEN-30, AC-TEN-32, AC-TEN-37, AC-TEN-38 | Servicio/API | `services/branches.py`, `api/branches.py`, `api/filters.py` | T-TEN-24 | backend-dev | L | Sí | 🟡 | rama `task/T-TEN-25-branch-edit`, sin PR |
 | T-TEN-26 | Vencimiento de invitaciones y email por flag | AC-TEN-37 | Asíncrono | `apps/tenancy/tasks.py` | T-TEN-11, T-TEN-21 | backend-dev | M | Sí | 🟡 | rama `task/T-TEN-26-invitation-expiry`, PR #137 |
 | T-TEN-27 | Completitud de auditoría y suspendida genérica | AC-TEN-23, AC-TEN-28 | Aislamiento | `backend/tests/cross_tenant/*`, `apps/tenancy/tests/test_audit_triggers.py` | T-TEN-13, T-TEN-23, T-TEN-25, T-TEN-26 | backend-dev | M | Sí | ☐ | |
-| T-TEN-28 | Comandos de soporte y recuperación de owner | AC-TEN-23 (`purpose`) | Comandos | `services/platform_access.py`, `management/commands/{tenancy_support_access,tenancy_owner_recovery}.py` | T-TEN-18 | backend-dev | M | Sí | ☐ | |
+| T-TEN-28 | Comandos de soporte y recuperación de owner | AC-TEN-23 (`purpose`) | Comandos | `services/platform_access.py`, `management/commands/{tenancy_support_access,tenancy_owner_recovery}.py` | T-TEN-18 | backend-dev | M | Sí | 🟡 | rama `task/T-TEN-28-support-and-recovery`, sin PR |
 | T-TEN-29 | Organización activa en el frontend y selector | — (RF-TEN-02, spec §14) | UI | `src/modules/tenancy/context/ActiveOrgProvider.tsx`, `src/lib/api-client.ts`, `context/07-frontend-ui-guidelines.md` | T-TEN-12, T-IDA-27 | frontend-dev | L | No | 🟡 | rama `task/T-TEN-29-active-org-frontend`, PR #122 |
 | T-TEN-30 | Sin organización y aviso de invitaciones (Q-124) | AC-TEN-39 (UI) | UI | `app/(dashboard)/sin-organizacion/page.tsx`, `src/modules/tenancy/components/PendingInvitationsNotice.tsx` | T-TEN-16, T-TEN-29, T-IDA-29 | frontend-dev | M | Sí | 🟡 | rama `task/T-TEN-30-no-org-invitations`, PR #129 |
 | T-TEN-31 | Pantalla `/invitacion` | AC-TEN-17 (UI) | UI | `app/invitacion/page.tsx`, `src/modules/tenancy/components/AcceptInvitation.tsx` | T-TEN-15, T-TEN-29 | frontend-dev | M | Sí | 🟡 | rama `task/T-TEN-31-invitation-screen`, sin PR |
@@ -938,6 +938,33 @@ T-TEN-30 · suspendida → T-TEN-29.
 - **Cambios:** `design.md §4.5`. El aviso a owners existentes queda atado al flag de email.
 - **Pruebas:** `test_Q_222_support_is_invitation_never_owner`, `test_Q_222_reason_is_required`,
   `test_Q_224_recovery_revokes_nobody`, `test_AC_TEN_23_purpose_in_events`.
+- **Implementado:**
+  - `tenancy_support_access --org --email [--role admin|operator|viewer] --reason --operator` (Q-222):
+    `services/platform_access.py::grant_support_access`. Invitación `purpose=support`, rol `viewer` por defecto y
+    nunca `owner` (argparse lo rechaza y el servicio también, `SupportRoleError`). Aceptada, es una membership normal:
+    los owners la ven, le cambian el rol y pueden revocar la invitación pendiente.
+  - `tenancy_owner_recovery --org --email --reason --operator` (Q-224): `issue_owner_recovery`. Invitación `owner`,
+    `purpose=owner_recovery`, solo si la organización **tiene** un owner activo (spec §4, "org con owner"); sin owner
+    el camino es `tenancy_owner_invite` (Q-213) y sale con `1` sin escribir. No revoca a nadie ni toca otras
+    invitaciones; la salida dice cuántos owners quedan.
+  - Los dos, en una transacción y en el orden de locks del módulo: `tenant_scope(system_context(org,
+    PLATFORM_COMMAND))`, `lock_membership_mutex` (la suspensión no frena al actor sistema, design.md §3.6, como
+    `tenancy_owner_invite`; aceptar espera a que la reactiven, AC-TEN-28), miembro activo con ese email →
+    `already_member`, `pending` de ese email `FOR UPDATE` (vencida → `expired` con `invitation.expired`; vigente →
+    `invitation_pending`), `insert_invitation` emitida por el operador con siete días e `invitation.created` con
+    `role` y `purpose` (Q-225), actor `platform_operator`, `os_user` y `--reason` como `reason` del evento. El motivo
+    se valida con `clean_reason` de `tenancy_set_org_status` (1 a 200 caracteres) y va a la invitación y al evento,
+    nunca al log. El link, una vez por stdout.
+  - Salidas como los otros comandos de operador: `0` emitida; `1` rechazo sin cambios (organización desconocida, sin
+    owner en la recuperación, miembro activo, `pending` vigente, sin `FRONTEND_BASE_URL`), sin auditar, como al crear
+    una invitación; `2` argumento inválido (`--email`, `--reason`, `--org`, `--role owner`) u operador fuera de
+    `PLATFORM_OPERATOR_EMAILS`.
+  - **Aviso a los owners existentes (Q-224):** sin implementar. Queda atado al flag de email de invitaciones (PR #137,
+    todavía no está en `main`); el comando no avisa a nadie y lo dice en la salida.
+- **Fuera de la ficha, con su porqué:**
+  - `tests/architecture/allowlists.py`: `system_context` en `services/platform_access.py`, `count=1`, como los otros
+    servicios `platform_*`.
+  - Tests: `tests/tenancy/commands/{test_support_access,test_owner_recovery}.py`.
 
 ### T-TEN-29 — Organización activa en el frontend y selector
 - **AC:** — (RF-TEN-02, spec §14). Q-119, Q-205. **Zona roja:** no (reviewer recomendado).
