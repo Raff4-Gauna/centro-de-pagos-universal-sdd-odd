@@ -26,6 +26,9 @@ const EXPECTED = [
   ["API / Puente ERP", "Módulo 11"],
 ] as const;
 
+// The sections whose module already shipped their page.
+const ENABLED = new Set<string>(["Mi perfil", "Seguridad", "Sucursales y cajas"]);
+
 describe("Configuración (AC-PLT-28, spec §14, 07 §5.3)", () => {
   it("test_AC_PLT_28_settings_lists_nine_sections_with_module_chip", () => {
     render(<SettingsPage />);
@@ -37,7 +40,7 @@ describe("Configuración (AC-PLT-28, spec §14, 07 §5.3)", () => {
       const [title, chip] = EXPECTED[index];
       expect(item).toHaveTextContent(title);
       expect(item).toHaveTextContent(chip);
-      if (title === "Mi perfil" || title === "Seguridad") return;
+      if (ENABLED.has(title)) return;
       expect(item).toHaveAccessibleName(title);
       expect(item).toHaveAttribute("aria-disabled", "true");
       expect(item).toHaveTextContent(SECTION_UNAVAILABLE_TEXT);
@@ -67,6 +70,16 @@ describe("Configuración (AC-PLT-28, spec §14, 07 §5.3)", () => {
     expect(security).not.toHaveTextContent(SECTION_UNAVAILABLE_TEXT);
     const link = within(security).getByRole("link", { name: /Seguridad/ });
     expect(link).toHaveAttribute("href", "/configuracion/seguridad");
+  });
+
+  it("test_RF_TEN_06_settings_branches_section_links_to_sucursales", () => {
+    render(<SettingsPage />);
+    const list = screen.getByRole("list", { name: SETTINGS_LIST_LABEL });
+    const branches = within(list).getAllByRole("listitem")[4]!;
+    expect(branches).not.toHaveAttribute("aria-disabled");
+    expect(branches).not.toHaveTextContent(SECTION_UNAVAILABLE_TEXT);
+    const link = within(branches).getByRole("link", { name: /Sucursales y cajas/ });
+    expect(link).toHaveAttribute("href", "/configuracion/sucursales");
   });
 
   it("test_AC_PLT_28_settings_module_chip_label_joins_modules", () => {

@@ -64,7 +64,7 @@ Donde el diseño y el código de SPEC-00, o el orden real, difieren, manda esta 
 
 ## Resumen
 
-> T-TEN-01, T-TEN-02, T-TEN-03, T-TEN-04, T-TEN-05, T-TEN-06, T-TEN-07, T-TEN-08, T-TEN-09, T-TEN-10, T-TEN-11, T-TEN-12, T-TEN-13, T-TEN-14, T-TEN-15, T-TEN-16, T-TEN-17, T-TEN-18, T-TEN-19, T-TEN-20, T-TEN-21, T-TEN-22, T-TEN-24, T-TEN-25, T-TEN-29 y T-TEN-30 en revisión; las demás sin empezar. La columna **Evidencia** es obligatoria para `✅` y la verifica `scripts/check_spec_state.py`.
+> T-TEN-01, T-TEN-02, T-TEN-03, T-TEN-04, T-TEN-05, T-TEN-06, T-TEN-07, T-TEN-08, T-TEN-09, T-TEN-10, T-TEN-11, T-TEN-12, T-TEN-13, T-TEN-14, T-TEN-15, T-TEN-16, T-TEN-17, T-TEN-18, T-TEN-19, T-TEN-20, T-TEN-21, T-TEN-22, T-TEN-24, T-TEN-25, T-TEN-29, T-TEN-30 y T-TEN-33 en revisión; las demás sin empezar. La columna **Evidencia** es obligatoria para `✅` y la verifica `scripts/check_spec_state.py`.
 
 | ID | Título | AC | Capa | Archivos esperados (ver detalle) | Depende de | Agente | Tamaño | Zona roja | Estado | Evidencia |
 |---|---|---|---|---|---|---|---|---|---|---|
@@ -100,7 +100,7 @@ Donde el diseño y el código de SPEC-00, o el orden real, difieren, manda esta 
 | T-TEN-30 | Sin organización y aviso de invitaciones (Q-124) | AC-TEN-39 (UI) | UI | `app/(dashboard)/sin-organizacion/page.tsx`, `src/modules/tenancy/components/PendingInvitationsNotice.tsx` | T-TEN-16, T-TEN-29, T-IDA-29 | frontend-dev | M | Sí | 🟡 | rama `task/T-TEN-30-no-org-invitations`, PR #129 |
 | T-TEN-31 | Pantalla `/invitacion` | AC-TEN-17 (UI) | UI | `app/invitacion/page.tsx`, `src/modules/tenancy/components/AcceptInvitation.tsx` | T-TEN-15, T-TEN-29 | frontend-dev | M | Sí | 🟡 | rama `task/T-TEN-31-invitation-screen`, sin PR |
 | T-TEN-32 | Datos de la empresa y abandonar | — (RF-TEN-03, RF-TEN-04, spec §14) | UI | `app/(dashboard)/configuracion/empresa/page.tsx`, `src/modules/tenancy/components/CompanyDataForm.tsx` | T-TEN-13, T-TEN-23, T-TEN-29 | frontend-dev | M | No | ☐ | |
-| T-TEN-33 | Sucursales | — (RF-TEN-06, spec §14) | UI | `app/(dashboard)/configuracion/sucursales/page.tsx`, `BranchesTable.tsx`, `BranchFormDialog.tsx` | T-TEN-25, T-TEN-29 | frontend-dev | L | No | ☐ | |
+| T-TEN-33 | Sucursales | — (RF-TEN-06, spec §14) | UI | `app/(dashboard)/configuracion/sucursales/page.tsx`, `BranchesTable.tsx`, `BranchFormDialog.tsx` | T-TEN-25, T-TEN-29 | frontend-dev | L | No | 🟡 | PR #139, rama `task/T-TEN-33-branches-ui` |
 | T-TEN-34 | Colaboradores: miembros | — (RF-TEN-04, spec §14) | UI | `app/(dashboard)/configuracion/colaboradores/page.tsx`, `MembersTable.tsx` | T-TEN-23, T-TEN-29 | frontend-dev | L | No | ☐ | |
 | T-TEN-35 | Colaboradores: invitaciones y link de una sola vez | AC-TEN-24 (UI) | UI | `InviteDialog.tsx`, `InvitationLinkDialog.tsx` | T-TEN-21, T-TEN-34 | frontend-dev | M | Sí | ☐ | |
 | T-TEN-36 | E2E y cierre conjunto con SPEC-01 | AC-TEN-08, AC-TEN-22, AC-TEN-39 | E2E | `scripts/e2e_tenancy.py`, `scripts/tests/test_e2e_tenancy.py` | T-TEN-30, T-TEN-31, T-TEN-35, T-IDA-31 | backend-dev | M | Sí | ☐ | |
@@ -946,6 +946,36 @@ T-TEN-30 · suspendida → T-TEN-29.
 - **Archivos:** `src/app/(dashboard)/configuracion/sucursales/page.tsx`, `src/modules/tenancy/components/{BranchesTable,BranchFormDialog}.tsx`,
   `src/modules/tenancy/hooks/useBranches.ts`, `settings-sections.ts`, tests.
 - **Pruebas:** acciones según `allowed_actions`, `409 conflict` en el formulario, vacío y filtro activas/inactivas.
+- **Hecho (2026-11-21):** `/configuracion/sucursales` con `BranchesScreen` (en `BranchesTable.tsx`, como
+  `SecurityScreen` en `SessionsTable.tsx`): nombre, código, dirección y chip Activa/Inactiva; filtro
+  Todas/Activas/Inactivas que viaja como `?is_active=` (sin parámetro: todas, AC-TEN-30). Sin contrato nuevo.
+  - Las acciones (crear, editar, desactivar, reactivar) salen de `allowed_actions` de
+    `GET /api/organizations/current/` (`branch.*`), porque `Branch` no trae acciones por fila: mientras no llegan, o si
+    esa lectura falla, no se muestra ninguna (aviso con "Reintentar"). Con la organización suspendida el backend no
+    las trae. La UI no mira el rol.
+  - Las queries llevan la clave `['org', orgId, 'branches', filtro]` y `['org', orgId, 'current']`, y el header sale de
+    la clave (`orgHeaderFromKey`). Las mutaciones nombran la organización con la que se abrió el diálogo; si la
+    pestaña cambia de empresa, el diálogo se cierra.
+  - `BranchFormDialog`: alta y edición; recorta y valida los límites del contrato antes de enviar
+    (`lib/branch-form.ts`); la edición manda solo lo que cambió, y sin cambios cierra sin request. `400` → mensaje
+    bajo su campo; `409 conflict` → el `detail` del backend arriba del formulario (AC-TEN-38); el resto, el título
+    fijo del código. Cierra solo tras el `2xx`.
+  - `BranchStatusDialog`: confirmación de desactivar/reactivar con botón en carga; reactivar con nombre o código
+    ocupado (`400`, `taken`) muestra el mensaje y la sucursal sigue inactiva (AC-TEN-30); `409 invalid_transition`
+    muestra su título. Toda respuesta relee la lista; `organization_suspended` relee también `allowed_actions`.
+  - Estados: carga (filas skeleton), error con "Reintentar", sin permiso (`403`), vacío por filtro ("Creá tu primera
+    sucursal" con el botón si hay `branch.create`, "Aún no hay sucursales" si no). Lugar reservado para las cajas
+    (Q-220), sin contenido.
+  - Sumados, con su porqué: `hooks/useCurrentOrganizationDetails.ts` (lee `allowed_actions`; lo puede reusar
+    `T-TEN-32`), `components/BranchStatusDialog.tsx` (confirmación, para no pasar de ~400 líneas, C-14),
+    `lib/branch-form.ts` (validación pura), `components/branches.test-helpers.ts`,
+    `modules/settings/components/SettingsSectionList.test.tsx` (la sección pasa a tener enlace),
+    `scripts/smoke_pages.py`, `scripts/tests/{test_smoke_pages,smoke_stack_fakes}.py` (el smoke espera la
+    redirección de `/configuracion/sucursales` a `/login`, como en la revisión de #129).
+  - Sin `react-hook-form`/`zod` (07 §3.3): no están en `package.json` y sumarlos excede la tarea; la validación del
+    cliente es una función pura con los mismos límites del contrato.
+  - Pruebas: `BranchesTable.test.tsx`, `BranchFormDialog.test.tsx`, `hooks/useBranches.test.tsx`,
+    `lib/branch-form.test.ts`.
 
 ### T-TEN-34 — Colaboradores: miembros
 - **AC:** — (RF-TEN-04, spec §14). **Zona roja:** no.
