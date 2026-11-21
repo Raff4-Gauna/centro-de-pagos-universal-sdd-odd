@@ -34,6 +34,14 @@ ids, and a ``PATCH`` names B's colleague by id with A active (``404``, AC-TEN-02
 every membership with its role and status: a role changed in B, or in A while it is suspended,
 shows up.
 
+``DELETE /api/memberships/{id}/`` and ``POST /api/memberships/me/leave/`` (T-TEN-23): the
+``DELETE`` names B's colleague by id with A active (``404``) and revokes A's colleague on the last
+step. Each organization also gets a second owner, so A's member is not the last one and may leave.
+Leaving names no object: on the step that builds B's URL the request still goes to A, so A's member
+leaves A there (B's rows must stay as they are); the URL for A first gives back the membership of
+whoever left A, so the last step has one to leave. Both reduce access: the suite does not expect
+them refused with A suspended (Q-221).
+
 ``/api/invitations/`` (T-TEN-20): the ``pending`` invitation of each organization's ``Seed`` is what
 a listing that leaks B's carries (B's invitation id). A ``POST`` invites a new email named after the
 organization it is built for; built for B it also carries B's ``organization_id``: the strict body
@@ -52,6 +60,7 @@ from typing import Any
 from apps.common.authz.roles import Role
 from apps.common.tenancy.current import tenant_scope
 from apps.tenancy.models import Branch, Invitation, Membership, Organization
+from apps.tenancy.models.membership import EndedReason, MembershipStatus
 from tests.cross_tenant.registry import CrossTenantCase, Exemption, Seed
 from tests.tenancy.api.probe import PLATFORM, add_member, new_user, platform_ctx
 from tests.tenancy.invitation_setup import issue
@@ -80,6 +89,7 @@ BRANCH = "api/branches/(?P<id>[^/.]+)/"
 OTHER_ORGANIZATION = "B"
 MEMBERSHIPS = "api/memberships/"
 MEMBERSHIP = "api/memberships/(?P<id>[^/.]+)/"
+LEAVE = "api/memberships/me/leave/"
 INVITATIONS = "api/invitations/"
 
 
@@ -162,8 +172,9 @@ def _colleague_name(organization: Organization) -> str:
     return f"colleague-{organization.name.lower()}"
 
 
-def _add_a_colleague(organization: Organization) -> None:
+def _add_colleagues(organization: Organization) -> None:
     add_member(organization, new_user(_colleague_name(organization)), Role.ADMIN)
+    add_member(organization, new_user(f"co-owner-{organization.name.lower()}"), Role.OWNER)
 
 
 def _membership_rows(organization: Organization) -> frozenset[tuple[Any, ...]]:
@@ -183,6 +194,23 @@ def _colleague(organization: Organization) -> str:
 
 def _demoted(organization: Organization) -> dict[str, str]:
     return {"role": Role.VIEWER.value}
+
+
+def _to_leave(organization: Organization) -> str:
+    if organization.name != OTHER_ORGANIZATION:
+        _rejoin(organization)
+    return f"/{LEAVE}"
+
+
+def _rejoin(organization: Organization) -> None:
+    """Whoever left ``organization`` and has no membership there gets a new one, as re-invited."""
+    rows = Membership.objects.unscoped(PLATFORM).filter(organization=organization)
+    active = set(rows.filter(status=MembershipStatus.ACTIVE.value).values_list("user", flat=True))
+    left = rows.filter(ended_reason=EndedReason.LEFT.value).select_related("user")
+    for gone in left:
+        if gone.user_id not in active:
+            add_member(organization, gone.user, Role(gone.role))
+            active.add(gone.user_id)
 
 
 def _invitations(organization: Organization) -> str:
@@ -221,6 +249,8 @@ CASES: tuple[CrossTenantCase, ...] = (
     CrossTenantCase("api/branches/<str:id>/reactivate/", "POST", _to_reactivate),
     CrossTenantCase(MEMBERSHIPS, "GET", _memberships),
     CrossTenantCase(MEMBERSHIP, "PATCH", _colleague, body=_demoted),
+    CrossTenantCase(MEMBERSHIP, "DELETE", _colleague),
+    CrossTenantCase(LEAVE, "POST", _to_leave),
     CrossTenantCase(INVITATIONS, "GET", _invitations),
     CrossTenantCase(INVITATIONS, "POST", _invitations, body=_new_invitation),
     CrossTenantCase("api/invitations/<str:id>/resend/", "POST", _to_resend),
@@ -236,5 +266,5 @@ SEEDS: tuple[Seed, ...] = (
     Seed(create=_no_rows, rows=_organization_row),
     Seed(create=_create_branches, rows=_branch_rows),
     Seed(create=_invite_a_guest, rows=_invitation_rows),
-    Seed(create=_add_a_colleague, rows=_membership_rows),
+    Seed(create=_add_colleagues, rows=_membership_rows),
 )

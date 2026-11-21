@@ -352,11 +352,29 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        delete?: never;
+        /** Revocar una membership (la propia es abandonar; también con la organización suspendida) */
+        delete: operations["memberships_destroy"];
         options?: never;
         head?: never;
         /** Cambiar el rol de una membership de la organización activa */
         patch: operations["memberships_partial_update"];
+        trace?: never;
+    };
+    "/api/memberships/me/leave/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Abandonar la organización activa (también suspendida) */
+        post: operations["memberships_leave"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/organizations/": {
@@ -2246,6 +2264,93 @@ export interface operations {
             };
         };
     };
+    memberships_destroy: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Organización activa de la request (RN-TEN-03). */
+                "X-Organization-Id": string;
+            };
+            path: {
+                /** @description La membership. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Revocada; se conserva como revoked. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description code: validation_error (el pedido no lleva cuerpo) · organization_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description code: forbidden (el rol no alcanza: un admin no revoca a un owner) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description code: not_found (no existe o es de otra organización: el mismo cuerpo) · organization_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description code: last_owner (dejaría la organización sin owner) · invalid_transition (membership ya revocada) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description code: organization_busy (otra operación tiene tomada la organización; no se escribió nada: se puede reenviar la misma request después de Retry-After: 2 s) */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Error del cliente */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Error del servidor */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     memberships_partial_update: {
         parameters: {
             query?: never;
@@ -2301,6 +2406,81 @@ export interface operations {
                 };
             };
             /** @description code: last_owner (dejaría la organización sin owner) · invalid_transition (membership revocada) · organization_suspended */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description code: organization_busy (otra operación tiene tomada la organización; no se escribió nada: se puede reenviar la misma request después de Retry-After: 2 s) */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Error del cliente */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Error del servidor */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    memberships_leave: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Organización activa de la request (RN-TEN-03). */
+                "X-Organization-Id": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Abandonada; la membership se conserva como revoked. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description code: validation_error (el pedido no lleva cuerpo) · organization_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description code: organization_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description code: last_owner (el último owner primero promueve a otro) */
             409: {
                 headers: {
                     [name: string]: unknown;

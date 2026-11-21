@@ -298,4 +298,4 @@ def test_AC_TEN_39_contract_declares_both_routes_exempt_and_without_token() -> N
     assert set(operation["responses"]) >= {"200", "400", "401", "409"}
     assert "requestBody" not in operation
     assert [p["in"] for p in operation["parameters"]] == ["path"]
-    assert contract["info"]["version"] == "0.17.0"
+    assert contract["info"]["version"] == "0.18.0"

@@ -64,7 +64,7 @@ Donde el diseño y el código de SPEC-00, o el orden real, difieren, manda esta 
 
 ## Resumen
 
-> T-TEN-01, T-TEN-02, T-TEN-03, T-TEN-04, T-TEN-05, T-TEN-06, T-TEN-07, T-TEN-08, T-TEN-09, T-TEN-10, T-TEN-11, T-TEN-12, T-TEN-13, T-TEN-14, T-TEN-15, T-TEN-16, T-TEN-17, T-TEN-18, T-TEN-19, T-TEN-20, T-TEN-21, T-TEN-22, T-TEN-24, T-TEN-25, T-TEN-29, T-TEN-30 y T-TEN-33 en revisión; las demás sin empezar. La columna **Evidencia** es obligatoria para `✅` y la verifica `scripts/check_spec_state.py`.
+> T-TEN-01, T-TEN-02, T-TEN-03, T-TEN-04, T-TEN-05, T-TEN-06, T-TEN-07, T-TEN-08, T-TEN-09, T-TEN-10, T-TEN-11, T-TEN-12, T-TEN-13, T-TEN-14, T-TEN-15, T-TEN-16, T-TEN-17, T-TEN-18, T-TEN-19, T-TEN-20, T-TEN-21, T-TEN-22, T-TEN-23, T-TEN-24, T-TEN-25, T-TEN-29, T-TEN-30 y T-TEN-33 en revisión; las demás sin empezar. La columna **Evidencia** es obligatoria para `✅` y la verifica `scripts/check_spec_state.py`.
 
 | ID | Título | AC | Capa | Archivos esperados (ver detalle) | Depende de | Agente | Tamaño | Zona roja | Estado | Evidencia |
 |---|---|---|---|---|---|---|---|---|---|---|
@@ -90,7 +90,7 @@ Donde el diseño y el código de SPEC-00, o el orden real, difieren, manda esta 
 | T-TEN-20 | Crear y listar invitaciones | AC-TEN-15, AC-TEN-20, AC-TEN-24, AC-TEN-26, AC-TEN-34 | Servicio/API | `services/invitations.py`, `api/invitations.py`, `api/serializers/invitations.py` | T-TEN-07, T-TEN-15 | backend-dev | L | Sí | 🟡 | rama `task/T-TEN-20-create-invitations`, PR #131 |
 | T-TEN-21 | Reenviar y revocar invitaciones | AC-TEN-02, AC-TEN-15, AC-TEN-24, AC-TEN-26, AC-TEN-37 | Servicio/API | `services/invitations.py`, `api/invitations.py` | T-TEN-20 | backend-dev | M | Sí | 🟡 | rama `task/T-TEN-21-resend-revoke`, sin PR |
 | T-TEN-22 | Listar memberships y cambiar rol | AC-TEN-02, AC-TEN-05, AC-TEN-13, AC-TEN-15, AC-TEN-16, AC-TEN-27, AC-TEN-34 | Servicio/API | `services/memberships.py`, `api/memberships.py` | T-TEN-07, T-TEN-11 | backend-dev | L | Sí | 🟡 | rama `task/T-TEN-22-memberships`, sin PR |
-| T-TEN-23 | Revocar, abandonar y autorrevocar invitaciones | AC-TEN-04, AC-TEN-13, AC-TEN-14, AC-TEN-15, AC-TEN-31, AC-TEN-36 | Servicio/API | `services/memberships.py`, `api/memberships.py` | T-TEN-21, T-TEN-22 | backend-dev | L | Sí | ☐ | |
+| T-TEN-23 | Revocar, abandonar y autorrevocar invitaciones | AC-TEN-04, AC-TEN-13, AC-TEN-14, AC-TEN-15, AC-TEN-31, AC-TEN-36 | Servicio/API | `services/memberships.py`, `services/membership_exit.py`, `api/memberships.py` | T-TEN-21, T-TEN-22 | backend-dev | L | Sí | 🟡 | PR #138, rama `task/T-TEN-23-revoke-leave` |
 | T-TEN-24 | `Branch` + migración 0004 + crear y listar | AC-TEN-07, AC-TEN-16, AC-TEN-30, AC-TEN-38 | DB/API | `models/branch.py`, `services/branches.py`, `api/branches.py` | T-TEN-08, T-TEN-11 | backend-dev | L | Sí | 🟡 | rama `task/T-TEN-24-branch-model`, sin PR |
 | T-TEN-25 | Ver, editar, desactivar y reactivar `Branch`, filtro | AC-TEN-01, AC-TEN-05, AC-TEN-09, AC-TEN-30, AC-TEN-32, AC-TEN-37, AC-TEN-38 | Servicio/API | `services/branches.py`, `api/branches.py`, `api/filters.py` | T-TEN-24 | backend-dev | L | Sí | 🟡 | rama `task/T-TEN-25-branch-edit`, sin PR |
 | T-TEN-26 | Vencimiento de invitaciones y email por flag | AC-TEN-37 | Asíncrono | `apps/tenancy/tasks.py` | T-TEN-11, T-TEN-21 | backend-dev | M | Sí | 🟡 | rama `task/T-TEN-26-invitation-expiry`, PR #137 |
@@ -818,6 +818,36 @@ T-TEN-30 · suspendida → T-TEN-29.
 - **Pruebas:** `test_AC_TEN_04_revoked_admin_is_rejected`, `test_AC_TEN_13_last_owner_cannot_leave`,
   `test_AC_TEN_14_mutual_demotion_keeps_one_owner` (hilos), `test_AC_TEN_31_leave_then_reinvite_is_new_membership`,
   `test_AC_TEN_36_auto_revoked_on_demotion_revoke_and_leave`, `test_Q_221_revoke_allowed_when_suspended`.
+- **Sumados, con su porqué:**
+  - `services/membership_exit.py` (nuevo): con revocar y abandonar, `services/memberships.py` pasaba de 250 líneas
+    (la división de la ficha). `services/memberships.py` publica `Refused` (antes `_Refused`) para no duplicarlo.
+  - `api/urls.py`: monta `POST /api/memberships/me/leave/` con `as_view({"post": "leave"})` (sin `@action`, por el
+    clasificador de la suite cross-tenant).
+  - `apps/common/api/schema.py` (`API_VERSION` 0.18.0) y los tests que fijan `info.version`.
+  - `tests/cross_tenant/cases/tenancy.py`: casos `DELETE` y `me/leave/`; cada organización suma un segundo owner y la
+    URL de A devuelve la membership a quien abandonó A en el paso de los objetos de B (la ruta no nombra objeto).
+  - `tests/tenancy/test_Q_230_organization_busy.py` (revocar y abandonar toman el lock) y
+    `tests/tenancy/test_membership_exit_race.py` (AC-TEN-14 con hilos; aceptar contra revocar al emisor).
+- **Implementado:**
+  - `DELETE /api/memberships/{id}/` (`member.revoke`, `REDUCE_ACCESS`) y `POST /api/memberships/me/leave/`
+    (`member.leave`, `REDUCE_ACCESS`): permitidos con la organización suspendida (Q-221), sin cuerpo (otra clave →
+    `400 unknown_field`), `204`. Bajo `lock_membership_mutex`: actor releído (revocado → `404 organization_not_found`);
+    `DELETE` sobre la propia = abandonar (§4.2 paso 5); ajena: rol fuera de `member.revoke` → `403`, destino
+    bloqueado (otra organización, inexistente o id no UUID → `404 not_found`; `revoked` → `409 invalid_transition` +
+    `transition.rejected` con `event=revoke`), `decide_revoke` (admin sobre owner → `403`). `LAST_OWNER` →
+    `owner_protection.rejected` (`event=revoke|leave`) fuera del `atomic` + `409 last_owner`.
+  - `ALLOW`: `revoked` con `ended_reason=revoked|left`, `ended_at`, `ended_by`; `membership.revoked` o `membership.left`
+    (`reason`, `membership_id`, `user_id`, `role`); `auto_revoke_invitations(..., None)` revoca todas las `pending` que
+    emitió esa persona (`inviter_lost_permission`, `invitation.auto_revoked`), en la misma transacción. La reenviada
+    pertenece a quien la reenvió (Q-234 a).
+  - `AUDIT_TRIGGERS`: `revoke_membership` registra `membership.revoked` y `leave_organization` `membership.left`.
+  - Pruebas extra: `test_AC_TEN_13_*` (owner que abandona con otro owner, owner que revoca a otro),
+    `test_AC_TEN_15_admin_revokes_below_owner`, `test_AC_TEN_16_operator_and_viewer_cannot_revoke`,
+    `test_AC_TEN_02_other_org_membership_is_404`, `test_C_05_revoked_membership_is_invalid_transition`,
+    `test_RN_TEN_12_takes_no_body`, `test_Q_234_auto_revocation_follows_the_resender`,
+    `test_AC_TEN_36_a_member_gone_loses_every_pending_one`, `test_AC_TEN_36_a_refused_exit_revokes_nothing`, las
+    carreras aceptar/revocar al emisor, Q-230 y la suite cross-tenant con las dos rutas. `AC-TEN-14` cubre
+    PATCH-contra-PATCH, revocar-contra-revocar, ambos se degradan y ambos abandonan.
 
 ### T-TEN-24 — `Branch` + migración 0004 + crear y listar
 - **AC:** AC-TEN-07, 16, 30, 38. RF-TEN-06, RN-TEN-15, Q-226, Q-227. **Zona roja:** sí.

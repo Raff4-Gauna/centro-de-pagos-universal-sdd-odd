@@ -23,7 +23,7 @@ from django.test import Client
 from apps.common.api.exceptions import problem_exception_handler
 from apps.common.authz.roles import Role
 from apps.common.tenancy import locks
-from apps.tenancy.models import Branch, Invitation, Organization
+from apps.tenancy.models import Branch, Invitation, Membership, Organization
 from tests.identity.test_refresh_concurrency import PATIENCE, wait_for_a_blocked_backend
 from tests.tenancy.api.membership_setup import member, role_of
 from tests.tenancy.api.probe import PLATFORM, as_member, bearer_of, new_org, new_user
@@ -55,6 +55,35 @@ def change_a_role(org: Organization) -> Write:
         {"role": "viewer"},
         as_member(owner, org.id),
         lambda: role_of(target) == "admin",
+    )
+
+
+def _status_of(membership: Membership) -> str:
+    rows = Membership.objects.unscoped(PLATFORM).filter(pk=membership.pk)
+    return str(rows.values_list("status", flat=True).get())
+
+
+def revoke_a_membership(org: Organization) -> Write:
+    owner, _ = member(org, Role.OWNER)
+    _, target = member(org, Role.ADMIN)
+    return Write(
+        "DELETE",
+        f"/api/memberships/{target.pk}/",
+        {},
+        as_member(owner, org.id),
+        lambda: _status_of(target) == "active",
+    )
+
+
+def leave_the_organization(org: Organization) -> Write:
+    member(org, Role.OWNER)
+    admin, mine = member(org, Role.ADMIN)
+    return Write(
+        "POST",
+        "/api/memberships/me/leave/",
+        {},
+        as_member(admin, org.id),
+        lambda: _status_of(mine) == "active",
     )
 
 
@@ -153,6 +182,8 @@ def hold_the_organization(org: Organization) -> Callable[[], Organization]:
     "build",
     [
         change_a_role,
+        revoke_a_membership,
+        leave_the_organization,
         create_a_branch,
         edit_the_organization,
         accept_an_invitation,
