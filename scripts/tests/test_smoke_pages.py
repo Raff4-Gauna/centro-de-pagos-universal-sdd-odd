@@ -252,6 +252,7 @@ def test_AC_PLT_29_every_protected_page_redirects_to_login() -> None:
         "/configuracion": "/login",
         "/configuracion/perfil": "/login",
         "/configuracion/seguridad": "/login",
+        "/configuracion/sucursales": "/login",
         "/sin-organizacion": "/login",
     }
 
@@ -270,6 +271,7 @@ def test_AC_PLT_29_real_list_matches_the_pages_of_the_image(
         "/(dashboard)/configuracion/page": "/configuracion",
         "/(dashboard)/configuracion/perfil/page": "/configuracion/perfil",
         "/(dashboard)/configuracion/seguridad/page": "/configuracion/seguridad",
+        "/(dashboard)/configuracion/sucursales/page": "/configuracion/sucursales",
         "/(dashboard)/sin-organizacion/page": "/sin-organizacion",
         "/(auth)/login/page": "/login",
         "/api/health/route": "/api/health",
@@ -279,6 +281,7 @@ def test_AC_PLT_29_real_list_matches_the_pages_of_the_image(
         "/configuracion",
         "/configuracion/perfil",
         "/configuracion/seguridad",
+        "/configuracion/sucursales",
         "/inicio",
         "/login",
         "/sin-organizacion",
@@ -295,6 +298,7 @@ def test_AC_PLT_29_protected_stack_reviews_login_once(
         "/configuracion",
         "/configuracion/perfil",
         "/configuracion/seguridad",
+        "/configuracion/sucursales",
         "/inicio",
         "/login",
         "/sin-organizacion",
@@ -306,10 +310,11 @@ def test_AC_PLT_29_protected_stack_reviews_login_once(
             "/configuracion": to(login, 302),
             "/configuracion/perfil": to(login, 302),
             "/configuracion/seguridad": to(login, 302),
+            "/configuracion/sucursales": to(login, 302),
             "/sin-organizacion": to(login, 302),
         }
     )
     frontend.responses["/login"] = PAGE
     smoke_pages.check_client_bundle(FRONTEND, frontend.pages)
     assert frontend.requested.count(f"{FRONTEND}/login") == 1
-    assert "1 pages reviewed, 6 redirected" in capsys.readouterr().out
+    assert "1 pages reviewed, 7 redirected" in capsys.readouterr().out
