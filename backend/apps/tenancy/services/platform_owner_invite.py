@@ -13,8 +13,8 @@ Both run in one transaction, in the lock order of the module (organization, then
    an acceptance in flight, which takes the same lock, so the owner check below is the real one. A
    ``SystemActor`` is not stopped by a suspension (design.md §3.6).
 2. An organization with an active owner is ``OrganizationHasOwnerError``: from then on its owners
-   manage their invitations (Q-213, design.md §4.5). Nothing is written nor audited: nothing was
-   attempted on any invitation.
+   manage their invitations (Q-213, design.md §4.5). Nothing is written; the refusal is audited as
+   every refusal of an operator command (step 6).
 3. The first owner's invitation is the latest ``first_owner`` one (a reissue points at the one it
    replaces), ``FOR UPDATE``; none is ``NoOwnerInvitationError``. A ``pending`` one past its expiry
    becomes ``expired`` first (``invitation.expired``, the system as its actor, Q-234 b).
@@ -30,6 +30,10 @@ Both run in one transaction, in the lock order of the module (organization, then
    with ``email_changed`` (never the email itself). An ``accepted`` one is not reissued.
 5. Any other status is ``InvalidTransition``, and ``transition.rejected`` (entity, state, event)
    goes out after the transaction: the expiry of step 3 stays (C-05, AC-TEN-37, design.md §3.3).
+6. Every other refusal (unknown organization, an owner, no first owner invitation, an active member
+   or a ``pending`` invitation with that email, no ``FRONTEND_BASE_URL``) changes nothing and leaves
+   one ``operator_command.rejected`` with its code, after the rollback (Q-237,
+   ``platform_org_status.audited_refusals``). An invalid ``email`` is a bad argument: not audited.
 
 ``ReissuedInvitation.accept_url`` is the only place the new token exists in clear (masked in
 ``repr``); the command prints it once. Without ``FRONTEND_BASE_URL`` a reissue locks nor writes
@@ -39,6 +43,7 @@ anything. Logs and events carry ids, never an email nor a token (C-06).
 from __future__ import annotations
 
 import uuid
+from contextlib import AbstractContextManager
 from dataclasses import dataclass, field
 from datetime import datetime
 
@@ -52,7 +57,7 @@ from apps.common.logging import get_logger
 from apps.common.tenancy.context import SystemReason, TenantContext
 from apps.common.tenancy.current import tenant_scope
 from apps.common.tenancy.locks import bounded_lock_wait, system_context
-from apps.tenancy.domain.audit_events import TenancyAuditAction
+from apps.tenancy.domain.audit_events import OperatorRefusal, TenancyAuditAction
 from apps.tenancy.domain.invitations import (
     InvitationPurpose,
     InvitationStatus,
@@ -66,8 +71,9 @@ from apps.tenancy.errors import InvalidTransition
 from apps.tenancy.models import Invitation, Membership
 from apps.tenancy.models.membership import MembershipStatus
 from apps.tenancy.selectors.locks import active_owner_count, lock_membership_mutex
-from apps.tenancy.services.audit import record_event
+from apps.tenancy.services.audit import audit_trigger, record_event
 from apps.tenancy.services.invitations import (
+    InvitationPending,
     InviteeAlreadyMember,
     accept_base_url,
     accept_url,
@@ -76,6 +82,7 @@ from apps.tenancy.services.invitations import (
     normalized_email,
 )
 from apps.tenancy.services.platform_org import Operator
+from apps.tenancy.services.platform_org_status import COMMON_REFUSALS, audited_refusals
 
 logger = get_logger(__name__)
 
@@ -88,6 +95,7 @@ _REVOKED_FIELDS = ["status", "revoked_reason", "revoked_at", "updated_at"]
 _PENDING = InvitationStatus.PENDING.value
 # Q-236: a revoked one too, or a revoke would leave the organization without a first owner.
 _REISSUABLE = frozenset({_PENDING, InvitationStatus.EXPIRED.value, InvitationStatus.REVOKED.value})
+COMMAND = "tenancy_owner_invite"
 
 
 class InvalidOwnerEmailError(ValueError):
@@ -107,6 +115,16 @@ class NoOwnerInvitationError(Exception):
     def __init__(self, organization_id: uuid.UUID) -> None:
         super().__init__("the organization has no first owner invitation")
         self.organization_id = organization_id
+
+
+# Q-237: what the command refuses without changing anything, and the code it audits.
+REFUSALS: dict[type[Exception], OperatorRefusal] = {
+    **COMMON_REFUSALS,
+    OrganizationHasOwnerError: OperatorRefusal.ORGANIZATION_HAS_OWNER,
+    NoOwnerInvitationError: OperatorRefusal.NO_OWNER_INVITATION,
+    InviteeAlreadyMember: OperatorRefusal.ALREADY_MEMBER,
+    InvitationPending: OperatorRefusal.INVITATION_PENDING,
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -139,24 +157,29 @@ def reissue_owner_invitation(
     now: datetime | None = None,
 ) -> ReissuedInvitation:
     address = None if email is None else clean_owner_email(email)
-    base = accept_base_url()  # before any lock: a missing setting writes nothing
+    _check_id(organization_id)
     moment = timezone.now() if now is None else now
     token = new_token()
-    with transaction.atomic():
-        ctx = _platform_context(organization_id)
-        with tenant_scope(ctx):
-            old = _lock_owner_invitation(ctx, ActionKind.WRITE, moment)
-            outcome = _reissue_locked(ctx, old, address, operator, hash_token(token), moment)
+    with _refusals(organization_id, operator, REISSUE):
+        base = accept_base_url()  # before any lock: a missing setting writes nothing
+        with transaction.atomic():
+            ctx = _platform_context(organization_id)
+            with tenant_scope(ctx):
+                old = _lock_owner_invitation(ctx, ActionKind.WRITE, moment)
+                outcome = _reissue_locked(ctx, old, address, operator, hash_token(token), moment)
     new_id = _raise_rejected(outcome, operator)
     logger.info(REISSUED_EVENT, invitation_id=str(new_id), replaces=str(old.pk))
     return ReissuedInvitation(new_id, old.pk, accept_url(base, token))
 
 
+# One function per action (``services/audit.py``): an owner already in is the simplest refusal.
+@audit_trigger(TenancyAuditAction.OPERATOR_COMMAND_REJECTED)
 def revoke_owner_invitation(
     organization_id: uuid.UUID, operator: Operator, *, now: datetime | None = None
 ) -> uuid.UUID:
+    _check_id(organization_id)
     moment = timezone.now() if now is None else now
-    with transaction.atomic():
+    with _refusals(organization_id, operator, REVOKE), transaction.atomic():
         ctx = _platform_context(organization_id)
         with tenant_scope(ctx):
             invitation = _lock_owner_invitation(ctx, ActionKind.REDUCE_ACCESS, moment)
@@ -171,9 +194,20 @@ def revoke_owner_invitation(
     return revoked_id
 
 
-def _platform_context(organization_id: uuid.UUID) -> TenantContext:
+def _check_id(organization_id: object) -> None:
     if not isinstance(organization_id, uuid.UUID):
         raise TypeError("organization_id must be a UUID")
+
+
+def _refusals(
+    organization_id: uuid.UUID, operator: Operator, operation: str
+) -> AbstractContextManager[None]:
+    return audited_refusals(
+        organization_id, operator, REFUSALS, command=COMMAND, operation=operation
+    )
+
+
+def _platform_context(organization_id: uuid.UUID) -> TenantContext:
     return system_context(organization_id, SystemReason.PLATFORM_COMMAND)
 
 

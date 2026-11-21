@@ -36,8 +36,10 @@ the event's ``reason``, never in the logs. In one transaction and in the lock or
    validity (``insert_invitation``), and ``invitation.created`` with its role and ``purpose``
    (AC-TEN-23, Q-225: they have no event of their own).
 
-Every refusal writes nothing and is not audited yet, as creating an invitation (none is in
-RNF-TEN-04); Q-237 audits them, in T-TEN-37. ``IssuedAccess.accept_url`` is the only place the
+Every refusal of steps 1 to 4, and a missing ``FRONTEND_BASE_URL``, writes nothing and leaves one
+``operator_command.rejected`` with its code, after the rollback (Q-237,
+``platform_org_status.audited_refusals``); an invalid email, reason or role is a bad argument, not
+audited. ``IssuedAccess.accept_url`` is the only place the
 token exists in clear (masked in ``repr``); the command prints it once. Without
 ``FRONTEND_BASE_URL`` nothing is locked nor written. Logs and events carry ids, never an email nor
 the token (C-06, RNF-TEN-06).
@@ -59,7 +61,7 @@ from apps.common.logging import get_logger
 from apps.common.tenancy.context import SystemReason, TenantContext
 from apps.common.tenancy.current import tenant_scope
 from apps.common.tenancy.locks import system_context
-from apps.tenancy.domain.audit_events import TenancyAuditAction
+from apps.tenancy.domain.audit_events import OperatorRefusal, TenancyAuditAction
 from apps.tenancy.domain.invitations import (
     InvitationPurpose,
     expires_at_for,
@@ -71,6 +73,7 @@ from apps.tenancy.models.membership import MembershipStatus
 from apps.tenancy.selectors.locks import active_owner_count, lock_membership_mutex
 from apps.tenancy.services.audit import record_event
 from apps.tenancy.services.invitations import (
+    InvitationPending,
     InviteeAlreadyMember,
     _expire_or_refuse_pending,  # step 4 of creating an invitation, the same rule
     accept_base_url,
@@ -79,12 +82,18 @@ from apps.tenancy.services.invitations import (
     normalized_email,
 )
 from apps.tenancy.services.platform_org import Operator
-from apps.tenancy.services.platform_org_status import clean_reason
+from apps.tenancy.services.platform_org_status import (
+    COMMON_REFUSALS,
+    audited_refusals,
+    clean_reason,
+)
 
 logger = get_logger(__name__)
 
 SUPPORT_EVENT = "tenancy.platform_support_access_issued"
 RECOVERY_EVENT = "tenancy.platform_owner_recovery_issued"
+SUPPORT_COMMAND = "tenancy_support_access"
+RECOVERY_COMMAND = "tenancy_owner_recovery"
 SUPPORT_ROLES = (Role.ADMIN, Role.OPERATOR, Role.VIEWER)  # Q-222: never owner
 DEFAULT_SUPPORT_ROLE = Role.VIEWER
 
@@ -111,6 +120,15 @@ class OrganizationWithoutOwnerError(Exception):
         self.organization_id = organization_id
 
 
+# Q-237: what both refuse without changing anything, and the code they audit.
+REFUSALS: dict[type[Exception], OperatorRefusal] = {
+    **COMMON_REFUSALS,
+    OrganizationWithoutOwnerError: OperatorRefusal.ORGANIZATION_WITHOUT_OWNER,
+    InviteeAlreadyMember: OperatorRefusal.ALREADY_MEMBER,
+    InvitationPending: OperatorRefusal.INVITATION_PENDING,
+}
+
+
 @dataclass(frozen=True, slots=True)
 class IssuedAccess:
     invitation_id: uuid.UUID
@@ -126,6 +144,7 @@ class _Request:
     purpose: InvitationPurpose
     reason: str
     log_event: str
+    command: str
 
 
 def clean_invitee_email(value: object) -> str:
@@ -152,6 +171,7 @@ def grant_support_access(
         InvitationPurpose.SUPPORT,
         clean_reason(reason),
         SUPPORT_EVENT,
+        SUPPORT_COMMAND,
     )
     return _issue(organization_id, request, operator, now)
 
@@ -170,6 +190,7 @@ def issue_owner_recovery(
         InvitationPurpose.OWNER_RECOVERY,
         clean_reason(reason),
         RECOVERY_EVENT,
+        RECOVERY_COMMAND,
     )
     return _issue(organization_id, request, operator, now)
 
@@ -179,13 +200,15 @@ def _issue(
 ) -> IssuedAccess:
     if not isinstance(organization_id, uuid.UUID):
         raise TypeError("organization_id must be a UUID")
-    base = accept_base_url()  # before any lock: a missing setting writes nothing
     moment = timezone.now() if now is None else now
     token = new_token()
-    with transaction.atomic():
-        ctx = system_context(organization_id, SystemReason.PLATFORM_COMMAND)
-        with tenant_scope(ctx):
-            invitation_id, owners = _issue_locked(ctx, request, operator, hash_token(token), moment)
+    with audited_refusals(organization_id, operator, REFUSALS, command=request.command):
+        base = accept_base_url()  # before any lock: a missing setting writes nothing
+        with transaction.atomic():
+            ctx = system_context(organization_id, SystemReason.PLATFORM_COMMAND)
+            with tenant_scope(ctx):
+                token_hash = hash_token(token)
+                invitation_id, owners = _issue_locked(ctx, request, operator, token_hash, moment)
     logger.info(
         request.log_event,
         invitation_id=str(invitation_id),
