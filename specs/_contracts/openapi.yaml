@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Centro de Pagos Universal API
-  version: 0.17.0
+  version: 0.18.0
 paths:
   /api/auth/bff/login/complete/:
     post:
@@ -1337,6 +1337,136 @@ paths:
                 $ref: '#/components/schemas/Problem'
           description: 'code: last_owner (dejaría la organización sin owner) · invalid_transition
             (membership revocada) · organization_suspended'
+        '503':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: 'code: organization_busy (otra operación tiene tomada la organización;
+            no se escribió nada: se puede reenviar la misma request después de Retry-After:
+            2 s)'
+        4XX:
+          description: Error del cliente
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        5XX:
+          description: Error del servidor
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+    delete:
+      operationId: memberships_destroy
+      summary: Revocar una membership (la propia es abandonar; también con la organización
+        suspendida)
+      parameters:
+      - in: header
+        name: X-Organization-Id
+        schema:
+          type: string
+          format: uuid
+        description: Organización activa de la request (RN-TEN-03).
+        required: true
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: La membership.
+        required: true
+      tags:
+      - tenancy
+      security:
+      - HubBearer: []
+      responses:
+        '204':
+          description: Revocada; se conserva como revoked.
+        '400':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: 'code: validation_error (el pedido no lleva cuerpo) · organization_required'
+        '403':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: 'code: forbidden (el rol no alcanza: un admin no revoca a un
+            owner)'
+        '404':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: 'code: not_found (no existe o es de otra organización: el mismo
+            cuerpo) · organization_not_found'
+        '409':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: 'code: last_owner (dejaría la organización sin owner) · invalid_transition
+            (membership ya revocada)'
+        '503':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: 'code: organization_busy (otra operación tiene tomada la organización;
+            no se escribió nada: se puede reenviar la misma request después de Retry-After:
+            2 s)'
+        4XX:
+          description: Error del cliente
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        5XX:
+          description: Error del servidor
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /api/memberships/me/leave/:
+    post:
+      operationId: memberships_leave
+      summary: Abandonar la organización activa (también suspendida)
+      parameters:
+      - in: header
+        name: X-Organization-Id
+        schema:
+          type: string
+          format: uuid
+        description: Organización activa de la request (RN-TEN-03).
+        required: true
+      tags:
+      - tenancy
+      security:
+      - HubBearer: []
+      responses:
+        '204':
+          description: Abandonada; la membership se conserva como revoked.
+        '400':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: 'code: validation_error (el pedido no lleva cuerpo) · organization_required'
+        '404':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: 'code: organization_not_found'
+        '409':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: 'code: last_owner (el último owner primero promueve a otro)'
         '503':
           content:
             application/problem+json:
