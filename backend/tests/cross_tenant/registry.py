@@ -4,6 +4,9 @@ Every module that adds routes adds ``tests/cross_tenant/cases/<app>.py`` with an
 
 - ``CASES``: one ``CrossTenantCase`` per (route, method) of each ``TenantViewSet`` route. ``path``
   builds the URL that targets the objects of the organization it gets; ``body`` the JSON of a write.
+  ``restore`` is for a case whose request changes A even on a step aimed at B (leaving names no
+  object, so it always leaves A): it puts A back as the next step needs it. The harness calls it
+  before every request, so neither ``path`` nor ``body`` has side effects.
 - ``EXEMPT``: one ``Exemption`` per route that runs without an active organization, with its reason
   (``TENANT_EXEMPT_ROUTES`` of design.md §3.5). ``optional`` marks a route mounted only under a
   setting (the fake OIDC provider): it may be absent without the entry being stale. ``read`` is the
@@ -35,6 +38,7 @@ class CrossTenantCase:
     method: str
     path: Callable[[Organization], str]
     body: Callable[[Organization], Mapping[str, Any]] | None = None
+    restore: Callable[[Organization], None] | None = None
 
 
 @dataclass(frozen=True)
