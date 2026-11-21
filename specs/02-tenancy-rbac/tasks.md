@@ -65,7 +65,7 @@ Donde el diseño y el código de SPEC-00, o el orden real, difieren, manda esta 
 
 ## Resumen
 
-> T-TEN-01, T-TEN-02, T-TEN-03, T-TEN-04, T-TEN-05, T-TEN-06, T-TEN-07, T-TEN-08, T-TEN-09, T-TEN-10, T-TEN-11, T-TEN-12, T-TEN-13, T-TEN-14, T-TEN-15, T-TEN-16, T-TEN-17, T-TEN-18, T-TEN-19, T-TEN-20, T-TEN-21, T-TEN-22, T-TEN-23, T-TEN-24, T-TEN-25, T-TEN-27, T-TEN-28, T-TEN-29, T-TEN-30 y T-TEN-33 en revisión; las demás sin empezar. La columna **Evidencia** es obligatoria para `✅` y la verifica `scripts/check_spec_state.py`.
+> T-TEN-01, T-TEN-02, T-TEN-03, T-TEN-04, T-TEN-05, T-TEN-06, T-TEN-07, T-TEN-08, T-TEN-09, T-TEN-10, T-TEN-11, T-TEN-12, T-TEN-13, T-TEN-14, T-TEN-15, T-TEN-16, T-TEN-17, T-TEN-18, T-TEN-19, T-TEN-20, T-TEN-21, T-TEN-22, T-TEN-23, T-TEN-24, T-TEN-25, T-TEN-27, T-TEN-28, T-TEN-29, T-TEN-30, T-TEN-33 y T-TEN-34 en revisión; las demás sin empezar. La columna **Evidencia** es obligatoria para `✅` y la verifica `scripts/check_spec_state.py`.
 
 | ID | Título | AC | Capa | Archivos esperados (ver detalle) | Depende de | Agente | Tamaño | Zona roja | Estado | Evidencia |
 |---|---|---|---|---|---|---|---|---|---|---|
@@ -102,7 +102,7 @@ Donde el diseño y el código de SPEC-00, o el orden real, difieren, manda esta 
 | T-TEN-31 | Pantalla `/invitacion` | AC-TEN-17 (UI) | UI | `app/invitacion/page.tsx`, `src/modules/tenancy/components/AcceptInvitation.tsx` | T-TEN-15, T-TEN-29 | frontend-dev | M | Sí | 🟡 | rama `task/T-TEN-31-invitation-screen`, sin PR |
 | T-TEN-32 | Datos de la empresa y abandonar | — (RF-TEN-03, RF-TEN-04, spec §14) | UI | `app/(dashboard)/configuracion/empresa/page.tsx`, `src/modules/tenancy/components/CompanyDataForm.tsx` | T-TEN-13, T-TEN-23, T-TEN-29 | frontend-dev | M | No | ☐ | |
 | T-TEN-33 | Sucursales | — (RF-TEN-06, spec §14) | UI | `app/(dashboard)/configuracion/sucursales/page.tsx`, `BranchesTable.tsx`, `BranchFormDialog.tsx` | T-TEN-25, T-TEN-29 | frontend-dev | L | No | 🟡 | PR #139, rama `task/T-TEN-33-branches-ui` |
-| T-TEN-34 | Colaboradores: miembros | — (RF-TEN-04, spec §14) | UI | `app/(dashboard)/configuracion/colaboradores/page.tsx`, `MembersTable.tsx` | T-TEN-23, T-TEN-29 | frontend-dev | L | No | ☐ | |
+| T-TEN-34 | Colaboradores: miembros | — (RF-TEN-04, spec §14) | UI | `app/(dashboard)/configuracion/colaboradores/page.tsx`, `MembersTable.tsx` | T-TEN-23, T-TEN-29 | frontend-dev | L | No | 🟡 | PR #143, rama `task/T-TEN-34-members-ui` |
 | T-TEN-35 | Colaboradores: invitaciones y link de una sola vez | AC-TEN-24 (UI) | UI | `InviteDialog.tsx`, `InvitationLinkDialog.tsx` | T-TEN-21, T-TEN-34 | frontend-dev | M | Sí | ☐ | |
 | T-TEN-36 | E2E y cierre conjunto con SPEC-01 | AC-TEN-08, AC-TEN-22, AC-TEN-39 | E2E | `scripts/e2e_tenancy.py`, `scripts/tests/test_e2e_tenancy.py` | T-TEN-30, T-TEN-31, T-TEN-35, T-IDA-31 | backend-dev | M | Sí | ☐ | |
 | T-TEN-37 | Auditar los rechazos de los comandos de operador (Q-237) | AC-TEN-23 (rechazos del operador) | Comandos | `services/platform_{owner_invite,org_status,access}.py`, `domain/audit_events.py` | T-TEN-28 | backend-dev | S | Sí | ☐ | |
@@ -1081,6 +1081,37 @@ T-TEN-30 · suspendida → T-TEN-29.
 - **Pruebas:** sin permiso muestra el estado; acciones por fila según `allowed_actions` y `assignable_roles`.
 - **Roles:** se muestran con las etiquetas compartidas de `src/modules/tenancy/lib/role-labels.ts` (Q-232), en la
   tabla y en el selector de rol; nunca el código ni una traducción propia.
+- **Hecho (2026-11-21):** `/configuracion/colaboradores` con `MembersScreen` (en `MembersTable.tsx`): nombre, email,
+  rol con la etiqueta de `role-labels.ts` (Q-232) y fecha de alta; filtro Activos/Dados de baja que viaja como
+  `?status=active|revoked`, con el motivo de la baja (Revocado/Abandonó). Sin contrato nuevo.
+  - Las acciones de cada fila salen solo de su `allowed_actions` y `assignable_roles`: "Cambiar rol"
+    (`member.change_role` con algún rol asignable), "Revocar acceso" (`member.revoke`) y "Abandonar la empresa"
+    (`member.leave`, la fila propia). La UI no mira el rol; mientras la lista carga o falla no hay ninguna.
+  - La query lleva la clave `['org', orgId, 'members', estado]` y el header sale de la clave (`orgHeaderFromKey`). Las
+    mutaciones nombran la organización con la que se abrió el diálogo. La pantalla de una empresa se monta con
+    `key` = empresa: al cambiar de empresa el diálogo abierto y el filtro se descartan, también si la pestaña vuelve
+    a la primera (lo que la revisión de #139 marcó en Sucursales).
+  - `MemberRoleDialog`: los roles son exactamente `assignable_roles`, con etiqueta; sin rol elegido no se confirma.
+    `MemberExitDialog` (`RevokeMemberDialog` y `LeaveOrganizationDialog`): confirmación con botón en carga. Todos
+    cierran solo tras el `2xx`; `409 last_owner` se explica con texto propio (el `detail` nombra el rol por su
+    código), `503 organization_busy` muestra su título fijo (Q-230) y deja reintentar, y el resto el título de su
+    código. Toda respuesta relee la lista y `allowed_actions`; un cambio de rol aceptado relee también las empresas.
+  - Abandonar: tras el `204` se relee `GET /api/organizations/`, así `ActiveOrgProvider` (T-TEN-29) deja la empresa,
+    pasa la pestaña a la siguiente y borra su caché; después va a `/inicio`, o a `/sin-organizacion` si no queda
+    ninguna. La lista de la empresa abandonada no se vuelve a pedir.
+  - Estados: carga (filas skeleton), error con "Reintentar", sin permiso (`403`, AC-TEN-34) y vacío por filtro.
+  - La sección "Colaboradores" de Configuración pasa a tener enlace y `requires: "member.list"`: solo se lista si
+    `allowed_actions` de la empresa activa lo trae (oculta para operator/viewer, `design.md §3.9`; mientras carga o
+    si falla, oculta). El acceso directo da el estado "sin permiso".
+  - Sumados, con su porqué: `components/{MemberRoleDialog,MemberExitDialog}.tsx` (C-14), `lib/member-errors.ts`,
+    `components/members.test-helpers.ts`, `modules/settings/components/SettingsSectionList.tsx` y su test (la sección
+    oculta sin `member.list`), `scripts/smoke_pages.py`, `scripts/tests/{test_smoke_pages,smoke_stack_fakes}.py` (el
+    smoke espera la redirección de `/configuracion/colaboradores` a `/login`).
+  - `LeaveOrganizationDialog` vive acá y lo puede reusar `T-TEN-32` (que lo lista en sus archivos) en "Datos de la
+    empresa". Las pestañas Miembros / Invitaciones pendientes (`design.md §3.9`) entran con `T-TEN-35`: hoy no hay
+    segunda pestaña que mostrar. Sin `react-hook-form`/`zod`: la pantalla no tiene formulario de texto libre (Q-239).
+  - Pruebas: `MembersTable.test.tsx`, `MemberDialogs.test.tsx`, `MembersLeave.test.tsx` (con el `ActiveOrgProvider`
+    real), `hooks/useMembers.test.ts`, `SettingsSectionList.test.tsx`.
 
 ### T-TEN-35 — Colaboradores: invitaciones y link de una sola vez
 - **AC:** AC-TEN-24 (UI). Q-207. **Zona roja:** sí (muestra el token).

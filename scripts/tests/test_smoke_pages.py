@@ -250,6 +250,7 @@ def test_AC_PLT_29_every_protected_page_redirects_to_login() -> None:
         "/": "/login",
         "/inicio": "/login",
         "/configuracion": "/login",
+        "/configuracion/colaboradores": "/login",
         "/configuracion/perfil": "/login",
         "/configuracion/seguridad": "/login",
         "/configuracion/sucursales": "/login",
@@ -269,6 +270,7 @@ def test_AC_PLT_29_real_list_matches_the_pages_of_the_image(
         "/page": "/",
         "/(dashboard)/inicio/page": "/inicio",
         "/(dashboard)/configuracion/page": "/configuracion",
+        "/(dashboard)/configuracion/colaboradores/page": "/configuracion/colaboradores",
         "/(dashboard)/configuracion/perfil/page": "/configuracion/perfil",
         "/(dashboard)/configuracion/seguridad/page": "/configuracion/seguridad",
         "/(dashboard)/configuracion/sucursales/page": "/configuracion/sucursales",
@@ -279,6 +281,7 @@ def test_AC_PLT_29_real_list_matches_the_pages_of_the_image(
     assert smoke_pages.page_paths(json.dumps(manifest)) == [
         "/",
         "/configuracion",
+        "/configuracion/colaboradores",
         "/configuracion/perfil",
         "/configuracion/seguridad",
         "/configuracion/sucursales",
@@ -296,6 +299,7 @@ def test_AC_PLT_29_protected_stack_reviews_login_once(
     frontend.pages = [
         "/",
         "/configuracion",
+        "/configuracion/colaboradores",
         "/configuracion/perfil",
         "/configuracion/seguridad",
         "/configuracion/sucursales",
@@ -308,6 +312,7 @@ def test_AC_PLT_29_protected_stack_reviews_login_once(
             "/": to(login, 302),
             "/inicio": to(login, 302),
             "/configuracion": to(login, 302),
+            "/configuracion/colaboradores": to(login, 302),
             "/configuracion/perfil": to(login, 302),
             "/configuracion/seguridad": to(login, 302),
             "/configuracion/sucursales": to(login, 302),
@@ -317,4 +322,4 @@ def test_AC_PLT_29_protected_stack_reviews_login_once(
     frontend.responses["/login"] = PAGE
     smoke_pages.check_client_bundle(FRONTEND, frontend.pages)
     assert frontend.requested.count(f"{FRONTEND}/login") == 1
-    assert "1 pages reviewed, 7 redirected" in capsys.readouterr().out
+    assert "1 pages reviewed, 8 redirected" in capsys.readouterr().out

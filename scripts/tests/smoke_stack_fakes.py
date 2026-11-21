@@ -40,6 +40,7 @@ class FakeStack:
                 "/page": "/",
                 "/(dashboard)/inicio/page": "/inicio",
                 "/(dashboard)/configuracion/page": "/configuracion",
+                "/(dashboard)/configuracion/colaboradores/page": "/configuracion/colaboradores",
                 "/(dashboard)/configuracion/perfil/page": "/configuracion/perfil",
                 "/(dashboard)/configuracion/seguridad/page": "/configuracion/seguridad",
                 "/(dashboard)/configuracion/sucursales/page": "/configuracion/sucursales",
@@ -60,6 +61,9 @@ class FakeStack:
             f"{FRONTEND}/inicio": HttpResponse(302, {"location": "/login?return_to=%2Finicio"}, ""),
             f"{FRONTEND}/configuracion": HttpResponse(
                 302, {"location": "/login?return_to=%2Fconfiguracion"}, ""
+            ),
+            f"{FRONTEND}/configuracion/colaboradores": HttpResponse(
+                302, {"location": "/login?return_to=%2Fconfiguracion%2Fcolaboradores"}, ""
             ),
             f"{FRONTEND}/configuracion/perfil": HttpResponse(
                 302, {"location": "/login?return_to=%2Fconfiguracion%2Fperfil"}, ""

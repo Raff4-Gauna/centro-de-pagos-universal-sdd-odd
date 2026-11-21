@@ -1,10 +1,21 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import SettingsError from "@/app/(dashboard)/configuracion/error";
 import SettingsLoading from "@/app/(dashboard)/configuracion/loading";
 import SettingsPage from "@/app/(dashboard)/configuracion/page";
+import {
+  currentOrganization,
+  MANAGE_ACTIONS,
+  READ_ACTIONS,
+} from "@/modules/tenancy/components/branches.test-helpers";
+import { ACME, activeOrganizationResult } from "@/modules/tenancy/components/tenancy.test-helpers";
+import { useActiveOrganization } from "@/modules/tenancy/context/ActiveOrgProvider";
+import {
+  type TenancyAction,
+  useCurrentOrganizationDetails,
+} from "@/modules/tenancy/hooks/useCurrentOrganizationDetails";
 
 import { moduleChipLabel } from "../settings-sections";
 import {
@@ -12,6 +23,29 @@ import {
   SETTINGS_LIST_LABEL,
   SETTINGS_TITLE,
 } from "./SettingsSectionList";
+
+vi.mock("@/modules/tenancy/context/ActiveOrgProvider", () => ({
+  useActiveOrganization: vi.fn(),
+}));
+vi.mock("@/modules/tenancy/hooks/useCurrentOrganizationDetails", async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import("@/modules/tenancy/hooks/useCurrentOrganizationDetails")
+  >()),
+  useCurrentOrganizationDetails: vi.fn(),
+}));
+
+// The active company's `allowed_actions`, as `GET /api/organizations/current/` would bring them;
+// `undefined`: still loading (or failed).
+function companyAllows(allowed: TenancyAction[] | undefined) {
+  vi.mocked(useCurrentOrganizationDetails).mockReturnValue({
+    data: allowed === undefined ? undefined : currentOrganization(allowed),
+  } as unknown as ReturnType<typeof useCurrentOrganizationDetails>);
+}
+
+beforeEach(() => {
+  vi.mocked(useActiveOrganization).mockReturnValue(activeOrganizationResult(ACME.id));
+  companyAllows([...MANAGE_ACTIONS, "member.list"]);
+});
 
 // 07 §5.3: each section of the Hub with the chip of the module that implements it.
 const EXPECTED = [
@@ -27,7 +61,7 @@ const EXPECTED = [
 ] as const;
 
 // The sections whose module already shipped their page.
-const ENABLED = new Set<string>(["Mi perfil", "Seguridad", "Sucursales y cajas"]);
+const ENABLED = new Set<string>(["Mi perfil", "Seguridad", "Colaboradores", "Sucursales y cajas"]);
 
 describe("Configuración (AC-PLT-28, spec §14, 07 §5.3)", () => {
   it("test_AC_PLT_28_settings_lists_nine_sections_with_module_chip", () => {
@@ -80,6 +114,32 @@ describe("Configuración (AC-PLT-28, spec §14, 07 §5.3)", () => {
     expect(branches).not.toHaveTextContent(SECTION_UNAVAILABLE_TEXT);
     const link = within(branches).getByRole("link", { name: /Sucursales y cajas/ });
     expect(link).toHaveAttribute("href", "/configuracion/sucursales");
+  });
+
+  it("test_RF_TEN_04_settings_members_section_links_to_colaboradores", () => {
+    render(<SettingsPage />);
+    const list = screen.getByRole("list", { name: SETTINGS_LIST_LABEL });
+    const members = within(list).getAllByRole("listitem")[2]!;
+    expect(members).not.toHaveAttribute("aria-disabled");
+    const link = within(members).getByRole("link", { name: /Colaboradores/ });
+    expect(link).toHaveAttribute("href", "/configuracion/colaboradores");
+  });
+
+  it("test_AC_TEN_34_settings_members_section_hidden_without_member_list", () => {
+    companyAllows(READ_ACTIONS);
+    render(<SettingsPage />);
+    const list = screen.getByRole("list", { name: SETTINGS_LIST_LABEL });
+    expect(within(list).getAllByRole("listitem")).toHaveLength(8);
+    expect(within(list).queryByText("Colaboradores")).toBeNull();
+  });
+
+  it("test_AC_TEN_34_settings_members_section_hidden_while_actions_are_unknown", () => {
+    companyAllows(undefined);
+    render(<SettingsPage />);
+    const list = screen.getByRole("list", { name: SETTINGS_LIST_LABEL });
+    expect(within(list).queryByText("Colaboradores")).toBeNull();
+    // The other sections do not wait for the company.
+    expect(within(list).getAllByRole("listitem")).toHaveLength(8);
   });
 
   it("test_AC_PLT_28_settings_module_chip_label_joins_modules", () => {
