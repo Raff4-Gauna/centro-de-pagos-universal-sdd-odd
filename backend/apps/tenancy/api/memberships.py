@@ -12,9 +12,14 @@ another organization, or one that is not a UUID, is ``404 not_found``, as a miss
 (RN-TEN-05, AC-TEN-02).
 
 Both answer each membership with ``allowed_actions`` and ``assignable_roles``
-(``serializers/memberships.py``) and ``Cache-Control: no-store`` (colleagues' emails). Revoking
-(``DELETE``) and leaving (``POST /api/memberships/me/leave/``) come with T-TEN-23; until then
-``DELETE`` and ``PUT`` are ``405``.
+(``serializers/memberships.py``) and ``Cache-Control: no-store`` (colleagues' emails).
+
+``DELETE /api/memberships/{id}/`` is ``member.revoke`` (owner and admin) and
+``POST /api/memberships/me/leave/`` is ``member.leave`` (every role), both ``REDUCE_ACCESS``: they
+go on with the organization suspended (Q-221). They take no body and answer ``204``; the
+membership is kept as ``revoked`` (RN-TEN-21). ``DELETE`` on one's own membership is leaving
+(design.md §4.2, step 5), so the last owner gets ``409 last_owner`` either way (AC-TEN-13).
+``services.membership_exit`` decides under the same lock as a role change. ``PUT`` is ``405``.
 """
 
 from __future__ import annotations
@@ -23,6 +28,7 @@ import uuid
 
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema
+from rest_framework import status
 from rest_framework.exceptions import NotFound
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -31,6 +37,7 @@ from apps.common.api.pagination import HubPageNumberPagination
 from apps.common.api.problems import PROBLEM_CONTENT_TYPE
 from apps.common.api.schema import PROBLEM
 from apps.tenancy.api.base import ORGANIZATION_BUSY_RESPONSE, TenantViewSet
+from apps.tenancy.api.invitations import NoBodySerializer
 from apps.tenancy.api.serializers.memberships import (
     MembershipListQuerySerializer,
     MembershipRoleSerializer,
@@ -44,6 +51,7 @@ from apps.tenancy.selectors.memberships import (
     list_members,
     to_members,
 )
+from apps.tenancy.services.membership_exit import leave_organization, revoke_membership
 from apps.tenancy.services.memberships import MEMBERSHIP_NOT_FOUND, change_role
 
 MEMBERSHIPS_TAG = "tenancy"
@@ -63,6 +71,9 @@ def _problem(description: str) -> OpenApiResponse:
     )
 
 
+_NO_BODY = _problem("code: validation_error (el pedido no lleva cuerpo) · organization_required")
+
+
 class MembershipViewSet(TenantViewSet):
     serializer_class = MembershipSerializer
     pagination_class = HubPageNumberPagination
@@ -70,6 +81,8 @@ class MembershipViewSet(TenantViewSet):
     action_specs = {  # noqa: RUF012 - read once by TenantViewSet.__init_subclass__
         "list": TENANCY_ACTIONS[TenancyAction.MEMBER_LIST],
         "partial_update": TENANCY_ACTIONS[TenancyAction.MEMBER_CHANGE_ROLE],
+        "destroy": TENANCY_ACTIONS[TenancyAction.MEMBER_REVOKE],
+        "leave": TENANCY_ACTIONS[TenancyAction.MEMBER_LEAVE],
     }
 
     def _membership_id(self) -> uuid.UUID:
@@ -143,3 +156,52 @@ class MembershipViewSet(TenantViewSet):
             member, ctx, owners=count_active_owners(ctx), actor_role=change.actor_role
         )
         return self._no_store(Response(self.get_serializer(view).data))
+
+    @extend_schema(
+        operation_id="memberships_destroy",
+        summary="Revocar una membership (la propia es abandonar; también con la organización "
+        "suspendida)",
+        tags=[MEMBERSHIPS_TAG],
+        parameters=[MEMBERSHIP_ID],
+        request=None,
+        responses={
+            204: OpenApiResponse(description="Revocada; se conserva como revoked."),
+            (400, PROBLEM_CONTENT_TYPE): _NO_BODY,
+            (403, PROBLEM_CONTENT_TYPE): _problem(
+                "code: forbidden (el rol no alcanza: un admin no revoca a un owner)"
+            ),
+            (404, PROBLEM_CONTENT_TYPE): _problem(
+                "code: not_found (no existe o es de otra organización: el mismo cuerpo) · "
+                "organization_not_found"
+            ),
+            (409, PROBLEM_CONTENT_TYPE): _problem(
+                "code: last_owner (dejaría la organización sin owner) · invalid_transition "
+                "(membership ya revocada)"
+            ),
+            (503, PROBLEM_CONTENT_TYPE): ORGANIZATION_BUSY_RESPONSE,
+        },
+    )
+    def destroy(self, request: Request, **kwargs: object) -> Response:
+        NoBodySerializer(data=request.data).is_valid(raise_exception=True)
+        revoke_membership(self.tenant, self._membership_id())
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @extend_schema(
+        operation_id="memberships_leave",
+        summary="Abandonar la organización activa (también suspendida)",
+        tags=[MEMBERSHIPS_TAG],
+        request=None,
+        responses={
+            204: OpenApiResponse(description="Abandonada; la membership se conserva como revoked."),
+            (400, PROBLEM_CONTENT_TYPE): _NO_BODY,
+            (404, PROBLEM_CONTENT_TYPE): _problem("code: organization_not_found"),
+            (409, PROBLEM_CONTENT_TYPE): _problem(
+                "code: last_owner (el último owner primero promueve a otro)"
+            ),
+            (503, PROBLEM_CONTENT_TYPE): ORGANIZATION_BUSY_RESPONSE,
+        },
+    )
+    def leave(self, request: Request) -> Response:
+        NoBodySerializer(data=request.data).is_valid(raise_exception=True)
+        leave_organization(self.tenant)
+        return Response(status=status.HTTP_204_NO_CONTENT)

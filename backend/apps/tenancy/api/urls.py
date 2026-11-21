@@ -32,6 +32,13 @@ urlpatterns: list[URLPattern | URLResolver] = [
         CurrentOrganizationViewSet.as_view({"get": "retrieve", "patch": "partial_update"}),
         name="organization-current",
     ),
+    # Tenant-scoped (design.md §4.2): leave the active organization; see ``api/memberships.py``.
+    # Two segments after ``memberships/``, so the router's ``memberships/{id}/`` never takes it.
+    path(
+        "memberships/me/leave/",
+        MembershipViewSet.as_view({"post": "leave"}),
+        name="membership-leave",
+    ),
     *router.urls,
     # The state of a branch changes only here (RN-TEN-19, AC-TEN-37); see ``api/branches.py``.
     path(
