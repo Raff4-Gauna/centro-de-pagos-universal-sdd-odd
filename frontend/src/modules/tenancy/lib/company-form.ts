@@ -4,66 +4,73 @@ import { z } from "zod";
 import type { ProblemFieldError } from "@/lib/problem";
 
 import type { CurrentOrganizationDetails } from "../hooks/useCurrentOrganizationDetails";
+import { timezoneOptions } from "./timezones";
 
 // The values of "Datos de la empresa" and their check before sending (RF-TEN-03, Q-209, design.md
 // §3.9, §5, §6), as a zod schema (07 §3.3, Q-239). It repeats what the contract and the backend
 // say so the person sees the mistake at once; the backend validates again and has the last word:
 // spaces removed at both ends, `name` required and up to 120 characters, `legal_name` up to 200,
 // `tax_id` (CUIT) empty or 11 digits, plain or `XX-XXXXXXXX-X` (the check digit is the backend's),
-// and `timezone` not empty (the backend checks it is a known IANA name; the form does not edit it
-// until Q-240 says which zones to offer). Empty `legal_name` or `tax_id` clears it. The messages are
-// the backend's own for the same mistake.
+// and `timezone` one of the list of lib/timezones.ts (Q-240) or the company's current zone, so a
+// zone set by an operator does not block saving the other fields. Empty `legal_name` or `tax_id`
+// clears it. The messages are the backend's own for the same mistake.
 export const COMPANY_FIELDS = ["name", "legal_name", "tax_id", "timezone"] as const;
 export type CompanyField = (typeof COMPANY_FIELDS)[number];
 export type CompanyValues = Record<CompanyField, string>;
 export type CompanyFieldErrors = Partial<Record<CompanyField, string>>;
 
-export const COMPANY_MAX_LENGTH = { name: 120, legal_name: 200, timezone: 64 } as const;
+export const COMPANY_MAX_LENGTH = { name: 120, legal_name: 200 } as const;
 
 export const COMPANY_FORM_ERRORS = {
   nameRequired: "El nombre es obligatorio.",
   tooLong: (limit: number) => `Como máximo ${limit} caracteres.`,
   taxIdInvalid: "No es un CUIT válido.",
-  timezoneRequired: "Elegí una zona horaria.",
+  timezoneInvalid: "Elegí una zona horaria de la lista.",
 } as const;
 
 // ASCII digits only, as the backend (`domain/tax_id.py`): `\d` without the `u` flag.
 const TAX_ID_FORMAT = /^(?:\d{11}|\d{2}-\d{8}-\d)?$/;
 
-export const companySchema = z.object({
-  name: z
-    .string()
-    .trim()
-    .min(1, COMPANY_FORM_ERRORS.nameRequired)
-    .max(COMPANY_MAX_LENGTH.name, COMPANY_FORM_ERRORS.tooLong(COMPANY_MAX_LENGTH.name)),
-  legal_name: z
-    .string()
-    .trim()
-    .max(COMPANY_MAX_LENGTH.legal_name, COMPANY_FORM_ERRORS.tooLong(COMPANY_MAX_LENGTH.legal_name)),
-  tax_id: z.string().trim().regex(TAX_ID_FORMAT, COMPANY_FORM_ERRORS.taxIdInvalid),
-  timezone: z
-    .string()
-    .trim()
-    .min(1, COMPANY_FORM_ERRORS.timezoneRequired)
-    .max(COMPANY_MAX_LENGTH.timezone, COMPANY_FORM_ERRORS.tooLong(COMPANY_MAX_LENGTH.timezone)),
-}) satisfies z.ZodType<CompanyValues, CompanyValues>;
+// One schema per form: the time zones it accepts depend on the company's current one.
+export function companySchema(currentTimezone: string) {
+  const zones = timezoneOptions(currentTimezone) as readonly [string, ...string[]];
+  return z.object({
+    name: z
+      .string()
+      .trim()
+      .min(1, COMPANY_FORM_ERRORS.nameRequired)
+      .max(COMPANY_MAX_LENGTH.name, COMPANY_FORM_ERRORS.tooLong(COMPANY_MAX_LENGTH.name)),
+    legal_name: z
+      .string()
+      .trim()
+      .max(
+        COMPANY_MAX_LENGTH.legal_name,
+        COMPANY_FORM_ERRORS.tooLong(COMPANY_MAX_LENGTH.legal_name),
+      ),
+    tax_id: z.string().trim().regex(TAX_ID_FORMAT, COMPANY_FORM_ERRORS.taxIdInvalid),
+    timezone: z.enum(zones, { error: COMPANY_FORM_ERRORS.timezoneInvalid }),
+  }) satisfies z.ZodType<CompanyValues, CompanyValues>;
+}
 
 // The schema as react-hook-form's resolver: the trimmed values when they pass, the first message
 // of each field when they do not. The form's fields are flat, so the field is the issue's path.
-export const companyResolver: Resolver<CompanyValues> = async (values) => {
-  const result = await companySchema.safeParseAsync(values);
-  if (result.success) {
-    return { values: result.data, errors: {} };
-  }
-  const errors: FieldErrors<CompanyValues> = {};
-  for (const issue of result.error.issues) {
-    const field = issue.path[0] as CompanyField;
-    if (errors[field] === undefined) {
-      errors[field] = { type: issue.code, message: issue.message };
+export function companyResolver(currentTimezone: string): Resolver<CompanyValues> {
+  const schema = companySchema(currentTimezone);
+  return async (values) => {
+    const result = await schema.safeParseAsync(values);
+    if (result.success) {
+      return { values: result.data, errors: {} };
     }
-  }
-  return { values: {}, errors };
-};
+    const errors: FieldErrors<CompanyValues> = {};
+    for (const issue of result.error.issues) {
+      const field = issue.path[0] as CompanyField;
+      if (errors[field] === undefined) {
+        errors[field] = { type: issue.code, message: issue.message };
+      }
+    }
+    return { values: {}, errors };
+  };
+}
 
 export function companyValuesOf(details: CurrentOrganizationDetails): CompanyValues {
   return {

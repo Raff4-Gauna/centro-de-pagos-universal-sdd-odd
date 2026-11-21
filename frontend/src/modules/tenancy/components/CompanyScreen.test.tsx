@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -9,6 +9,7 @@ import { ORGANIZATION_HEADER } from "@/lib/api-client";
 import { useActiveOrganization } from "../context/ActiveOrgProvider";
 import type { CurrentOrganizationDetails } from "../hooks/useCurrentOrganizationDetails";
 import { COMPANY_FORM_ERRORS } from "../lib/company-form";
+import { COMPANY_TIMEZONES, DEFAULT_TIMEZONE } from "../lib/timezones";
 import { currentOrganization, json, problem } from "./branches.test-helpers";
 import { COMPANY_FORM_TEXTS } from "./CompanyDataForm";
 import { COMPANY_TEXTS } from "./CompanyScreen";
@@ -152,12 +153,49 @@ describe("Datos de la empresa (RF-TEN-03, spec §14, design.md §3.9)", () => {
     expect(await screen.findByRole("heading", { name: COMPANY_TEXTS.forbidden })).toBeVisible();
   });
 
-  it("test_RF_TEN_03_timezone_is_shown_not_edited_until_Q_240", async () => {
-    network.respond = backend({ [ACME.id]: EDITOR });
+  it("test_Q_240_timezone_is_picked_from_the_list", async () => {
+    network.respond = backend({ [ACME.id]: { ...EDITOR } });
     renderPage();
-    const zone = await screen.findByDisplayValue("America/Argentina/Buenos_Aires");
-    expect(zone).toHaveAttribute("readonly");
-    expect(zone).toHaveAccessibleDescription(COMPANY_FORM_TEXTS.timezoneHelp);
+    const zone = await screen.findByRole("combobox", { name: /^Zona horaria/ });
+    expect(zone).toHaveTextContent(DEFAULT_TIMEZONE);
+    await userEvent.click(zone);
+    const options = within(screen.getByRole("listbox")).getAllByRole("option");
+    expect(options.map((option) => option.textContent)).toEqual([...COMPANY_TIMEZONES]);
+    await userEvent.click(screen.getByRole("option", { name: "America/Argentina/Cordoba" }));
+    await userEvent.click(screen.getByRole("button", { name: COMPANY_FORM_TEXTS.save }));
+
+    expect(await screen.findByText(COMPANY_FORM_TEXTS.saved)).toBeVisible();
+    const [sent] = patches();
+    expect(await sent!.json()).toEqual({ timezone: "America/Argentina/Cordoba" });
+    expect(screen.getByRole("combobox", { name: /^Zona horaria/ })).toHaveTextContent(
+      "America/Argentina/Cordoba",
+    );
+  });
+
+  it("test_Q_240_a_stored_zone_off_the_list_stays_and_does_not_block_saving", async () => {
+    network.respond = backend({ [ACME.id]: { ...EDITOR, timezone: "Europe/Madrid" } });
+    renderPage();
+    const zone = await screen.findByRole("combobox", { name: /^Zona horaria/ });
+    expect(zone).toHaveTextContent("Europe/Madrid");
+    expect(zone).toHaveAccessibleDescription(COMPANY_FORM_TEXTS.timezoneOffList);
+    await userEvent.click(zone);
+    const options = within(screen.getByRole("listbox")).getAllByRole("option");
+    expect(options.map((option) => option.textContent)).toEqual([
+      ...COMPANY_TIMEZONES,
+      "Europe/Madrid",
+    ]);
+    await userEvent.keyboard("{Escape}");
+
+    const name = screen.getByDisplayValue("Acme");
+    await userEvent.type(name, " 2");
+    await userEvent.click(screen.getByRole("button", { name: COMPANY_FORM_TEXTS.save }));
+    expect(await screen.findByText(COMPANY_FORM_TEXTS.saved)).toBeVisible();
+    const [sent] = patches();
+    // The zone was not touched: it does not travel and stays as it was.
+    expect(await sent!.json()).toEqual({ name: "Acme 2" });
+    expect(screen.getByRole("combobox", { name: /^Zona horaria/ })).toHaveTextContent(
+      "Europe/Madrid",
+    );
   });
 
   it("test_RF_TEN_03_zod_errors_block_the_request", async () => {
