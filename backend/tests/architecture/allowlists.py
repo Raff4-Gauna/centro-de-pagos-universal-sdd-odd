@@ -97,6 +97,14 @@ UNSCOPED_ALLOWLIST: tuple[AllowEntry, ...] = (
         "ni TenantContext",
         count=1,
     ),
+    AllowEntry(
+        "apps/tenancy/tasks.py",
+        "Invitation.objects.unscoped(UnscopedReason.SYSTEM_FANOUT)",
+        "fan-out del vencimiento de invitaciones (design.md §3.6, AC-TEN-37): sin tenant, solo "
+        "lista (organization_id, id) de las pending vencidas y encola una TenantTask por par; "
+        "no procesa datos de negocio",
+        count=1,
+    ),
 )
 
 # Model scopes allowed per file, not only per model (``tenant_rules.restricted_scope_violations``):

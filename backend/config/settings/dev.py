@@ -38,6 +38,10 @@ REST_FRAMEWORK = {**REST_FRAMEWORK, "NUM_PROXIES": _env.TRUSTED_PROXY_COUNT}
 LOGGING = logging_config(_env.LOG_LEVEL)
 # RF-PLT-19: read through apps.common.feature_flags.is_enabled, never directly.
 FEATURE_FLAGS = load_feature_flags(FEATURE_REGISTRY)
+# No email provider yet (Q-207): with FEATURE_TENANCY_INVITATION_EMAIL_ENABLED on, the worker
+# prints the invitation email (its link included) to its stdout. Dev only; prod has no backend
+# until the provider's ADR (C-13).
+EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 # The Hub's access JWT (ADR-0004 sec. 5), read through apps.identity.tokens. Masked in error reports
 # by the KEY rule of CredentialSafeReporterFilter (C-06).
 IDENTITY_JWT_ISSUER = _env.IDENTITY_JWT_ISSUER
