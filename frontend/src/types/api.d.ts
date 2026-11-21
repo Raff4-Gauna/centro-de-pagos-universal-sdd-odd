@@ -223,6 +223,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/invitations/{id}/resend/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reenviar una invitación: revoca la anterior y emite otra (link una sola vez) */
+        post: operations["invitations_resend"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/invitations/{id}/revoke/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Revocar una invitación pendiente (también con la organización suspendida) */
+        post: operations["invitations_revoke"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/invitations/{invitation_id}/accept/": {
         parameters: {
             query?: never;
@@ -1689,6 +1723,182 @@ export interface operations {
                 };
             };
             /** @description code: already_member · invitation_pending (hay una vigente: reenviarla) · organization_suspended */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description code: organization_busy (otra operación tiene tomada la organización; no se escribió nada: se puede reenviar la misma request después de Retry-After: 2 s) */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Error del cliente */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Error del servidor */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    invitations_resend: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Organización activa de la request (RN-TEN-03). */
+                "X-Organization-Id": string;
+            };
+            path: {
+                /** @description La invitación. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreatedInvitation"];
+                };
+            };
+            /** @description code: validation_error (el pedido no lleva cuerpo) · organization_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description code: forbidden (el rol no alcanza: un admin no gestiona invitaciones owner) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description code: not_found (no existe o es de otra organización: el mismo cuerpo) · organization_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description code: invalid_transition (no está pendiente) · organization_suspended */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description code: organization_busy (otra operación tiene tomada la organización; no se escribió nada: se puede reenviar la misma request después de Retry-After: 2 s) */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Error del cliente */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Error del servidor */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    invitations_revoke: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Organización activa de la request (RN-TEN-03). */
+                "X-Organization-Id": string;
+            };
+            path: {
+                /** @description La invitación. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrganizationInvitation"];
+                };
+            };
+            /** @description code: validation_error (el pedido no lleva cuerpo) · organization_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description code: forbidden (el rol no alcanza: un admin no gestiona invitaciones owner) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description code: not_found (no existe o es de otra organización: el mismo cuerpo) · organization_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description code: invalid_transition (no está pendiente) */
             409: {
                 headers: {
                     [name: string]: unknown;

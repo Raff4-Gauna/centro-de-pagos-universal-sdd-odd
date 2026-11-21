@@ -105,6 +105,27 @@ def create_an_invitation(org: Organization) -> Write:
     )
 
 
+def _manage_an_invitation(org: Organization, action: str) -> Write:
+    owner, _ = member(org, Role.OWNER)
+    invitation, _ = issue(org, "x@hub.test")
+    rows = Invitation.objects.unscoped(PLATFORM).filter(organization=org)
+    return Write(
+        "POST",
+        f"/api/invitations/{invitation.pk}/{action}/",
+        {},
+        as_member(owner, org.id),
+        lambda: status_of(invitation) == "pending" and rows.count() == 1,
+    )
+
+
+def resend_an_invitation(org: Organization) -> Write:
+    return _manage_an_invitation(org, "resend")
+
+
+def revoke_an_invitation(org: Organization) -> Write:
+    return _manage_an_invitation(org, "revoke")
+
+
 class Request(threading.Thread):
     def __init__(self, write: Write) -> None:
         super().__init__(daemon=True)
@@ -136,6 +157,8 @@ def hold_the_organization(org: Organization) -> Callable[[], Organization]:
         edit_the_organization,
         accept_an_invitation,
         create_an_invitation,
+        resend_an_invitation,
+        revoke_an_invitation,
     ],
 )
 def test_Q_230_lock_timeout_is_organization_busy(

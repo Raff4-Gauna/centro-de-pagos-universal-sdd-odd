@@ -44,6 +44,17 @@ urlpatterns: list[URLPattern | URLResolver] = [
         BranchViewSet.as_view({"post": "reactivate"}),
         name="branch-reactivate",
     ),
+    # Tenant-scoped (design.md §4.3): resend and revoke; see ``api/invitations.py``.
+    path(
+        "invitations/<str:id>/resend/",
+        InvitationViewSet.as_view({"post": "resend"}),
+        name="invitation-resend",
+    ),
+    path(
+        "invitations/<str:id>/revoke/",
+        InvitationViewSet.as_view({"post": "revoke"}),
+        name="invitation-revoke",
+    ),
     # Exempt (design.md §3.5): the person has no membership in the invitation's organization yet.
     path("invitations/accept/", AcceptInvitationView.as_view(), name="invitation-accept"),
     # Exempt (design.md §3.5, Q-124): the invitations of the person's own email, and accepting one.
