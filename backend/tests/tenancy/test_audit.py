@@ -59,6 +59,8 @@ RNF_TEN_04 = {
     "transition.rejected",
     # Q-235 (2026-11-20): not in RNF-TEN-04; every repeat of tenancy_create_org is audited.
     "organization.create_repeated",
+    # Q-237 (2026-11-21): not in RNF-TEN-04; every refusal of the other operator commands.
+    "operator_command.rejected",
 }
 
 

@@ -82,7 +82,9 @@ def test_Q_213_reissue_only_without_owner(recorded: RecordingSink) -> None:
         assert "already has an owner" in str(error)
 
     assert chain(org) == before
-    assert len(recorded.events) == events
+    assert [e.action for e in recorded.events[events:]] == [
+        TenancyAuditAction.OPERATOR_COMMAND_REJECTED
+    ] * 2  # Q-237
 
 
 def test_Q_213_reissue_replaces_the_pending_one(recorded: RecordingSink) -> None:
@@ -325,4 +327,6 @@ def test_Q_236_still_refused_with_an_active_owner(recorded: RecordingSink) -> No
     assert error.returncode == 1
     assert "already has an owner" in str(error)
     assert chain(org) == before
-    assert len(recorded.events) == events
+    assert [e.action for e in recorded.events[events:]] == [
+        TenancyAuditAction.OPERATOR_COMMAND_REJECTED
+    ]  # Q-237

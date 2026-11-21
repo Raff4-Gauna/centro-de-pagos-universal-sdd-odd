@@ -118,7 +118,9 @@ def test_Q_224_needs_an_org_with_owner(recorded: RecordingSink) -> None:
     assert error.returncode == 1
     assert "tenancy_owner_invite" in str(error)
     assert snapshot(org) == before
-    assert recorded.events == []
+    assert [e.action for e in recorded.events] == [
+        TenancyAuditAction.OPERATOR_COMMAND_REJECTED
+    ]  # Q-237
 
 
 @pytest.mark.parametrize("reason", ["", "   ", "x" * 201])
@@ -174,7 +176,9 @@ def test_Q_224_refusals_write_nothing(recorded: RecordingSink, settings: Setting
 
     assert [e.returncode for e in (pending, member, unknown, no_base)] == [1, 1, 1, 1]
     assert snapshot(org) == before
-    assert recorded.events == []
+    assert [e.action for e in recorded.events] == [
+        TenancyAuditAction.OPERATOR_COMMAND_REJECTED
+    ] * 4  # Q-237
 
 
 def test_RN_TEN_18_recovery_on_a_suspended_org_waits_for_reactivation(

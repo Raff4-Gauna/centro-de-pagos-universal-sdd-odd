@@ -211,7 +211,9 @@ def test_Q_238_support_refused_without_owner(recorded: RecordingSink) -> None:
     assert "tenancy_owner_invite" in str(error)
     assert snapshot(org) == before
     assert support_rows(org) == []
-    assert recorded.events == []
+    assert [e.action for e in recorded.events] == [
+        TenancyAuditAction.OPERATOR_COMMAND_REJECTED
+    ]  # Q-237
 
 
 def test_Q_222_refusals_write_nothing(recorded: RecordingSink, settings: SettingsWrapper) -> None:
@@ -231,7 +233,9 @@ def test_Q_222_refusals_write_nothing(recorded: RecordingSink, settings: Setting
     assert "active member" in str(member)
     assert "does not exist" in str(unknown)
     assert snapshot(org) == before
-    assert recorded.events == []
+    assert [e.action for e in recorded.events] == [
+        TenancyAuditAction.OPERATOR_COMMAND_REJECTED
+    ] * 4  # Q-237
 
 
 def test_Q_222_an_expired_pending_one_is_expired_first(recorded: RecordingSink) -> None:

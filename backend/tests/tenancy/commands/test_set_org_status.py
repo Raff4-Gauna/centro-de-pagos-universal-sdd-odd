@@ -176,7 +176,9 @@ def test_RF_TEN_07_unknown_organization_exits_1(recorded: RecordingSink) -> None
 
     assert raised.value.returncode == 1
     assert saved(org) == ("active", None)
-    assert recorded.events == []
+    assert [e.action for e in recorded.events] == [
+        TenancyAuditAction.OPERATOR_COMMAND_REJECTED
+    ]  # Q-237
 
 
 @pytest.mark.parametrize(

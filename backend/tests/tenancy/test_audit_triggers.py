@@ -38,6 +38,7 @@ from apps.tenancy.selectors.invitations import InvitationRef
 from apps.tenancy.services.audit import AUDIT_TRIGGERS, Trigger
 from apps.tenancy.services.invitations import create_invitation
 from apps.tenancy.services.platform_org import Operator, clean_request
+from apps.tenancy.services.platform_owner_invite import OrganizationHasOwnerError
 from tests.tenancy.invitation_setup import invitee, issue, make_due
 from tests.tenancy.locking import PLATFORM, add_member, new_org, system_ctx, user_ctx
 
@@ -128,6 +129,15 @@ def _org_status(target: OrgStatus, start: OrgStatus) -> Driver:
         return org.id
 
     return drive
+
+
+def _operator_refused(trigger: Trigger) -> uuid.UUID:
+    """Q-237: the first owner's invitation of an organization that has an owner already."""
+    org = new_org("A")
+    add_member(org, "ana", Role.OWNER)
+    with pytest.raises(OrganizationHasOwnerError):
+        trigger(org.id, OPERATOR)
+    return org.id
 
 
 # --- membership.* and owner protection -----------------------------------------------------------
@@ -267,6 +277,7 @@ DRIVERS: dict[Action, Driver] = {
     Action.BRANCH_REACTIVATED: _on_branch(active=False),
     Action.OWNER_PROTECTION_REJECTED: _owner_protection,
     Action.TRANSITION_REJECTED: _on_branch(active=True, refused=True),
+    Action.OPERATOR_COMMAND_REJECTED: _operator_refused,
 }
 
 
@@ -278,6 +289,7 @@ BY_OPERATOR = frozenset(
         Action.ORGANIZATION_CREATE_REPEATED,
         Action.ORGANIZATION_SUSPENDED,
         Action.ORGANIZATION_REACTIVATED,
+        Action.OPERATOR_COMMAND_REJECTED,
     }
 )
 BY_SYSTEM = frozenset({Action.INVITATION_EXPIRED})
