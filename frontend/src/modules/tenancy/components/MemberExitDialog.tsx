@@ -22,6 +22,7 @@ import { memberDisplayName } from "./MemberRoleDialog";
 // nothing else can be pressed and the dialog does not close. A refusal stays inside it (`409
 // last_owner` explained, `503 organization_busy`, `invalid_transition`) and the list is read
 // again. After the `204`, revoking closes the dialog; leaving sends the tab away (useMembers).
+// Leaving is about the person, not a row: "Datos de la empresa" opens the same dialog (T-TEN-32).
 export type MemberExit = "revoke" | "leave";
 
 export const MEMBER_EXIT_TEXTS = {
@@ -66,11 +67,11 @@ export type MemberExitDialogProps = Readonly<{
 }>;
 
 function ExitDialog({
-  member,
+  title,
   exit,
   kind,
   onClose,
-}: Readonly<{ member: Member; exit: Exit; kind: MemberExit; onClose: () => void }>) {
+}: Readonly<{ title: string; exit: Exit; kind: MemberExit; onClose: () => void }>) {
   const titleId = useId();
   const bodyId = useId();
   const texts = MEMBER_EXIT_TEXTS[kind];
@@ -82,7 +83,7 @@ function ExitDialog({
       aria-labelledby={titleId}
       aria-describedby={bodyId}
     >
-      <DialogTitle id={titleId}>{texts.title(memberDisplayName(member))}</DialogTitle>
+      <DialogTitle id={titleId}>{title}</DialogTitle>
       <DialogContent className="tw-flex tw-flex-col tw-gap-4">
         <DialogContentText id={bodyId}>{texts.body}</DialogContentText>
         {exit.error !== null ? <Alert severity="error">{memberErrorText(exit.error)}</Alert> : null}
@@ -101,14 +102,15 @@ function ExitDialog({
 
 export function RevokeMemberDialog({ organizationId, member, onClose }: MemberExitDialogProps) {
   const exit = useRevoke(organizationId, member);
-  return <ExitDialog member={member} exit={exit} kind="revoke" onClose={onClose} />;
+  const title = MEMBER_EXIT_TEXTS.revoke.title(memberDisplayName(member));
+  return <ExitDialog title={title} exit={exit} kind="revoke" onClose={onClose} />;
 }
 
 export function LeaveOrganizationDialog({
   organizationId,
-  member,
   onClose,
-}: MemberExitDialogProps) {
+}: Omit<MemberExitDialogProps, "member">) {
   const exit = useLeave(organizationId);
-  return <ExitDialog member={member} exit={exit} kind="leave" onClose={onClose} />;
+  const title = MEMBER_EXIT_TEXTS.leave.title();
+  return <ExitDialog title={title} exit={exit} kind="leave" onClose={onClose} />;
 }

@@ -24,6 +24,7 @@ EXPECTED_REDIRECTS: dict[str, str] = {
     "/inicio": "/login",
     "/configuracion": "/login",
     "/configuracion/colaboradores": "/login",
+    "/configuracion/empresa": "/login",
     "/configuracion/perfil": "/login",
     "/configuracion/seguridad": "/login",
     "/configuracion/sucursales": "/login",

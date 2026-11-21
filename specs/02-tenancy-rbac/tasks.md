@@ -101,7 +101,7 @@ Donde el diseño y el código de SPEC-00, o el orden real, difieren, manda esta 
 | T-TEN-29 | Organización activa en el frontend y selector | — (RF-TEN-02, spec §14) | UI | `src/modules/tenancy/context/ActiveOrgProvider.tsx`, `src/lib/api-client.ts`, `context/07-frontend-ui-guidelines.md` | T-TEN-12, T-IDA-27 | frontend-dev | L | No | 🟡 | rama `task/T-TEN-29-active-org-frontend`, PR #122 |
 | T-TEN-30 | Sin organización y aviso de invitaciones (Q-124) | AC-TEN-39 (UI) | UI | `app/(dashboard)/sin-organizacion/page.tsx`, `src/modules/tenancy/components/PendingInvitationsNotice.tsx` | T-TEN-16, T-TEN-29, T-IDA-29 | frontend-dev | M | Sí | 🟡 | rama `task/T-TEN-30-no-org-invitations`, PR #129 |
 | T-TEN-31 | Pantalla `/invitacion` | AC-TEN-17 (UI) | UI | `app/invitacion/page.tsx`, `src/modules/tenancy/components/AcceptInvitation.tsx` | T-TEN-15, T-TEN-29 | frontend-dev | M | Sí | 🟡 | rama `task/T-TEN-31-invitation-screen`, sin PR |
-| T-TEN-32 | Datos de la empresa y abandonar | — (RF-TEN-03, RF-TEN-04, spec §14) | UI | `app/(dashboard)/configuracion/empresa/page.tsx`, `src/modules/tenancy/components/CompanyDataForm.tsx` | T-TEN-13, T-TEN-23, T-TEN-29 | frontend-dev | M | No | ☐ | |
+| T-TEN-32 | Datos de la empresa y abandonar | — (RF-TEN-03, RF-TEN-04, spec §14) | UI | `app/(dashboard)/configuracion/empresa/page.tsx`, `src/modules/tenancy/components/CompanyDataForm.tsx` | T-TEN-13, T-TEN-23, T-TEN-29 | frontend-dev | M | No | 🔄 | rama `task/T-TEN-32-company-data` |
 | T-TEN-33 | Sucursales | — (RF-TEN-06, spec §14) | UI | `app/(dashboard)/configuracion/sucursales/page.tsx`, `BranchesTable.tsx`, `BranchFormDialog.tsx` | T-TEN-25, T-TEN-29 | frontend-dev | L | No | 🟡 | PR #139, rama `task/T-TEN-33-branches-ui` |
 | T-TEN-34 | Colaboradores: miembros | — (RF-TEN-04, spec §14) | UI | `app/(dashboard)/configuracion/colaboradores/page.tsx`, `MembersTable.tsx` | T-TEN-23, T-TEN-29 | frontend-dev | L | No | 🟡 | PR #143, rama `task/T-TEN-34-members-ui` |
 | T-TEN-35 | Colaboradores: invitaciones y link de una sola vez | AC-TEN-24 (UI) | UI | `InviteDialog.tsx`, `InvitationLinkDialog.tsx` | T-TEN-21, T-TEN-34 | frontend-dev | M | Sí | ☐ | |
@@ -1038,6 +1038,38 @@ T-TEN-30 · suspendida → T-TEN-29.
 - **Q-239 (dueño, 2026-11-21):** los formularios usan react-hook-form + zod (`context/07 §3.3`, `design.md §3.9`).
   Se agregan como dependencias al empezar esta tarea; después, el formulario de sucursales (`lib/branch-form.ts`,
   #139) se pasa a ellos.
+- **Hecho (2026-11-21):** `/configuracion/empresa` con `CompanyScreen` (en `CompanyScreen.tsx`): nombre, razón
+  social, CUIT y zona horaria de `GET /api/organizations/current/`, para todos los roles. Sin contrato nuevo.
+  - Dependencias (Q-239): `react-hook-form` `7.91.0` y `zod` `4.6.7`, fijadas exactas en `package.json` y el lockfile
+    (la `7.92.0` tenía menos de dos semanas; `zod` ya estaba en el árbol como transitiva). Sin `@hookform/resolvers`:
+    el resolver es una función chica en `lib/company-form.ts`.
+  - `CompanyDataForm` (react-hook-form + el esquema zod de `lib/company-form.ts`): recorta, `name` obligatorio y
+    ≤120, `legal_name` ≤200, CUIT vacío u 11 dígitos con o sin guiones (el dígito verificador lo valida el backend),
+    con los mismos mensajes que el backend. Manda solo lo que cambió (el mismo CUIT con guiones no es cambio); sin
+    cambios no hay request. `400` → mensaje bajo su campo; el resto (`organization_suspended`, `403`,
+    `503 organization_busy`) → el título fijo arriba. Queda guardado solo tras el `2xx`, con la respuesta del
+    backend (que pasa a la caché de `['org', orgId, 'current']`; se relee la lista de empresas por el nombre).
+    `organization_suspended` y `403` releen `allowed_actions`: el formulario pasa a solo lectura.
+  - **Zona horaria de solo lectura** hasta decidir de qué lista sale (Q-240, propuesta): `Intl.supportedValuesOf`
+    del navegador trae nombres CLDR (`America/Buenos_Aires`, no `America/Argentina/Buenos_Aires`, ni `UTC`), así que
+    mezclaría alias con el valor por defecto.
+  - Edición solo con `org.update` en `allowed_actions`; mientras carga, o si la relectura falla, solo lectura (con
+    aviso y "Reintentar"). La UI no mira el rol. La query sale de su clave (`orgHeaderFromKey`); la mutación nombra
+    la empresa con la que se armó el formulario, que se remonta por empresa (`key={organizationId}`): cambiar de
+    empresa descarta lo escrito y el diálogo.
+  - "Abandonar la empresa" con `member.leave` (todos los roles, también suspendida, Q-221): reusa
+    `LeaveOrganizationDialog` y `useLeaveOrganization` de `T-TEN-34`; el diálogo ya no pide un `Member` (el título de
+    abandonar no lo usa y un viewer no puede listar miembros). `409 last_owner` explicado con `LAST_OWNER_TEXT`.
+  - Estados: carga (skeleton), error con "Reintentar", sin permiso (`403`); un campo sin informar se lee "—".
+  - La sección "Datos de la empresa" de Configuración pasa a tener enlace (sin `requires`: la leen todos).
+  - Sumados, con su porqué: `components/CompanyScreen.tsx` (C-14), `lib/company-form.ts`,
+    `hooks/useUpdateOrganization.ts`, `components/{MemberExitDialog,MembersTable}.tsx` (abandonar sin `Member`),
+    `scripts/smoke_pages.py`, `scripts/tests/{test_smoke_pages,smoke_stack_fakes}.py` (el smoke espera la
+    redirección de `/configuracion/empresa` a `/login`). `LeaveOrganizationDialog.tsx` no se creó: el de `T-TEN-34`
+    vive en `MemberExitDialog.tsx`.
+  - Pendiente (Q-239): pasar el formulario de sucursales (`lib/branch-form.ts`) a react-hook-form + zod, en otra tarea.
+  - Pruebas: `CompanyScreen.test.tsx`, `CompanyLeave.test.tsx` (con el `ActiveOrgProvider` real),
+    `lib/company-form.test.ts`, `SettingsSectionList.test.tsx`.
 
 ### T-TEN-33 — Sucursales
 - **AC:** — (RF-TEN-06, spec §14). **Zona roja:** no.
