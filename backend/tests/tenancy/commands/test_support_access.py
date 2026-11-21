@@ -198,13 +198,20 @@ def test_Q_222_owners_can_revoke_a_pending_support_invitation(recorded: Recordin
         accept_by_token(token, invitee(support_user()))
 
 
-def test_Q_222_also_to_an_org_without_owner(recorded: RecordingSink) -> None:
-    create_org()
+def test_Q_238_support_refused_without_owner(recorded: RecordingSink) -> None:
+    create_org()  # born without members: only the first owner's invitation
     org = organization()
+    before = snapshot(org)
+    recorded.clear()
 
-    accepted = accept_by_token(token_of(support_access()), invitee(support_user()))
+    error = refused()
 
-    assert (accepted.organization_id, accepted.role) == (org.pk, Role.VIEWER)
+    assert error.returncode == 1
+    assert "no active owner" in str(error)
+    assert "tenancy_owner_invite" in str(error)
+    assert snapshot(org) == before
+    assert support_rows(org) == []
+    assert recorded.events == []
 
 
 def test_Q_222_refusals_write_nothing(recorded: RecordingSink, settings: SettingsWrapper) -> None:

@@ -19,6 +19,8 @@ from structlog.testing import capture_logs
 from apps.common.audit.port import AuditActorKind
 from apps.common.audit.sinks import RecordingSink
 from apps.common.authz.roles import Role
+from apps.common.tenancy.context import OrgStatus
+from apps.common.tenancy.errors import OrganizationSuspended
 from apps.identity.models import User
 from apps.tenancy.domain.audit_events import TenancyAuditAction
 from apps.tenancy.domain.invitations import hash_token
@@ -35,6 +37,7 @@ from tests.tenancy.commands.test_create_org import (
 )
 from tests.tenancy.commands.test_support_access import snapshot, support_access, with_owner
 from tests.tenancy.invitation_setup import invitee
+from tests.tenancy.locking import set_status
 
 __all__ = ["recorded"]
 
@@ -172,6 +175,23 @@ def test_Q_224_refusals_write_nothing(recorded: RecordingSink, settings: Setting
     assert [e.returncode for e in (pending, member, unknown, no_base)] == [1, 1, 1, 1]
     assert snapshot(org) == before
     assert recorded.events == []
+
+
+def test_RN_TEN_18_recovery_on_a_suspended_org_waits_for_reactivation(
+    recorded: RecordingSink,
+) -> None:
+    org, owner = with_owner()
+    set_status(org, OrgStatus.SUSPENDED)
+
+    token = token_of(owner_recovery())
+    person = invitee(new_owner())
+
+    with pytest.raises(OrganizationSuspended):
+        accept_by_token(token, person)
+    assert owners_of(org) == [owner.pk]
+    set_status(org, OrgStatus.ACTIVE)
+    accepted = accept_by_token(token, person)
+    assert owners_of(org) == sorted([owner.pk, accepted.membership_id])
 
 
 @pytest.mark.parametrize(

@@ -4,10 +4,10 @@ Issues an ``owner`` invitation with ``purpose=owner_recovery`` to an organizatio
 (``services.platform_access``, design.md §4.5, Q-224): when its only owner lost the Google account,
 for instance. A mandatory ``--reason`` (Q-225). Nobody is revoked: the current owners stay, and
 they can revoke the new one, accepted or not. Without an owner, the first owner's invitation is the
-way (``tenancy_owner_invite``, Q-213). The existing owners are not notified yet: there is no email
-provider (Q-224). The link is printed once, never through the logger. ``--operator`` must be an
-email of ``PLATFORM_OPERATOR_EMAILS`` (``apps.common.platform_operators``, as every operator
-command).
+way (``tenancy_owner_invite``, Q-213). The notice to the existing owners (Q-224) is pending until
+the ADR of the email provider (Q-207): nobody is notified yet. The link is printed once, never
+through the logger. ``--operator`` must be an email of ``PLATFORM_OPERATOR_EMAILS``
+(``apps.common.platform_operators``, as every operator command).
 
 Exit codes: ``0`` issued; ``1`` refused with nothing changed (unknown organization, one without an
 active owner, an active member or a valid ``pending`` invitation with that email, or no
@@ -86,7 +86,7 @@ class Command(BaseCommand):
         self.stdout.write(
             f"Owner recovery invitation {issued.invitation_id} to organization {target} issued; "
             f"valid for {INVITATION_TTL.days} days. Nobody was revoked: its {issued.owners} "
-            "current owner(s) stay, and are not notified by email (no provider yet).\n"
+            "current owner(s) stay, and are not notified by email yet (Q-207).\n"
             "Send this link to the new owner; it is shown only this once:\n"
             f"{issued.accept_url}"
         )

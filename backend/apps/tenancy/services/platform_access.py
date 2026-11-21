@@ -9,12 +9,14 @@ gets here; the operator (that email) is the actor of the event, with ``os_user``
 - ``grant_support_access`` (Q-222): ``purpose=support``, the role chosen (``viewer`` by default)
   and never ``owner`` (``SupportRoleError``). Accepted, it is a normal membership: visible among the
   members and revocable by the owners, with exactly the permissions of its role (spec §4).
-- ``issue_owner_recovery`` (Q-224): an ``owner`` invitation, ``purpose=owner_recovery``, for an
-  organization that **has** an active owner (spec §4, "org con owner"): without one, the first
-  owner's invitation is the way (``tenancy_owner_invite``, Q-213), so this one is
-  ``OrganizationWithoutOwnerError``. Nobody is revoked, no membership and no other invitation is
-  touched. The notice to the existing owners waits for an email provider (Q-224, Q-207): there is
-  none yet, so nobody is notified; ``IssuedAccess.owners`` says how many remain.
+- ``issue_owner_recovery`` (Q-224): an ``owner`` invitation, ``purpose=owner_recovery``. Nobody is
+  revoked, no membership and no other invitation is touched; ``IssuedAccess.owners`` says how many
+  remain. The notice to the existing owners is pending until the ADR of the email provider
+  (Q-207): nobody is notified yet.
+
+Both need an organization that **has** an active owner (spec §4, "org con owner", for recovery;
+Q-238 for support): without one, the first owner's invitation is the way (``tenancy_owner_invite``,
+Q-213, Q-236), and either is ``OrganizationWithoutOwnerError``.
 
 Both carry a mandatory reason (Q-225, ``invitation_operator_reason``), the rule of
 ``tenancy_set_org_status`` (``clean_reason``: 1 to 200 characters), kept on the invitation and in
@@ -25,18 +27,20 @@ the event's ``reason``, never in the logs. In one transaction and in the lock or
    organization's lock (an unknown one is ``OrganizationNotFound``). A ``SystemActor`` is not
    stopped by a suspension (design.md §3.6), as ``tenancy_owner_invite``; accepting it waits for
    the organization to be active again (AC-TEN-28).
-2. Recovery only: no active owner is ``OrganizationWithoutOwnerError``.
+2. No active owner, counted under that lock, is ``OrganizationWithoutOwnerError`` (Q-238).
 3. An active member with that email is ``already_member`` (AC-TEN-20).
 4. The ``pending`` invitation of that email, ``FOR UPDATE``: past its expiry it becomes ``expired``
    first (``invitation.expired``, the system as its actor); still valid, ``invitation_pending``.
+   The very step of creating an invitation (``services/invitations.py``), reused.
 5. The new one, issued by the operator, with only the SHA-256 of a fresh token and seven days of
    validity (``insert_invitation``), and ``invitation.created`` with its role and ``purpose``
    (AC-TEN-23, Q-225: they have no event of their own).
 
-Every refusal writes nothing and is not audited, as creating an invitation (none is in
-RNF-TEN-04). ``IssuedAccess.accept_url`` is the only place the token exists in clear (masked in
-``repr``); the command prints it once. Without ``FRONTEND_BASE_URL`` nothing is locked nor
-written. Logs and events carry ids, never an email nor the token (C-06, RNF-TEN-06).
+Every refusal writes nothing and is not audited yet, as creating an invitation (none is in
+RNF-TEN-04); Q-237 audits them, in T-TEN-37. ``IssuedAccess.accept_url`` is the only place the
+token exists in clear (masked in ``repr``); the command prints it once. Without
+``FRONTEND_BASE_URL`` nothing is locked nor written. Logs and events carry ids, never an email nor
+the token (C-06, RNF-TEN-06).
 """
 
 from __future__ import annotations
@@ -54,26 +58,23 @@ from apps.common.authz.roles import Role
 from apps.common.logging import get_logger
 from apps.common.tenancy.context import SystemReason, TenantContext
 from apps.common.tenancy.current import tenant_scope
-from apps.common.tenancy.locks import bounded_lock_wait, system_context
+from apps.common.tenancy.locks import system_context
 from apps.tenancy.domain.audit_events import TenancyAuditAction
 from apps.tenancy.domain.invitations import (
     InvitationPurpose,
-    InvitationStatus,
     expires_at_for,
     hash_token,
-    is_expired,
     new_token,
 )
-from apps.tenancy.models import Invitation, Membership
+from apps.tenancy.models import Membership
 from apps.tenancy.models.membership import MembershipStatus
 from apps.tenancy.selectors.locks import active_owner_count, lock_membership_mutex
 from apps.tenancy.services.audit import record_event
 from apps.tenancy.services.invitations import (
-    InvitationPending,
     InviteeAlreadyMember,
+    _expire_or_refuse_pending,  # step 4 of creating an invitation, the same rule
     accept_base_url,
     accept_url,
-    expire_invitation,
     insert_invitation,
     normalized_email,
 )
@@ -103,7 +104,7 @@ class SupportRoleError(ValueError):
 
 
 class OrganizationWithoutOwnerError(Exception):
-    """Recovery is for an organization with an owner; without one, ``tenancy_owner_invite``."""
+    """Both need an organization with an owner (Q-238); without one, ``tenancy_owner_invite``."""
 
     def __init__(self, organization_id: uuid.UUID) -> None:
         super().__init__("the organization has no active owner")
@@ -199,12 +200,12 @@ def _issue_locked(
 ) -> tuple[uuid.UUID, int]:
     mutex = lock_membership_mutex(ctx, ActionKind.WRITE)
     owners = active_owner_count(mutex)
-    if request.purpose is InvitationPurpose.OWNER_RECOVERY and not owners:
+    if not owners:  # Q-238, also for support
         raise OrganizationWithoutOwnerError(ctx.organization_id)
     members = Membership.objects.for_tenant(ctx)
     if members.filter(user__email=request.email, status=MembershipStatus.ACTIVE.value).exists():
         raise InviteeAlreadyMember
-    _expire_or_refuse_pending(ctx, request.email, now)
+    _expire_or_refuse_pending(mutex, request.email, now)
     invitation = insert_invitation(
         ctx,
         email=request.email,
@@ -228,19 +229,3 @@ def _issue_locked(
         },
     )
     return invitation.pk, owners
-
-
-def _expire_or_refuse_pending(ctx: TenantContext, email: str, now: datetime) -> None:
-    """Step 4, after the organization's lock, as ``services/invitations.py`` does."""
-    with bounded_lock_wait():
-        pending = (
-            Invitation.objects.for_tenant(ctx)
-            .select_for_update()
-            .filter(email=email, status=InvitationStatus.PENDING.value)
-            .first()
-        )
-    if pending is None:
-        return
-    if not is_expired(pending.expires_at, now):
-        raise InvitationPending
-    expire_invitation(ctx, pending)

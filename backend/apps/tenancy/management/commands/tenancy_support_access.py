@@ -4,12 +4,14 @@ Issues a support invitation to an organization (``services.platform_access``, de
 Q-222): ``purpose=support``, ``--role`` ``admin``, ``operator`` or ``viewer`` (the default), never
 ``owner``, and a mandatory ``--reason`` (Q-225). Being the operator gives no access by itself
 (RN-TEN-20): the person at ``--email`` gets in by accepting it, and then is a normal member, visible
-and revocable by the owners. The link is printed once, never through the logger. ``--operator``
-must be an email of ``PLATFORM_OPERATOR_EMAILS`` (``apps.common.platform_operators``, as every
-operator command).
+and revocable by the owners. Only for an organization with an active owner (Q-238): before that,
+the first owner's commands (``tenancy_owner_invite``, Q-213, Q-236). The link is printed once,
+never through the logger. ``--operator`` must be an email of ``PLATFORM_OPERATOR_EMAILS``
+(``apps.common.platform_operators``, as every operator command).
 
-Exit codes: ``0`` issued; ``1`` refused with nothing changed (unknown organization, an active member
-or a valid ``pending`` invitation with that email, or no ``FRONTEND_BASE_URL``); ``2`` a bad
+Exit codes: ``0`` issued; ``1`` refused with nothing changed (unknown organization, one without an
+active owner, an active member or a valid ``pending`` invitation with that email, or no
+``FRONTEND_BASE_URL``); ``2`` a bad
 argument (argparse's own code, also for ``--role owner``, and ours for an operator not in the
 allowlist, an id that is not a UUID, an invalid ``--email`` or a blank reason). Messages carry ids
 only, never an email nor the reason.
@@ -38,12 +40,16 @@ from apps.tenancy.services.platform_access import (
     DEFAULT_SUPPORT_ROLE,
     SUPPORT_ROLES,
     InvalidInviteeEmailError,
+    OrganizationWithoutOwnerError,
     grant_support_access,
 )
 from apps.tenancy.services.platform_org_status import InvalidReasonError
 
 REFUSALS: dict[type[Exception], str] = {
     OrganizationNotFound: "does not exist",
+    OrganizationWithoutOwnerError: (
+        "has no active owner yet: issue the first owner's invitation (tenancy_owner_invite)"
+    ),
     InviteeAlreadyMember: "already has an active member with that email",
     InvitationPending: "already has a pending invitation to that email",
 }
@@ -82,7 +88,12 @@ class Command(BaseCommand):
             issued = grant_support_access(target, email, reason, actor, role=Role(role))
         except (InvalidInviteeEmailError, InvalidReasonError) as error:
             raise CommandError(str(error), returncode=USAGE_EXIT) from None
-        except (OrganizationNotFound, InviteeAlreadyMember, InvitationPending) as error:
+        except (
+            OrganizationNotFound,
+            OrganizationWithoutOwnerError,
+            InviteeAlreadyMember,
+            InvitationPending,
+        ) as error:
             raise CommandError(
                 f"Organization {target} {REFUSALS[type(error)]}; nothing changed.",
                 returncode=REFUSED_EXIT,
