@@ -42,6 +42,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
     title: "Sucursales y cajas",
     description: "Alta y edición de sucursales y de sus cajas por integración.",
     modules: ["02", "05"],
+    href: "/configuracion/sucursales",
   },
   {
     id: "integrations",
