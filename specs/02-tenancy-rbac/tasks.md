@@ -59,11 +59,12 @@ Donde el diseño y el código de SPEC-00, o el orden real, difieren, manda esta 
 | `GET /api/memberships/` → `user:{id, email, name}` (`design.md §6`) | `name` es `User.display_name` de SPEC-01 (T-TEN-22) | `User` no tiene un campo `name` |
 | Callback del login con error de Django → `/login?error=<code>` de la lista (SPEC-01 `design.md §6.3`) | `503 organization_busy` del primer login (lock de una organización invitante, Q-230) → `/login?error=google_unavailable`, sin cookies de sesión ni `Retry-After` (T-TEN-17) | Q-231, decidida por el dueño el 2026-11-20: el intento y el `code` ya se gastaron, así que el mismo callback no se puede repetir; se reusa el texto y el "Reintentar" de Q-127 sin cambiar el contrato |
 | Repetir `tenancy_create_org` con la misma clave "no emite eventos" (`design.md §4.5`) | Toda repetición emite `organization.create_repeated` con `outcome` `no_change` o `conflict`, actor `platform_operator` y `os_user`, fuera de la transacción y sin otra escritura; evento nuevo en `domain/audit_events.py` y en `AUDIT_TRIGGERS` (T-TEN-18) | Q-235, decidida por el dueño el 2026-11-20: RN-IDA-23 y Q-123 de SPEC-01 auditan cada ejecución del bootstrap. RNF-TEN-04 de la spec no se editó: el catálogo suma el evento con esta fila |
+| `tenancy_owner_invite reissue|revoke --org --operator` (`design.md §4.5`) | `reissue` suma `--email` opcional (por defecto, el de la última `first_owner`), validado y normalizado como al crear una invitación, y reemite también desde una `revoked`; `invitation.resent` lleva `email_changed` (T-TEN-19) | Q-236, decidida por el dueño el 2026-11-21: Q-213 pide poder cambiar el email y el diseño no daba cómo; sin esto un `revoke` dejaba la organización sin primer owner |
 | El rol se muestra como código (`context/07 §5.3`, spec §14) y los rechazos de `/invitacion` sin acción (`design.md §3.9`) | Etiquetas en español en un único módulo, `frontend/src/modules/tenancy/lib/role-labels.ts` (`Record<RoleEnum, string>`), que usan el aviso de invitaciones y la invitación aceptada; todo rechazo de `/invitacion` y el link sin token muestran un único botón "Ir a Inicio" hacia `/inicio`, y la falla de red/5xx conserva "Reintentar" | Q-232 y Q-233, decididas por el dueño el 2026-11-20. La API sigue con los códigos; un rol nuevo no compila sin su etiqueta. Worklog `context/worklog/2026-11-20-role-labels-exit.md` |
 
 ## Resumen
 
-> T-TEN-01, T-TEN-02, T-TEN-03, T-TEN-04, T-TEN-05, T-TEN-06, T-TEN-07, T-TEN-08, T-TEN-09, T-TEN-10, T-TEN-11, T-TEN-12, T-TEN-13, T-TEN-14, T-TEN-15, T-TEN-16, T-TEN-17, T-TEN-18, T-TEN-20, T-TEN-21, T-TEN-22, T-TEN-24, T-TEN-25, T-TEN-29 y T-TEN-30 en revisión; las demás sin empezar. La columna **Evidencia** es obligatoria para `✅` y la verifica `scripts/check_spec_state.py`.
+> T-TEN-01, T-TEN-02, T-TEN-03, T-TEN-04, T-TEN-05, T-TEN-06, T-TEN-07, T-TEN-08, T-TEN-09, T-TEN-10, T-TEN-11, T-TEN-12, T-TEN-13, T-TEN-14, T-TEN-15, T-TEN-16, T-TEN-17, T-TEN-18, T-TEN-19, T-TEN-20, T-TEN-21, T-TEN-22, T-TEN-24, T-TEN-25, T-TEN-29 y T-TEN-30 en revisión; las demás sin empezar. La columna **Evidencia** es obligatoria para `✅` y la verifica `scripts/check_spec_state.py`.
 
 | ID | Título | AC | Capa | Archivos esperados (ver detalle) | Depende de | Agente | Tamaño | Zona roja | Estado | Evidencia |
 |---|---|---|---|---|---|---|---|---|---|---|
@@ -85,7 +86,7 @@ Donde el diseño y el código de SPEC-00, o el orden real, difieren, manda esta 
 | T-TEN-16 | Mis invitaciones y aceptar desde la sesión (Q-124) | AC-TEN-39, AC-TEN-28, AC-TEN-10 | Servicio/API | `selectors/invitations.py`, `api/invitations.py`, `services/invitation_accept.py` | T-TEN-15 | backend-dev | L | Sí | 🟡 | rama `task/T-TEN-16-my-invitations`, sin PR |
 | T-TEN-17 | `TenancyInvitationPort` (puerto de SPEC-01) | AC-TEN-17 (vía puerto), AC-IDA-02, AC-IDA-04, AC-IDA-05, AC-IDA-31 | Servicio | `services/invitation_port.py`, `config/settings/base.py` | T-TEN-15, T-IDA-13 | backend-dev | M | Sí | 🟡 | rama `task/T-TEN-17-invitation-port`, sin PR |
 | T-TEN-18 | Comando `tenancy_create_org` | AC-TEN-22, AC-TEN-40, AC-IDA-32 | Comandos | `services/platform_org.py`, `management/commands/tenancy_create_org.py` | T-TEN-16, T-TEN-17 | backend-dev | L | Sí | 🟡 | rama `task/T-TEN-18-create-org-command`, sin PR |
-| T-TEN-19 | Comandos de suspensión y primer owner | AC-TEN-28, AC-TEN-29 | Comandos | `management/commands/{tenancy_set_org_status,tenancy_owner_invite}.py` | T-TEN-18 | backend-dev | M | Sí | ☐ | |
+| T-TEN-19 | Comandos de suspensión y primer owner | AC-TEN-28, AC-TEN-29 | Comandos | `management/commands/{tenancy_set_org_status,tenancy_owner_invite}.py` | T-TEN-18 | backend-dev | M | Sí | 🟡 | rama `task/T-TEN-19-suspend-and-first-owner`, sin PR |
 | T-TEN-20 | Crear y listar invitaciones | AC-TEN-15, AC-TEN-20, AC-TEN-24, AC-TEN-26, AC-TEN-34 | Servicio/API | `services/invitations.py`, `api/invitations.py`, `api/serializers/invitations.py` | T-TEN-07, T-TEN-15 | backend-dev | L | Sí | 🟡 | rama `task/T-TEN-20-create-invitations`, PR #131 |
 | T-TEN-21 | Reenviar y revocar invitaciones | AC-TEN-02, AC-TEN-15, AC-TEN-24, AC-TEN-26, AC-TEN-37 | Servicio/API | `services/invitations.py`, `api/invitations.py` | T-TEN-20 | backend-dev | M | Sí | 🟡 | rama `task/T-TEN-21-resend-revoke`, sin PR |
 | T-TEN-22 | Listar memberships y cambiar rol | AC-TEN-02, AC-TEN-05, AC-TEN-13, AC-TEN-15, AC-TEN-16, AC-TEN-27, AC-TEN-34 | Servicio/API | `services/memberships.py`, `api/memberships.py` | T-TEN-07, T-TEN-11 | backend-dev | L | Sí | 🟡 | rama `task/T-TEN-22-memberships`, sin PR |
@@ -657,6 +658,35 @@ T-TEN-30 · suspendida → T-TEN-29.
 - **Archivos:** `services/platform_org.py`, `management/commands/{tenancy_set_org_status,tenancy_owner_invite}.py`, tests.
 - **Pruebas:** `test_AC_TEN_29_status_changes_only_by_command`, `test_AC_TEN_28_suspended_blocks_writes_allows_reads`,
   `test_Q_213_reissue_only_without_owner`.
+- **Implementado:**
+  - `tenancy_set_org_status --org --status suspended|active --reason --operator`: `services/platform_org_status.py`,
+    `tenant_scope(system_context(org, PLATFORM_COMMAND))`, la fila `FOR UPDATE` (acotado por `LOCK_TIMEOUT`: espera
+    las escrituras en curso y las que vienen después leen el estado nuevo), `status` + `status_changed_at` y
+    `organization.suspended` / `organization.reactivated` con `--reason` como `reason` del evento, actor
+    `platform_operator` y `os_user`. Pedir el estado que ya tiene no está en las transiciones de spec §10: rechazo
+    auditado (`transition.rejected`, C-05) después de la transacción, salida `1`. El motivo (1 a 200 caracteres, el
+    largo de `Invitation.reason`) va solo al evento, nunca al log. `AUDIT_TRIGGERS` de los dos eventos es
+    `set_org_status`.
+  - `tenancy_owner_invite reissue|revoke --org --operator`: `services/platform_owner_invite.py`. Bajo
+    `lock_membership_mutex` (actor sistema: la suspensión no lo frena, design.md §3.6) y con la organización sin
+    owner activo (si no, salida `1` sin escribir ni auditar); la invitación es la última `first_owner`, `FOR UPDATE`;
+    una `pending` vencida pasa antes a `expired` (Q-234 b). `revoke`: solo `pending` → `revoked` con
+    `revoked_reason=operator`. `reissue`: `pending` (se revoca con `resent`), `expired` o `revoked` → una nueva al email de `--email` o al mismo,
+    `owner`/`first_owner`, emitida por el operador, con `replaces` y siete días; `invitation.resent` y el link una vez
+    por stdout. También desde una `revoked` y con otro email (Q-236, abajo). `accepted` → `transition.rejected` fuera de
+    la transacción, salida `1`.
+  - Salidas como `tenancy_create_org`: `0` hecho, `1` rechazo sin cambios, `2` argumento inválido u operador fuera de
+    `PLATFORM_OPERATOR_EMAILS`.
+- **Fuera de la ficha, con su porqué:**
+  - `services/platform_org_status.py` y `services/platform_owner_invite.py` en vez de sumar a `platform_org.py`: un
+    caso de uso por servicio y `C-14` (`platform_org.py` ya tiene 230 líneas). Reusan `Operator` de ahí.
+  - `management/commands/_platform.py`: salidas, `--org` y `--operator` que comparten los dos comandos.
+  - `tests/architecture/allowlists.py`: `system_context` en los dos servicios nuevos, `count=1` cada uno.
+- **Q-236 (dueño, 2026-11-21):** `reissue --email` opcional (por defecto, el email de la última `first_owner`),
+  normalizado y validado con `services/invitations.py::normalized_email` (inválido → salida `2`); reemite también desde
+  una `revoked`; un miembro activo con ese email es `already_member` (salida `1`), como al crear una invitación.
+  `invitation.resent` suma `email_changed`; el email nunca va a logs ni eventos. Suma `clarifications.md` a los archivos
+  fuera de la ficha y `test_Q_236_*` a las pruebas.
 
 ### T-TEN-20 — Crear y listar invitaciones
 - **AC:** AC-TEN-15, 20, 24, 26, 34. RF-TEN-05, RN-TEN-13, RNF-TEN-03, Q-207. **Zona roja:** sí.
