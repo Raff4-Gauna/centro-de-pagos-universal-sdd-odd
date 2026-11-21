@@ -194,6 +194,15 @@ TENANT_QUERY_ALLOWLIST: tuple[AllowEntry, ...] = (
         "SystemReason.PLATFORM_COMMAND y los eventos nombran al operador como actor",
         count=1,
     ),
+    AllowEntry(
+        "apps/tenancy/services/platform_access.py",
+        "system_context",
+        "comandos del operador tenancy_support_access y tenancy_owner_recovery (design.md §4.5, "
+        "Q-222, Q-224, T-TEN-28): el operador no es miembro, así que no hay UserActor; "
+        "SystemReason.PLATFORM_COMMAND, solo emiten una invitación y los eventos nombran al "
+        "operador como actor",
+        count=1,
+    ),
 )
 
 # Concrete models of ``apps/`` that are not tenant models (RN-TEN-01; ``TenantModel`` subclasses
