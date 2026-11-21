@@ -24,8 +24,8 @@ first, without changes, and go out on their own after it (design.md §3.3, §4.2
 rolls its own audit back. A lock not taken within ``lock_timeout`` is the database's error, which
 the API answers ``503 organization_busy`` (Q-230). Logs carry ids, never an email.
 
-Revoking and leaving (steps 4-5 of §4.2) come with T-TEN-23, which reuses
-``auto_revoke_invitations``.
+Revoking and leaving (steps 4-5 of §4.2) are ``services/membership_exit.py``: they share
+``LastOwner``, ``Refused`` and ``auto_revoke_invitations`` with this module.
 """
 
 from __future__ import annotations
@@ -93,7 +93,7 @@ class RoleChange:
 
 
 @dataclass(frozen=True, slots=True)
-class _Refused:
+class Refused:
     """A refusal audited after the transaction: the event, its metadata and the error to raise."""
 
     action: TenancyAuditAction
@@ -113,7 +113,7 @@ def change_role(ctx: TenantContext, membership_id: uuid.UUID, new_role: Role) ->
         raise TypeError("new_role must be a Role")
     with transaction.atomic():
         outcome = _change_locked(ctx, membership_id, new_role)
-    if isinstance(outcome, _Refused):
+    if isinstance(outcome, Refused):
         record_event(outcome.action, ctx=ctx, metadata=outcome.metadata)
         raise outcome.error
     return outcome
@@ -121,7 +121,7 @@ def change_role(ctx: TenantContext, membership_id: uuid.UUID, new_role: Role) ->
 
 def _change_locked(
     ctx: TenantContext, membership_id: uuid.UUID, new_role: Role
-) -> RoleChange | _Refused:
+) -> RoleChange | Refused:
     mutex = lock_membership_mutex(ctx, ActionKind.WRITE)
     actor = actor_membership(mutex)
     if actor is None:  # revoked since the resolution: what the next request would answer
@@ -132,7 +132,7 @@ def _change_locked(
     if target is None:
         raise NotFound(MEMBERSHIP_NOT_FOUND)
     if target.status is not MembershipStatus.ACTIVE:
-        return _Refused(
+        return Refused(
             TenancyAuditAction.TRANSITION_REJECTED,
             {
                 "entity": _ENTITY,
@@ -154,7 +154,7 @@ def _change_locked(
         raise Forbidden
     if decision is Decision.LAST_OWNER:
         metadata = {"membership_id": str(target.membership_id), "event": CHANGE_ROLE}
-        return _Refused(TenancyAuditAction.OWNER_PROTECTION_REJECTED, metadata, LastOwner())
+        return Refused(TenancyAuditAction.OWNER_PROTECTION_REJECTED, metadata, LastOwner())
     if decision is Decision.NOOP:
         return RoleChange(target.membership_id, changed=False, actor_role=actor.role)
     _apply(ctx, target, new_role, by_user_id=actor.user_id)
