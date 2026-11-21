@@ -1,6 +1,11 @@
+import type { TenancyAction } from "@/modules/tenancy/hooks/useCurrentOrganizationDetails";
+
 // Sections of Configuración (07 §5.3, design.md §3.3.2). A section without `href` does not work
 // yet: it is listed disabled with the module that implements it, so the screen is never blank and
 // nothing is invented. A module enables its own section, with the route of its page, when it ships.
+// A section with `requires` is listed only when the active company's `allowed_actions` bring that
+// action (design.md §3.9: "Colaboradores" is hidden from operator and viewer); a direct visit still
+// gets the page's "sin permiso" state, because the backend decides.
 export type SettingsSection = Readonly<{
   id: string;
   title: string;
@@ -8,6 +13,7 @@ export type SettingsSection = Readonly<{
   // Module numbers (specs/NN-*) that implement the section, in order.
   modules: readonly string[];
   href?: string;
+  requires?: TenancyAction;
 }>;
 
 export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
@@ -30,6 +36,8 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
     title: "Colaboradores",
     description: "Miembros de la empresa, su rol e invitaciones por email.",
     modules: ["02"],
+    href: "/configuracion/colaboradores",
+    requires: "member.list",
   },
   {
     id: "company",
