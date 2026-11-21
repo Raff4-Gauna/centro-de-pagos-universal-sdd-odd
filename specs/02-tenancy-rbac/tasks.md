@@ -59,6 +59,7 @@ Donde el diseño y el código de SPEC-00, o el orden real, difieren, manda esta 
 | `GET /api/memberships/` → `user:{id, email, name}` (`design.md §6`) | `name` es `User.display_name` de SPEC-01 (T-TEN-22) | `User` no tiene un campo `name` |
 | Callback del login con error de Django → `/login?error=<code>` de la lista (SPEC-01 `design.md §6.3`) | `503 organization_busy` del primer login (lock de una organización invitante, Q-230) → `/login?error=google_unavailable`, sin cookies de sesión ni `Retry-After` (T-TEN-17) | Q-231, decidida por el dueño el 2026-11-20: el intento y el `code` ya se gastaron, así que el mismo callback no se puede repetir; se reusa el texto y el "Reintentar" de Q-127 sin cambiar el contrato |
 | Repetir `tenancy_create_org` con la misma clave "no emite eventos" (`design.md §4.5`) | Toda repetición emite `organization.create_repeated` con `outcome` `no_change` o `conflict`, actor `platform_operator` y `os_user`, fuera de la transacción y sin otra escritura; evento nuevo en `domain/audit_events.py` y en `AUDIT_TRIGGERS` (T-TEN-18) | Q-235, decidida por el dueño el 2026-11-20: RN-IDA-23 y Q-123 de SPEC-01 auditan cada ejecución del bootstrap. RNF-TEN-04 de la spec no se editó: el catálogo suma el evento con esta fila |
+| `tenancy_owner_invite reissue|revoke --org --operator` (`design.md §4.5`) | `reissue` suma `--email` opcional (por defecto, el de la última `first_owner`), validado y normalizado como al crear una invitación, y reemite también desde una `revoked`; `invitation.resent` lleva `email_changed` (T-TEN-19) | Q-236, decidida por el dueño el 2026-11-21: Q-213 pide poder cambiar el email y el diseño no daba cómo; sin esto un `revoke` dejaba la organización sin primer owner |
 | El rol se muestra como código (`context/07 §5.3`, spec §14) y los rechazos de `/invitacion` sin acción (`design.md §3.9`) | Etiquetas en español en un único módulo, `frontend/src/modules/tenancy/lib/role-labels.ts` (`Record<RoleEnum, string>`), que usan el aviso de invitaciones y la invitación aceptada; todo rechazo de `/invitacion` y el link sin token muestran un único botón "Ir a Inicio" hacia `/inicio`, y la falla de red/5xx conserva "Reintentar" | Q-232 y Q-233, decididas por el dueño el 2026-11-20. La API sigue con los códigos; un rol nuevo no compila sin su etiqueta. Worklog `context/worklog/2026-11-20-role-labels-exit.md` |
 
 ## Resumen
@@ -670,9 +671,10 @@ T-TEN-30 · suspendida → T-TEN-29.
     `lock_membership_mutex` (actor sistema: la suspensión no lo frena, design.md §3.6) y con la organización sin
     owner activo (si no, salida `1` sin escribir ni auditar); la invitación es la última `first_owner`, `FOR UPDATE`;
     una `pending` vencida pasa antes a `expired` (Q-234 b). `revoke`: solo `pending` → `revoked` con
-    `revoked_reason=operator`. `reissue`: `pending` (se revoca con `resent`) o `expired` → una nueva al mismo email,
+    `revoked_reason=operator`. `reissue`: `pending` (se revoca con `resent`), `expired` o `revoked` → una nueva al email de `--email` o al mismo,
     `owner`/`first_owner`, emitida por el operador, con `replaces` y siete días; `invitation.resent` y el link una vez
-    por stdout. Otro estado → `transition.rejected` fuera de la transacción, salida `1`.
+    por stdout. También desde una `revoked` y con otro email (Q-236, abajo). `accepted` → `transition.rejected` fuera de
+    la transacción, salida `1`.
   - Salidas como `tenancy_create_org`: `0` hecho, `1` rechazo sin cambios, `2` argumento inválido u operador fuera de
     `PLATFORM_OPERATOR_EMAILS`.
 - **Fuera de la ficha, con su porqué:**
@@ -680,8 +682,11 @@ T-TEN-30 · suspendida → T-TEN-29.
     caso de uso por servicio y `C-14` (`platform_org.py` ya tiene 230 líneas). Reusan `Operator` de ahí.
   - `management/commands/_platform.py`: salidas, `--org` y `--operator` que comparten los dos comandos.
   - `tests/architecture/allowlists.py`: `system_context` en los dos servicios nuevos, `count=1` cada uno.
-- **Abierto:** reemitir después de un `revoke` y cambiar el email del primer owner (Q-213 los nombra, el diseño no da
-  cómo): hoy `reissue` de una `revoked` es `transition.rejected`. Propuesta de `Q-236` en el PR.
+- **Q-236 (dueño, 2026-11-21):** `reissue --email` opcional (por defecto, el email de la última `first_owner`),
+  normalizado y validado con `services/invitations.py::normalized_email` (inválido → salida `2`); reemite también desde
+  una `revoked`; un miembro activo con ese email es `already_member` (salida `1`), como al crear una invitación.
+  `invitation.resent` suma `email_changed`; el email nunca va a logs ni eventos. Suma `clarifications.md` a los archivos
+  fuera de la ficha y `test_Q_236_*` a las pruebas.
 
 ### T-TEN-20 — Crear y listar invitaciones
 - **AC:** AC-TEN-15, 20, 24, 26, 34. RF-TEN-05, RN-TEN-13, RNF-TEN-03, Q-207. **Zona roja:** sí.

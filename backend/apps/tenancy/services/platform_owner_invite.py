@@ -20,11 +20,14 @@ Both run in one transaction, in the lock order of the module (organization, then
    becomes ``expired`` first (``invitation.expired``, the system as its actor, Q-234 b).
 4. Revoking: only a ``pending`` one, which becomes ``revoked`` with ``revoked_reason=operator``
    (design.md §5) and ``invitation.revoked``.
-   Reissuing (Q-213, "si vence, el operador la reemite"): a ``pending`` one is ``revoked`` with
-   ``revoked_reason=resent``, as a resend; an ``expired`` one stays as it is. The new one keeps the
-   email, is ``owner`` / ``first_owner``, is issued by the operator, points at the old one
-   (``replaces``) and lives seven days from now with a fresh token (``insert_invitation``); then
-   ``invitation.resent``. A ``revoked`` or ``accepted`` one is not reissued.
+   Reissuing (Q-213, "si vence o hay que cambiar el email, el operador la reemite"; Q-236): a
+   ``pending`` one is ``revoked`` with ``revoked_reason=resent``, as a resend; an ``expired`` or
+   ``revoked`` one stays as it is. The new one goes to ``email`` if given (``clean_owner_email``:
+   the rule of every invitee, ``services/invitations.py::normalized_email``), else to the old one's;
+   an active member with that email is ``already_member``, as creating an invitation. It is
+   ``owner`` / ``first_owner``, issued by the operator, points at the old one (``replaces``) and
+   lives seven days from now with a fresh token (``insert_invitation``); then ``invitation.resent``
+   with ``email_changed`` (never the email itself). An ``accepted`` one is not reissued.
 5. Any other status is ``InvalidTransition``, and ``transition.rejected`` (entity, state, event)
    goes out after the transaction: the expiry of step 3 stays (C-05, AC-TEN-37, design.md §3.3).
 
@@ -60,14 +63,17 @@ from apps.tenancy.domain.invitations import (
     new_token,
 )
 from apps.tenancy.errors import InvalidTransition
-from apps.tenancy.models import Invitation
+from apps.tenancy.models import Invitation, Membership
+from apps.tenancy.models.membership import MembershipStatus
 from apps.tenancy.selectors.locks import active_owner_count, lock_membership_mutex
 from apps.tenancy.services.audit import record_event
 from apps.tenancy.services.invitations import (
+    InviteeAlreadyMember,
     accept_base_url,
     accept_url,
     expire_invitation,
     insert_invitation,
+    normalized_email,
 )
 from apps.tenancy.services.platform_org import Operator
 
@@ -80,7 +86,15 @@ REVOKE = "revoke"
 _ENTITY = "invitation"
 _REVOKED_FIELDS = ["status", "revoked_reason", "revoked_at", "updated_at"]
 _PENDING = InvitationStatus.PENDING.value
-_REISSUABLE = frozenset({_PENDING, InvitationStatus.EXPIRED.value})
+# Q-236: a revoked one too, or a revoke would leave the organization without a first owner.
+_REISSUABLE = frozenset({_PENDING, InvitationStatus.EXPIRED.value, InvitationStatus.REVOKED.value})
+
+
+class InvalidOwnerEmailError(ValueError):
+    """``--email`` is not an email address; the message never repeats the value."""
+
+    def __init__(self) -> None:
+        super().__init__("the owner email is not a valid email address")
 
 
 class OrganizationHasOwnerError(Exception):
@@ -110,9 +124,21 @@ class _Rejected:
     metadata: dict[str, str]
 
 
+def clean_owner_email(value: object) -> str:
+    email = normalized_email(value)
+    if email is None:
+        raise InvalidOwnerEmailError
+    return email
+
+
 def reissue_owner_invitation(
-    organization_id: uuid.UUID, operator: Operator, *, now: datetime | None = None
+    organization_id: uuid.UUID,
+    operator: Operator,
+    *,
+    email: str | None = None,
+    now: datetime | None = None,
 ) -> ReissuedInvitation:
+    address = None if email is None else clean_owner_email(email)
     base = accept_base_url()  # before any lock: a missing setting writes nothing
     moment = timezone.now() if now is None else now
     token = new_token()
@@ -120,7 +146,7 @@ def reissue_owner_invitation(
         ctx = _platform_context(organization_id)
         with tenant_scope(ctx):
             old = _lock_owner_invitation(ctx, ActionKind.WRITE, moment)
-            outcome = _reissue_locked(ctx, old, operator, hash_token(token), moment)
+            outcome = _reissue_locked(ctx, old, address, operator, hash_token(token), moment)
     new_id = _raise_rejected(outcome, operator)
     logger.info(REISSUED_EVENT, invitation_id=str(new_id), replaces=str(old.pk))
     return ReissuedInvitation(new_id, old.pk, accept_url(base, token))
@@ -172,15 +198,24 @@ def _lock_owner_invitation(ctx: TenantContext, kind: ActionKind, now: datetime) 
 
 
 def _reissue_locked(
-    ctx: TenantContext, old: Invitation, operator: Operator, token_hash: str, now: datetime
+    ctx: TenantContext,
+    old: Invitation,
+    email: str | None,
+    operator: Operator,
+    token_hash: str,
+    now: datetime,
 ) -> uuid.UUID | _Rejected:
     if old.status not in _REISSUABLE:
         return _rejection(ctx, old, REISSUE)
+    address = old.email if email is None else email
+    members = Membership.objects.for_tenant(ctx)
+    if members.filter(user__email=address, status=MembershipStatus.ACTIVE.value).exists():
+        raise InviteeAlreadyMember
     if old.status == _PENDING:
         _mark_revoked(ctx, old, RevokedReason.RESENT, operator, now)
     new = insert_invitation(
         ctx,
-        email=old.email,
+        email=address,
         role=Role.OWNER.value,
         purpose=InvitationPurpose.FIRST_OWNER.value,
         token_hash=token_hash,
@@ -197,6 +232,7 @@ def _reissue_locked(
             "replaces": str(old.pk),
             "role": Role.OWNER.value,
             "purpose": InvitationPurpose.FIRST_OWNER.value,
+            "email_changed": address != old.email,  # Q-236; the address never goes out
             "os_user": operator.os_user,
         },
     )

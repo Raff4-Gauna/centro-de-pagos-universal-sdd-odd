@@ -45,6 +45,8 @@ def owner_invite(action: str, **kw: str) -> str:
     out = StringIO()
     target = kw.get("org") or str(organization().pk)
     args = [action, "--org", target, "--operator", kw.get("operator", OPERATOR)]
+    if "email" in kw:
+        args += ["--email", kw["email"]]
     call_command("tenancy_owner_invite", *args, stdout=out)
     return out.getvalue()
 
@@ -108,6 +110,7 @@ def test_Q_213_reissue_replaces_the_pending_one(recorded: RecordingSink) -> None
         "replaces": str(old_id),
         "role": "owner",
         "purpose": "first_owner",
+        "email_changed": False,
         "os_user": "deploy",
     }
     assert new_token not in repr(recorded.events) + repr(logs)
@@ -159,7 +162,6 @@ def test_Q_213_revoke_the_pending_one(recorded: RecordingSink) -> None:
     [
         ("revoke", "due", "expired"),
         ("revoke", "revoked", "revoked"),
-        ("reissue", "revoked", "revoked"),
     ],
 )
 def test_AC_TEN_37_owner_invite_rejected_by_state(
@@ -233,3 +235,94 @@ def test_RF_TEN_07_owner_invite_bad_arguments_exit_2(
     assert [row[4] for row in chain(organization())] == ["pending"]
     assert recorded.events == []
     assert "intruso" not in str(error)
+
+
+# --- Q-236 (dueño, 2026-11-21): reissue --email, also from a revoked one ---
+
+NEW_EMAIL = "beto@example.com"
+
+
+def test_Q_236_reissue_after_revoke(recorded: RecordingSink) -> None:
+    create_org()
+    owner_invite("revoke")
+    org = organization()
+    recorded.clear()
+
+    token = token_of(owner_invite("reissue"))
+
+    [(old_id, *old), (_, *new)] = chain(org)
+    assert old[3:5] == ["revoked", "operator"]  # left as it was
+    assert new == [EMAIL, "owner", "first_owner", "pending", None, None, old_id]
+    assert actions(recorded) == [by_operator(TenancyAuditAction.INVITATION_RESENT)]
+    assert recorded.events[0].metadata["email_changed"] is False
+    accepted = accept_by_token(token, invitee(make_user()))
+    assert accepted.organization_id == org.pk
+
+
+def test_Q_236_reissue_with_another_email(recorded: RecordingSink) -> None:
+    old_token = token_of(create_org())
+    org = organization()
+    recorded.clear()
+
+    with capture_logs() as logs:
+        output = owner_invite("reissue", email="  Beto@Example.com ")
+
+    [(old_id, *old), (_, *new)] = chain(org)
+    assert old[:5] == [EMAIL, "owner", "first_owner", "revoked", "resent"]
+    assert new == [NEW_EMAIL, "owner", "first_owner", "pending", None, None, old_id]
+    assert recorded.events[-1].action == TenancyAuditAction.INVITATION_RESENT
+    assert recorded.events[-1].metadata["email_changed"] is True
+    assert NEW_EMAIL not in repr(recorded.events) + repr(logs) + output
+    beto = make_user(sub="sub-beto", email=NEW_EMAIL)
+    with pytest.raises(InvitationInvalid):
+        accept_by_token(old_token, invitee(make_user()))
+    assert accept_by_token(token_of(output), invitee(beto)).role.value == "owner"
+    assert "already exists" in create_org()  # Q-123 still compares with the first one
+
+
+def test_Q_236_reissue_defaults_to_the_latest_email(recorded: RecordingSink) -> None:
+    create_org()
+    owner_invite("reissue", email=NEW_EMAIL)
+    owner_invite("revoke")
+
+    owner_invite("reissue")
+
+    assert [(row[1], row[4]) for row in chain(organization())] == [
+        (EMAIL, "revoked"),
+        (NEW_EMAIL, "revoked"),
+        (NEW_EMAIL, "pending"),
+    ]
+
+
+@pytest.mark.parametrize(
+    ("action", "email"),
+    [
+        ("reissue", "not-an-email"),
+        ("reissue", " "),
+        ("reissue", "a" * 250 + "@x.com"),
+        ("revoke", NEW_EMAIL),
+    ],
+)
+def test_Q_236_invalid_email_exits_2(recorded: RecordingSink, action: str, email: str) -> None:
+    create_org()
+    recorded.clear()
+
+    error = refused(action, email=email)
+
+    assert error.returncode == 2
+    assert [row[4] for row in chain(organization())] == ["pending"]
+    assert recorded.events == []
+    assert "not-an-email" not in str(error)
+
+
+def test_Q_236_still_refused_with_an_active_owner(recorded: RecordingSink) -> None:
+    accept_by_token(token_of(create_org()), invitee(make_user()))
+    org = organization()
+    before, events = chain(org), len(recorded.events)
+
+    error = refused("reissue", email=NEW_EMAIL)
+
+    assert error.returncode == 1
+    assert "already has an owner" in str(error)
+    assert chain(org) == before
+    assert len(recorded.events) == events
