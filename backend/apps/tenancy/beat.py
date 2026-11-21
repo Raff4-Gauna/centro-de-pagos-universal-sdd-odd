@@ -3,8 +3,9 @@
 Imported when the Celery app is built, before Django is set up: only Celery here, no models and no
 settings. The task is named by its string, the one ``tasks.py`` registers.
 
-``expire_invitations`` is the fan-out of AC-TEN-37: every hour it lists the ``pending`` invitations
-past their expiry and enqueues one per-organization task for each. Correctness does not hang on
+``expire_invitations`` (``tasks.expire_invitations_fanout``) is the fan-out of AC-TEN-37: every
+hour it lists the ``pending`` invitations past their expiry and enqueues one per-organization task
+for each. Correctness does not hang on
 it: a request that meets a due one expires it first (lazy expiry, ``services/invitations.py``), so
 the hour only bounds how long a due invitation shows ``pending`` in a listing.
 """
