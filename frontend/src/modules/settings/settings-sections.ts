@@ -44,6 +44,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
     title: "Datos de la empresa",
     description: "Razón social, rubro y datos fiscales que el Hub necesita.",
     modules: ["02"],
+    href: "/configuracion/empresa",
   },
   {
     id: "branches",

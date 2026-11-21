@@ -61,7 +61,13 @@ const EXPECTED = [
 ] as const;
 
 // The sections whose module already shipped their page.
-const ENABLED = new Set<string>(["Mi perfil", "Seguridad", "Colaboradores", "Sucursales y cajas"]);
+const ENABLED = new Set<string>([
+  "Mi perfil",
+  "Seguridad",
+  "Colaboradores",
+  "Datos de la empresa",
+  "Sucursales y cajas",
+]);
 
 describe("Configuración (AC-PLT-28, spec §14, 07 §5.3)", () => {
   it("test_AC_PLT_28_settings_lists_nine_sections_with_module_chip", () => {
@@ -104,6 +110,18 @@ describe("Configuración (AC-PLT-28, spec §14, 07 §5.3)", () => {
     expect(security).not.toHaveTextContent(SECTION_UNAVAILABLE_TEXT);
     const link = within(security).getByRole("link", { name: /Seguridad/ });
     expect(link).toHaveAttribute("href", "/configuracion/seguridad");
+  });
+
+  it("test_RF_TEN_03_settings_company_section_links_to_empresa", () => {
+    // Every role reads the company's data: the section does not wait for the actions.
+    companyAllows(undefined);
+    render(<SettingsPage />);
+    const list = screen.getByRole("list", { name: SETTINGS_LIST_LABEL });
+    const company = within(list).getByText("Datos de la empresa").closest("li")!;
+    expect(company).not.toHaveAttribute("aria-disabled");
+    expect(company).not.toHaveTextContent(SECTION_UNAVAILABLE_TEXT);
+    const link = within(company).getByRole("link", { name: /Datos de la empresa/ });
+    expect(link).toHaveAttribute("href", "/configuracion/empresa");
   });
 
   it("test_RF_TEN_06_settings_branches_section_links_to_sucursales", () => {

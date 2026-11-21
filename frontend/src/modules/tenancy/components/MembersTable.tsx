@@ -245,11 +245,7 @@ function CompanyMembers({ organizationId }: Readonly<{ organizationId: string | 
         />
       ) : null}
       {organizationId !== null && opened?.kind === "leave" ? (
-        <LeaveOrganizationDialog
-          organizationId={organizationId}
-          member={opened.member}
-          onClose={close}
-        />
+        <LeaveOrganizationDialog organizationId={organizationId} onClose={close} />
       ) : null}
     </div>
   );

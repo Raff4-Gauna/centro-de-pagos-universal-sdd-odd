@@ -63,10 +63,11 @@ Donde el diseño y el código de SPEC-00, o el orden real, difieren, manda esta 
 | `tenancy_support_access --org --email --role viewer --reason --operator` (`design.md §4.5`), sin condición sobre los owners | Se rechaza con salida `1`, sin escribir, si la organización no tiene owner activo, contado bajo el mismo lock que la recuperación; antes, el operador usa los comandos del primer owner (T-TEN-28) | Q-238, decidida por el dueño el 2026-11-21: sin owner no hay quien vea ni revoque el acceso de soporte, y la organización se arranca con la invitación del primer owner (Q-213, Q-236) |
 | `tenancy_owner_invite`, `tenancy_set_org_status`, `tenancy_support_access` y `tenancy_owner_recovery` (`design.md §4.5`) solo auditan sus cambios y los `transition.rejected` | Todo rechazo con salida `1` que no cambia nada (organización inexistente, ya tiene owner, sin invitación de primer owner, sin owner, `already_member`, `invitation_pending`, sin `FRONTEND_BASE_URL`) emite un `operator_command.rejected`: actor `platform_operator` con `os_user`, `reason` = código cerrado (`OperatorRefusal`, `domain/audit_events.py`), `metadata` `command` y, si tiene, `operation`; sin email ni motivo libre. Se emite fuera de la transacción (`platform_org_status.audited_refusals`). Los rechazos por estado siguen como `transition.rejected` (mismo estado al suspender, invitación en un estado que no lo permite) y no se duplican; un argumento inválido (salida `2`, operador fuera de la allowlist incluido) no es una corrida y no se audita, como en Q-235. Evento nuevo en el catálogo y en `AUDIT_TRIGGERS` (`revoke_owner_invitation`) (T-TEN-37) | Q-237, decidida por el dueño el 2026-11-21. `transition.rejected` es (entidad, estado, evento) de una transición inválida (Q-225) y estos rechazos no son transiciones; un evento por comando (como `organization.create_repeated`) multiplicaría el catálogo sin dar más información que `command`. RNF-TEN-04 de la spec no se editó: el catálogo suma el evento con esta fila |
 | El rol se muestra como código (`context/07 §5.3`, spec §14) y los rechazos de `/invitacion` sin acción (`design.md §3.9`) | Etiquetas en español en un único módulo, `frontend/src/modules/tenancy/lib/role-labels.ts` (`Record<RoleEnum, string>`), que usan el aviso de invitaciones y la invitación aceptada; todo rechazo de `/invitacion` y el link sin token muestran un único botón "Ir a Inicio" hacia `/inicio`, y la falla de red/5xx conserva "Reintentar" | Q-232 y Q-233, decididas por el dueño el 2026-11-20. La API sigue con los códigos; un rol nuevo no compila sin su etiqueta. Worklog `context/worklog/2026-11-20-role-labels-exit.md` |
+| `timezone` "de lista" en `CompanyDataForm` (`design.md §3.9`), sin decir cuál | Lista fija en `frontend/src/modules/tenancy/lib/timezones.ts`: las doce `America/Argentina/*` y `UTC`, como `enum` del esquema zod; una zona guardada fuera de la lista se muestra como actual y no bloquea guardar (T-TEN-32) | Q-240 (dueño, 2026-11-21): la lista del navegador (`Intl`) trae alias CLDR y cambia según el navegador; el backend sigue validando contra `zoneinfo` |
 
 ## Resumen
 
-> T-TEN-01, T-TEN-02, T-TEN-03, T-TEN-04, T-TEN-05, T-TEN-06, T-TEN-07, T-TEN-08, T-TEN-09, T-TEN-10, T-TEN-11, T-TEN-12, T-TEN-13, T-TEN-14, T-TEN-15, T-TEN-16, T-TEN-17, T-TEN-18, T-TEN-19, T-TEN-20, T-TEN-21, T-TEN-22, T-TEN-23, T-TEN-24, T-TEN-25, T-TEN-27, T-TEN-28, T-TEN-29, T-TEN-30, T-TEN-33, T-TEN-34 y T-TEN-37 en revisión; las demás sin empezar. La columna **Evidencia** es obligatoria para `✅` y la verifica `scripts/check_spec_state.py`.
+> T-TEN-01, T-TEN-02, T-TEN-03, T-TEN-04, T-TEN-05, T-TEN-06, T-TEN-07, T-TEN-08, T-TEN-09, T-TEN-10, T-TEN-11, T-TEN-12, T-TEN-13, T-TEN-14, T-TEN-15, T-TEN-16, T-TEN-17, T-TEN-18, T-TEN-19, T-TEN-20, T-TEN-21, T-TEN-22, T-TEN-23, T-TEN-24, T-TEN-25, T-TEN-27, T-TEN-28, T-TEN-29, T-TEN-30, T-TEN-32, T-TEN-33, T-TEN-34 y T-TEN-37 en revisión; las demás sin empezar. La columna **Evidencia** es obligatoria para `✅` y la verifica `scripts/check_spec_state.py`.
 
 | ID | Título | AC | Capa | Archivos esperados (ver detalle) | Depende de | Agente | Tamaño | Zona roja | Estado | Evidencia |
 |---|---|---|---|---|---|---|---|---|---|---|
@@ -101,12 +102,13 @@ Donde el diseño y el código de SPEC-00, o el orden real, difieren, manda esta 
 | T-TEN-29 | Organización activa en el frontend y selector | — (RF-TEN-02, spec §14) | UI | `src/modules/tenancy/context/ActiveOrgProvider.tsx`, `src/lib/api-client.ts`, `context/07-frontend-ui-guidelines.md` | T-TEN-12, T-IDA-27 | frontend-dev | L | No | 🟡 | rama `task/T-TEN-29-active-org-frontend`, PR #122 |
 | T-TEN-30 | Sin organización y aviso de invitaciones (Q-124) | AC-TEN-39 (UI) | UI | `app/(dashboard)/sin-organizacion/page.tsx`, `src/modules/tenancy/components/PendingInvitationsNotice.tsx` | T-TEN-16, T-TEN-29, T-IDA-29 | frontend-dev | M | Sí | 🟡 | rama `task/T-TEN-30-no-org-invitations`, PR #129 |
 | T-TEN-31 | Pantalla `/invitacion` | AC-TEN-17 (UI) | UI | `app/invitacion/page.tsx`, `src/modules/tenancy/components/AcceptInvitation.tsx` | T-TEN-15, T-TEN-29 | frontend-dev | M | Sí | 🟡 | rama `task/T-TEN-31-invitation-screen`, sin PR |
-| T-TEN-32 | Datos de la empresa y abandonar | — (RF-TEN-03, RF-TEN-04, spec §14) | UI | `app/(dashboard)/configuracion/empresa/page.tsx`, `src/modules/tenancy/components/CompanyDataForm.tsx` | T-TEN-13, T-TEN-23, T-TEN-29 | frontend-dev | M | No | ☐ | |
+| T-TEN-32 | Datos de la empresa y abandonar | — (RF-TEN-03, RF-TEN-04, spec §14) | UI | `app/(dashboard)/configuracion/empresa/page.tsx`, `src/modules/tenancy/components/CompanyDataForm.tsx` | T-TEN-13, T-TEN-23, T-TEN-29 | frontend-dev | M | No | 🟡 | PR #145, rama `task/T-TEN-32-company-data` |
 | T-TEN-33 | Sucursales | — (RF-TEN-06, spec §14) | UI | `app/(dashboard)/configuracion/sucursales/page.tsx`, `BranchesTable.tsx`, `BranchFormDialog.tsx` | T-TEN-25, T-TEN-29 | frontend-dev | L | No | 🟡 | PR #139, rama `task/T-TEN-33-branches-ui` |
 | T-TEN-34 | Colaboradores: miembros | — (RF-TEN-04, spec §14) | UI | `app/(dashboard)/configuracion/colaboradores/page.tsx`, `MembersTable.tsx` | T-TEN-23, T-TEN-29 | frontend-dev | L | No | 🟡 | PR #143, rama `task/T-TEN-34-members-ui` |
 | T-TEN-35 | Colaboradores: invitaciones y link de una sola vez | AC-TEN-24 (UI) | UI | `InviteDialog.tsx`, `InvitationLinkDialog.tsx` | T-TEN-21, T-TEN-34 | frontend-dev | M | Sí | ☐ | |
 | T-TEN-36 | E2E y cierre conjunto con SPEC-01 | AC-TEN-08, AC-TEN-22, AC-TEN-39 | E2E | `scripts/e2e_tenancy.py`, `scripts/tests/test_e2e_tenancy.py` | T-TEN-30, T-TEN-31, T-TEN-35, T-IDA-31 | backend-dev | M | Sí | ☐ | |
 | T-TEN-37 | Auditar los rechazos de los comandos de operador (Q-237) | AC-TEN-23 (rechazos del operador) | Comandos | `services/platform_{owner_invite,org_status,access}.py`, `domain/audit_events.py` | T-TEN-28 | backend-dev | S | Sí | 🟡 | PR #144, rama `task/T-TEN-37-audit-operator-refusals` |
+| T-TEN-38 | Registrar en el log de seguridad un --operator rechazado (Q-241) | — (RF-TEN-07, Q-241) | Comandos | `management/commands/_platform.py` | T-TEN-37 | backend-dev | S | Sí | ☐ | |
 
 ## Cobertura AC → tareas
 | AC | Tareas |
@@ -154,7 +156,7 @@ Donde el diseño y el código de SPEC-00, o el orden real, difieren, manda esta 
 
 **RF → tareas:** RF-TEN-01 → T-TEN-01, T-TEN-08 · RF-TEN-02 → T-TEN-12, T-TEN-29 · RF-TEN-03 → T-TEN-13, T-TEN-32 ·
 RF-TEN-04 → T-TEN-22, T-TEN-23, T-TEN-34 · RF-TEN-05 → T-TEN-14, T-TEN-15, T-TEN-16, T-TEN-20, T-TEN-21, T-TEN-26,
-T-TEN-35 · RF-TEN-06 → T-TEN-24, T-TEN-25, T-TEN-33 · RF-TEN-07 → T-TEN-18, T-TEN-19, T-TEN-28, T-TEN-37 · RF-TEN-08 → T-TEN-01,
+T-TEN-35 · RF-TEN-06 → T-TEN-24, T-TEN-25, T-TEN-33 · RF-TEN-07 → T-TEN-18, T-TEN-19, T-TEN-28, T-TEN-37, T-TEN-38 · RF-TEN-08 → T-TEN-01,
 T-TEN-02, T-TEN-03, T-TEN-06, T-TEN-08, T-TEN-11 · RF-TEN-09 → T-TEN-10, T-TEN-27.
 
 **RNF → tareas:** RNF-TEN-01 → T-TEN-04, T-TEN-09 · RNF-TEN-02 → T-TEN-08 · RNF-TEN-03 → T-TEN-14, T-TEN-20 ·
@@ -176,7 +178,7 @@ T-TEN-30 · suspendida → T-TEN-29.
 | 1 | T-TEN-05 (tras T-IDA-01) → {T-TEN-06, T-TEN-07, T-TEN-14} | |
 | 2 | T-TEN-08 (tras T-IDA-06) → {T-TEN-09, T-TEN-11, T-TEN-12} | Con T-TEN-08 hay aislamiento real sobre `tenant_probe` |
 | 3 | T-TEN-13 · T-TEN-15 → {T-TEN-16, T-TEN-17, T-TEN-20} | T-TEN-17 espera a T-IDA-13: desde ahí un invitado entra de verdad |
-| 4 | T-TEN-18 → {T-TEN-19, T-TEN-28} → T-TEN-37 · T-TEN-20 → T-TEN-21 · T-TEN-22 → T-TEN-23 · T-TEN-24 → T-TEN-25 · T-TEN-26 | Con T-TEN-18 existe la primera organización real |
+| 4 | T-TEN-18 → {T-TEN-19, T-TEN-28} → T-TEN-37 → T-TEN-38 · T-TEN-20 → T-TEN-21 · T-TEN-22 → T-TEN-23 · T-TEN-24 → T-TEN-25 · T-TEN-26 | Con T-TEN-18 existe la primera organización real |
 | 5 | T-TEN-27 · T-TEN-29 → {T-TEN-30, T-TEN-31, T-TEN-32, T-TEN-33, T-TEN-34} → T-TEN-35 | T-TEN-29 espera a T-IDA-27 |
 | 6 | T-TEN-36 | Cierre conjunto (Q-108): después se verifican 01 y 02 en la misma pasada |
 
@@ -1038,6 +1040,40 @@ T-TEN-30 · suspendida → T-TEN-29.
 - **Q-239 (dueño, 2026-11-21):** los formularios usan react-hook-form + zod (`context/07 §3.3`, `design.md §3.9`).
   Se agregan como dependencias al empezar esta tarea; después, el formulario de sucursales (`lib/branch-form.ts`,
   #139) se pasa a ellos.
+- **Hecho (2026-11-21):** `/configuracion/empresa` con `CompanyScreen` (en `CompanyScreen.tsx`): nombre, razón
+  social, CUIT y zona horaria de `GET /api/organizations/current/`, para todos los roles. Sin contrato nuevo.
+  - Dependencias (Q-239): `react-hook-form` `7.91.0` y `zod` `4.6.7`, fijadas exactas en `package.json` y el lockfile
+    (la `7.92.0` tenía menos de dos semanas; `zod` ya estaba en el árbol como transitiva). Sin `@hookform/resolvers`:
+    el resolver es una función chica en `lib/company-form.ts`.
+  - `CompanyDataForm` (react-hook-form + el esquema zod de `lib/company-form.ts`): recorta, `name` obligatorio y
+    ≤120, `legal_name` ≤200, CUIT vacío u 11 dígitos con o sin guiones (el dígito verificador lo valida el backend),
+    con los mismos mensajes que el backend. Manda solo lo que cambió (el mismo CUIT con guiones no es cambio); sin
+    cambios no hay request. `400` → mensaje bajo su campo; el resto (`organization_suspended`, `403`,
+    `503 organization_busy`) → el título fijo arriba. Queda guardado solo tras el `2xx`, con la respuesta del
+    backend (que pasa a la caché de `['org', orgId, 'current']`; se relee la lista de empresas por el nombre).
+    `organization_suspended` y `403` releen `allowed_actions`: el formulario pasa a solo lectura.
+  - Zona horaria (Q-240, dueño): se elige de la lista fija de `lib/timezones.ts` (las doce `America/Argentina/*`
+    y `UTC`, el valor por defecto primero), que el esquema zod usa como `enum`. Una zona guardada fuera de la lista
+    (puesta por el operador) se muestra como valor actual, con un aviso, y no impide guardar los otros campos; no
+    viaja si no se toca. La lista del navegador (`Intl`) se descartó: trae alias CLDR y cambia según el navegador.
+  - Edición solo con `org.update` en `allowed_actions`; mientras carga, o si la relectura falla, solo lectura (con
+    aviso y "Reintentar"). La UI no mira el rol. La query sale de su clave (`orgHeaderFromKey`); la mutación nombra
+    la empresa con la que se armó el formulario, que se remonta por empresa (`key={organizationId}`): cambiar de
+    empresa descarta lo escrito y el diálogo.
+  - "Abandonar la empresa" con `member.leave` (todos los roles, también suspendida, Q-221): reusa
+    `LeaveOrganizationDialog` y `useLeaveOrganization` de `T-TEN-34`; el diálogo ya no pide un `Member` (el título de
+    abandonar no lo usa y un viewer no puede listar miembros). `409 last_owner` explicado con `LAST_OWNER_TEXT`.
+  - Estados: carga (skeleton), error con "Reintentar", sin permiso (`403`); un campo sin informar se lee "—".
+  - La sección "Datos de la empresa" de Configuración pasa a tener enlace (sin `requires`: la leen todos).
+  - Sumados, con su porqué: `components/CompanyScreen.tsx` (C-14), `lib/company-form.ts`,
+    `lib/timezones.ts`, `hooks/useUpdateOrganization.ts`, `components/{MemberExitDialog,MembersTable}.tsx` (abandonar sin `Member`),
+    `scripts/smoke_pages.py`, `scripts/tests/{test_smoke_pages,smoke_stack_fakes}.py` (el smoke espera la
+    redirección de `/configuracion/empresa` a `/login`). `LeaveOrganizationDialog.tsx` no se creó: el de `T-TEN-34`
+    vive en `MemberExitDialog.tsx`.
+  - Pendiente (Q-239): pasar el formulario de sucursales (`lib/branch-form.ts`) a react-hook-form + zod, en otra tarea.
+  - Pruebas: `CompanyScreen.test.tsx`, `CompanyLeave.test.tsx` (con el `ActiveOrgProvider` real),
+    `lib/company-form.test.ts`, `SettingsSectionList.test.tsx`. Con Q-240 y Q-241 suma `clarifications.md` y la
+    fila de `T-TEN-38`.
 
 ### T-TEN-33 — Sucursales
 - **AC:** — (RF-TEN-06, spec §14). **Zona roja:** no.
@@ -1142,7 +1178,16 @@ T-TEN-30 · suspendida → T-TEN-29.
   y, si hace falta un evento nuevo, el catálogo y `AUDIT_TRIGGERS`.
 - **Pruebas:** `test_Q_237_*` por comando y por rechazo: un evento, sin otra escritura, sin email.
 
+### T-TEN-38 — Registrar en el log de seguridad un --operator rechazado (Q-241)
+- **AC:** — (RF-TEN-07, Q-241). RN-IDA-23, RNF-TEN-04. **Zona roja:** sí.
+- **Archivos:** `management/commands/_platform.py`, `tests/tenancy/commands/*`.
+- **Cambios:** `operator_of` escribe, antes de la salida `2`, una línea WARNING en el log de seguridad de la aplicación
+  con el nombre del comando y el usuario del sistema operativo; nunca el email ni el valor de `--operator`. No es un
+  evento de auditoría de ninguna empresa (Q-241) ni escribe nada más.
+- **Pruebas:** `test_Q_241_*` por comando: salida `2`, una línea WARNING con comando y `os_user`, sin el valor de
+  `--operator`, sin eventos de auditoría.
+
 ---
-**Hecho:** 37 tareas, 40 AC y 9 RF cubiertos, olas y división de archivos.
+**Hecho:** 38 tareas, 40 AC y 9 RF cubiertos, olas y división de archivos.
 **Pendiente / dudas:** Q-220 (SPEC-04/05).
 **Siguiente rol sugerido:** `backend-dev` en `T-TEN-01`, en paralelo con la ola 0 de SPEC-01, después `reviewer`.
