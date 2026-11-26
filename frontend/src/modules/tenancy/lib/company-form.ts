@@ -1,6 +1,7 @@
-import type { FieldErrors, Resolver } from "react-hook-form";
+import type { Resolver } from "react-hook-form";
 import { z } from "zod";
 
+import { flatZodResolver } from "@/lib/form-resolver";
 import type { ProblemFieldError } from "@/lib/problem";
 
 import type { CurrentOrganizationDetails } from "../hooks/useCurrentOrganizationDetails";
@@ -53,23 +54,9 @@ export function companySchema(currentTimezone: string) {
 }
 
 // The schema as react-hook-form's resolver: the trimmed values when they pass, the first message
-// of each field when they do not. The form's fields are flat, so the field is the issue's path.
+// of each field when they do not.
 export function companyResolver(currentTimezone: string): Resolver<CompanyValues> {
-  const schema = companySchema(currentTimezone);
-  return async (values) => {
-    const result = await schema.safeParseAsync(values);
-    if (result.success) {
-      return { values: result.data, errors: {} };
-    }
-    const errors: FieldErrors<CompanyValues> = {};
-    for (const issue of result.error.issues) {
-      const field = issue.path[0] as CompanyField;
-      if (errors[field] === undefined) {
-        errors[field] = { type: issue.code, message: issue.message };
-      }
-    }
-    return { values: {}, errors };
-  };
+  return flatZodResolver(companySchema(currentTimezone));
 }
 
 export function companyValuesOf(details: CurrentOrganizationDetails): CompanyValues {
