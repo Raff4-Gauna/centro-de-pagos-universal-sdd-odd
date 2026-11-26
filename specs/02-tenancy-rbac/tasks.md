@@ -110,7 +110,7 @@ Donde el diseño y el código de SPEC-00, o el orden real, difieren, manda esta 
 | T-TEN-36 | E2E y cierre conjunto con SPEC-01 | AC-TEN-08, AC-TEN-22, AC-TEN-39 | E2E | `scripts/e2e_tenancy.py`, `scripts/tests/test_e2e_tenancy.py` | T-TEN-30, T-TEN-31, T-TEN-35, T-IDA-31 | backend-dev | M | Sí | 🟡 | PR #150, rama `task/T-TEN-36-e2e-tenancy` |
 | T-TEN-37 | Auditar los rechazos de los comandos de operador (Q-237) | AC-TEN-23 (rechazos del operador) | Comandos | `services/platform_{owner_invite,org_status,access}.py`, `domain/audit_events.py` | T-TEN-28 | backend-dev | S | Sí | 🟡 | PR #144, rama `task/T-TEN-37-audit-operator-refusals` |
 | T-TEN-38 | Registrar en el log de seguridad un --operator rechazado (Q-241) | — (RF-TEN-07, Q-241) | Comandos | `management/commands/_platform.py` | T-TEN-37 | backend-dev | S | Sí | 🟡 | PR #146, rama `task/T-TEN-38-rejected-operator-log` |
-| T-TEN-39 | Aceptar con el token de una invitación ya aceptada por la misma persona responde 200 idempotente (Q-243) | AC-TEN-17 (Q-243) | Servicio/API | `domain/invitations.py`, `services/invitation_accept.py`, `api/invitations.py` | T-TEN-15, T-TEN-36 | backend-dev | S | Sí | 🟡 | rama `task/T-TEN-39-idempotent-accept`, sin PR |
+| T-TEN-39 | Aceptar con el token de una invitación ya aceptada por la misma persona responde 200 idempotente (Q-243) | AC-TEN-17 (Q-243) | Servicio/API | `domain/invitations.py`, `services/invitation_accept.py`, `api/invitations.py` | T-TEN-15, T-TEN-36 | backend-dev | S | Sí | 🟡 | PR #151, rama `task/T-TEN-39-idempotent-accept` |
 
 ## Cobertura AC → tareas
 | AC | Tareas |
