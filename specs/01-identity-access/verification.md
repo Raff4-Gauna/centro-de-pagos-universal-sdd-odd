@@ -28,14 +28,14 @@ Rutas relativas a `backend/tests/identity/` salvo que se indique otra. `fe:` es 
 
 | AC | Test(s) | Cobertura |
 |---|---|---|
-| AC-IDA-01 | `api/test_login_complete.py` (`test_AC_IDA_01_active_user_gets_session`, `…_invited_login_end_to_end_reaches_me`); `fe:app/api/auth/google/callback/route.test.ts`; `scripts/tests/test_e2e_login.py`; E2E real §3 | ✔ |
-| AC-IDA-02 | `test_AC_IDA_02_invited_user.py` (`…_invited_user_is_created_and_invitation_accepted`, `…_a_race_lost_twice_fails_without_personal_data`), `test_AC_IDA_02_concurrent_callbacks.py` (`…_concurrent_callbacks_one_user`), `test_login_with_real_port.py` (puerto real de SPEC-02) | ✔ (incluye la concurrencia: un usuario, ningún `500`) |
-| AC-IDA-03 | `api/test_login_complete.py` (`…_no_invitation_creates_nothing`, `…_rejected_is_audited`), `api/test_login_complete_errors.py` (`…_rejection_event_survives_the_rollback`) | ✔ |
-| AC-IDA-04 | `test_AC_IDA_02_invited_user.py`, `test_login_with_real_port.py`, `ten:test_invitation_port_contract.py` (`…_expired_since_find_is_refused`, `…_revoked_between_find_and_accept`) | ✔ (incluye "vigente al iniciar el login") |
+| AC-IDA-01 | `api/test_login_complete.py` (`test_AC_IDA_01_active_user_gets_session`, `…_invited_login_end_to_end_reaches_me`); `fe:app/api/auth/google/callback/route.test.ts`; `scripts/tests/test_e2e_login.py`; E2E real §3 | ✔ (con el proveedor falso; **manual con Google real pendiente**, §5 paso 1) |
+| AC-IDA-02 | `test_AC_IDA_02_invited_user.py` (`…_invited_user_is_created_and_invitation_accepted`, `…_a_race_lost_twice_fails_without_personal_data`), `test_AC_IDA_02_concurrent_callbacks.py` (`…_concurrent_callbacks_one_user`), `test_login_with_real_port.py` (puerto real de SPEC-02) | ✔ (incluye la concurrencia: un usuario, ningún `500`; **manual con Google real pendiente**, §5 paso 1) |
+| AC-IDA-03 | `test_AC_IDA_02_invited_user.py` (`…_no_invitation_creates_nothing`), `api/test_login_complete.py` (`…_rejected_is_audited`), `api/test_login_complete_errors.py` (`…_rejection_event_survives_the_rollback`) | ✔ |
+| AC-IDA-04 | `test_AC_IDA_02_invited_user.py`, `test_login_with_real_port.py` (`…_revoked_between_find_and_accept`), `ten:test_invitation_port_contract.py` (`…_expired_since_find_is_refused`) | ✔ (incluye "vigente al iniciar el login") |
 | AC-IDA-05 | `test_AC_IDA_05_rollback.py`, `test_login_with_real_port.py`, `ten:test_invitation_port_contract.py` (`…_one_invalid_rolls_back_all_inside_the_port`) | ✔ |
 | AC-IDA-06 | `api/test_login_complete.py` (`test_AC_IDA_06_unverified_email`) | ✔ |
 | AC-IDA-07 | `oidc/test_id_token.py` (firma, `aud`, `iss`, vencido >60 s y dentro de la tolerancia, algoritmos), `oidc/test_google_gateway.py` | ✔ |
-| AC-IDA-08 | `api/test_login_complete.py` (`…_bad_state_never_calls_google`, `…_nonce_mismatch`, `…_repeated_callback`), `api/test_login_complete_errors.py`, `oidc/test_id_token.py` | ✔ |
+| AC-IDA-08 | `api/test_login_complete.py` (`…_bad_state_never_calls_google`, `…_nonce_of_another_attempt_is_refused`, `…_repeated_callback`), `api/test_login_complete_errors.py`, `oidc/test_id_token.py` (`…_nonce_mismatch`) | ✔ |
 | AC-IDA-09 | `api/test_login_complete.py`, `test_user_provisioning.py`, `test_refresh.py`, `api/test_refresh_view.py` (`…_inactive_user_refresh_via_api`) | ✔ |
 | AC-IDA-10 | `tokens/test_access_token.py` (`…_expired_over_60s`, `…_issued_14_min_ago_is_valid`), `api/test_authentication.py` (`…_expired_via_api`) | ✔ |
 | AC-IDA-11 | `tokens/test_access_token.py` (firma alterada, otra clave, `alg=none`, HS256, fuera de la lista), `api/test_authentication.py` | ✔ |
@@ -51,11 +51,11 @@ Rutas relativas a `backend/tests/identity/` salvo que se indique otra. `fe:` es 
 | AC-IDA-21 | `api/test_AC_IDA_21_me.py` (`…_returns_only_own_data`, `…_anonymous_is_401_unauthenticated`), `ten:test_membership_selector.py` (`…_me_uses_real_selector`) | ✔ |
 | AC-IDA-22 | `api/test_AC_IDA_21_me.py`, `api/test_authentication.py`, `api/test_refresh_view.py` (`…_api_key_on_refresh`) | ✔ |
 | AC-IDA-23 | `api/test_AC_IDA_23_no_secrets.py`, `test_AC_IDA_23_redaction_keys.py` y las pruebas de logs de start, callback, refresh y logout | ✔ (además, el barrido de logs del E2E, §3) |
-| AC-IDA-24 | `api/test_AC_IDA_24_events.py` (`…_every_event_is_emitted`, `…_429_is_not_audited`, `…_catalog_matches_spec`), `test_AC_IDA_02_invited_user.py` (organización de la invitación) | ✔ |
+| AC-IDA-24 | `api/test_AC_IDA_24_events.py` (`…_every_event_is_emitted`, `…_429_is_not_audited`), `test_ports.py` (`…_catalog_matches_spec`), `test_AC_IDA_02_invited_user.py` (organización de la invitación) | ✔ |
 | AC-IDA-25 | `api/test_sessions.py` (`…_foreign_session_is_404`, `…_ended_session_is_404`) | ✔ |
 | AC-IDA-26 | `api/test_authentication.py`, `api/test_sessions.py`, `fe:lib/api-client.test.ts`, `fe:lib/server/session-proxy.refresh.test.ts` | ✔ |
 | AC-IDA-27 | `test_AC_IDA_27_deactivate.py`, `test_revocation_concurrency.py`, `test_Q_242_operator_refused.py` | ✔ (incluye reactivar sin revivir sesiones) |
-| AC-IDA-28 | `test_refresh_concurrency.py` (`…_two_concurrent_refreshes`), `test_refresh.py`, `domain/test_session_policy.py`, `fe:lib/server/refresh.test.ts` | ✔ |
+| AC-IDA-28 | `test_refresh_concurrency.py` (`…_two_concurrent_refreshes`), `test_refresh.py`, `domain/test_session_policy.py`, `fe:lib/server/refresh.test.ts` | ✔ (con el proveedor falso; **manual con Google real pendiente**: dos pestañas tras 15 min, §5 paso 1) |
 | AC-IDA-29 | `test_user_provisioning.py` (`…_email_change_free`, `…_new_sub_with_taken_email_is_conflict`, con la alerta en el log) | ✔ |
 | AC-IDA-30 | `test_user_provisioning.py`, `api/test_AC_IDA_21_me.py` (`…_no_memberships_returns_empty_list`), `fe:modules/identity/components/NoOrganizationState.test.tsx` | ✔ |
 | AC-IDA-31 | `test_AC_IDA_31_normalization.py`, `test_AC_IDA_02_invited_user.py`, `test_login_with_real_port.py`, `test_user_constraints.py` | ✔ |
@@ -148,10 +148,19 @@ Rutas relativas a `backend/tests/identity/` salvo que se indique otra. `fe:` es 
 
 | Severidad | Hallazgo | Archivo:línea | Regla | Estado |
 |---|---|---|---|---|
-| — | Falta la revisión del diff acumulado del módulo (paso 2 de `/verify`) | — | C-15 | Pendiente |
+| No bloqueante | `apps.tenancy` importa módulos internos de identity, no solo `apps.identity.ports`: `selectors.users.get_by_id`, `selectors.auth_sessions.RequestAuthContext` y `api.authentication`. La dirección es la permitida (identity no importa tenancy; lo vigila `tests/architecture/test_identity_boundaries.py`), pero ninguna regla de arquitectura limita qué toma tenancy de identity. Seguimiento: exponerlo por `apps.identity.ports` o documentarlo como permitido | `apps/tenancy/services/invitation_port.py:45`, `apps/tenancy/api/invitations.py:74`, `apps/tenancy/api/organizations.py:36`, `apps/tenancy/api/base.py:40`, `apps/tenancy/api/permissions.py:48` | ADR-0011, `context/12 §9` | Abierto (no bloquea) |
 
-Cada PR de 01 tuvo veredicto del `reviewer` con SHA y el label `zona-roja` (`tasks.md`, columna Evidencia). La revisión
-de cierre del diff completo de 01 y 02 la pide la sesión principal.
+**Revisión acumulada de 01 y 02 (paso 2 de `/verify`, Q-108): hecha.** La hizo el `reviewer` sobre `main` en `5536088`, en la Parte B de su veredicto en el PR #153 ([comentario](https://github.com/Raff4-Gauna/centro-de-pagos-universal-sdd-odd/pull/153#issuecomment-7204630269)). **No encontró defectos de código.** Revisó:
+- **aislamiento:** los tres `unscoped` de `apps/` llevan un `UnscopedReason` explícito, el SQL crudo está acotado y parametrizado, y `tests/cross_tenant/` recorre todas las rutas reales;
+- **auth y sesión:** cookies `__Host-`/`Secure`/`HttpOnly`/`SameSite=Lax`, CSRF doble que falla cerrado, JWT y refresh;
+- **secretos y PII (C-06):** no hay logs con email, token, cookie ni secreto;
+- **auditoría (RNF-TEN-04):** el catálogo coincide con la spec;
+- **C-14:** ningún archivo de código pasa de 400 líneas;
+- **ADR-0011:** identity no importa tenancy.
+
+El único hallazgo, no bloqueante, es el de la tabla.
+
+Cada PR de 01 tuvo veredicto del `reviewer` con SHA y el label `zona-roja` (`tasks.md`, columna Evidencia).
 
 ## 7. Hallazgos
 
@@ -161,9 +170,11 @@ de cierre del diff completo de 01 y 02 la pide la sesión principal.
 3. **`scripts/spec_state_baseline.json` desactualizado:** la lista `allow_missing_tests` de `01-identity-access` sigue
    con 26 AC que ya tienen test. No da drift (`check_spec_state.py` cuenta 0 en baseline), pero si se borrara el test de
    uno de esos AC, el chequeo no lo detectaría. Lo corrige `project-steward`; no corresponde a este PR.
-4. **Revisión del diff acumulado** pendiente (§6).
+4. **Frontera 02 → 01** (no bloqueante, de la revisión acumulada, §6): tenancy usa piezas internas de identity además de
+   `apps.identity.ports`, sin una regla de arquitectura que lo limite. Hace falta decidir si se expone por puertos o se
+   documenta como permitido (ADR-0011).
 
-Ninguno es un hallazgo de código ni de cobertura: los 38 AC tienen test y corrieron en verde.
+Ninguno es un defecto de código ni de cobertura: los 38 AC tienen test y corrieron en verde.
 
 ## 8. Decisión
 
@@ -174,7 +185,7 @@ Ninguno es un hallazgo de código ni de cobertura: los 38 AC tienen test y corri
 |---|---|---|
 | Confirmar o rechazar el tope `refresh_ip` (§5, paso 4) | dueño | hallazgo 1 |
 | Correr Google real, o dejar escrito que se posterga hasta tener hosting (§5, paso 1) | dueño | hallazgo 2: AC-IDA-01, 02 y 28 en un entorno real |
-| Revisar el diff acumulado de 01 y 02 (§6) | `reviewer` | cierre del módulo |
+| Decidir la frontera 02 → 01 (§6): exponer por `apps.identity.ports` o documentarlo | dueño / architect | hallazgo 4, no bloquea |
 
 No hay tareas para reabrir. Cuando esto se resuelva, las filas de `tasks.md` pasan a `🧪` y el dueño decide `Verified`,
 junto con SPEC-02 (Q-108).
