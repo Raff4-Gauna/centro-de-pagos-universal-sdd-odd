@@ -66,7 +66,7 @@ class Command(BaseCommand):
     def handle(
         self, *args: object, org: str, email: str, reason: str, operator: str, **options: object
     ) -> None:
-        actor, target = operator_of(operator), organization_id(org)
+        actor, target = operator_of(operator, self), organization_id(org)
         try:
             issued = issue_owner_recovery(target, email, reason, actor)
         except (InvalidInviteeEmailError, InvalidReasonError) as error:

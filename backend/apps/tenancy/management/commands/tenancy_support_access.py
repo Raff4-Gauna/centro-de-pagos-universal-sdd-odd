@@ -83,7 +83,7 @@ class Command(BaseCommand):
         role: str = DEFAULT_SUPPORT_ROLE.value,
         **options: object,
     ) -> None:
-        actor, target = operator_of(operator), organization_id(org)
+        actor, target = operator_of(operator, self), organization_id(org)
         try:
             issued = grant_support_access(target, email, reason, actor, role=Role(role))
         except (InvalidInviteeEmailError, InvalidReasonError) as error:

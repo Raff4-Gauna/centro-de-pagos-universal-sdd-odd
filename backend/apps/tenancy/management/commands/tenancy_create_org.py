@@ -2,7 +2,8 @@
 
 Creates an organization with no members and a ``pending`` owner invitation to ``E``
 (``services.platform_org``, design.md §4.5, AC-TEN-22). ``--operator`` must be an email of
-``PLATFORM_OPERATOR_EMAILS`` (``apps.common.platform_operators``, as every operator command).
+``PLATFORM_OPERATOR_EMAILS``, checked by ``_platform.operator_of`` as every operator command
+(an operator not allowed is logged as a security WARNING, Q-241).
 The invitation link goes to stdout once, never through the logger: whoever runs the command
 hands it to the owner. Running it again with the same ``--key`` and values creates nothing and
 says so (Q-123); with other values it is refused. Either repeat is audited as
@@ -21,12 +22,11 @@ from argparse import ArgumentParser
 from django.core.exceptions import ImproperlyConfigured
 from django.core.management.base import BaseCommand, CommandError
 
-from apps.common.platform_operators import OperatorNotAllowedError, allowed_operator, os_user
 from apps.tenancy.domain.invitations import INVITATION_TTL
+from apps.tenancy.management.commands._platform import operator_of
 from apps.tenancy.services.platform_org import (
     CreationKeyConflictError,
     InvalidOrgRequestError,
-    Operator,
     PlatformOrg,
     clean_request,
     create_platform_org,
@@ -61,11 +61,11 @@ class Command(BaseCommand):
         operator: str,
         **options: object,
     ) -> None:
+        actor = operator_of(operator, self)
         try:
-            actor = Operator(email=allowed_operator(operator), os_user=os_user())
             request = clean_request(key=key, name=name, owner_email=owner_email)
             result = create_platform_org(request, actor)
-        except (OperatorNotAllowedError, InvalidOrgRequestError) as error:
+        except InvalidOrgRequestError as error:
             raise CommandError(str(error), returncode=USAGE_EXIT) from None
         except CreationKeyConflictError as error:
             raise CommandError(

@@ -69,7 +69,7 @@ class Command(BaseCommand):
         email: str | None = None,
         **options: object,
     ) -> None:
-        actor, target = operator_of(operator), organization_id(org)
+        actor, target = operator_of(operator, self), organization_id(org)
         if email is not None and action == REVOKE:
             raise CommandError("revoke takes no --email", returncode=USAGE_EXIT)
         try:

@@ -51,7 +51,7 @@ class Command(BaseCommand):
     def handle(
         self, *args: object, org: str, status: str, reason: str, operator: str, **options: object
     ) -> None:
-        actor = operator_of(operator)
+        actor = operator_of(operator, self)
         target_id, target = organization_id(org), OrgStatus(status)
         try:
             clean = clean_reason(reason)
