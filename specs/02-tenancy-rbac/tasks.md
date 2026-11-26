@@ -73,8 +73,8 @@ Donde el diseño y el código de SPEC-00, o el orden real, difieren, manda esta 
 
 ## Resumen
 
-> Las 39 tareas están mergeadas (✅, con el PR y el SHA del squash en `main`), conciliadas con git el 2026-11-26.
-> Ninguna está 🧪: falta la verificación conjunta con SPEC-01 (Q-108). La columna **Evidencia** es obligatoria para
+> 39 de las 40 tareas están mergeadas (✅, con el PR y el SHA del squash en `main`), conciliadas con git el 2026-11-26;
+> `T-TEN-40` está en revisión. Ninguna está 🧪: falta la verificación conjunta con SPEC-01 (Q-108). La columna **Evidencia** es obligatoria para
 > `✅` y la verifica `scripts/check_spec_state.py`.
 
 | ID | Título | AC | Capa | Archivos esperados (ver detalle) | Depende de | Agente | Tamaño | Zona roja | Estado | Evidencia |
@@ -118,6 +118,7 @@ Donde el diseño y el código de SPEC-00, o el orden real, difieren, manda esta 
 | T-TEN-37 | Auditar los rechazos de los comandos de operador (Q-237) | AC-TEN-23 (rechazos del operador) | Comandos | `services/platform_{owner_invite,org_status,access}.py`, `domain/audit_events.py` | T-TEN-28 | backend-dev | S | Sí | ✅ | #144 · 35624bc |
 | T-TEN-38 | Registrar en el log de seguridad un --operator rechazado (Q-241) | — (RF-TEN-07, Q-241) | Comandos | `management/commands/_platform.py` | T-TEN-37 | backend-dev | S | Sí | ✅ | #146 · 52ccc7e |
 | T-TEN-39 | Aceptar con el token de una invitación ya aceptada por la misma persona responde 200 idempotente (Q-243) | AC-TEN-17 (Q-243) | Servicio/API | `domain/invitations.py`, `services/invitation_accept.py`, `api/invitations.py` | T-TEN-15, T-TEN-36 | backend-dev | S | Sí | ✅ | #151 · 6fd9ed6 |
+| T-TEN-40 | Test de AC-TEN-17: la misma persona repite el token después del vencimiento (Q-243) | AC-TEN-17 (Q-243) | Tests | `backend/tests/tenancy/test_Q_243_idempotent_accept.py`, `backend/tests/tenancy/api/test_invitation_accept_api.py` | T-TEN-39 | backend-dev | S | Sí | 🟡 | PR #155, rama `task/T-TEN-40-repeat-after-expiry-test` |
 
 ## Cobertura AC → tareas
 | AC | Tareas |
@@ -138,7 +139,7 @@ Donde el diseño y el código de SPEC-00, o el orden real, difieren, manda esta 
 | AC-TEN-14 | T-TEN-23 |
 | AC-TEN-15 | T-TEN-06, T-TEN-07, T-TEN-20, T-TEN-21, T-TEN-22, T-TEN-23 |
 | AC-TEN-16 | T-TEN-06, T-TEN-07, T-TEN-22, T-TEN-24 |
-| AC-TEN-17 | T-TEN-15, T-TEN-17 (vía puerto), T-TEN-31, T-TEN-39 (Q-243) |
+| AC-TEN-17 | T-TEN-15, T-TEN-17 (vía puerto), T-TEN-31, T-TEN-39 (Q-243), T-TEN-40 (Q-243 tras el vencimiento) |
 | AC-TEN-18 | T-TEN-15 |
 | AC-TEN-19 | T-TEN-15 |
 | AC-TEN-20 | T-TEN-20 |
@@ -189,7 +190,7 @@ T-TEN-30 · suspendida → T-TEN-29.
 | 3 | T-TEN-13 · T-TEN-15 → {T-TEN-16, T-TEN-17, T-TEN-20} | T-TEN-17 espera a T-IDA-13: desde ahí un invitado entra de verdad |
 | 4 | T-TEN-18 → {T-TEN-19, T-TEN-28} → T-TEN-37 → T-TEN-38 · T-TEN-20 → T-TEN-21 · T-TEN-22 → T-TEN-23 · T-TEN-24 → T-TEN-25 · T-TEN-26 | Con T-TEN-18 existe la primera organización real |
 | 5 | T-TEN-27 · T-TEN-29 → {T-TEN-30, T-TEN-31, T-TEN-32, T-TEN-33, T-TEN-34} → T-TEN-35 | T-TEN-29 espera a T-IDA-27 |
-| 6 | T-TEN-36 → T-TEN-39 | Cierre conjunto (Q-108): después se verifican 01 y 02 en la misma pasada. T-TEN-39 corrige lo que encontró el E2E (Q-243) |
+| 6 | T-TEN-36 → T-TEN-39 → T-TEN-40 | Cierre conjunto (Q-108): después se verifican 01 y 02 en la misma pasada. T-TEN-39 corrige lo que encontró el E2E (Q-243); T-TEN-40 suma los tests que pidió la verificación conjunta |
 
 ---
 
@@ -1259,6 +1260,21 @@ T-TEN-30 · suspendida → T-TEN-29.
 - **Pruebas:** `test_Q_243_*` (servicio, ruta, carrera de la misma persona, otra cuenta, membership terminada,
   suspendida, ruta de sesión sin cambios, dominio y pantalla); `AC-TEN-17` sigue probando `used` para otra cuenta.
 
+### T-TEN-40 — Test de AC-TEN-17: la misma persona repite el token después del vencimiento (Q-243)
+- **AC:** AC-TEN-17 (Q-243, spec 1.0.3). RNF-TEN-03. **Zona roja:** sí (aceptación de invitaciones); solo tests.
+- **Archivos:** `backend/tests/tenancy/test_Q_243_idempotent_accept.py`,
+  `backend/tests/tenancy/api/test_invitation_accept_api.py`.
+- **Cambios:** la verificación conjunta (#153, `verification.md §8`) encontró que ningún test cubría la cláusula de
+  Q-243 con `now >= expires_at`: la misma persona con su membership `active` recibe la aceptación, no `expired`. El
+  código ya lo resolvía (`domain/invitations.py`: los estados cerrados se deciden antes del vencimiento). Suma también
+  los dos tests que pidió la revisión de #151. Sin cambios de código de producción.
+- **Pruebas:** `test_AC_TEN_17_same_person_repeat_after_expiry_is_success` (ruta, con la invitación vencida por
+  `make_due`: `200` con el rol vigente, la misma membership, ninguna nueva, sin evento de auditoría, sin token ni email
+  en los logs ni en la respuesta); `test_AC_TEN_17_same_person_repeat_after_expiry_answers_the_membership` (servicio,
+  `now = expires_at` y 30 días después); `test_Q_243_first_login_accepted_it_then_the_token_is_200` (el puerto de
+  SPEC-01 acepta en el primer login y después el token responde `200`);
+  `test_Q_243_another_account_through_the_route_is_used` (`400 used` por HTTP para otra cuenta con el mismo email).
+
 ## Seguimientos técnicos (de las revisiones, sin tarea)
 
 No bloqueantes que dejaron los veredictos. No son tareas: el planner decide si alguno la necesita (Carril S) o va
@@ -1345,8 +1361,8 @@ un PR posterior cerró alguno.
   falta el `403` del `operator` en `GET /api/invitations/`; AC-TEN-39 infiere `accepted`; dos tests con prefijo
   AC-TEN-22 prueban AC-TEN-24 y AC-TEN-34; el `run_manage` falso usa `str.split`; el E2E no corre en CI (sumarlo toca
   `ci.yml`: lo decide el dueño, Q-063).
-- **#151 (T-TEN-39):** faltan tests de la repetición de Q-243 después del vencimiento, del `used` por HTTP para otra
-  cuenta y del escenario real (el puerto en el primer login y después el token).
+- **#151 (T-TEN-39):** faltaban tests de la repetición de Q-243 después del vencimiento, del `used` por HTTP para otra
+  cuenta y del escenario real (el puerto en el primer login y después el token): los suma `T-TEN-40`.
 
 ## Conciliación con git (generada, no editar a mano)
 
@@ -1398,8 +1414,8 @@ un PR posterior cerró alguno.
 <!-- check_spec_state:end -->
 
 ---
-**Hecho:** 39 tareas, 40 AC y 9 RF cubiertos, olas y división de archivos. Al 2026-11-26 las 39 están mergeadas
-(PR #82 a #151).
+**Hecho:** 40 tareas, 40 AC y 9 RF cubiertos, olas y división de archivos. Al 2026-11-26, 39 están mergeadas
+(PR #82 a #151) y `T-TEN-40` está en revisión.
 **Pendiente / dudas:** Q-220 (SPEC-04/05) y Q-229 (unicidades con el manager que falla cerrado), abiertas y sin
 bloquear 02. La verificación conjunta con SPEC-01 está hecha (PR #153); el 2026-11-26 el dueño pasó la cláusula s2s
 de AC-TEN-28 a SPEC-06 (Q-244, spec 1.0.4). Falta el test de AC-TEN-17 con la invitación vencida (`T-TEN-40`, en un PR

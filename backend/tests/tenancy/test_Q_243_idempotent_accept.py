@@ -5,15 +5,21 @@ The first login accepts every valid invitation of the email (RN-IDA-06), so back
 the membership it gave, as the first time: no new membership, no new audit event, only an ``info``
 log line with ids. Anyone else (another account, or a membership already ended) still gets
 ``used``, and so does the session route (T-TEN-16), which Q-243 does not cover.
+
+The repeat is answered even past ``expires_at`` (AC-TEN-17, T-TEN-40): a closed state is decided
+before the expiry, so an accepted invitation never turns ``expired``.
 """
 
 from __future__ import annotations
 
 from collections.abc import Callable, Iterator
+from datetime import timedelta
 from typing import Any
 
 import pytest
+from django.db import transaction
 from django.test import Client
+from django.utils import timezone
 
 from apps.common.audit.port import get_sink
 from apps.common.audit.sinks import RecordingSink
@@ -27,8 +33,9 @@ from apps.tenancy.services.invitation_accept import (
     accept_by_token,
     accept_from_session,
 )
+from apps.tenancy.services.invitation_port import TenancyInvitationPort
 from tests.tenancy.api.probe import PLATFORM, bearer_of, new_org, new_user, revoke
-from tests.tenancy.invitation_setup import invitee, issue, memberships, status_of
+from tests.tenancy.invitation_setup import invitee, issue, make_due, memberships, status_of
 
 pytestmark = pytest.mark.django_db
 
@@ -151,3 +158,92 @@ def test_Q_243_route_repeat_is_200_with_the_same_body(client: Client) -> None:
     assert again["Cache-Control"] == "no-store"
     assert token not in again.content.decode()
     assert len(memberships(ana)) == 1
+
+
+# --- AC-TEN-17: the repeat past ``expires_at`` (T-TEN-40) ----------------------------------------
+
+
+@pytest.mark.parametrize(
+    "late", [timedelta(0), timedelta(days=30)], ids=["at-expiry", "long-after"]
+)
+def test_AC_TEN_17_same_person_repeat_after_expiry_answers_the_membership(
+    recorded: RecordingSink, late: timedelta
+) -> None:
+    """``now >= expires_at``: still the membership it gave, never ``expired``."""
+    invitation, token = issue(new_org("A"), "ana@hub.test", Role.OPERATOR)
+    ana = new_user("ana")
+    first = accept_by_token(token, invitee(ana))
+    recorded.clear()
+
+    again = accept_by_token(token, invitee(ana), now=invitation.expires_at + late)
+
+    assert again == first
+    assert len(memberships(ana)) == 1
+    assert status_of(invitation) == InvitationStatus.ACCEPTED
+    assert recorded.events == []
+
+
+def test_AC_TEN_17_same_person_repeat_after_expiry_is_success(
+    client: Client, recorded: RecordingSink, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Through the route, once the invitation is past due: ``200`` with the current role."""
+    org = new_org("A")
+    invitation, token = issue(org, "ana@hub.test", Role.VIEWER)
+    ana = new_user("ana")
+    auth = bearer_of(ana)
+
+    def post() -> Any:
+        return client.post(ACCEPT, {"token": token}, content_type="application/json", headers=auth)
+
+    first = post()
+    membership_id = first.json()["membership_id"]
+    Membership.objects.unscoped(PLATFORM).filter(pk=membership_id).update(role="operator")
+    make_due(invitation)
+    recorded.clear()
+    capsys.readouterr()
+
+    again = post()
+
+    assert (first.status_code, again.status_code) == (200, 200)
+    assert again["Cache-Control"] == "no-store"
+    assert again.json() == {
+        "organization": {"id": str(org.id), "name": "A"},
+        "role": "operator",
+        "membership_id": membership_id,
+    }
+    assert [(row[1], row[2]) for row in memberships(ana)] == [("operator", "active")]
+    assert status_of(invitation) == InvitationStatus.ACCEPTED
+    assert recorded.events == []
+    out = capsys.readouterr()
+    logged = out.out + out.err + again.content.decode()
+    assert "tenancy.invitation_refused" not in logged
+    for secret in (token, "ana@hub.test"):
+        assert secret not in logged
+
+
+def test_Q_243_first_login_accepted_it_then_the_token_is_200(
+    client: Client, recorded: RecordingSink
+) -> None:
+    """The real path: the login accepts through the SPEC-01 port, then ``/invitacion`` sends it."""
+    org = new_org("A")
+    invitation, token = issue(org, "ana@hub.test", Role.OPERATOR)
+    ana = new_user("ana")
+    now = timezone.now()
+    with transaction.atomic():
+        port = TenancyInvitationPort()
+        port.accept_invitations(
+            port.find_valid_invitations("ana@hub.test", now=now), ana.pk, now=now
+        )
+    [(_, _, _, source)] = memberships(ana)
+    recorded.clear()
+
+    response = client.post(
+        ACCEPT, {"token": token}, content_type="application/json", headers=bearer_of(ana)
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert (body["organization"]["id"], body["role"]) == (str(org.id), "operator")
+    assert source == invitation.id
+    assert len(memberships(ana)) == 1
+    assert recorded.events == []

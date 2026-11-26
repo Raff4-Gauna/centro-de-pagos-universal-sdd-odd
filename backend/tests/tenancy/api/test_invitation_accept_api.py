@@ -15,6 +15,7 @@ from django.test import Client
 
 from apps.common.authz.roles import Role
 from apps.common.tenancy.context import OrgStatus
+from apps.identity.models import User
 from apps.tenancy.domain.invitations import InvitationStatus, hash_token
 from apps.tenancy.models import Organization
 from tests.contract.test_AC_PLT_23_openapi_up_to_date import CONTRACT
@@ -68,6 +69,20 @@ def test_Q_243_second_use_by_the_same_person_is_200(client: Client) -> None:
     assert (first.status_code, again.status_code) == (200, 200)
     assert again.json() == first.json()
     assert len(memberships(ana)) == 1
+
+
+def test_Q_243_another_account_through_the_route_is_used(client: Client) -> None:
+    """Another account with the same address (it passed on): ``used``, no membership for it."""
+    invitation, token = issue(new_org("A"), "ana@hub.test")
+    ana, beto = new_user("ana"), new_user("beto")
+    assert post(client, {"token": token}, **bearer_of(ana)).status_code == 200
+    User.objects.filter(pk=ana.pk).update(email="ana.vieja@hub.test")
+    User.objects.filter(pk=beto.pk).update(email="ana@hub.test")
+    response = post(client, {"token": token}, **bearer_of(beto))
+    assert_invalid(response, "used")
+    assert token not in response.content.decode()
+    assert status_of(invitation) == InvitationStatus.ACCEPTED
+    assert memberships(beto) == []
 
 
 def test_AC_TEN_18_other_email_through_the_route(client: Client) -> None:

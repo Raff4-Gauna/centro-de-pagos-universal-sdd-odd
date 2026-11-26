@@ -28,7 +28,8 @@ commit_verificado: 5536088504208697469930a25926c8397a87cb0e
 - No se agregaron tests (este PR es de documentos). Quedaban dos huecos: AC-TEN-28 (s2s sobre un cobro), que no se
   puede cubrir sin el módulo de cobros, y la cláusula de Q-243 sobre una invitación vencida de AC-TEN-17, que pide una
   tarea de test (§8). **Actualización (2026-11-26):** por decisión del dueño (Q-244, spec 1.0.4) la cláusula del cobro
-  pasó a SPEC-06 (AC-CHG-18) y AC-TEN-28 queda ✔ con los mismos tests; sigue abierto el de AC-TEN-17.
+  pasó a SPEC-06 (AC-CHG-18) y AC-TEN-28 queda ✔ con los mismos tests. El hueco de AC-TEN-17 lo cierra `T-TEN-40`
+  (#155), con tests nuevos que corrieron en verde (§2, fila T-TEN-40); AC-TEN-17 queda ✔.
 
 ## 1. Matriz AC → test
 
@@ -53,7 +54,7 @@ es `backend/tests/architecture/` y `fe:` es `frontend/src/`.
 | AC-TEN-14 | `test_membership_exit_race.py` (`test_AC_TEN_14_mutual_demotion_keeps_one_owner`, dos requests reales en paralelo) | ✔ |
 | AC-TEN-15 | `domain/test_permission_matrix_active.py` (`…_matrix_admin_owner_actions`), `domain/test_role_rules.py`, `api/test_invitations_create.py`, `api/test_invitations_manage_refusals.py`, `api/test_membership_role.py`, `api/test_membership_exit.py` | ✔ |
 | AC-TEN-16 | `domain/test_permission_matrix_active.py` (`…_matrix_operator_viewer`), `domain/test_role_rules.py` (`…_no_self_elevation`), `api/test_branches.py`, `api/test_branch_detail.py`, `api/test_invitations_create.py`, `api/test_membership_role.py` | ✔ |
-| AC-TEN-17 | `test_invitation_accept.py` (`…_accept_creates_membership`), `test_invitation_accept_race.py` (`…_double_accept_in_parallel_by_another_account`, `test_Q_243_double_accept_in_parallel_by_the_same_person`), `api/test_invitation_accept_api.py` (`test_Q_243_second_use_by_the_same_person_is_200`), `test_Q_243_idempotent_accept.py` (`test_Q_243_same_person_repeat_answers_the_same_membership`); `fe:` `AcceptInvitation.test.tsx`, `invitation-token.test.ts` | ⚠ aceptación, segundo uso por otra cuenta (también en paralelo) y repetición por la misma persona, completos. **Falta** la cláusula de Q-243 "aunque la invitación ya haya vencido": ningún test repite la aceptación de una invitación `accepted` con `now >= expires_at`. El código la resuelve (`decide_accept` revisa los estados cerrados antes del vencimiento, `apps/tenancy/domain/invitations.py:126-130`), pero no hay test que lo pruebe. Acción en §8 |
+| AC-TEN-17 | `test_invitation_accept.py` (`…_accept_creates_membership`), `test_invitation_accept_race.py` (`…_double_accept_in_parallel_by_another_account`, `test_Q_243_double_accept_in_parallel_by_the_same_person`), `api/test_invitation_accept_api.py` (`test_Q_243_second_use_by_the_same_person_is_200`, `test_Q_243_another_account_through_the_route_is_used`), `test_Q_243_idempotent_accept.py` (`test_Q_243_same_person_repeat_answers_the_same_membership`, `…_same_person_repeat_after_expiry_is_success`, `…_same_person_repeat_after_expiry_answers_the_membership`, `test_Q_243_first_login_accepted_it_then_the_token_is_200`); `fe:` `AcceptInvitation.test.tsx`, `invitation-token.test.ts` | ✔ aceptación, segundo uso por otra cuenta (también en paralelo y por la ruta) y repetición por la misma persona. La cláusula de Q-243 "aunque la invitación ya haya vencido" la cubre `T-TEN-40` (#155). La misma persona repite con `now >= expires_at`, en el instante del vencimiento y 30 días después (servicio), y por la ruta con la invitación vencida (`make_due`). Resultado: la respuesta de éxito con su membership y su rol actual, una sola membership, invitación `accepted`, sin eventos y sin `invitation_refused` en el log. Corrida en §2, fila T-TEN-40 |
 | AC-TEN-18 | `test_invitation_accept.py` (`…_other_email_keeps_pending`), `api/test_invitation_accept_api.py`, `domain/test_invitations.py` | ✔ |
 | AC-TEN-19 | `test_invitation_accept.py` (`…_expired_or_revoked`), `api/test_invitation_accept_api.py`, `domain/test_invitations.py` | ✔ |
 | AC-TEN-20 | `api/test_invitations_create.py` (`…_already_member`) | ✔ |
@@ -78,7 +79,7 @@ es `backend/tests/architecture/` y `fe:` es `frontend/src/`.
 | AC-TEN-39 | `api/test_my_invitations_api.py` (`…_lists_only_my_email`, `…_expired_and_suspended_are_not_listed`, `…_response_has_no_token`, `…_foreign_and_missing_same_body`), `test_my_invitations_commit.py` (`…_foreign_attempt_is_audited`), `test_invitation_session_scopes.py`; `fe:` `PendingInvitationsNotice.test.tsx`, `useMyInvitations.test.ts`; `scripts/tests/test_e2e_tenancy.py`; E2E real §3 (`[mine]`, `[accept-other-email]`, `[accept-from-session]`) | ✔ |
 | AC-TEN-40 | `commands/test_create_org.py` (`…_existing_user_gets_invitation_not_membership`, `…_next_login_does_not_accept`, `…_accept_from_session_gives_one_owner`) | ✔ |
 
-**Resumen:** 39 ✔ · 1 ⚠ (AC-TEN-17) · 0 ✘ · 40 AC. `AC-CHG-13`: cita a SPEC-06, fuera de la matriz.
+**Resumen:** 40 ✔ · 0 ⚠ · 0 ✘ · 40 AC. `AC-CHG-13`: cita a SPEC-06, fuera de la matriz.
 
 ## 2. Ejecución (2026-11-26, commit `5536088`)
 
@@ -96,6 +97,7 @@ Las mismas corridas que `specs/01-identity-access/verification.md §2`: son una 
 | Estado | `python scripts/check_spec_state.py` | ✔ `OK: sin drift` |
 | CI sobre el mismo commit | workflow `ci`, run `45900649873` | ✔ 10/10 jobs |
 | Pre-commit | `pre-commit run --all-files` | **pendiente**: no está instalado en el host. Lo cubren `ruff` y el job `lint` del run `45900649873` |
+| T-TEN-40 (AC-TEN-17), 2026-11-26 | En la rama `task/T-TEN-40-repeat-after-expiry-test` (`347411b`, sobre `d3c5a6f`), imagen `centro-pagos-backend:dev`, BD nueva `ver2-pg` (borrada después) y Redis `ida00-redis`: `pytest -v` de los 4 tests nuevos, después `pytest tests/tenancy` | ✔ 5 passed (uno parametrizado en `at-expiry` y `long-after`); `tests/tenancy`: **1644 passed** (los 1639 de antes más los 5 nuevos), 0 failed |
 
 ## 3. Corrida real del E2E (`scripts/e2e_tenancy.py`, T-TEN-36)
 
@@ -127,7 +129,7 @@ pantallas (§5).
   elegir organización (AC-TEN-07); fallo cerrado sin scope (AC-TEN-10, 11); test parametrizado de todas las rutas
   registradas (AC-TEN-12).
 - [x] **Idempotencia / repetición:** la misma persona repite la aceptación y recibe la respuesta de éxito sin escribir
-  (Q-243, AC-TEN-17; falta el caso con la invitación ya vencida, ⚠); repetir `tenancy_create_org` con la misma `--key` no duplica y se audita (Q-235); la tarea de
+  (Q-243, AC-TEN-17, también con la invitación ya vencida, T-TEN-40); repetir `tenancy_create_org` con la misma `--key` no duplica y se audita (Q-235); la tarea de
   vencimiento no hace nada si ya no hay vencidas (`test_AC_TEN_37_expiry_task_is_a_noop_once_no_longer_due`).
 - [x] **Duplicados:** una sola `pending` por email, también con dos creaciones a la vez (AC-TEN-26); un solo uso del
   token entre cuentas, también en paralelo (AC-TEN-17); `409 conflict` por nombre o `code` entre sucursales activas
@@ -185,9 +187,8 @@ Cada PR de 02 tuvo veredicto del `reviewer` con SHA y el label `zona-roja` (`tas
 
 1. **AC-TEN-28:** la cláusula del evento servidor-a-servidor sobre un cobro `pending` no se podía verificar sin
    SPEC-06/07. **Resuelto:** el dueño la pasó a SPEC-06 el 2026-11-26 (Q-244, spec 1.0.4); AC-TEN-28 queda ✔.
-2. **AC-TEN-17 ⚠:** falta un test de la cláusula de Q-243 sobre una invitación vencida. La misma persona repite la
-   aceptación de una invitación `accepted` cuando ya pasó su `expires_at`, y la respuesta tiene que ser la de una
-   aceptación exitosa, sin escritura ni evento.
+2. **AC-TEN-17:** faltaba un test de la cláusula de Q-243 sobre una invitación vencida. **Resuelto:** lo cubre
+   `T-TEN-40` (#155), que corrió en verde (§2); AC-TEN-17 queda ✔.
 3. **Q-229 abierta** (§5, paso 6). No bloquea 02.
 4. **Validación manual de la UI sin hacer** (§5, pasos 1 a 3).
 5. **`scripts/spec_state_baseline.json` desactualizado:** `allow_missing_tests` de `02-tenancy-rbac` sigue con los 40
@@ -198,17 +199,20 @@ Cada PR de 02 tuvo veredicto del `reviewer` con SHA y el label `zona-roja` (`tas
 
 ## 8. Decisión
 
-**Con hallazgos. No marcar `Verified` todavía.** 39 de 40 AC quedan ✔ con la suite completa en verde sobre `5536088`
-(AC-TEN-28 pasó a ✔ el 2026-11-26 por la decisión del dueño de Q-244). AC-TEN-17 necesita una tarea de test, que se
-implementa como `T-TEN-40` en un PR aparte.
+**Con hallazgos. No marcar `Verified` todavía.** Los 40 AC quedan ✔. La suite completa corrió en verde sobre
+`5536088`. AC-TEN-28 pasó a ✔ el 2026-11-26 por la decisión del dueño de Q-244. AC-TEN-17 pasó a ✔ con los tests de
+`T-TEN-40` (#155), en verde con `tests/tenancy` completo.
+
+No queda ningún hueco de cobertura. Faltan solo la validación manual de la UI (§5, pasos 1 a 3) y asignar Q-229.
+Además, no bloquea: decidir la frontera 02 → 01.
 
 | Acción | Quién | Qué desbloquea |
 |---|---|---|
-| Crear una tarea de solo test (Carril S): `test_AC_TEN_17_same_person_repeat_after_expiry_is_success`, con la misma persona repitiendo la aceptación de una invitación `accepted` con `now >= expires_at` y su membership activa; esperado: respuesta de éxito, sin escritura y sin evento. Después, repetir la verificación de la fila | planner / implementer | AC-TEN-17 |
+| ~~Crear una tarea de solo test para la repetición después del vencimiento~~ Hecho: `T-TEN-40` (#155), verificada (§2) | planner / implementer | AC-TEN-17 |
 | ~~Decidir la cláusula s2s de AC-TEN-28 (§5, paso 5)~~ Hecho: pasa a SPEC-06 (Q-244, 2026-11-26) | dueño | AC-TEN-28 |
 | Validación manual de la UI (§5, pasos 1 a 3) | dueño | AC-TEN-08, 22 y 28 en pantalla (`design.md §9`) |
 | Asignar Q-229 | dueño / architect | riesgo para SPEC-04 en adelante, no para 02 |
 | Decidir la frontera 02 → 01 (§6): exponer por `apps.identity.ports` o documentarlo | dueño / architect | hallazgo 6, no bloquea |
 
-No hay tareas para reabrir; falta crear la de test de AC-TEN-17. Cuando esto se resuelva, las filas de `tasks.md` pasan a `🧪` y el dueño decide `Verified`,
+No hay tareas para reabrir. Cuando se mergee #155 y se resuelva lo de la tabla, las filas de `tasks.md` pasan a `🧪` y el dueño decide `Verified`,
 junto con SPEC-01 (Q-108).
