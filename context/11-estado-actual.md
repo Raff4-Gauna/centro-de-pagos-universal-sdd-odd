@@ -57,8 +57,11 @@ fase: verificación conjunta de 01 y 02 (Q-108); 00 con verificación Con hallaz
 2. **El dueño decide `Verified`** para 01 y 02 juntos. Ningún agente lo marca.
 3. **Dependabot abiertos (GitHub, 2026-11-26):** #147 (parches de `uv`), #116 (parches de npm), #73, #68 y #67
    (toca `.github/actions/`). #80 y #81 se cerraron el 2026-11-17 sin merge (sus grupos siguen en #147 y #116).
+   psycopg 3.3.8 revierte un cambio de TLS de 3.3.7: tomarlo antes de apuntar a una base con TLS (mirar si #147 lo trae).
 4. **Redactar la spec 04** (bloquea a 06).
 5. **Ejecutar S-001** antes de diseñar el adaptador de Mercado Pago.
+6. Incorporar el checklist de buenas prácticas de software escalable que el dueño va a pasar; mapearlo contra
+   `context/12-solid-y-diseno.md` y los agentes existentes.
 
 **Sigue pendiente de 00:** la corrida manual de AC-PLT-01 por el dueño (`specs/00-platform/verification.md §4`) y
 repetir esa verificación.
