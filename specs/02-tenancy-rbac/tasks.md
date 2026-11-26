@@ -105,7 +105,7 @@ Donde el diseño y el código de SPEC-00, o el orden real, difieren, manda esta 
 | T-TEN-32 | Datos de la empresa y abandonar | — (RF-TEN-03, RF-TEN-04, spec §14) | UI | `app/(dashboard)/configuracion/empresa/page.tsx`, `src/modules/tenancy/components/CompanyDataForm.tsx` | T-TEN-13, T-TEN-23, T-TEN-29 | frontend-dev | M | No | 🟡 | PR #145, rama `task/T-TEN-32-company-data` |
 | T-TEN-33 | Sucursales | — (RF-TEN-06, spec §14) | UI | `app/(dashboard)/configuracion/sucursales/page.tsx`, `BranchesTable.tsx`, `BranchFormDialog.tsx` | T-TEN-25, T-TEN-29 | frontend-dev | L | No | 🟡 | PR #139, rama `task/T-TEN-33-branches-ui` |
 | T-TEN-34 | Colaboradores: miembros | — (RF-TEN-04, spec §14) | UI | `app/(dashboard)/configuracion/colaboradores/page.tsx`, `MembersTable.tsx` | T-TEN-23, T-TEN-29 | frontend-dev | L | No | 🟡 | PR #143, rama `task/T-TEN-34-members-ui` |
-| T-TEN-35 | Colaboradores: invitaciones y link de una sola vez | AC-TEN-24 (UI) | UI | `InviteDialog.tsx`, `InvitationLinkDialog.tsx` | T-TEN-21, T-TEN-34 | frontend-dev | M | Sí | ☐ | |
+| T-TEN-35 | Colaboradores: invitaciones y link de una sola vez | AC-TEN-24 (UI) | UI | `InviteDialog.tsx`, `InvitationLinkDialog.tsx` | T-TEN-21, T-TEN-34 | frontend-dev | M | Sí | 🟡 | PR #148, rama `task/T-TEN-35-invitations-ui` |
 | T-TEN-36 | E2E y cierre conjunto con SPEC-01 | AC-TEN-08, AC-TEN-22, AC-TEN-39 | E2E | `scripts/e2e_tenancy.py`, `scripts/tests/test_e2e_tenancy.py` | T-TEN-30, T-TEN-31, T-TEN-35, T-IDA-31 | backend-dev | M | Sí | ☐ | |
 | T-TEN-37 | Auditar los rechazos de los comandos de operador (Q-237) | AC-TEN-23 (rechazos del operador) | Comandos | `services/platform_{owner_invite,org_status,access}.py`, `domain/audit_events.py` | T-TEN-28 | backend-dev | S | Sí | 🟡 | PR #144, rama `task/T-TEN-37-audit-operator-refusals` |
 | T-TEN-38 | Registrar en el log de seguridad un --operator rechazado (Q-241) | — (RF-TEN-07, Q-241) | Comandos | `management/commands/_platform.py` | T-TEN-37 | backend-dev | S | Sí | 🟡 | PR #146, rama `task/T-TEN-38-rejected-operator-log` |
@@ -1155,6 +1155,38 @@ T-TEN-30 · suspendida → T-TEN-29.
 - **Archivos:** `src/modules/tenancy/components/{InvitationsTable,InviteDialog,InvitationLinkDialog}.tsx`,
   `src/modules/tenancy/hooks/useInvitations.ts`, tests.
 - **Pruebas:** `test_AC_TEN_24` (el link queda en estado local, nunca en la caché de Query), `invitable_roles`, reenviar y revocar.
+- **Hecho (2026-11-26):** `/configuracion/colaboradores` pasa a tener las pestañas Miembros / Invitaciones pendientes
+  (`design.md §3.9`) en `MembersScreen.tsx`, separado de `MembersTable.tsx` como pidió la revisión de #143 (C-14). Sin
+  contrato nuevo ni ruta nueva.
+  - "Invitaciones pendientes" (`InvitationsTable.tsx`): email, rol con la etiqueta de `role-labels.ts` (Q-232), quién
+    invitó y vencimiento. "Reenviar" y "Revocar" salen solo del `allowed_actions` de cada fila. Estados: carga (filas
+    skeleton), error con "Reintentar", sin permiso (`403`, AC-TEN-34) y vacío. La lista se pide al abrir la pestaña,
+    con la clave `['org', orgId, 'invitations']` y el header de la clave (`orgHeaderFromKey`).
+  - "Invitar" se muestra solo si la empresa trae `invitation.create` en `allowed_actions` y algún `invitable_roles`;
+    mientras carga o si falla, no aparece. `InviteDialog` usa react-hook-form + zod (Q-239, `lib/invite-form.ts`):
+    email sin espacios en los extremos, obligatorio, hasta 254 caracteres y con forma de dirección (la validación
+    completa es del backend); el rol es uno de `invitable_roles`, sin rol elegido al abrir. El resolver de zod se
+    sacó a `src/lib/form-resolver.ts` y lo usa también `company-form.ts`.
+  - Errores: `400 validation_error` va debajo de su campo; `already_member`, `invitation_pending` e
+    `invalid_transition` tienen texto propio (`lib/invitation-errors.ts`: el `title` de `invitation_pending` sale en
+    inglés, del estado HTTP); el resto muestra el título de su código (`503 organization_busy` con el de Q-230). Toda
+    respuesta relee la lista y `allowed_actions`.
+  - Link (AC-TEN-24, Q-207, C-06): la mutación de invitar o reenviar saca `accept_url` de la respuesta antes de
+    devolverla y se la pasa al diálogo que la pidió (`InviteDialog` o `ResendInvitationDialog`), que la guarda en su
+    estado y abre `InvitationLinkDialog` con "Copiar" y el aviso de que no se vuelve a mostrar. Ni las queries ni la
+    caché de mutaciones, el almacenamiento o la URL tienen el token. Cerrar desmonta el diálogo, y cambiar de empresa
+    desmonta la pantalla (`key` = empresa): en los dos casos el link se pierde. Solo "Listo" cierra el diálogo; un clic
+    afuera o Escape no lo cierran. Si el portapapeles falla, el campo se puede seleccionar para copiarlo a mano. Un
+    `201` sin `accept_url` es "respuesta inesperada", no un link.
+  - Reenviar pide confirmación porque el link anterior deja de funcionar. Revocar también, y el diálogo cierra solo
+    tras el `200`.
+  - Sumados, con su porqué: `components/{MembersScreen,InvitationDialogs}.tsx` (C-14),
+    `lib/{invite-form,invitation-errors}.ts`, `src/lib/form-resolver.ts` (resolver compartido con `company-form.ts`),
+    `components/invitations.test-helpers.ts`. `MembersTable.tsx` deja la pantalla y exporta `MembersBody`; la página
+    importa `MembersScreen`.
+  - Pruebas: `InvitationsTable.test.tsx`, `InviteDialog.test.tsx`, `InvitationDialogs.test.tsx`,
+    `lib/invite-form.test.ts`, `hooks/useInvitations.test.ts`; siguen en verde `MembersTable.test.tsx`,
+    `MemberDialogs.test.tsx` y `MembersLeave.test.tsx`.
 
 ### T-TEN-36 — E2E y cierre conjunto con SPEC-01
 - **AC:** AC-TEN-08, 22, 39. Q-108. **Zona roja:** sí (`scripts/**`).

@@ -10,29 +10,24 @@ import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
-import ToggleButton from "@mui/material/ToggleButton";
-import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
-import Typography from "@mui/material/Typography";
-import { useId, useState } from "react";
+import { useId } from "react";
 
 import { EmptyState } from "@/components/EmptyState";
 import { ErrorNotice } from "@/components/ErrorNotice";
 import { formatDateTime } from "@/modules/identity/lib/format-dates";
 import type { components } from "@/types/api";
 
-import { useActiveOrganization } from "../context/ActiveOrgProvider";
-import { MEMBER_STATUSES, type Member, type MemberStatus, useMembers } from "../hooks/useMembers";
+import { type Member, type MemberStatus, useMembers } from "../hooks/useMembers";
 import { roleLabel } from "../lib/role-labels";
-import { LeaveOrganizationDialog, RevokeMemberDialog } from "./MemberExitDialog";
-import { MemberRoleDialog } from "./MemberRoleDialog";
 
 // Configuración → Colaboradores, members (RF-TEN-04, spec §14, design.md §3.9): the people of the
 // active company with their name, email, role (Q-232 labels) and since when, active or ended
 // (`?status=`). Only owner and admin list them (Q-218): anyone else gets `403` and the screen says
 // so (AC-TEN-34). Each row offers only what its own `allowed_actions` and `assignable_roles` bring
 // (change role, revoke someone else's access, leave on one's own row): the UI hides, the backend
-// decides. The pending invitations belong to T-TEN-35. States: loading (skeleton rows), error
-// ("Reintentar"), no permission (`403`), empty (per filter).
+// decides. The screen and its tabs are MembersScreen.tsx; the pending invitations,
+// InvitationsTable.tsx. States: loading (skeleton rows), error ("Reintentar"), no permission
+// (`403`), empty (per filter).
 export type EndedReason = components["schemas"]["EndedReasonEnum"];
 
 export const MEMBERS_TEXTS = {
@@ -58,8 +53,8 @@ export const MEMBERS_TEXTS = {
 
 export const MEMBERS_SKELETON_ROWS = 5;
 
-type MemberAction = "role" | "revoke" | "leave";
-type OpenAction = Readonly<{ kind: MemberAction; member: Member }>;
+export type MemberAction = "role" | "revoke" | "leave";
+export type OpenAction = Readonly<{ kind: MemberAction; member: Member }>;
 
 function MemberRow({
   member,
@@ -171,7 +166,7 @@ function MembersSkeleton() {
   );
 }
 
-function MembersBody({
+export function MembersBody({
   organizationId,
   status,
   onOpen,
@@ -201,57 +196,4 @@ function MembersBody({
   }
   // An ended membership brings no actions: the backend gives it none.
   return <MembersTable members={members.data} showEnded={status === "revoked"} onOpen={onOpen} />;
-}
-
-// The screen of one company: the filter and the open dialog live here, so they never outlive it.
-// When the tab changes company this component is replaced (keyed by the company), so a dialog
-// opened for A is gone, also if the tab later comes back to A, and a write never names a company
-// the screen no longer shows.
-function CompanyMembers({ organizationId }: Readonly<{ organizationId: string | null }>) {
-  const [status, setStatus] = useState<MemberStatus>("active");
-  const [opened, setOpened] = useState<OpenAction | null>(null);
-  const close = () => setOpened(null);
-  return (
-    <div className="tw-flex tw-flex-col tw-gap-4">
-      <div className="tw-flex tw-flex-wrap tw-items-center tw-justify-between tw-gap-3">
-        <Typography component="h1" variant="h5">
-          {MEMBERS_TEXTS.title}
-        </Typography>
-        <ToggleButtonGroup
-          exclusive
-          size="small"
-          aria-label={MEMBERS_TEXTS.filterLabel}
-          value={status}
-          onChange={(_event, value: MemberStatus | null) => {
-            if (value !== null) setStatus(value);
-          }}
-        >
-          {MEMBER_STATUSES.map((value) => (
-            <ToggleButton key={value} value={value}>
-              {MEMBERS_TEXTS.filters[value]}
-            </ToggleButton>
-          ))}
-        </ToggleButtonGroup>
-      </div>
-      <MembersBody organizationId={organizationId} status={status} onOpen={setOpened} />
-      {organizationId !== null && opened?.kind === "role" ? (
-        <MemberRoleDialog organizationId={organizationId} member={opened.member} onClose={close} />
-      ) : null}
-      {organizationId !== null && opened?.kind === "revoke" ? (
-        <RevokeMemberDialog
-          organizationId={organizationId}
-          member={opened.member}
-          onClose={close}
-        />
-      ) : null}
-      {organizationId !== null && opened?.kind === "leave" ? (
-        <LeaveOrganizationDialog organizationId={organizationId} onClose={close} />
-      ) : null}
-    </div>
-  );
-}
-
-export function MembersScreen() {
-  const { organizationId } = useActiveOrganization();
-  return <CompanyMembers key={organizationId ?? ""} organizationId={organizationId} />;
 }
