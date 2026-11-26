@@ -6,7 +6,7 @@ actualizado: 2026-11-26
 
 Reglas: rebanada vertical · ≤ ~300 líneas de diff · mergeable sola · cita AC · lista archivos esperados · incluye su plan de pruebas.
 
-> Entradas: `spec.sdd.md` **Approved 1.0.3**, `design.md` **Aprobado** (con los ajustes que indica su cabecera),
+> Entradas: `spec.sdd.md` **Approved 1.0.4**, `design.md` **Aprobado** (con los ajustes que indica su cabecera),
 > `clarifications.md` (incluida "Confirmación (2026-11-06)"), ADR-0001 y ADR-0002 **Aceptados**, `context/08-control-de-versiones-ci-cd.md`.
 > **Se cierra junto con SPEC-01 (Q-108):** ninguno de los dos pasa a `Verified` sin el otro. `Invitation` vive acá, y
 > acá se implementan los dos puertos que define SPEC-01: `T-TEN-12` (memberships) y `T-TEN-17` (invitaciones). Esta
@@ -1401,5 +1401,8 @@ un PR posterior cerró alguno.
 **Hecho:** 39 tareas, 40 AC y 9 RF cubiertos, olas y división de archivos. Al 2026-11-26 las 39 están mergeadas
 (PR #82 a #151).
 **Pendiente / dudas:** Q-220 (SPEC-04/05) y Q-229 (unicidades con el manager que falla cerrado), abiertas y sin
-bloquear 02; la verificación conjunta con SPEC-01 (Q-108).
-**Siguiente rol sugerido:** `qa-verifier` en la verificación conjunta de 01 y 02; después el dueño decide `Verified`.
+bloquear 02. La verificación conjunta con SPEC-01 está hecha (PR #153); el 2026-11-26 el dueño pasó la cláusula s2s
+de AC-TEN-28 a SPEC-06 (Q-245, spec 1.0.4). Falta el test de AC-TEN-17 con la invitación vencida (`T-TEN-40`, en un PR
+aparte) y la validación manual de la UI.
+**Siguiente rol sugerido:** implementer en `T-TEN-40`; después el dueño hace la validación manual y decide `Verified`
+de 01 y 02 juntos.

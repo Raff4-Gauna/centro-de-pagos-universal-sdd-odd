@@ -3,7 +3,7 @@ id: SPEC-02
 modulo: tenancy-rbac
 estado: Approved
 track: S
-version: 1.0.3
+version: 1.0.4
 depende_de: [SPEC-00, SPEC-01]
 actualizado: 2026-11-26
 ---
@@ -374,8 +374,9 @@ auditada (`C-05`). Una invitación vencida se rechaza al aceptar aunque todavía
   `owner` y después U se degrada a `admin` **entonces** ambas operaciones prosperan y A tiene exactamente un owner (V).
 - **AC-TEN-28** (RN-TEN-18, Q-208) **Dado** A `suspended` y un `owner` de A **cuando** lista Branch y ve datos de la
   empresa **entonces** los recibe; **cuando** crea/edita una Branch, edita datos, invita, cambia un rol o se acepta
-  una invitación de A **entonces** `organization_suspended` sin efectos; y un evento servidor-a-servidor sobre un
-  cobro `pending` de A se sigue procesando.
+  una invitación de A **entonces** `organization_suspended` sin efectos; y una tarea de sistema (actor sistema) sobre A
+  se sigue ejecutando. Que un evento servidor-a-servidor sobre un cobro `pending` de A se siga procesando lo verifica
+  SPEC-06 (Q-245).
 - **AC-TEN-29** (RN-TEN-18) **Dado** cualquier usuario autenticado de A (incluso `owner`) **cuando** intenta cambiar
   el estado de A por la API **entonces** el estado no cambia.
 - **AC-TEN-30** (RN-TEN-19, Q-210/211) **Dado** una Branch activa de A **cuando** un `admin` la desactiva **entonces**
@@ -473,9 +474,10 @@ La tabla AC → tareas está en `tasks.md` ("Cobertura AC → tareas"); la matri
 | 1.0.1 | 2026-11-06 | Q-221…Q-224 pasan a decididas por el usuario. **Q-124 de SPEC-01:** quien ya tiene usuario ve sus invitaciones pendientes en la sesión y las acepta adentro del Hub; RN-TEN-11, RF-TEN-05, §4, §11, §12 y §14 lo incorporan, con `GET /api/invitations/mine/`, `POST /api/invitations/{id}/accept/` y nuevos AC-TEN-39 y AC-TEN-40. Nueva Q-228 (admin de Django, abierta). §17 apunta a `tasks.md` | Decisiones del dueño del 2026-11-06, que reemplazan la de Q-124 del 2026-10-31. El dueño decidió el flujo; el contrato lo redactó `task-planner` y recibió su OK en el PR #61, anterior a los ajustes de AC-TEN-39 que pidió el reviewer |
 | 1.0.2 | 2026-11-07 | Q-228 decidida: sin admin de Django en el MVP. RN-TEN-10 deja de nombrarlo; no cambia ningún RF ni AC | Decisión del dueño del 2026-11-07 |
 | 1.0.3 | 2026-11-26 | RNF-TEN-04 suma `organization.create_repeated` (Q-235) y `operator_command.rejected` (Q-237). AC-TEN-17: el segundo uso del token da `invitation_invalid` solo para otra cuenta; si lo repite quien ya la aceptó y su membership sigue activa, responde como una aceptación exitosa, sin escribir ni auditar, aun vencida (Q-243). `design.md §4.4` se ajusta por la fila de "Ajustes al diseño" de `tasks.md` | Decisiones del dueño del 2026-11-20 (Q-235), 2026-11-21 (Q-237) y 2026-11-26 (Q-243 y su confirmación: sin evento de auditoría y respuesta exitosa aun vencida). Entrada redactada por Claude con el OK del dueño del 2026-11-26 |
+| 1.0.4 | 2026-11-26 | AC-TEN-28: la cláusula "un evento servidor-a-servidor sobre un cobro `pending` de A se sigue procesando" pasa a SPEC-06 como referencia cruzada (Q-245); AC-TEN-28 conserva lo que controla 02: la organización suspendida (lectura sí, escrituras con `organization_suspended`) y que una tarea de sistema sobre A se sigue ejecutando. RN-TEN-18 no cambia | Decisión del dueño del 2026-11-26 (Q-245), tras la verificación conjunta con SPEC-01 (PR #153): 02 no tiene cobros y la cláusula no se podía verificar acá. Entrada redactada por Claude con el OK del dueño del 2026-11-26 |
 
 ---
-**Hecho:** spec Approved 1.0.3: 21 RN, 9 RF, 7 RNF y 40 AC; `design.md` aprobado; ADR-0001 y ADR-0002 aceptados;
+**Hecho:** spec Approved 1.0.4: 21 RN, 9 RF, 7 RNF y 40 AC; `design.md` aprobado; ADR-0001 y ADR-0002 aceptados;
 `tasks.md` creado.
 **Pendiente:** Q-220 para SPEC-04/05; ajustar `context/07 §5.1` según `design.md §3.10`
 (lo hace `T-TEN-29`).

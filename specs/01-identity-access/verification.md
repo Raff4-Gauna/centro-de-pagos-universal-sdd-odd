@@ -28,8 +28,8 @@ Rutas relativas a `backend/tests/identity/` salvo que se indique otra. `fe:` es 
 
 | AC | Test(s) | Cobertura |
 |---|---|---|
-| AC-IDA-01 | `api/test_login_complete.py` (`test_AC_IDA_01_active_user_gets_session`, `…_invited_login_end_to_end_reaches_me`); `fe:app/api/auth/google/callback/route.test.ts`; `scripts/tests/test_e2e_login.py`; E2E real §3 | ✔ (con el proveedor falso; **manual con Google real pendiente**, §5 paso 1) |
-| AC-IDA-02 | `test_AC_IDA_02_invited_user.py` (`…_invited_user_is_created_and_invitation_accepted`, `…_a_race_lost_twice_fails_without_personal_data`), `test_AC_IDA_02_concurrent_callbacks.py` (`…_concurrent_callbacks_one_user`), `test_login_with_real_port.py` (puerto real de SPEC-02) | ✔ (incluye la concurrencia: un usuario, ningún `500`; **manual con Google real pendiente**, §5 paso 1) |
+| AC-IDA-01 | `api/test_login_complete.py` (`test_AC_IDA_01_active_user_gets_session`, `…_invited_login_end_to_end_reaches_me`); `fe:app/api/auth/google/callback/route.test.ts`; `scripts/tests/test_e2e_login.py`; E2E real §3 | ✔ (con el proveedor falso; la prueba manual con Google real se posterga hasta tener hosting y no bloquea `Verified`: Q-131, §5 paso 1) |
+| AC-IDA-02 | `test_AC_IDA_02_invited_user.py` (`…_invited_user_is_created_and_invitation_accepted`, `…_a_race_lost_twice_fails_without_personal_data`), `test_AC_IDA_02_concurrent_callbacks.py` (`…_concurrent_callbacks_one_user`), `test_login_with_real_port.py` (puerto real de SPEC-02) | ✔ (incluye la concurrencia: un usuario, ningún `500`; Google real postergado hasta tener hosting, Q-131, §5 paso 1) |
 | AC-IDA-03 | `test_AC_IDA_02_invited_user.py` (`…_no_invitation_creates_nothing`), `api/test_login_complete.py` (`…_rejected_is_audited`), `api/test_login_complete_errors.py` (`…_rejection_event_survives_the_rollback`) | ✔ |
 | AC-IDA-04 | `test_AC_IDA_02_invited_user.py`, `test_login_with_real_port.py` (`…_revoked_between_find_and_accept`), `ten:test_invitation_port_contract.py` (`…_expired_since_find_is_refused`) | ✔ (incluye "vigente al iniciar el login") |
 | AC-IDA-05 | `test_AC_IDA_05_rollback.py`, `test_login_with_real_port.py`, `ten:test_invitation_port_contract.py` (`…_one_invalid_rolls_back_all_inside_the_port`) | ✔ |
@@ -55,7 +55,7 @@ Rutas relativas a `backend/tests/identity/` salvo que se indique otra. `fe:` es 
 | AC-IDA-25 | `api/test_sessions.py` (`…_foreign_session_is_404`, `…_ended_session_is_404`) | ✔ |
 | AC-IDA-26 | `api/test_authentication.py`, `api/test_sessions.py`, `fe:lib/api-client.test.ts`, `fe:lib/server/session-proxy.refresh.test.ts` | ✔ |
 | AC-IDA-27 | `test_AC_IDA_27_deactivate.py`, `test_revocation_concurrency.py`, `test_Q_242_operator_refused.py` | ✔ (incluye reactivar sin revivir sesiones) |
-| AC-IDA-28 | `test_refresh_concurrency.py` (`…_two_concurrent_refreshes`), `test_refresh.py`, `domain/test_session_policy.py`, `fe:lib/server/refresh.test.ts` | ✔ (con el proveedor falso; **manual con Google real pendiente**: dos pestañas tras 15 min, §5 paso 1) |
+| AC-IDA-28 | `test_refresh_concurrency.py` (`…_two_concurrent_refreshes`), `test_refresh.py`, `domain/test_session_policy.py`, `fe:lib/server/refresh.test.ts` | ✔ (con el proveedor falso; Google real, dos pestañas tras 15 min, postergado hasta tener hosting, Q-131, §5 paso 1) |
 | AC-IDA-29 | `test_user_provisioning.py` (`…_email_change_free`, `…_new_sub_with_taken_email_is_conflict`, con la alerta en el log) | ✔ |
 | AC-IDA-30 | `test_user_provisioning.py`, `api/test_AC_IDA_21_me.py` (`…_no_memberships_returns_empty_list`), `fe:modules/identity/components/NoOrganizationState.test.tsx` | ✔ |
 | AC-IDA-31 | `test_AC_IDA_31_normalization.py`, `test_AC_IDA_02_invited_user.py`, `test_login_with_real_port.py`, `test_user_constraints.py` | ✔ |
@@ -133,16 +133,16 @@ Rutas relativas a `backend/tests/identity/` salvo que se indique otra. `fe:` es 
    client ID de Google propio. No hay staging: depende del hosting (Q-020, Q-065). Pasos: entrar con una cuenta
    invitada; cancelar en la pantalla de Google y comprobar que vuelve a `/login` con el aviso de cancelación; abrir dos
    pestañas y dejarlas más de 15 min, y comprobar que las dos siguen operando; hacer logout y comprobar que la otra
-   pestaña vuelve al login en su siguiente request. **No se ejecutó.** Si el dueño lo posterga hasta tener hosting,
-   conviene que lo deje escrito.
+   pestaña vuelve al login en su siguiente request. **No se ejecutó.** **Decisión del dueño (2026-11-26, Q-131):** se
+   posterga hasta que haya hosting y no bloquea `Verified`; se corre cuando exista el entorno.
 2. **E2E por HTTP**, reproducible: los pasos de §3, con `infra/README.md` ("E2E del login" y "Stack descartable").
    Resultado esperado: `e2e passed` y código 0. Con un email sin usuario: `e2e failed [login-A-callback]:
    /login?error=not_invited` y código 1.
 3. **Pantalla "Seguridad"**, con el stack de desarrollo y el proveedor falso: con tres sesiones, "Cerrar las demás" deja
    solo la actual, y el listado muestra navegador/SO y fechas, sin IP (AC-IDA-33).
-4. **Confirmar el tope `refresh_ip`** (`tasks.md`, "Ajustes al diseño"): `RefreshIpThrottle`, `60/min` por IP del
-   cliente, además de los 30/min por sesión de RN-IDA-15. No está en la spec ni en `design.md §7.6`. Si se acepta, va
-   al "Historial de cambios" de la spec o del diseño; si no, se abre una tarea para sacarlo.
+4. **Tope `refresh_ip`** (`tasks.md`, "Ajustes al diseño"): `RefreshIpThrottle`, `60/min` por IP del cliente, además
+   de los 30/min por sesión de RN-IDA-15. No está en la spec ni en `design.md §7.6`. **Confirmado por el dueño el
+   2026-11-26 (Q-130):** queda registrado en esa fila de `tasks.md` y en `clarifications.md`; no cambia el código.
 
 ## 6. Revisión de código (reviewer)
 
@@ -164,9 +164,11 @@ Cada PR de 01 tuvo veredicto del `reviewer` con SHA y el label `zona-roja` (`tas
 
 ## 7. Hallazgos
 
-1. **Tope `refresh_ip` sin confirmar** (§5, paso 4): el código además limita por IP, y la spec no lo pide.
+1. **Tope `refresh_ip`** (§5, paso 4): el código además limita por IP, y la spec no lo pide. **Resuelto:** el dueño lo
+   confirmó el 2026-11-26 (Q-130).
 2. **Validación manual con Google real sin hacer** (§5, paso 1): `design.md §9` la planifica para el paso 6 y no hay
-   un entorno donde correrla.
+   un entorno donde correrla. **Resuelto como postergación:** el dueño decidió el 2026-11-26 que se hace cuando haya
+   hosting y que no bloquea `Verified` (Q-131).
 3. **`scripts/spec_state_baseline.json` desactualizado:** la lista `allow_missing_tests` de `01-identity-access` sigue
    con 26 AC que ya tienen test. No da drift (`check_spec_state.py` cuenta 0 en baseline), pero si se borrara el test de
    uno de esos AC, el chequeo no lo detectaría. Lo corrige `project-steward`; no corresponde a este PR.
@@ -179,12 +181,16 @@ Ninguno es un defecto de código ni de cobertura: los 38 AC tienen test y corrie
 ## 8. Decisión
 
 **Con hallazgos. No marcar `Verified` todavía.** Lo automatizable está completo: 38 ✔ y la suite completa en verde sobre
-`5536088`. Para cerrar 01 falta:
+`5536088`. **Actualización (2026-11-26, decisiones del dueño):** los hallazgos 1 y 2 quedaron resueltos (Q-130 confirma
+el tope `refresh_ip`; Q-131 posterga Google real hasta tener hosting, sin bloquear `Verified`). Los hallazgos 3 y 4 no
+bloquean. Lo que impide marcar `Verified` es que 01 se cierra junto con 02 (Q-108), y 02 todavía tiene pendientes
+(`specs/02-tenancy-rbac/verification.md §8`). Estado de las acciones:
 
 | Acción | Quién | Qué desbloquea |
 |---|---|---|
-| Confirmar o rechazar el tope `refresh_ip` (§5, paso 4) | dueño | hallazgo 1 |
-| Correr Google real, o dejar escrito que se posterga hasta tener hosting (§5, paso 1) | dueño | hallazgo 2: AC-IDA-01, 02 y 28 en un entorno real |
+| ~~Confirmar o rechazar el tope `refresh_ip` (§5, paso 4)~~ Hecho: confirmado el 2026-11-26 (Q-130) | dueño | hallazgo 1 |
+| ~~Correr Google real, o dejar escrito que se posterga hasta tener hosting (§5, paso 1)~~ Hecho: postergado hasta tener hosting, sin bloquear `Verified` (Q-131, 2026-11-26) | dueño | hallazgo 2: AC-IDA-01, 02 y 28 en un entorno real, cuando haya hosting |
+| Cerrar los pendientes de 02 y decidir `Verified` de 01 y 02 juntos (Q-108) | dueño | `Verified` de 01 |
 | Decidir la frontera 02 → 01 (§6): exponer por `apps.identity.ports` o documentarlo | dueño / architect | hallazgo 4, no bloquea |
 
 No hay tareas para reabrir. Cuando esto se resuelva, las filas de `tasks.md` pasan a `🧪` y el dueño decide `Verified`,

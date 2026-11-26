@@ -1,9 +1,9 @@
 ---
 actualizado: 2026-11-26
-ultimo_commit: 6fd9ed6
-ultimo_pr: "#151"
+ultimo_commit: 42d79be
+ultimo_pr: "#153"
 modulo_activo: 01-identity-access + 02-tenancy-rbac
-fase: verificación conjunta de 01 y 02 (Q-108); 00 con verificación Con hallazgos
+fase: cierre de 01 y 02 (Q-108), verificados Con hallazgos; 00 con verificación Con hallazgos
 ---
 
 # Estado actual del proyecto
@@ -17,20 +17,22 @@ fase: verificación conjunta de 01 y 02 (Q-108); 00 con verificación Con hallaz
 | Módulo | Spec | Tareas | Código | Nota |
 |---|---|---|---|---|
 | 00-platform | Approved 1.0.22 | 42 ✅ (42) | 42 de 42 tareas | Verificación **Con hallazgos** (falta AC-PLT-01); ruleset activo |
-| 01-identity-access | Approved 1.0.2 | 33 ✅ (33) | 33 de 33 tareas | Falta la verificación conjunta con 02 (Q-108) |
-| 02-tenancy-rbac | Approved 1.0.3 | 39 ✅ (39) | 39 de 39 tareas | Falta la verificación conjunta con 01 (Q-108); Q-229 abierta, no bloquea |
+| 01-identity-access | Approved 1.0.2 | 33 ✅ (33) | 33 de 33 tareas | Verificación conjunta **Con hallazgos** (#153): 38 ✔; Q-130 y Q-131 decididas; se cierra con 02 (Q-108) |
+| 02-tenancy-rbac | Approved 1.0.4 | 39 ✅ (39) | 39 de 39 tareas | Verificación conjunta **Con hallazgos** (#153): 39 ✔ · 1 ⚠ (AC-TEN-17); Q-229 abierta, no bloquea |
 | 03-integrations-engine | Draft | — | 0 % | Falta cerrar el contrato del motor |
 | 04-integration-management | Por redactar | — | 0 % | Bloquea a 06 |
 | 05-mercadopago-adapter | Draft | — | 0 % | Depende del spike S-001 |
-| 06-charges | Draft | — | 0 % | Núcleo del dinero |
+| 06-charges | Draft | — | 0 % | Núcleo del dinero; hereda AC-CHG-18 de AC-TEN-28 (Q-245) |
 | 07–14 | Por redactar / Futuro | — | 0 % | Ver `specs/ROADMAP.md` |
 
 - **01 y 02:** todo el código planificado está en `main` (`T-IDA-00..32`, PR #63 a #149; `T-TEN-01..39`, PR #82 a
   #151), conciliado con git el 2026-11-26 (`check_spec_state.py`: sin drift). Ninguna tarea está 🧪 y ninguna spec
-  está `Verified`. `specs/01-identity-access/verification.md` es una apertura parcial y 02 no tiene `verification.md`:
-  los completa la pasada conjunta.
-- **Spec 02 en 1.0.3** (OK del dueño del 2026-11-26, PR #151): RNF-TEN-04 suma `organization.create_repeated` y
-  `operator_command.rejected`; AC-TEN-17 recoge Q-243.
+  está `Verified`. La verificación conjunta (PR #153, sobre `5536088`) dio **Con hallazgos** en las dos.
+- **Decisiones del dueño del 2026-11-26** (después de #153): confirma el tope `refresh_ip` de 60/min por IP (Q-130);
+  la prueba con Google real se posterga hasta tener hosting y no bloquea `Verified` de 01 (Q-131); la cláusula s2s del
+  cobro `pending` sale de AC-TEN-28 y pasa a SPEC-06 como AC-CHG-18 (Q-245).
+- **Spec 02 en 1.0.4** (OK del dueño del 2026-11-26): solo cambia AC-TEN-28 (Q-245). La 1.0.3 (PR #151) sumó a
+  RNF-TEN-04 `organization.create_repeated` y `operator_command.rejected`, y a AC-TEN-17 lo de Q-243.
 - **Seguimientos técnicos** de las revisiones (no bloqueantes, sin tarea): en la sección del mismo nombre de cada
   `tasks.md` de 01 y 02.
 - **00-platform:** 42 tareas mergeadas (PR #4–#56); `verification.md` da **Con hallazgos**: 33 AC ✔, 1 ⚠ (`AC-PLT-01`).
@@ -51,10 +53,11 @@ fase: verificación conjunta de 01 y 02 (Q-108); 00 con verificación Con hallaz
 
 ## 3. Qué sigue, en orden
 
-1. **Verificación conjunta de 01 y 02** (`qa-verifier`, Q-108): matriz AC→test de los dos módulos, corridas reales y
-   evidencia manual de los E2E (`scripts/e2e_login.py`, `scripts/e2e_tenancy.py`). En la misma pasada, el dueño confirma
-   el tope `refresh_ip` (`specs/01-identity-access/tasks.md`, "Ajustes al diseño").
-2. **El dueño decide `Verified`** para 01 y 02 juntos. Ningún agente lo marca.
+1. **Test de AC-TEN-17 con la invitación vencida** (Q-243): se implementa como `T-TEN-40` en un PR aparte; después se
+   repite la verificación de esa fila (`specs/02-tenancy-rbac/verification.md §8`).
+2. **Acciones del dueño para cerrar 01 y 02:** la validación manual de la UI de 02 (`specs/02-tenancy-rbac/verification.md
+   §5`, pasos 1 a 3) y asignar Q-229 (no bloquea 02). Después, **el dueño decide `Verified` de 01 y 02 juntos**
+   (Q-108). Ningún agente lo marca. Google real queda para cuando haya hosting (Q-131).
 3. **Dependabot abiertos (GitHub, 2026-11-26):** #147 (parches de `uv`), #116 (parches de npm), #73, #68 y #67
    (toca `.github/actions/`). #80 y #81 se cerraron el 2026-11-17 sin merge (sus grupos siguen en #147 y #116).
    psycopg 3.3.8 revierte un cambio de TLS de 3.3.7: tomarlo antes de apuntar a una base con TLS (mirar si #147 lo trae).
@@ -87,9 +90,12 @@ repetir esa verificación.
 
 ## 6. Pie de la última sesión
 
-- **Hecho:** reconciliación de 01 y 02 con git sobre `6fd9ed6`: 33 ✅ en 01 y 39 ✅ en 02, con PR y SHA de squash;
-  conciliación generada en los dos `tasks.md`; Q-229 registrada como abierta; "Ajustes al diseño" y seguimientos
-  técnicos de las revisiones; spec 02 citada como 1.0.3. Reemplaza al PR #77, que había quedado viejo.
-- **Pendiente / dudas:** Q-229 (abierta, no bloquea); el tope `refresh_ip` lo confirma el dueño; Q-220 (SPEC-04/05);
-  Q-028 (SPEC-12); AC-PLT-01; S-001 sin ejecutar.
-- **Siguiente rol sugerido:** `qa-verifier` en la verificación conjunta de 01 y 02.
+- **Hecho:** registro de tres decisiones del dueño del 2026-11-26 en los documentos de 01, 02 y 06: Q-130 (tope
+  `refresh_ip` confirmado), Q-131 (Google real postergado hasta tener hosting, no bloquea `Verified`) y Q-245 (la
+  cláusula s2s de AC-TEN-28 pasa a SPEC-06 como AC-CHG-18; spec 02 → 1.0.4). `verification.md` de 01 y 02 al día:
+  01 38 ✔; 02 39 ✔ · 1 ⚠ (AC-TEN-17). Sin cambios de código ni de tests.
+- **Pendiente / dudas:** `T-TEN-40` (test de AC-TEN-17, PR aparte); validación manual de la UI de 02; Q-229 (abierta,
+  no bloquea); Q-220 (SPEC-04/05); Q-028 (SPEC-12); AC-PLT-01; S-001 sin ejecutar. `scripts/spec_state_baseline.json`
+  sigue con AC que ya tienen test (lo cambia un PR con `reviewer`, no `project-steward`).
+- **Siguiente rol sugerido:** implementer en `T-TEN-40`; después el dueño hace la validación manual y decide `Verified`
+  de 01 y 02.
