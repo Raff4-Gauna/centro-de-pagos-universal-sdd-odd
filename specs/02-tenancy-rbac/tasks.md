@@ -1,6 +1,6 @@
 ---
 spec: SPEC-02
-actualizado: 2026-11-12
+actualizado: 2026-11-26
 ---
 # Tareas — Módulo de Organizaciones, Sucursales y Roles (tenancy + RBAC)
 
@@ -64,10 +64,11 @@ Donde el diseño y el código de SPEC-00, o el orden real, difieren, manda esta 
 | `tenancy_owner_invite`, `tenancy_set_org_status`, `tenancy_support_access` y `tenancy_owner_recovery` (`design.md §4.5`) solo auditan sus cambios y los `transition.rejected` | Todo rechazo con salida `1` que no cambia nada (organización inexistente, ya tiene owner, sin invitación de primer owner, sin owner, `already_member`, `invitation_pending`, sin `FRONTEND_BASE_URL`) emite un `operator_command.rejected`: actor `platform_operator` con `os_user`, `reason` = código cerrado (`OperatorRefusal`, `domain/audit_events.py`), `metadata` `command` y, si tiene, `operation`; sin email ni motivo libre. Se emite fuera de la transacción (`platform_org_status.audited_refusals`). Los rechazos por estado siguen como `transition.rejected` (mismo estado al suspender, invitación en un estado que no lo permite) y no se duplican; un argumento inválido (salida `2`, operador fuera de la allowlist incluido) no es una corrida y no se audita, como en Q-235. Evento nuevo en el catálogo y en `AUDIT_TRIGGERS` (`revoke_owner_invitation`) (T-TEN-37) | Q-237, decidida por el dueño el 2026-11-21. `transition.rejected` es (entidad, estado, evento) de una transición inválida (Q-225) y estos rechazos no son transiciones; un evento por comando (como `organization.create_repeated`) multiplicaría el catálogo sin dar más información que `command`. RNF-TEN-04 de la spec no se editó: el catálogo suma el evento con esta fila |
 | El rol se muestra como código (`context/07 §5.3`, spec §14) y los rechazos de `/invitacion` sin acción (`design.md §3.9`) | Etiquetas en español en un único módulo, `frontend/src/modules/tenancy/lib/role-labels.ts` (`Record<RoleEnum, string>`), que usan el aviso de invitaciones y la invitación aceptada; todo rechazo de `/invitacion` y el link sin token muestran un único botón "Ir a Inicio" hacia `/inicio`, y la falla de red/5xx conserva "Reintentar" | Q-232 y Q-233, decididas por el dueño el 2026-11-20. La API sigue con los códigos; un rol nuevo no compila sin su etiqueta. Worklog `context/worklog/2026-11-20-role-labels-exit.md` |
 | `timezone` "de lista" en `CompanyDataForm` (`design.md §3.9`), sin decir cuál | Lista fija en `frontend/src/modules/tenancy/lib/timezones.ts`: las doce `America/Argentina/*` y `UTC`, como `enum` del esquema zod; una zona guardada fuera de la lista se muestra como actual y no bloquea guardar (T-TEN-32) | Q-240 (dueño, 2026-11-21): la lista del navegador (`Intl`) trae alias CLDR y cambia según el navegador; el backend sigue validando contra `zoneinfo` |
+| `POST /api/invitations/accept/` con `status ≠ pending` → `400 invitation_invalid (reason=used)`, también en paralelo (`design.md §4.4`) | Una `accepted` cuyo `accepted_by` es quien la manda y cuya membership (`source_invitation`) sigue `active` responde `200` con el cuerpo de una aceptación (rol vigente), sin escrituras ni evento de auditoría, solo el log `tenancy.invitation_accept_repeated`; otra cuenta o una membership terminada siguen en `used`, la suspendida en `409`. `POST /api/invitations/{id}/accept/` y el puerto de SPEC-01 no cambian. Contrato `0.19.0` (T-TEN-39) | Q-243, decidida por el dueño el 2026-11-26: el primer login ya aceptó la invitación (RN-IDA-06) y `/invitacion` mostraba «Invitación ya usada» a quien acababa de entrar. Contradice el texto de AC-TEN-17: falta la entrada del dueño en el Historial de la spec, que no se editó |
 
 ## Resumen
 
-> T-TEN-01, T-TEN-02, T-TEN-03, T-TEN-04, T-TEN-05, T-TEN-06, T-TEN-07, T-TEN-08, T-TEN-09, T-TEN-10, T-TEN-11, T-TEN-12, T-TEN-13, T-TEN-14, T-TEN-15, T-TEN-16, T-TEN-17, T-TEN-18, T-TEN-19, T-TEN-20, T-TEN-21, T-TEN-22, T-TEN-23, T-TEN-24, T-TEN-25, T-TEN-27, T-TEN-28, T-TEN-29, T-TEN-30, T-TEN-32, T-TEN-33, T-TEN-34 y T-TEN-37 en revisión; las demás sin empezar. La columna **Evidencia** es obligatoria para `✅` y la verifica `scripts/check_spec_state.py`.
+> T-TEN-01, T-TEN-02, T-TEN-03, T-TEN-04, T-TEN-05, T-TEN-06, T-TEN-07, T-TEN-08, T-TEN-09, T-TEN-10, T-TEN-11, T-TEN-12, T-TEN-13, T-TEN-14, T-TEN-15, T-TEN-16, T-TEN-17, T-TEN-18, T-TEN-19, T-TEN-20, T-TEN-21, T-TEN-22, T-TEN-23, T-TEN-24, T-TEN-25, T-TEN-27, T-TEN-28, T-TEN-29, T-TEN-30, T-TEN-32, T-TEN-33, T-TEN-34, T-TEN-37 y T-TEN-39 en revisión; las demás sin empezar. La columna **Evidencia** es obligatoria para `✅` y la verifica `scripts/check_spec_state.py`.
 
 | ID | Título | AC | Capa | Archivos esperados (ver detalle) | Depende de | Agente | Tamaño | Zona roja | Estado | Evidencia |
 |---|---|---|---|---|---|---|---|---|---|---|
@@ -109,6 +110,7 @@ Donde el diseño y el código de SPEC-00, o el orden real, difieren, manda esta 
 | T-TEN-36 | E2E y cierre conjunto con SPEC-01 | AC-TEN-08, AC-TEN-22, AC-TEN-39 | E2E | `scripts/e2e_tenancy.py`, `scripts/tests/test_e2e_tenancy.py` | T-TEN-30, T-TEN-31, T-TEN-35, T-IDA-31 | backend-dev | M | Sí | 🟡 | PR #150, rama `task/T-TEN-36-e2e-tenancy` |
 | T-TEN-37 | Auditar los rechazos de los comandos de operador (Q-237) | AC-TEN-23 (rechazos del operador) | Comandos | `services/platform_{owner_invite,org_status,access}.py`, `domain/audit_events.py` | T-TEN-28 | backend-dev | S | Sí | 🟡 | PR #144, rama `task/T-TEN-37-audit-operator-refusals` |
 | T-TEN-38 | Registrar en el log de seguridad un --operator rechazado (Q-241) | — (RF-TEN-07, Q-241) | Comandos | `management/commands/_platform.py` | T-TEN-37 | backend-dev | S | Sí | 🟡 | PR #146, rama `task/T-TEN-38-rejected-operator-log` |
+| T-TEN-39 | Aceptar con el token de una invitación ya aceptada por la misma persona responde 200 idempotente (Q-243) | AC-TEN-17 (Q-243) | Servicio/API | `domain/invitations.py`, `services/invitation_accept.py`, `api/invitations.py` | T-TEN-15, T-TEN-36 | backend-dev | S | Sí | 🟡 | rama `task/T-TEN-39-idempotent-accept`, sin PR |
 
 ## Cobertura AC → tareas
 | AC | Tareas |
@@ -129,7 +131,7 @@ Donde el diseño y el código de SPEC-00, o el orden real, difieren, manda esta 
 | AC-TEN-14 | T-TEN-23 |
 | AC-TEN-15 | T-TEN-06, T-TEN-07, T-TEN-20, T-TEN-21, T-TEN-22, T-TEN-23 |
 | AC-TEN-16 | T-TEN-06, T-TEN-07, T-TEN-22, T-TEN-24 |
-| AC-TEN-17 | T-TEN-15, T-TEN-17 (vía puerto), T-TEN-31 |
+| AC-TEN-17 | T-TEN-15, T-TEN-17 (vía puerto), T-TEN-31, T-TEN-39 (Q-243) |
 | AC-TEN-18 | T-TEN-15 |
 | AC-TEN-19 | T-TEN-15 |
 | AC-TEN-20 | T-TEN-20 |
@@ -180,7 +182,7 @@ T-TEN-30 · suspendida → T-TEN-29.
 | 3 | T-TEN-13 · T-TEN-15 → {T-TEN-16, T-TEN-17, T-TEN-20} | T-TEN-17 espera a T-IDA-13: desde ahí un invitado entra de verdad |
 | 4 | T-TEN-18 → {T-TEN-19, T-TEN-28} → T-TEN-37 → T-TEN-38 · T-TEN-20 → T-TEN-21 · T-TEN-22 → T-TEN-23 · T-TEN-24 → T-TEN-25 · T-TEN-26 | Con T-TEN-18 existe la primera organización real |
 | 5 | T-TEN-27 · T-TEN-29 → {T-TEN-30, T-TEN-31, T-TEN-32, T-TEN-33, T-TEN-34} → T-TEN-35 | T-TEN-29 espera a T-IDA-27 |
-| 6 | T-TEN-36 | Cierre conjunto (Q-108): después se verifican 01 y 02 en la misma pasada |
+| 6 | T-TEN-36 → T-TEN-39 | Cierre conjunto (Q-108): después se verifican 01 y 02 en la misma pasada. T-TEN-39 corrige lo que encontró el E2E (Q-243) |
 
 ---
 
@@ -1219,7 +1221,26 @@ T-TEN-30 · suspendida → T-TEN-29.
 - **Pruebas:** `test_Q_241_*` por comando: salida `2`, una línea WARNING con comando y `os_user`, sin el valor de
   `--operator`, sin eventos de auditoría.
 
+### T-TEN-39 — Aceptar con el token de una invitación ya aceptada por la misma persona responde 200 idempotente (Q-243)
+- **AC:** AC-TEN-17 (Q-243). RN-TEN-12, RN-IDA-06, RNF-TEN-03, RNF-TEN-04. **Zona roja:** sí (contrato público,
+  aceptación de invitaciones).
+- **Archivos:** `domain/invitations.py` (`is_own_repeat`), `services/invitation_accept.py`, `api/invitations.py`
+  (descripciones del contrato), `apps/common/api/schema.py` (`API_VERSION` 0.19.0), `specs/_contracts/openapi.yaml` y
+  los tipos del frontend (generados), los tests que fijan `info.version`, `tests/tenancy/test_Q_243_idempotent_accept.py`,
+  `tests/tenancy/{test_invitation_accept,test_invitation_accept_race}.py`, `tests/tenancy/api/test_invitation_accept_api.py`,
+  `tests/tenancy/domain/test_invitations.py`, `frontend/src/modules/tenancy/components/AcceptInvitation.test.tsx`.
+- **Cambios:** lo encontró el E2E de `T-TEN-36` (PR #150): el primer login acepta toda invitación vigente del email y,
+  de vuelta en `/invitacion`, el token guardado respondía `used`. Ahora `accept_by_token` pide `idempotent=True`: bajo
+  los mismos locks, una `accepted` con `accepted_by` = quien la manda y su membership (`source_invitation`) `active`
+  responde esa membership con su rol vigente, como la primera vez; sin escrituras, sin evento de auditoría (nada cambió
+  y no es un rechazo; propuesta confirmable en Q-243) y con el log `info` `tenancy.invitation_accept_repeated` (solo
+  ids). Otra cuenta o una membership terminada siguen en `used`; la organización suspendida, `409`. La ruta desde la
+  sesión (`T-TEN-16`) y el puerto de SPEC-01 no cambian: Q-243 habla del token y esos caminos solo ven `pending`. El
+  frontend ya trataba el `200` como éxito: no cambia código, suma el test del caso.
+- **Pruebas:** `test_Q_243_*` (servicio, ruta, carrera de la misma persona, otra cuenta, membership terminada,
+  suspendida, ruta de sesión sin cambios, dominio y pantalla); `AC-TEN-17` sigue probando `used` para otra cuenta.
+
 ---
-**Hecho:** 38 tareas, 40 AC y 9 RF cubiertos, olas y división de archivos.
+**Hecho:** 39 tareas, 40 AC y 9 RF cubiertos, olas y división de archivos.
 **Pendiente / dudas:** Q-220 (SPEC-04/05).
 **Siguiente rol sugerido:** `backend-dev` en `T-TEN-01`, en paralelo con la ola 0 de SPEC-01, después `reviewer`.

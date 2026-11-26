@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import hashlib
 import re
+import uuid
 from datetime import UTC, datetime, timedelta, timezone
 from pathlib import Path
 
@@ -23,6 +24,7 @@ from apps.tenancy.domain.invitations import (
     expires_at_for,
     hash_token,
     is_expired,
+    is_own_repeat,
     new_token,
     normalize_email,
 )
@@ -192,3 +194,13 @@ def test_RN_TEN_12_reasons_are_the_contract() -> None:
         "used",
         "expired",
     ]
+
+
+def test_Q_243_only_the_one_who_accepted_it_repeats() -> None:
+    """The token of an ``accepted`` invitation, sent again by whoever accepted it (Q-243)."""
+    ana, beto = uuid.uuid4(), uuid.uuid4()
+    assert is_own_repeat(status=InvitationStatus.ACCEPTED, accepted_by_id=ana, user_id=ana)
+    assert not is_own_repeat(status=InvitationStatus.ACCEPTED, accepted_by_id=ana, user_id=beto)
+    assert not is_own_repeat(status=InvitationStatus.ACCEPTED, accepted_by_id=None, user_id=ana)
+    for status in (InvitationStatus.PENDING, InvitationStatus.REVOKED, InvitationStatus.EXPIRED):
+        assert not is_own_repeat(status=status, accepted_by_id=ana, user_id=ana)

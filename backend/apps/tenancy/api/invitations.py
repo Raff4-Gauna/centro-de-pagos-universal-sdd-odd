@@ -35,7 +35,8 @@ authenticated one, by the email of their Google account, and no route takes a us
 - ``POST /api/invitations/accept/`` (``AcceptInvitationView``): the body is ``{token}``; the token
   is hashed before anything else and never shows up in the response, in an error or in a log
   (RNF-TEN-03, C-06). The refusals are ``400 invitation_invalid`` with ``reason`` (``not_found``,
-  ``email_mismatch``, ``revoked``, ``used``, ``expired``).
+  ``email_mismatch``, ``revoked``, ``used``, ``expired``). The person who already accepted it gets
+  the same ``200`` again, while that membership is active (Q-243): ``used`` is for anyone else.
 - ``GET /api/invitations/mine/`` (``MyInvitationsView``, Q-121, Q-124): the ``pending`` and valid
   invitations of the person's email, of active organizations, paginated as the other lists
   (``HubPageNumberPagination``): ``{id, organization:{id, name}, role, expires_at}``, never the
@@ -304,10 +305,15 @@ class AcceptInvitationView(APIView):
         tags=[INVITATIONS_TAG],
         request=InvitationAcceptSerializer,
         responses={
-            200: AcceptedInvitationSerializer,
+            200: OpenApiResponse(
+                AcceptedInvitationSerializer,
+                description="La membership creada; también si quien la aceptó repite el token "
+                "y esa membership sigue activa (idempotente, Q-243)",
+            ),
             (400, PROBLEM_CONTENT_TYPE): _problem(
                 "code: invitation_invalid, con reason: not_found · email_mismatch · revoked · "
-                "used · expired; o validation_error (falta el token)"
+                "used (la aceptó otra cuenta, o su membership ya terminó) · expired; "
+                "o validation_error (falta el token)"
             ),
             (401, PROBLEM_CONTENT_TYPE): _UNAUTHORIZED,
             (409, PROBLEM_CONTENT_TYPE): _CONFLICT,

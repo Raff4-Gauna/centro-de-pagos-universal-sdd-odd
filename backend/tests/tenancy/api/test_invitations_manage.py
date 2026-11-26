@@ -254,4 +254,4 @@ def test_RNF_TEN_03_contract_of_resend_and_revoke() -> None:
     for operation in (resend, revoke_):
         assert "requestBody" not in operation
         assert {p["name"] for p in operation["parameters"]} == {"id", "X-Organization-Id"}
-    assert contract["info"]["version"] == "0.18.0"
+    assert contract["info"]["version"] == "0.19.0"

@@ -59,11 +59,14 @@ def test_AC_TEN_17_accept_through_the_route_ignores_the_header(client: Client) -
     assert token not in response.content.decode()
 
 
-def test_AC_TEN_17_second_use_is_used(client: Client) -> None:
+def test_Q_243_second_use_by_the_same_person_is_200(client: Client) -> None:
+    """AC-TEN-17's second use, by whoever accepted it: the same answer, one membership."""
     _, token = issue(new_org("A"), "ana@hub.test")
     ana = new_user("ana")
-    assert post(client, {"token": token}, **bearer_of(ana)).status_code == 200
-    assert_invalid(post(client, {"token": token}, **bearer_of(ana)), "used")
+    first = post(client, {"token": token}, **bearer_of(ana))
+    again = post(client, {"token": token}, **bearer_of(ana))
+    assert (first.status_code, again.status_code) == (200, 200)
+    assert again.json() == first.json()
     assert len(memberships(ana)) == 1
 
 
@@ -169,4 +172,4 @@ def test_RNF_TEN_03_contract_declares_token_write_only_and_the_refusals() -> Non
     assert "InvitationAccept" not in contract["components"]["schemas"]  # never a response
     accepted = contract["components"]["schemas"]["AcceptedInvitation"]
     assert set(accepted["properties"]) == {"organization", "role", "membership_id"}
-    assert contract["info"]["version"] == "0.18.0"
+    assert contract["info"]["version"] == "0.19.0"

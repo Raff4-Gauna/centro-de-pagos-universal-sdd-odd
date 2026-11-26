@@ -185,4 +185,4 @@ def test_RF_TEN_04_contract_lists_memberships() -> None:
         "assignable_roles",
     }
     assert schemas["MembershipStatusEnum"]["enum"] == ["active", "revoked"]
-    assert contract["info"]["version"] == "0.18.0"
+    assert contract["info"]["version"] == "0.19.0"

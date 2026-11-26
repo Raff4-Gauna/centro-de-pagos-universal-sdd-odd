@@ -246,6 +246,28 @@ describe("AcceptInvitation (AC-TEN-17, design.md §3.9)", () => {
     expectNoTokenLeft();
   });
 
+  it("test_Q_243_token_the_first_login_already_accepted_shows_the_welcome", async () => {
+    // The first login accepted every invitation of the email (RN-IDA-06); the token sent back
+    // from the tab is a repeat by the same person, which the backend answers `200` (Q-243).
+    let posts = 0;
+    network.respond = () => {
+      posts += 1;
+      return json(ACCEPTED);
+    };
+    const view = renderScreen(false);
+    await waitFor(() => expect(replace).toHaveBeenCalledWith(LOGIN_FOR_INVITATION));
+    view.unmount();
+
+    window.history.replaceState(null, "", "/invitacion");
+    renderScreen(true);
+    expect(await screen.findByText(TEXTS.accepted)).toBeInTheDocument();
+    expect(screen.getByText("Empresa: Acme")).toBeInTheDocument();
+    expect(screen.queryByText(TEXTS.used)).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: TEXTS.goHome })).not.toBeInTheDocument();
+    expect(posts).toBe(1);
+    expectNoTokenLeft();
+  });
+
   it("test_AC_TEN_17_dead_session_keeps_the_token_for_after_the_login", async () => {
     network.respond = () => problem(401, "session_revoked", "Sesión revocada");
     renderScreen();
