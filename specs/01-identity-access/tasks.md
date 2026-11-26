@@ -96,6 +96,7 @@ El diseño se escribió antes de que existiera el código de SPEC-00. Donde difi
 | T-IDA-29 | Mi perfil, menú de usuario y "sin empresas" | AC-IDA-30 (UI) | UI | `src/modules/identity/components/{ProfileCard,UserMenu,NoOrganizationState}.tsx` | T-IDA-07, T-IDA-25, T-IDA-28 | frontend-dev | M | Sí (`scripts/**`) | 🟡 | rama `task/T-IDA-29-profile-menu`, sin PR |
 | T-IDA-30 | Pantalla "Seguridad" | AC-IDA-33 (UI) | UI | `app/(dashboard)/configuracion/seguridad/page.tsx`, `src/modules/identity/components/SessionsTable.tsx` | T-IDA-17, T-IDA-29 | frontend-dev | L | Sí (`scripts/**`) | 🟡 | rama `task/T-IDA-30-security-screen`, sin PR |
 | T-IDA-31 | E2E de login con proveedor falso | AC-IDA-01, AC-IDA-17, AC-IDA-33 | E2E | `scripts/e2e_login.py`, `scripts/tests/test_e2e_login.py` | T-IDA-20, T-IDA-29, T-IDA-30 | backend-dev | M | Sí | 🟡 | rama `task/T-IDA-31-e2e-login` |
+| T-IDA-32 | Registrar en el log de seguridad un `--operator` rechazado en los comandos de identity (Q-242) | — (Q-242, RN-IDA-23) | Comandos | `apps/identity/management/commands/{deactivate_user,reactivate_user}.py` | T-IDA-31, T-TEN-38 | backend-dev | S | Sí | 🟡 | rama `task/T-IDA-32-rejected-operator-log`, sin PR |
 
 ## Cobertura AC → tareas
 | AC | Tareas |
@@ -162,7 +163,7 @@ pestañas tras 15 min; van al `verification.md`, no a una tarea.
 | 3 | T-IDA-10 · T-IDA-11 → T-IDA-12 → T-IDA-13 · T-IDA-20 | Con T-IDA-13 hay login completo por API, con el stub de invitaciones |
 | 4 | T-IDA-14 → {T-IDA-15, T-IDA-16} · T-IDA-17 → T-IDA-18 · T-IDA-19 | |
 | 5 | T-IDA-21 · T-IDA-22 → {T-IDA-23, T-IDA-24} → {T-IDA-25, T-IDA-27} | El frontend puede arrancar con los contratos de T-IDA-10, 13 y 14 mergeados |
-| 6 | T-IDA-28 → T-IDA-29 → T-IDA-30 → T-IDA-31 | |
+| 6 | T-IDA-28 → T-IDA-29 → T-IDA-30 → T-IDA-31 → T-IDA-32 | T-IDA-32 sale de Q-242 (2026-11-21) |
 
 SPEC-02 corre en paralelo desde la ola 1 (ver su lista). **El cierre es conjunto** (Q-108): `verification.md` de los dos
 módulos se aprueba en la misma pasada, después de `T-TEN-36`.
@@ -895,7 +896,28 @@ módulos se aprueba en la misma pasada, después de `T-TEN-36`.
 - **Pruebas:** `test_AC_IDA_01_e2e_flow_parses_redirects`, `test_AC_IDA_17_e2e_logout_step`, `test_AC_IDA_33_e2e_revoke_others`
   con respuestas simuladas; la corrida real se registra en `verification.md`.
 
+### T-IDA-32 — Registrar en el log de seguridad un `--operator` rechazado en los comandos de identity (Q-242)
+- **AC:** ninguno propio; Q-242 a) (decidida por el dueño el 2026-11-21, `specs/02-tenancy-rbac/clarifications.md`),
+  RN-IDA-23, RNF-IDA-05. **Zona roja:** sí (`backend/apps/identity/**`).
+- **Archivos:** `apps/identity/management/commands/{deactivate_user,reactivate_user}.py`.
+- **Sumados al implementar:** `apps/identity/management/commands/_user_status.py` (la validación de `--operator` de los
+  dos comandos vive ahí; los dos archivos de comando no cambian), `apps/common/platform_operators.py`
+  (`checked_operator`, compartido con SPEC-02), `apps/tenancy/management/commands/_platform.py` (pasa a usarlo, sin
+  cambiar su comportamiento), `backend/tests/identity/test_Q_242_operator_refused.py` y
+  `backend/tests/identity/conftest.py`: el logger de `apps.common` se usa ahora primero en `tests/identity`, y cacheado
+  ahí no le llegaría a los `capture_logs` de `tests/tenancy` después de `tests/logging`; es la misma fixture que
+  `tests/cross_tenant/conftest.py`.
+- **Cambios:** la regla de Q-241 (`T-TEN-38`) en `deactivate_user` y `reactivate_user`: un `--operator` fuera de
+  `PLATFORM_OPERATOR_EMAILS` (salida `2`) escribe antes una línea WARNING `identity.platform_operator_refused` con
+  `command` y `os_user`; nunca el email ni el valor de `--operator`, y no es evento de auditoría.
+- **Decisión del backend-dev:** cada módulo conserva su prefijo de evento (`tenancy.platform_operator_refused`,
+  `identity.platform_operator_refused`), como el resto de sus eventos; lo compartido es el chequeo con su línea de
+  log, en `apps.common`, porque `apps.identity` no importa `apps.tenancy`. El evento de 02 no cambia de nombre.
+- **Pruebas:** `test_Q_242_a_refused_operator_is_logged_once_without_its_value`,
+  `test_Q_242_an_empty_allowlist_refuses_and_logs_every_operator`, `test_Q_242_a_valid_operator_logs_no_refusal`,
+  `test_Q_242_another_bad_argument_logs_no_refusal`; siguen en verde los `test_Q_241_*` de 02.
+
 ---
-**Hecho:** 32 tareas, 38 AC y 10 RF cubiertos, olas y división de archivos.
+**Hecho:** 32 tareas, 38 AC y 10 RF cubiertos, olas y división de archivos. Después se sumó `T-IDA-32` (Q-242, 2026-11-21).
 **Pendiente / dudas:** ninguna de 01.
 **Siguiente rol sugerido:** `backend-dev` en la ola 1 (`T-IDA-02`, `04`, `05`, `09`) y `T-IDA-26`; después `reviewer`.

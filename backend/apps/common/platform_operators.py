@@ -10,6 +10,13 @@ only if ``settings.PLATFORM_OPERATOR_EMAILS`` lists it; with the setting empty o
 accepted (fail closed). The refusal never repeats the value. ``os_user()`` is the user of the
 operating system, which every audit event names next to the operator: ``--operator`` is declared,
 having a shell on the server is what grants access (design.md §11 of SPEC-02).
+
+``checked_operator(value, event=..., command=...)`` is how a command calls ``allowed_operator``:
+on a refusal it first writes one WARNING ``event`` in the application log with the command and the
+OS user only (Q-241, extended to every operator command by Q-242). Someone tried the most privileged
+way in without being allowed; it is not an audit event of any company, and neither the email nor
+the value given is logged (C-06, RNF-IDA-05). Each module names its own ``event``
+(``tenancy.platform_operator_refused``, ``identity.platform_operator_refused``).
 """
 
 from __future__ import annotations
@@ -17,6 +24,10 @@ from __future__ import annotations
 import getpass
 
 from django.conf import settings
+
+from apps.common.logging import get_logger
+
+logger = get_logger(__name__)
 
 UNKNOWN_OS_USER = "unknown"
 
@@ -39,6 +50,15 @@ def allowed_operator(value: object) -> str:
     if not email or email not in allowed_operators():
         raise OperatorNotAllowedError
     return email
+
+
+def checked_operator(value: object, *, event: str, command: str) -> str:
+    """``allowed_operator(value)``; a refusal is logged once as ``event`` before it is re-raised."""
+    try:
+        return allowed_operator(value)
+    except OperatorNotAllowedError:
+        logger.warning(event, command=command, os_user=os_user())
+        raise
 
 
 def os_user() -> str:
