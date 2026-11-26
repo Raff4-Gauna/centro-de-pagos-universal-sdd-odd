@@ -6,7 +6,7 @@ actualizado: 2026-11-26
 
 Reglas: rebanada vertical · ≤ ~300 líneas de diff · mergeable sola · cita AC · lista archivos esperados · incluye su plan de pruebas.
 
-> Entradas: `spec.sdd.md` **Approved 1.0.2**, `design.md` **Aprobado** (con los ajustes que indica su cabecera),
+> Entradas: `spec.sdd.md` **Approved 1.0.3**, `design.md` **Aprobado** (con los ajustes que indica su cabecera),
 > `clarifications.md` (incluida "Confirmación (2026-11-06)"), ADR-0001 y ADR-0002 **Aceptados**, `context/08-control-de-versiones-ci-cd.md`.
 > **Se cierra junto con SPEC-01 (Q-108):** ninguno de los dos pasa a `Verified` sin el otro. `Invitation` vive acá, y
 > acá se implementan los dos puertos que define SPEC-01: `T-TEN-12` (memberships) y `T-TEN-17` (invitaciones). Esta

@@ -475,7 +475,7 @@ La tabla AC → tareas está en `tasks.md` ("Cobertura AC → tareas"); la matri
 | 1.0.3 | 2026-11-26 | RNF-TEN-04 suma `organization.create_repeated` (Q-235) y `operator_command.rejected` (Q-237). AC-TEN-17: el segundo uso del token da `invitation_invalid` solo para otra cuenta; si lo repite quien ya la aceptó y su membership sigue activa, responde como una aceptación exitosa, sin escribir ni auditar, aun vencida (Q-243). `design.md §4.4` se ajusta por la fila de "Ajustes al diseño" de `tasks.md` | Decisiones del dueño del 2026-11-20 (Q-235), 2026-11-21 (Q-237) y 2026-11-26 (Q-243 y su confirmación: sin evento de auditoría y respuesta exitosa aun vencida). Entrada redactada por Claude con el OK del dueño del 2026-11-26 |
 
 ---
-**Hecho:** spec Approved 1.0.2: 21 RN, 9 RF, 7 RNF y 40 AC; `design.md` aprobado; ADR-0001 y ADR-0002 aceptados;
+**Hecho:** spec Approved 1.0.3: 21 RN, 9 RF, 7 RNF y 40 AC; `design.md` aprobado; ADR-0001 y ADR-0002 aceptados;
 `tasks.md` creado.
 **Pendiente:** Q-220 para SPEC-04/05; ajustar `context/07 §5.1` según `design.md §3.10`
 (lo hace `T-TEN-29`).
