@@ -61,7 +61,7 @@ El diseño se escribió antes de que existiera el código de SPEC-00. Donde difi
 | El BFF reenvía `X-Organization-Id` "validado como UUID" (`§4.4`), sin decir qué hace con uno inválido | Un valor sin forma de UUID se descarta y no se reenvía; Django responde como sin header (`lib/server/session-proxy.ts`, T-IDA-27) | Revisión de #108: el BFF nunca inventa ni corrige la organización (`§7`) |
 | `--operator <nombre>` en `deactivate_user` y `reactivate_user` (`§6.5`) | `--operator` es un email de `PLATFORM_OPERATOR_EMAILS`, chequeado por `apps/common/platform_operators.py`; fuera de la lista sale con `2` y una línea WARNING `identity.platform_operator_refused`, sin el valor (T-IDA-18, T-IDA-32) | Decisión del 2026-11-14 (T-TEN-18), Q-241 y Q-242: la misma regla que los comandos de SPEC-02 (`specs/02-tenancy-rbac/design.md §4.5`); revisión de #136 |
 | Callback con error de Django → `/login?error=<code>` de la lista (`§6.3`) | El `503 organization_busy` del primer login → `/login?error=google_unavailable`, sin cookies de sesión (`app/api/auth/google/callback/route.ts`, T-TEN-17) | Q-231 (dueño, 2026-11-20); detalle en la fila equivalente de `specs/02-tenancy-rbac/tasks.md` |
-| Refresh limitado por sesión (RN-IDA-15, `§7.6`) | Además, `RefreshIpThrottle` (`refresh_ip`): `60/min` por IP del cliente, setting `IDENTITY_REFRESH_IP_RATE` de `config/settings/base.py` (T-IDA-14) | Decisión del planner (2026-11-13): un `sid` aleatorio con formato válido estrenaba cupo. No figura en RN-IDA-15 ni en `§7.6`: **falta que el dueño lo confirme** (revisión de #93) |
+| Refresh limitado por sesión (RN-IDA-15, `§7.6`) | Además, `RefreshIpThrottle` (`refresh_ip`): `60/min` por IP del cliente, setting `IDENTITY_REFRESH_IP_RATE` de `config/settings/base.py` (T-IDA-14) | Decisión del planner (2026-11-13): un `sid` aleatorio con formato válido estrenaba cupo. No figura en RN-IDA-15 ni en `§7.6`; **confirmado por el dueño el 2026-11-26** (Q-130, revisión de #93) |
 | `UserProvisioningError` sin código HTTP (`§6.1`) | `500 internal_error`, sin `detail`, sin datos personales y sin evento de auditoría (T-IDA-13) | Ninguna regla lo explica; se eligió fallar cerrado (#96) |
 | `GET /api/auth/sessions/` como lista (`§6.2`) | Página `{count, next, previous, results}` con `HubPageNumberPagination` (50 por página, `apps/common/api/pagination.py`); "Seguridad" lee todas las páginas (T-IDA-17, T-IDA-30) | La misma convención que las listas de SPEC-02 (`specs/02-tenancy-rbac/tasks.md`, "Ajustes al diseño"); SPEC-00 no fija paginación |
 
@@ -1007,6 +1007,7 @@ un PR posterior cerró alguno.
 ---
 **Hecho:** 32 tareas, 38 AC y 10 RF cubiertos, olas y división de archivos. Después se sumó `T-IDA-32` (Q-242,
 2026-11-21). Al 2026-11-26 las 33 están mergeadas (PR #63 a #149).
-**Pendiente / dudas:** el dueño confirma el tope `refresh_ip` ("Ajustes al diseño"); la verificación conjunta con
-SPEC-02 (Q-108).
-**Siguiente rol sugerido:** `qa-verifier` en la verificación conjunta de 01 y 02; después el dueño decide `Verified`.
+**Pendiente / dudas:** la verificación conjunta con SPEC-02 está hecha (PR #153). El 2026-11-26 el dueño confirmó el
+tope `refresh_ip` (Q-130) y postergó la prueba con Google real hasta tener hosting, sin bloquear `Verified` (Q-131).
+Falta cerrar 02 (Q-108).
+**Siguiente rol sugerido:** el dueño, que decide `Verified` de 01 y 02 juntos.

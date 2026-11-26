@@ -13,6 +13,8 @@ commit_verificado: 5536088504208697469930a25926c8397a87cb0e
 
 - Spec verificada: `specs/02-tenancy-rbac/spec.sdd.md` v1.0.3 (`Approved`), 40 AC (`AC-TEN-01` a `AC-TEN-40`). Se
   verifica junto con SPEC-01 (Q-108): la matriz de 01 está en `specs/01-identity-access/verification.md`.
+  Después de la corrida, la spec pasó a 1.0.4 (2026-11-26, Q-244): solo cambia el texto de AC-TEN-28, que pierde la
+  cláusula del cobro `pending` (va a SPEC-06). Ningún test ni otro AC cambia.
 - **`AC-CHG-13`** aparece en la spec (§7, aislamiento de listados) como cita a SPEC-06, no como AC de 02. Por eso
   `check_spec_state.py` lo cuenta entre los 41 y lo deja en el baseline (`spec_state_baseline.json`, "sale cuando exista
   su test"). No tiene fila en la matriz: se verifica con SPEC-06. El comportamiento que cita para 02 (los listados nunca
@@ -23,9 +25,10 @@ commit_verificado: 5536088504208697469930a25926c8397a87cb0e
 - **Leyenda:** `✔` hay test con el ID del AC, cubre el Dado/Cuando/Entonces completo y corrió en verde en las corridas
   de §2, hechas hoy sobre ese commit. `⚠` cubre una parte (se dice qué falta). `✘` sin test o en rojo.
 - La suite corrió completa, sin tests salteados (`0 skipped`), así que un `✔` vale para todos los tests de su fila.
-- No se agregaron tests (este PR es de documentos). Quedan dos huecos: AC-TEN-28 (s2s sobre un cobro) no se puede
-  cubrir sin el módulo de cobros, y la cláusula de Q-243 sobre una invitación vencida de AC-TEN-17 pide una tarea de
-  test (§8).
+- No se agregaron tests (este PR es de documentos). Quedaban dos huecos: AC-TEN-28 (s2s sobre un cobro), que no se
+  puede cubrir sin el módulo de cobros, y la cláusula de Q-243 sobre una invitación vencida de AC-TEN-17, que pide una
+  tarea de test (§8). **Actualización (2026-11-26):** por decisión del dueño (Q-244, spec 1.0.4) la cláusula del cobro
+  pasó a SPEC-06 (AC-CHG-18) y AC-TEN-28 queda ✔ con los mismos tests; sigue abierto el de AC-TEN-17.
 
 ## 1. Matriz AC → test
 
@@ -61,7 +64,7 @@ es `backend/tests/architecture/` y `fe:` es `frontend/src/`.
 | AC-TEN-25 | `test_invitation_accept.py` (`…_at_seven_days`), `domain/test_invitations.py`, `test_my_invitations_commit.py` | ✔ |
 | AC-TEN-26 | `api/test_invitations_create.py` (`…_second_pending_rejected`), `api/test_invitations_manage.py` (`…_resend_revokes_old_and_renews`, `…_new_token_is_accepted_for_seven_days`), `test_invitation_create.py` (`…_two_creations_at_once_leave_one_pending`), `test_invitation_manage_race.py` | ✔ |
 | AC-TEN-27 | `api/test_membership_role.py` (`…_transfer_ownership`), `api/test_memberships.py`, `domain/test_role_rules.py` | ✔ |
-| AC-TEN-28 | `ct:test_action_kinds.py` (`…_every_write_case_is_409_when_suspended`, `…_reads_pass_when_suspended`), `test_AC_TEN_28_locks.py`, `test_AC_TEN_28_lock_races.py` (`…_suspend_waits_for_write_in_flight`), `test_AC_TEN_28_tasks.py` (`…_system_task_runs_on_suspended_org`), aceptar invitación: `api/test_my_invitations_api.py` (`…_accept_from_session_is_409`), `api/test_invitation_accept_api.py`; `fe:` `useBranches.test.tsx` | ⚠ lectura y bloqueo de escrituras, completos. **Falta** la cláusula "un evento servidor-a-servidor sobre un cobro `pending` de A se sigue procesando": no hay cobros (SPEC-06/07). Se probó el mecanismo con una `TenantTask` de prueba (`tenant_probe`) con actor sistema sobre una organización suspendida, como planificó `tasks.md` (T-TEN-11). El cobro en sí no se puede verificar todavía |
+| AC-TEN-28 | `ct:test_action_kinds.py` (`…_every_write_case_is_409_when_suspended`, `…_reads_pass_when_suspended`), `test_AC_TEN_28_locks.py`, `test_AC_TEN_28_lock_races.py` (`…_suspend_waits_for_write_in_flight`), `test_AC_TEN_28_tasks.py` (`…_system_task_runs_on_suspended_org`), aceptar invitación: `api/test_my_invitations_api.py` (`…_accept_from_session_is_409`), `api/test_invitation_accept_api.py`; `fe:` `useBranches.test.tsx` | ✔ lectura, bloqueo de escrituras y tarea de sistema sobre la organización suspendida, con una `TenantTask` de prueba (`tenant_probe`) con actor sistema, como planificó `tasks.md` (T-TEN-11). La cláusula del cobro `pending` salió de este AC por decisión del dueño (Q-244, spec 1.0.4) y se verifica en SPEC-06 (AC-CHG-18). Mismos tests y misma corrida de §2; no se volvió a correr la suite |
 | AC-TEN-29 | `api/test_current_organization.py` (`…_status_is_not_writable`, `…_owner_of_a_suspended_one_cannot_reactivate_it`), `commands/test_set_org_status.py` | ✔ |
 | AC-TEN-30 | `api/test_branch_lifecycle.py` (`…_deactivate_keeps_the_branch`, `…_reactivate_with_taken_name`), `api/test_branches.py` (`…_inactive_listed`, `…_no_delete_route`), `api/test_branch_detail.py` (`…_no_physical_delete`); `fe:` `BranchFormDialog.test.tsx` | ✔ (incluye `branch.deactivated`) |
 | AC-TEN-31 | `api/test_membership_exit.py` (`…_leave_then_reinvite_is_new_membership`); `fe:` `MemberDialogs.test.tsx`, `MembersLeave.test.tsx` | ✔ |
@@ -75,7 +78,7 @@ es `backend/tests/architecture/` y `fe:` es `frontend/src/`.
 | AC-TEN-39 | `api/test_my_invitations_api.py` (`…_lists_only_my_email`, `…_expired_and_suspended_are_not_listed`, `…_response_has_no_token`, `…_foreign_and_missing_same_body`), `test_my_invitations_commit.py` (`…_foreign_attempt_is_audited`), `test_invitation_session_scopes.py`; `fe:` `PendingInvitationsNotice.test.tsx`, `useMyInvitations.test.ts`; `scripts/tests/test_e2e_tenancy.py`; E2E real §3 (`[mine]`, `[accept-other-email]`, `[accept-from-session]`) | ✔ |
 | AC-TEN-40 | `commands/test_create_org.py` (`…_existing_user_gets_invitation_not_membership`, `…_next_login_does_not_accept`, `…_accept_from_session_gives_one_owner`) | ✔ |
 
-**Resumen:** 38 ✔ · 2 ⚠ (AC-TEN-17, AC-TEN-28) · 0 ✘ · 40 AC. `AC-CHG-13`: cita a SPEC-06, fuera de la matriz.
+**Resumen:** 39 ✔ · 1 ⚠ (AC-TEN-17) · 0 ✘ · 40 AC. `AC-CHG-13`: cita a SPEC-06, fuera de la matriz.
 
 ## 2. Ejecución (2026-11-26, commit `5536088`)
 
@@ -137,7 +140,8 @@ pantallas (§5).
   (AC-TEN-13) y sin autoelevación (AC-TEN-16).
 - [x] **Sin secretos ni PII en logs y respuestas:** AC-TEN-24, RNF-TEN-03 y el barrido de logs del E2E.
 - [x] **Migraciones aplican y revierten:** `check_migrations_roundtrip` (§2).
-- [ ] **Evento servidor-a-servidor sobre una organización suspendida:** solo con la tarea de prueba (AC-TEN-28, ⚠).
+- [x] **Tarea de sistema sobre una organización suspendida:** con la tarea de prueba (AC-TEN-28). El evento
+  servidor-a-servidor sobre un cobro pasó a SPEC-06 (Q-244, AC-CHG-18).
 
 ## 5. Validación funcional manual (la hace el dueño)
 
@@ -152,9 +156,8 @@ Lo que `design.md §9` deja como manual (fila "E2E / manual"). Requisito: el sta
 3. **Banner de empresa suspendida:** con `tenancy_set_org_status` suspender A; el owner ve el aviso, puede listar
    Sucursales y datos de la empresa, y no se le ofrecen acciones de escritura (AC-TEN-28, UI).
 4. **E2E por HTTP**, reproducible: §3. Resultado esperado: `e2e passed`, código 0.
-5. **Decidir la cláusula s2s de AC-TEN-28:** aceptar como evidencia la prueba con la tarea de prueba hasta que exista
-   SPEC-06/07, o pasar la cláusula a SPEC-06 como referencia cruzada (como `AC-CHG-13`), con entrada en el "Historial de
-   cambios".
+5. **Cláusula s2s de AC-TEN-28: decidida.** El dueño la pasó a SPEC-06 como referencia cruzada el 2026-11-26 (Q-244,
+   spec 1.0.4, AC-CHG-18 de SPEC-06).
 6. **Q-229 sigue abierta** (`clarifications.md`): `full_clean()` / `validate_unique()` y el `UniqueValidator` de DRF
    fallan con `TenantScopeError` en los modelos de tenant. Hoy ningún código los usa (no bloquea 02), pero el primer
    módulo que los use daría `500`. Hay que asignarla al architect antes de SPEC-04.
@@ -174,14 +177,14 @@ Lo que `design.md §9` deja como manual (fila "E2E / manual"). Requisito: el sta
 - **C-14:** ningún archivo de código pasa de 400 líneas;
 - **ADR-0011:** identity no importa tenancy.
 
-El único hallazgo, no bloqueante, es el de la tabla.
+Los dos hallazgos de la tabla son no bloqueantes.
 
 Cada PR de 02 tuvo veredicto del `reviewer` con SHA y el label `zona-roja` (`tasks.md`, columna Evidencia).
 
 ## 7. Hallazgos
 
-1. **AC-TEN-28 ⚠:** la cláusula del evento servidor-a-servidor sobre un cobro `pending` no se puede verificar sin
-   SPEC-06/07. Sí está verificado el mecanismo que la sostiene (tarea con actor sistema sobre organización suspendida).
+1. **AC-TEN-28:** la cláusula del evento servidor-a-servidor sobre un cobro `pending` no se podía verificar sin
+   SPEC-06/07. **Resuelto:** el dueño la pasó a SPEC-06 el 2026-11-26 (Q-244, spec 1.0.4); AC-TEN-28 queda ✔.
 2. **AC-TEN-17 ⚠:** falta un test de la cláusula de Q-243 sobre una invitación vencida. La misma persona repite la
    aceptación de una invitación `accepted` cuando ya pasó su `expires_at`, y la respuesta tiene que ser la de una
    aceptación exitosa, sin escritura ni evento.
@@ -195,13 +198,14 @@ Cada PR de 02 tuvo veredicto del `reviewer` con SHA y el label `zona-roja` (`tas
 
 ## 8. Decisión
 
-**Con hallazgos. No marcar `Verified` todavía.** 38 de 40 AC quedan ✔ con la suite completa en verde sobre `5536088`.
-AC-TEN-17 necesita una tarea de test; AC-TEN-28 depende de un módulo que todavía no existe.
+**Con hallazgos. No marcar `Verified` todavía.** 39 de 40 AC quedan ✔ con la suite completa en verde sobre `5536088`
+(AC-TEN-28 pasó a ✔ el 2026-11-26 por la decisión del dueño de Q-244). AC-TEN-17 necesita una tarea de test, que se
+implementa como `T-TEN-40` en un PR aparte.
 
 | Acción | Quién | Qué desbloquea |
 |---|---|---|
 | Crear una tarea de solo test (Carril S): `test_AC_TEN_17_same_person_repeat_after_expiry_is_success`, con la misma persona repitiendo la aceptación de una invitación `accepted` con `now >= expires_at` y su membership activa; esperado: respuesta de éxito, sin escritura y sin evento. Después, repetir la verificación de la fila | planner / implementer | AC-TEN-17 |
-| Decidir la cláusula s2s de AC-TEN-28 (§5, paso 5) | dueño | AC-TEN-28 |
+| ~~Decidir la cláusula s2s de AC-TEN-28 (§5, paso 5)~~ Hecho: pasa a SPEC-06 (Q-244, 2026-11-26) | dueño | AC-TEN-28 |
 | Validación manual de la UI (§5, pasos 1 a 3) | dueño | AC-TEN-08, 22 y 28 en pantalla (`design.md §9`) |
 | Asignar Q-229 | dueño / architect | riesgo para SPEC-04 en adelante, no para 02 |
 | Decidir la frontera 02 → 01 (§6): exponer por `apps.identity.ports` o documentarlo | dueño / architect | hallazgo 6, no bloquea |
