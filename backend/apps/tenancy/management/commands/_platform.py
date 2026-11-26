@@ -4,9 +4,9 @@
 ``tenancy_create_org``. ``operator_of`` checks ``--operator`` against ``PLATFORM_OPERATOR_EMAILS``
 (``apps.common.platform_operators``) and names the OS user next to it; a refusal never repeats the
 value. Before that exit ``2`` it writes one WARNING ``tenancy.platform_operator_refused`` in the
-application log with the command and the OS user only (Q-241): someone tried the most privileged
-way in without being allowed. It is not an audit event of any company, and neither the email nor
-the value of ``--operator`` is logged (C-06, RNF-IDA-05).
+application log with the command and the OS user only (Q-241), through ``checked_operator``, the
+check every operator command shares (Q-242): it is not an audit event of any company, and neither
+the email nor the value of ``--operator`` is logged (C-06, RNF-IDA-05).
 """
 
 from __future__ import annotations
@@ -15,11 +15,8 @@ import uuid
 
 from django.core.management.base import BaseCommand, CommandError
 
-from apps.common.logging import get_logger
-from apps.common.platform_operators import OperatorNotAllowedError, allowed_operator, os_user
+from apps.common.platform_operators import OperatorNotAllowedError, checked_operator, os_user
 from apps.tenancy.services.platform_org import Operator
-
-logger = get_logger(__name__)
 
 REFUSED_EXIT = 1
 USAGE_EXIT = 2
@@ -35,9 +32,8 @@ def command_name(command: BaseCommand) -> str:
 
 def operator_of(value: object, command: BaseCommand) -> Operator:
     try:
-        email = allowed_operator(value)
+        email = checked_operator(value, event=OPERATOR_REFUSED_EVENT, command=command_name(command))
     except OperatorNotAllowedError as error:
-        logger.warning(OPERATOR_REFUSED_EVENT, command=command_name(command), os_user=os_user())
         raise CommandError(str(error), returncode=USAGE_EXIT) from None
     return Operator(email=email, os_user=os_user())
 

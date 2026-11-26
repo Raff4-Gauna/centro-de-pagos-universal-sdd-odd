@@ -9,6 +9,10 @@ Exit codes: ``0`` the change was made or the user was already in that state (sai
 ``1`` no user matches; ``2`` a bad argument (argparse's own code, and ours for an ``--operator``
 not in the allowlist or an invalid ``--reason``). Messages name the user by id only: never the
 email given, so a mistyped address of somebody else does not end up in a terminal log either.
+
+An ``--operator`` not in the allowlist first writes one WARNING
+``identity.platform_operator_refused`` with the command and the OS user only, as every operator
+command does (Q-241, Q-242): never the email nor the value given, and it is not an audit event.
 """
 
 from __future__ import annotations
@@ -20,7 +24,7 @@ from datetime import datetime
 from django.core.management.base import BaseCommand, CommandError
 from django.utils import timezone
 
-from apps.common.platform_operators import allowed_operator, os_user
+from apps.common.platform_operators import checked_operator, os_user
 from apps.identity.services.user_status import (
     PlatformOperator,
     StatusChange,
@@ -30,6 +34,7 @@ from apps.identity.services.user_status import (
 
 NOT_FOUND_EXIT = 1
 USAGE_EXIT = 2
+OPERATOR_REFUSED_EVENT = "identity.platform_operator_refused"
 
 
 def parse_uuid(value: str) -> uuid.UUID:
@@ -69,7 +74,7 @@ class UserStatusCommand(BaseCommand):
         **options: object,
     ) -> None:
         try:
-            actor = PlatformOperator(name=allowed_operator(operator), os_user=os_user())
+            actor = PlatformOperator(name=self.operator(operator), os_user=os_user())
             target = UserTarget(user_id=user_id, email=email)
             change = self.change(target=target, operator=actor, note=reason, now=timezone.now())
         except UserNotFoundError as error:
@@ -77,6 +82,10 @@ class UserStatusCommand(BaseCommand):
         except ValueError as error:
             raise CommandError(str(error), returncode=USAGE_EXIT) from error
         self.stdout.write(self.report(change))
+
+    def operator(self, value: str) -> str:
+        command = type(self).__module__.rpartition(".")[2]  # the name manage.py runs it by
+        return checked_operator(value, event=OPERATOR_REFUSED_EVENT, command=command)
 
     def report(self, change: StatusChange) -> str:
         template = self.done if change.changed else self.unchanged
