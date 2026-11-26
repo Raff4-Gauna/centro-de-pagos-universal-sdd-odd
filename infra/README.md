@@ -201,6 +201,29 @@ ficticios en línea, un par de claves del JWT generado para esa corrida y puerto
 `IDENTITY_GOOGLE_REDIRECT_URI` con el puerto publicado del `frontend`, y `--provider-url` con el del `backend`. Al
 terminar, `docker compose -f <archivo> down -v`.
 
+### E2E de tenancy (`scripts/e2e_tenancy.py`, T-TEN-36)
+Igual que el del login (lo reutiliza: navegadores, jar y login con el proveedor falso), más los comandos del operador.
+El operador crea la empresa A por comando y el owner, una persona nueva, entra por el link (AC-TEN-22). El owner crea
+una sucursal e invita a un `operator`, que entra en otra sesión y ve Sucursales en lectura. La empresa B lo invita como
+`viewer` y C como owner; C se suspende. En `/api/invitations/mine/` ve solo la de B, y la acepta desde la sesión
+(AC-TEN-39). Aceptar por ID la invitación de otro email responde igual que un ID inexistente. Al final,
+`/api/organizations/` da exactamente A y B (AC-TEN-08). Cada corrida usa emails y claves nuevos (`--run-id`, al azar
+por defecto), así que se repite sobre el mismo stack. No imprime links, tokens, cookies, emails ni la salida de los
+comandos. Sale con 0, 1 o 2, como el del login.
+
+**No corre en CI**, por la misma razón que el del login. Requisitos extra del stack: `FRONTEND_BASE_URL` igual a
+`HUB_APP_ORIGIN` (el script rechaza un link que no sea `<app>/invitacion#token=…`) y el email de `--operator` en
+`PLATFORM_OPERATOR_EMAILS`. `--manage` es cómo se corre `manage.py` en el backend; el script lo parte como un shell, sin
+pasar por uno, y le agrega el comando y sus argumentos:
+```
+python scripts/e2e_tenancy.py --operator ops@example.test --frontend-url http://localhost:3000 --manage "docker compose -f infra/docker-compose.yml --env-file .env exec -T backend python manage.py"
+```
+- Con el stack descartable del login (`name:` propio), `--manage "docker compose -p hub-e2e exec -T backend python
+  manage.py"` y `--provider-url` con el puerto del `backend`.
+- No manda a `POST /api/invitations/accept/` el token del owner después de su primer login: ese login ya aceptó la
+  invitación y qué tiene que mostrar entonces `/invitacion` es una pregunta abierta (Q-243 propuesta).
+- Deja empresas, personas y una sucursal en la BD (descartable, `down -v`); la empresa C queda suspendida.
+
 ## Repo público: protección de `main` (T-PLT-40, `design.md §3.7`)
 
 El repo ya es público (Q-054 resuelta: gitleaks sobre todo el historial, 0 hallazgos). Sigue pendiente **rotar los
