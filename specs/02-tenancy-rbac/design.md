@@ -5,7 +5,7 @@ actualizado: 2026-11-07
 ---
 # Diseño — Módulo de Organizaciones, Sucursales y Roles (tenancy + RBAC)
 
-> Parte de `spec.sdd.md` 1.0.2 (*Approved*) y de `clarifications.md` (Q-201…Q-228). No cambia reglas de negocio:
+> Parte de `spec.sdd.md` 1.0.3 (*Approved*) y de `clarifications.md` (Q-201…Q-228). No cambia reglas de negocio:
 > donde la spec delega un detalle técnico ("lo decide `design.md`") se decide acá. Decisiones no obvias: **ADR-0001**
 > (multi-tenancy) y **ADR-0002** (modelos propios), ambos *Aceptados*. Donde el código real de SPEC-00 obliga a nombrar
 > distinto, manda `tasks.md` ("Ajustes al diseño").

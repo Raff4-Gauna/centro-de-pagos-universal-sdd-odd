@@ -170,7 +170,7 @@ a la del proveedor y en qué módulo vive:
 |---|---|---|---|
 | **Mi perfil** | "Información de tu perfil" | Datos de la persona logueada (nombre, email de Google) | `01-identity-access` |
 | **Seguridad** | "Seguridad" | Sesiones activas, revocar sesión; sin contraseña propia en el MVP (`Q-012`) | `01-identity-access` |
-| **Colaboradores** | "Colaboradores" | Miembros de la empresa actual, su rol (`owner`/`admin`/`operator`/`viewer`), invitar por email | `02-tenancy-rbac` |
+| **Colaboradores** | "Colaboradores" | Miembros de la empresa actual, su rol (Dueño / Administrador / Operador / Solo lectura, Q-232; la API usa los códigos `owner`/`admin`/`operator`/`viewer`), invitar por email | `02-tenancy-rbac` |
 | **Datos de la empresa** | "Datos de tu negocio" | Razón social, rubro, datos fiscales que el Hub necesita (no facturación propia, fuera de MVP) | `02-tenancy-rbac` |
 | **Sucursales y cajas** | "Locales y cajas" | Alta/edición de `Branch` y sus cajas por integración; **una empresa, varias sucursales**, tal como pidió el usuario | `02-tenancy-rbac` (sucursales); el módulo de las cajas queda sujeto a Q-220 (propuesta SPEC-04) |
 | **Integraciones** | "Integraciones" (de cada proveedor) | Alta/baja de integraciones por proveedor (Mercado Pago, luego Payway/Clover), credenciales cifradas, botón "Probar conexión" | `04-integration-management` |
