@@ -1402,7 +1402,7 @@ un PR posterior cerró alguno.
 (PR #82 a #151).
 **Pendiente / dudas:** Q-220 (SPEC-04/05) y Q-229 (unicidades con el manager que falla cerrado), abiertas y sin
 bloquear 02. La verificación conjunta con SPEC-01 está hecha (PR #153); el 2026-11-26 el dueño pasó la cláusula s2s
-de AC-TEN-28 a SPEC-06 (Q-245, spec 1.0.4). Falta el test de AC-TEN-17 con la invitación vencida (`T-TEN-40`, en un PR
+de AC-TEN-28 a SPEC-06 (Q-244, spec 1.0.4). Falta el test de AC-TEN-17 con la invitación vencida (`T-TEN-40`, en un PR
 aparte) y la validación manual de la UI.
 **Siguiente rol sugerido:** implementer en `T-TEN-40`; después el dueño hace la validación manual y decide `Verified`
 de 01 y 02 juntos.

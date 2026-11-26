@@ -22,7 +22,7 @@ fase: cierre de 01 y 02 (Q-108), verificados Con hallazgos; 00 con verificación
 | 03-integrations-engine | Draft | — | 0 % | Falta cerrar el contrato del motor |
 | 04-integration-management | Por redactar | — | 0 % | Bloquea a 06 |
 | 05-mercadopago-adapter | Draft | — | 0 % | Depende del spike S-001 |
-| 06-charges | Draft | — | 0 % | Núcleo del dinero; hereda AC-CHG-18 de AC-TEN-28 (Q-245) |
+| 06-charges | Draft | — | 0 % | Núcleo del dinero; hereda AC-CHG-18 de AC-TEN-28 (Q-244) |
 | 07–14 | Por redactar / Futuro | — | 0 % | Ver `specs/ROADMAP.md` |
 
 - **01 y 02:** todo el código planificado está en `main` (`T-IDA-00..32`, PR #63 a #149; `T-TEN-01..39`, PR #82 a
@@ -30,8 +30,8 @@ fase: cierre de 01 y 02 (Q-108), verificados Con hallazgos; 00 con verificación
   está `Verified`. La verificación conjunta (PR #153, sobre `5536088`) dio **Con hallazgos** en las dos.
 - **Decisiones del dueño del 2026-11-26** (después de #153): confirma el tope `refresh_ip` de 60/min por IP (Q-130);
   la prueba con Google real se posterga hasta tener hosting y no bloquea `Verified` de 01 (Q-131); la cláusula s2s del
-  cobro `pending` sale de AC-TEN-28 y pasa a SPEC-06 como AC-CHG-18 (Q-245).
-- **Spec 02 en 1.0.4** (OK del dueño del 2026-11-26): solo cambia AC-TEN-28 (Q-245). La 1.0.3 (PR #151) sumó a
+  cobro `pending` sale de AC-TEN-28 y pasa a SPEC-06 como AC-CHG-18 (Q-244).
+- **Spec 02 en 1.0.4** (OK del dueño del 2026-11-26): solo cambia AC-TEN-28 (Q-244). La 1.0.3 (PR #151) sumó a
   RNF-TEN-04 `organization.create_repeated` y `operator_command.rejected`, y a AC-TEN-17 lo de Q-243.
 - **Seguimientos técnicos** de las revisiones (no bloqueantes, sin tarea): en la sección del mismo nombre de cada
   `tasks.md` de 01 y 02.
@@ -91,7 +91,7 @@ repetir esa verificación.
 ## 6. Pie de la última sesión
 
 - **Hecho:** registro de tres decisiones del dueño del 2026-11-26 en los documentos de 01, 02 y 06: Q-130 (tope
-  `refresh_ip` confirmado), Q-131 (Google real postergado hasta tener hosting, no bloquea `Verified`) y Q-245 (la
+  `refresh_ip` confirmado), Q-131 (Google real postergado hasta tener hosting, no bloquea `Verified`) y Q-244 (la
   cláusula s2s de AC-TEN-28 pasa a SPEC-06 como AC-CHG-18; spec 02 → 1.0.4). `verification.md` de 01 y 02 al día:
   01 38 ✔; 02 39 ✔ · 1 ⚠ (AC-TEN-17). Sin cambios de código ni de tests.
 - **Pendiente / dudas:** `T-TEN-40` (test de AC-TEN-17, PR aparte); validación manual de la UI de 02; Q-229 (abierta,

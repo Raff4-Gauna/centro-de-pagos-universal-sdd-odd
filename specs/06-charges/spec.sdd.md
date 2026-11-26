@@ -135,7 +135,7 @@ Terminales: `canceled`, `expired`, `failed`, `refunded`. `needs_review` se resue
 - **AC-CHG-15** (RN-CHG-16) **Dado** cualquier cambio de estado **entonces** existe un `charge_event` con actor, origen y fecha.
 - **AC-CHG-16** (RN-CHG-17) **Dado** un evento de un cobro aún no confirmado **entonces** se guarda huérfano y se aplica al confirmarse.
 - **AC-CHG-17** (Permisos §4) **Dado** un `viewer` **cuando** intenta crear, cancelar o devolver **entonces** `403`.
-- **AC-CHG-18** (*heredado de SPEC-02 AC-TEN-28, Q-245*; RN-TEN-18) **Dado** una organización A `suspended` con un cobro
+- **AC-CHG-18** (*heredado de SPEC-02 AC-TEN-28, Q-244*; RN-TEN-18) **Dado** una organización A `suspended` con un cobro
   `pending` **cuando** llega un evento servidor-a-servidor de ese cobro **entonces** se sigue procesando. Es un requisito
   heredado, no diseñado todavía: su redacción final y su test se fijan al especificar este módulo.
 
@@ -159,4 +159,4 @@ Se completa al generar `tasks.md`.
 |---|---|---|---|
 | 0.1.0 | 2026-10-30 | Borrador inicial | Modelo `charges` + `refunds`; corrige la ausencia de reembolsos y reintentos en la propuesta |
 | 0.1.1 | 2026-10-31 | §4 pasa de propuesto a decidido; §3.2 aclara Point; §16 separa preguntas decididas | Q-002, Q-007, Q-008 y Q-010 decididas (`specs/00-platform/clarifications.md`) |
-| 0.1.2 | 2026-11-26 | §13 suma **AC-CHG-18**, heredado de SPEC-02 AC-TEN-28: un evento servidor-a-servidor sobre un cobro `pending` de una organización suspendida se sigue procesando. El frontmatter decía 0.1.0 y pasa a 0.1.2 | Decisión del dueño del 2026-11-26 (Q-245 de `specs/02-tenancy-rbac/clarifications.md`): la cláusula sale de AC-TEN-28 (SPEC-02 1.0.4) y se verifica acá. Entrada redactada por Claude con el OK del dueño del 2026-11-26 |
+| 0.1.2 | 2026-11-26 | §13 suma **AC-CHG-18**, heredado de SPEC-02 AC-TEN-28: un evento servidor-a-servidor sobre un cobro `pending` de una organización suspendida se sigue procesando. El frontmatter decía 0.1.0 y pasa a 0.1.2 | Decisión del dueño del 2026-11-26 (Q-244 de `specs/02-tenancy-rbac/clarifications.md`): la cláusula sale de AC-TEN-28 (SPEC-02 1.0.4) y se verifica acá. Entrada redactada por Claude con el OK del dueño del 2026-11-26 |
