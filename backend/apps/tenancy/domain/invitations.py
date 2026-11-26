@@ -14,12 +14,16 @@
   ``InvalidReason`` of an invitation that cannot be accepted, or ``None``, in the order of the
   diagram: another email first, then a status other than ``pending``, then the clock. What needs the
   database (a suspended organization, already a member) is the service's.
+- **Repeating it** (Q-243): ``is_own_repeat`` says the ``used`` of an ``accepted`` invitation comes
+  from the person who accepted it; the token route answers that one as the acceptance it already
+  was (idempotent), and anyone else still gets ``used``.
 """
 
 from __future__ import annotations
 
 import hashlib
 import secrets
+import uuid
 from datetime import datetime, timedelta
 from enum import StrEnum
 
@@ -125,3 +129,10 @@ def decide_accept(
     if is_expired(expires_at, now):
         return InvalidReason.EXPIRED
     return None
+
+
+def is_own_repeat(
+    *, status: InvitationStatus, accepted_by_id: uuid.UUID | None, user_id: uuid.UUID
+) -> bool:
+    """An ``accepted`` invitation sent again by the very person who accepted it (Q-243)."""
+    return InvitationStatus(status) is InvitationStatus.ACCEPTED and accepted_by_id == user_id

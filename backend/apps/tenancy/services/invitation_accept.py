@@ -4,6 +4,13 @@ The only acceptance path (ADR-0002 §5), shared by every entry point:
 
 - ``accept_by_token(token, invitee)``: ``POST /api/invitations/accept/`` (T-TEN-15). The token is
   hashed and looked up once (``selectors.invitations.find_by_token``); no row is ``not_found``.
+  It is idempotent for the person who accepted it (Q-243): the first login accepts every valid
+  invitation of the email (RN-IDA-06), so ``/invitacion`` sends a token that person already used.
+  Under the same locks, an ``accepted`` row whose ``accepted_by`` is the invitee and whose
+  membership (``source_invitation``) is still ``active`` answers that membership, with its current
+  role, as the first time: no write and no audit event (nothing changed; a refusal is not what
+  happened either), only the ``info`` log ``tenancy.invitation_accept_repeated`` with ids. Another
+  account, or an ended membership, is still ``used``; a suspended organization, ``409``.
 - ``accept_from_session(invitation_id, invitee)``: ``POST /api/invitations/{id}/accept/``
   (T-TEN-16, Q-121, Q-124), in the three steps of §4.4. (1) It reads the row by id with
   ``Invitation.objects.for_session_accept`` (any organization: the only file allowed to,
@@ -13,11 +20,13 @@ The only acceptance path (ADR-0002 §5), shared by every entry point:
   goes out on its own, outside any transaction, and the row stays ``pending``. (3) The holder goes
   on to ``accept_invitation`` with ``mismatch=InvalidReason.NOT_FOUND``: if the email no longer
   matches under the lock it answers the same ``not_found`` (that contract has no
-  ``email_mismatch``).
-- ``accept_invitation(ref, invitee, mismatch=...)``: the rest of the diagram for a known row.
+  ``email_mismatch``). Q-243 does not cover it: an ``accepted`` row is ``used`` here.
+- ``accept_invitation(ref, invitee, mismatch=..., idempotent=...)``: the rest of the diagram for a
+  known row; ``idempotent`` is the token route's Q-243.
 - ``accept_locked(mutex, invitation_id, invitee, now=)``: the decision and the writes, inside a
   transaction that already holds the organization's ``MembershipMutex``. The port of SPEC-01
-  (T-TEN-17) calls it inside its own all-or-nothing transaction and turns a refusal into its error.
+  (T-TEN-17) calls it inside its own all-or-nothing transaction and turns a refusal into its error;
+  it reads ``pending`` invitations only, so it never asks for ``idempotent``.
 
 The person has no membership in that organization yet, so there is no ``UserActor``: the scope is
 ``system_context(organization_id, SystemReason.INVITATION_ACCEPT)`` of the invitation's own
@@ -32,7 +41,8 @@ invitation (``FOR UPDATE``); then another email (``email_mismatch``, stays ``pen
 other than ``pending`` (``used``, ``revoked``, ``expired``), the clock (a ``pending`` one past
 ``expires_at`` becomes ``expired`` and that is committed, with ``invitation.expired``), a suspended
 organization (``409 organization_suspended``), already a member (``409 already_member``, stays
-``pending``). A second accept in parallel waits for the lock and reads ``accepted``: ``used``.
+``pending``). A second accept in parallel waits for the lock and reads ``accepted``: ``used``, or
+the same membership for the person who accepted it, through the token (Q-243).
 
 ``invitation.rejected`` (another email) is emitted after the transaction, in its own write, so the
 refusal does not roll it back (design.md §3.3). Logs carry ids only: never the token, its hash nor
@@ -42,7 +52,7 @@ an email (C-06, RNF-TEN-06).
 from __future__ import annotations
 
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 
 from django.db import transaction
@@ -64,6 +74,7 @@ from apps.tenancy.domain.invitations import (
     InvitationStatus,
     decide_accept,
     emails_match,
+    is_own_repeat,
 )
 from apps.tenancy.models import Invitation, Membership, Organization
 from apps.tenancy.models.membership import MembershipStatus
@@ -75,6 +86,7 @@ from apps.tenancy.services.invitations import expire_invitation
 logger = get_logger(__name__)
 
 ACCEPTED_EVENT = "tenancy.invitation_accepted"
+REPEATED_EVENT = "tenancy.invitation_accept_repeated"  # Q-243: a log line, not an audit event
 REFUSED_EVENT = "tenancy.invitation_refused"
 # What a refused other email may answer: its own reason, or a missing invitation (T-TEN-16).
 MISMATCH_ANSWERS = frozenset({InvalidReason.EMAIL_MISMATCH, InvalidReason.NOT_FOUND})
@@ -112,6 +124,8 @@ class AcceptedInvitation:
     organization_name: str
     role: Role
     membership_id: uuid.UUID
+    # The token route's Q-243: an acceptance answered again; never part of the response.
+    repeated: bool = field(default=False, compare=False)
 
 
 def accept_by_token(
@@ -121,7 +135,7 @@ def accept_by_token(
     if ref is None:
         _refused(InvalidReason.NOT_FOUND, invitee, None)
         raise InvitationInvalid(InvalidReason.NOT_FOUND)
-    return accept_invitation(ref, invitee, now=now)
+    return accept_invitation(ref, invitee, now=now, idempotent=True)
 
 
 @audit_trigger(
@@ -135,6 +149,7 @@ def accept_invitation(
     *,
     now: datetime | None = None,
     mismatch: InvalidReason = InvalidReason.EMAIL_MISMATCH,
+    idempotent: bool = False,
 ) -> AcceptedInvitation:
     if mismatch not in MISMATCH_ANSWERS:
         raise ValueError("another email answers email_mismatch or not_found")
@@ -144,13 +159,15 @@ def accept_invitation(
         try:
             with transaction.atomic():
                 mutex = lock_membership_mutex(ctx, ActionKind.WRITE)
-                outcome = accept_locked(mutex, ref.invitation_id, invitee, now=moment)
+                outcome = accept_locked(
+                    mutex, ref.invitation_id, invitee, now=moment, idempotent=idempotent
+                )
         except (AlreadyMember, OrganizationSuspended) as refusal:
             _refused(str(refusal.default_code), invitee, ref.invitation_id)
             raise
         if isinstance(outcome, AcceptedInvitation):
             logger.info(
-                ACCEPTED_EVENT,
+                REPEATED_EVENT if outcome.repeated else ACCEPTED_EVENT,
                 invitation_id=str(ref.invitation_id),
                 membership_id=str(outcome.membership_id),
                 user_id=str(invitee.user_id),
@@ -182,10 +199,16 @@ def accept_from_session(
 
 
 def accept_locked(
-    mutex: MembershipMutex, invitation_id: uuid.UUID, invitee: Invitee, *, now: datetime
+    mutex: MembershipMutex,
+    invitation_id: uuid.UUID,
+    invitee: Invitee,
+    *,
+    now: datetime,
+    idempotent: bool = False,
 ) -> AcceptedInvitation | InvalidReason:
     """Accept it in the mutex's transaction, or say why not (``already_member`` and a suspended
-    organization raise, they write nothing). An expired ``pending`` one is left ``expired``."""
+    organization raise, they write nothing). An expired ``pending`` one is left ``expired``.
+    With ``idempotent`` (Q-243), the invitee's own ``accepted`` one answers its membership."""
     ctx = mutex.ctx
     with bounded_lock_wait():
         invitation = (
@@ -202,6 +225,8 @@ def accept_locked(
     )
     if reason is InvalidReason.EXPIRED and invitation.status == InvitationStatus.PENDING:
         expire_invitation(ctx, invitation)  # Q-225: the system, not this acceptance, is the actor
+    if reason is InvalidReason.USED and idempotent:
+        return _repeated(mutex, invitation, invitee)
     if reason is not None:
         return reason
     if mutex.organization_status is OrgStatus.SUSPENDED:
@@ -236,6 +261,37 @@ def _accept(
         record_event(action, ctx=ctx, actor=_person(invitee), metadata=metadata)
     name = Organization.objects.for_tenant(ctx).values_list("name", flat=True).get()
     return AcceptedInvitation(ctx.organization_id, name, Role(invitation.role), membership.pk)
+
+
+def _repeated(
+    mutex: MembershipMutex, invitation: Invitation, invitee: Invitee
+) -> AcceptedInvitation | InvalidReason:
+    """Q-243: the membership this invitation gave the invitee, if it is still theirs and active;
+    otherwise ``used``. Reads only: no write and no audit event."""
+    if not is_own_repeat(
+        status=InvitationStatus(invitation.status),
+        accepted_by_id=invitation.accepted_by_id,
+        user_id=invitee.user_id,
+    ):
+        return InvalidReason.USED
+    ctx = mutex.ctx
+    membership = (
+        Membership.objects.for_tenant(ctx)
+        .filter(
+            source_invitation=invitation,
+            user_id=invitee.user_id,
+            status=MembershipStatus.ACTIVE.value,
+        )
+        .values_list("pk", "role")
+        .first()
+    )
+    if membership is None:  # it ended since: the token gave something that is gone
+        return InvalidReason.USED
+    if mutex.organization_status is OrgStatus.SUSPENDED:
+        raise OrganizationSuspended
+    name = Organization.objects.for_tenant(ctx).values_list("name", flat=True).get()
+    membership_id, role = membership
+    return AcceptedInvitation(ctx.organization_id, name, Role(role), membership_id, repeated=True)
 
 
 def _accept_context(organization_id: uuid.UUID) -> TenantContext:

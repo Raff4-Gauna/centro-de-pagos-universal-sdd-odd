@@ -2042,6 +2042,7 @@ export interface operations {
             };
         };
         responses: {
+            /** @description La membership creada; también si quien la aceptó repite el token y esa membership sigue activa (idempotente, Q-243) */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -2050,7 +2051,7 @@ export interface operations {
                     "application/json": components["schemas"]["AcceptedInvitation"];
                 };
             };
-            /** @description code: invitation_invalid, con reason: not_found · email_mismatch · revoked · used · expired; o validation_error (falta el token) */
+            /** @description code: invitation_invalid, con reason: not_found · email_mismatch · revoked · used (la aceptó otra cuenta, o su membership ya terminó) · expired; o validation_error (falta el token) */
             400: {
                 headers: {
                     [name: string]: unknown;

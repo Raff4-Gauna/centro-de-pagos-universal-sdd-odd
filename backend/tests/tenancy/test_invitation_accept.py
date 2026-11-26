@@ -81,14 +81,16 @@ def test_AC_TEN_17_accept_creates_membership(recorded: RecordingSink) -> None:
     assert current_tenant() is None  # the scope of the invitation's organization was closed
 
 
-def test_AC_TEN_17_second_use_of_the_token_is_used() -> None:
+def test_AC_TEN_17_second_use_of_the_token_by_another_account_is_used() -> None:
+    """The same person repeating it is ``200`` (Q-243, ``test_Q_243_idempotent_accept.py``)."""
     org = new_org("A")
     _, token = issue(org, "ana@hub.test")
-    ana = new_user("ana")
+    ana, beto = new_user("ana"), new_user("beto")
     accept_by_token(token, invitee(ana))
 
-    refused(token, invitee(ana), InvalidReason.USED)
+    refused(token, invitee(beto, "ana@hub.test"), InvalidReason.USED)
     assert len(memberships(ana)) == 1
+    assert memberships(beto) == []
 
 
 def test_AC_TEN_17_audit_triggers_point_at_the_shared_service() -> None:

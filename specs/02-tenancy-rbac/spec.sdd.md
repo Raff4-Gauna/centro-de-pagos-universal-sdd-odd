@@ -3,9 +3,9 @@ id: SPEC-02
 modulo: tenancy-rbac
 estado: Approved
 track: S
-version: 1.0.2
+version: 1.0.3
 depende_de: [SPEC-00, SPEC-01]
-actualizado: 2026-11-07
+actualizado: 2026-11-26
 ---
 
 # Módulo de Organizaciones, Sucursales y Roles (tenancy + RBAC)
@@ -218,7 +218,8 @@ no listada → denegada (RN-TEN-09).
   `invitation.accepted`, `invitation.rejected` (email no coincide / vencida / usada / organización suspendida),
   `branch.created`, `branch.updated`, `branch.deactivated`, `branch.reactivated`, `owner_protection.rejected`,
   `invitation.expired` (actor sistema), `invitation.auto_revoked` (Q-223, motivo `inviter_lost_permission`),
-  `transition.rejected` (C-05). Las invitaciones/memberships de soporte (Q-222) y de recuperación de owner (Q-224) llevan
+  `transition.rejected` (C-05), `organization.create_repeated` (Q-235: una corrida repetida de `tenancy_create_org`),
+  `operator_command.rejected` (Q-237: un rechazo de un comando de operador que no cambia nada). Las invitaciones/memberships de soporte (Q-222) y de recuperación de owner (Q-224) llevan
   `purpose` (`support` / `owner_recovery`) y motivo obligatorio (Q-225).
   Las acciones del operador de la plataforma por comando se auditan con el operador como actor (Q-212). Intentos
   denegados de acceso a otra organización: log operativo + métrica; a auditoría solo si se repiten, umbral en SPEC-10
@@ -343,7 +344,9 @@ auditada (`C-05`). Una invitación vencida se rechaza al aceptar aunque todavía
   o cambia un rol ajeno **entonces** `403`; y ningún usuario puede elevar su propio rol.
 - **AC-TEN-17** (RN-TEN-12) **Dado** una invitación `pending` a `x@dominio` con rol `operator` **cuando** la acepta
   el usuario autenticado con ese email **entonces** existe una membership `operator` `active` y la invitación queda
-  `accepted`; un segundo uso del mismo token (también en paralelo) → `invitation_invalid` y una sola membership.
+  `accepted`; un segundo uso del mismo token (también en paralelo) por **otra cuenta** → `invitation_invalid` y una sola
+  membership. Si lo repite la misma persona que la aceptó y su membership sigue activa, la respuesta es la de una aceptación
+  exitosa, sin escribir nada ni emitir evento, aunque la invitación ya haya vencido (Q-243).
 - **AC-TEN-18** (RN-TEN-12, Q-206) **Dado** esa invitación **cuando** la intenta aceptar un usuario con otro email
   **entonces** `invitation_invalid`, sin membership, y la invitación sigue `pending`.
 - **AC-TEN-19** (RN-TEN-12) **Dado** una invitación `expired` o `revoked` **cuando** se intenta aceptar
@@ -469,9 +472,10 @@ La tabla AC → tareas está en `tasks.md` ("Cobertura AC → tareas"); la matri
 | 1.0.0 | 2026-10-31 | Estado → **Approved** por el dueño. Confirmadas Q-221…Q-224 (defaults) y decididas Q-225…Q-227 con su recomendación: RNF-TEN-04 suma `invitation.expired`, `invitation.auto_revoked`, `transition.rejected` y `purpose`; nuevos AC-TEN-36 (Q-223), AC-TEN-37 (Q-225), AC-TEN-38 (Q-226/227) | Gate humano *Approved* (2026-10-31) |
 | 1.0.1 | 2026-11-06 | Q-221…Q-224 pasan a decididas por el usuario. **Q-124 de SPEC-01:** quien ya tiene usuario ve sus invitaciones pendientes en la sesión y las acepta adentro del Hub; RN-TEN-11, RF-TEN-05, §4, §11, §12 y §14 lo incorporan, con `GET /api/invitations/mine/`, `POST /api/invitations/{id}/accept/` y nuevos AC-TEN-39 y AC-TEN-40. Nueva Q-228 (admin de Django, abierta). §17 apunta a `tasks.md` | Decisiones del dueño del 2026-11-06, que reemplazan la de Q-124 del 2026-10-31. El dueño decidió el flujo; el contrato lo redactó `task-planner` y recibió su OK en el PR #61, anterior a los ajustes de AC-TEN-39 que pidió el reviewer |
 | 1.0.2 | 2026-11-07 | Q-228 decidida: sin admin de Django en el MVP. RN-TEN-10 deja de nombrarlo; no cambia ningún RF ni AC | Decisión del dueño del 2026-11-07 |
+| 1.0.3 | 2026-11-26 | RNF-TEN-04 suma `organization.create_repeated` (Q-235) y `operator_command.rejected` (Q-237). AC-TEN-17: el segundo uso del token da `invitation_invalid` solo para otra cuenta; si lo repite quien ya la aceptó y su membership sigue activa, responde como una aceptación exitosa, sin escribir ni auditar, aun vencida (Q-243). `design.md §4.4` se ajusta por la fila de "Ajustes al diseño" de `tasks.md` | Decisiones del dueño del 2026-11-20 (Q-235), 2026-11-21 (Q-237) y 2026-11-26 (Q-243 y su confirmación: sin evento de auditoría y respuesta exitosa aun vencida). Entrada redactada por Claude con el OK del dueño del 2026-11-26 |
 
 ---
-**Hecho:** spec Approved 1.0.2: 21 RN, 9 RF, 7 RNF y 40 AC; `design.md` aprobado; ADR-0001 y ADR-0002 aceptados;
+**Hecho:** spec Approved 1.0.3: 21 RN, 9 RF, 7 RNF y 40 AC; `design.md` aprobado; ADR-0001 y ADR-0002 aceptados;
 `tasks.md` creado.
 **Pendiente:** Q-220 para SPEC-04/05; ajustar `context/07 §5.1` según `design.md §3.10`
 (lo hace `T-TEN-29`).

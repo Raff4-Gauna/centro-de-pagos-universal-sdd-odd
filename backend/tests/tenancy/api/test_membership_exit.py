@@ -338,7 +338,7 @@ def test_RF_TEN_04_contract_of_revoke_and_leave() -> None:
     revoking = contract["paths"][f"{MEMBERSHIPS}{{id}}/"]["delete"]
     leaving = contract["paths"][LEAVE]["post"]
 
-    assert contract["info"]["version"] == "0.18.0"
+    assert contract["info"]["version"] == "0.19.0"
     assert "requestBody" not in revoking
     assert {"204", "403", "404", "409", "503"} <= set(revoking["responses"])
     assert {"204", "409", "503"} <= set(leaving["responses"])

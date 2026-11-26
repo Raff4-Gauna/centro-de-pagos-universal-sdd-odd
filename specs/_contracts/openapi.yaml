@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Centro de Pagos Universal API
-  version: 0.18.0
+  version: 0.19.0
 paths:
   /api/auth/bff/login/complete/:
     post:
@@ -1084,14 +1084,16 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AcceptedInvitation'
-          description: ''
+          description: La membership creada; también si quien la aceptó repite el
+            token y esa membership sigue activa (idempotente, Q-243)
         '400':
           content:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: 'code: invitation_invalid, con reason: not_found · email_mismatch
-            · revoked · used · expired; o validation_error (falta el token)'
+            · revoked · used (la aceptó otra cuenta, o su membership ya terminó) ·
+            expired; o validation_error (falta el token)'
         '401':
           content:
             application/problem+json:
