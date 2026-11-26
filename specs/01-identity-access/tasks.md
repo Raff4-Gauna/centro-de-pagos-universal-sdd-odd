@@ -1,6 +1,6 @@
 ---
 spec: SPEC-01
-actualizado: 2026-11-06
+actualizado: 2026-11-26
 ---
 # Tareas — Módulo de Identidad y Acceso
 
@@ -56,47 +56,56 @@ El diseño se escribió antes de que existiera el código de SPEC-00. Donde difi
 | Coalescencia del refresh por hash del token (`§3.2`, `§4.5`) | Clave `sha256(refresh token + IP del cliente + User-Agent)` (`lib/server/refresh.ts`) | Decisión del dueño (2026-11-14, ADR-0004 §3 enmendado): un token robado presentado durante un refresh legítimo no recibe el par rotado; `design.md` ya corregido |
 | Purga: "refresh tokens en cascada" al borrar la sesión (`§3.3`) | Los refresh tokens se borran en un paso previo, en lotes por id ascendente y bloqueando solo tokens; después, las sesiones sin tokens con `SKIP LOCKED` (`services/purge.py`) | Respeta el orden de bloqueo del refresh (token → sesión) y no deja un token apuntando a otro borrado; la cascada del ORM bloquearía la sesión antes que sus tokens y cargaría la cadena entera (T-IDA-19) |
 | `proxy.ts` protege las rutas `(dashboard)` (`§3.2`) | Protege toda página salvo `/login`, la raíz incluida; deja pasar `/api/*` y `/_next/*` (`src/proxy.ts`) | Falla cerrado: una página nueva queda protegida sin tocar el proxy, y `/` va directo a `/login`, como pide el smoke de un solo salto (T-IDA-28) |
-| E2E sin herramienta definida; SPEC-02 nombra Playwright | Script por HTTP sin navegador (`scripts/e2e_login.py`) | Playwright es dependencia nueva (`C-13`, ADR); no es necesaria para estos AC |
+| E2E sin herramienta definida; SPEC-02 nombra Playwright; `§9` lo describe por la pantalla "Seguridad" | Script por HTTP sin navegador (`scripts/e2e_login.py`) que recorre la API (`/api/me`, sesiones, logout), no la pantalla; la auditoría del login y del logout no la ve y queda como evidencia manual de `verification.md` (revisión de #123) | Playwright es dependencia nueva (`C-13`, ADR); no es necesaria para estos AC |
+| `404` para rutas con `..` o `%2e` en `/api/[...path]` (`§6.3`) | `400 bff.bad_path`, como ya respondía el proxy de SPEC-00 (`lib/server/backend-proxy.ts`); el proxy de sesión no lo cambia (T-IDA-27) | Revisión de #108: el rechazo ya existía con ese código y sus tests lo fijan |
+| El BFF reenvía `X-Organization-Id` "validado como UUID" (`§4.4`), sin decir qué hace con uno inválido | Un valor sin forma de UUID se descarta y no se reenvía; Django responde como sin header (`lib/server/session-proxy.ts`, T-IDA-27) | Revisión de #108: el BFF nunca inventa ni corrige la organización (`§7`) |
+| `--operator <nombre>` en `deactivate_user` y `reactivate_user` (`§6.5`) | `--operator` es un email de `PLATFORM_OPERATOR_EMAILS`, chequeado por `apps/common/platform_operators.py`; fuera de la lista sale con `2` y una línea WARNING `identity.platform_operator_refused`, sin el valor (T-IDA-18, T-IDA-32) | Decisión del 2026-11-14 (T-TEN-18), Q-241 y Q-242: la misma regla que los comandos de SPEC-02 (`specs/02-tenancy-rbac/design.md §4.5`); revisión de #136 |
+| Callback con error de Django → `/login?error=<code>` de la lista (`§6.3`) | El `503 organization_busy` del primer login → `/login?error=google_unavailable`, sin cookies de sesión (`app/api/auth/google/callback/route.ts`, T-TEN-17) | Q-231 (dueño, 2026-11-20); detalle en la fila equivalente de `specs/02-tenancy-rbac/tasks.md` |
+| Refresh limitado por sesión (RN-IDA-15, `§7.6`) | Además, `RefreshIpThrottle` (`refresh_ip`): `60/min` por IP del cliente, setting `IDENTITY_REFRESH_IP_RATE` de `config/settings/base.py` (T-IDA-14) | Decisión del planner (2026-11-13): un `sid` aleatorio con formato válido estrenaba cupo. No figura en RN-IDA-15 ni en `§7.6`: **falta que el dueño lo confirme** (revisión de #93) |
+| `UserProvisioningError` sin código HTTP (`§6.1`) | `500 internal_error`, sin `detail`, sin datos personales y sin evento de auditoría (T-IDA-13) | Ninguna regla lo explica; se eligió fallar cerrado (#96) |
+| `GET /api/auth/sessions/` como lista (`§6.2`) | Página `{count, next, previous, results}` con `HubPageNumberPagination` (50 por página, `apps/common/api/pagination.py`); "Seguridad" lee todas las páginas (T-IDA-17, T-IDA-30) | La misma convención que las listas de SPEC-02 (`specs/02-tenancy-rbac/tasks.md`, "Ajustes al diseño"); SPEC-00 no fija paginación |
 
 ## Resumen
 
-> La columna **Evidencia** es obligatoria para `✅` y la verifica `scripts/check_spec_state.py`.
+> Las 33 tareas están mergeadas (✅, con el PR y el SHA del squash en `main`), conciliadas con git el 2026-11-26.
+> Ninguna está 🧪: falta la verificación conjunta con SPEC-02 (Q-108). La columna **Evidencia** es obligatoria para
+> `✅` y la verifica `scripts/check_spec_state.py`.
 
 | ID | Título | AC | Capa | Archivos esperados (ver detalle) | Depende de | Agente | Tamaño | Zona roja | Estado | Evidencia |
 |---|---|---|---|---|---|---|---|---|---|---|
 | T-IDA-00 | Guarda de `check_migrations_roundtrip` (deuda de 00) | AC-PLT-17 (regresión) | Migraciones | `check_migrations_roundtrip.py` | — | backend-dev | M | Sí | ✅ | #63 · c57db14 |
 | T-IDA-01 | `User` + `AUTH_USER_MODEL` + migración 0001 | AC-IDA-31 (normalización) | DB | `apps/identity/models/user.py`, `domain/emails.py`, `domain/profile.py` | T-IDA-00 | backend-dev | L | Sí | ✅ | #65 · c5c3136 |
-| T-IDA-02 | Reglas puras de sesión y formato de secretos | AC-IDA-15, AC-IDA-16, AC-IDA-28 (decisión) | Dominio | `domain/session_policy.py`, `domain/secrets_format.py`, `domain/errors.py` | T-IDA-01 | backend-dev | M | Sí | 🟡 | PR abierto |
-| T-IDA-03 | `AuthSession`, `RefreshToken` + migración 0002 | AC-IDA-14 (solo hash), AC-IDA-16 (constraints) | DB | `models/auth_session.py`, `models/refresh_token.py`, `services/session_lifecycle.py` | T-IDA-02 | backend-dev | L | Sí | 🟡 | |
-| T-IDA-04 | JWT del Hub: claves, emisión y verificación | AC-IDA-10, AC-IDA-11, AC-IDA-12, AC-IDA-13, AC-IDA-34 | Dominio | `tokens/keys.py`, `tokens/access_token.py`, `backend/pyproject.toml` | T-IDA-01 | backend-dev | L | Sí | 🟡 | PR abierto |
-| T-IDA-05 | Puertos, stubs, registro y catálogo de auditoría | AC-IDA-24 (catálogo) | Puertos | `ports/*`, `domain/audit_events.py` | T-IDA-01 | backend-dev | M | Sí | 🟡 | PR abierto |
-| T-IDA-06 | `HubJWTAuthentication` y deny-by-default | AC-IDA-10, AC-IDA-11, AC-IDA-12, AC-IDA-22, AC-IDA-26, AC-IDA-34 | API | `api/authentication.py`, `selectors/auth_sessions.py`, `config/settings/base.py` | T-IDA-03, T-IDA-04 | backend-dev | L | Sí | 🟡 | rama `task/T-IDA-06-hub-jwt-auth`, sin PR |
-| T-IDA-07 | `GET /api/me` | AC-IDA-21, AC-IDA-22, AC-IDA-30 (API) | API | `api/views_me.py`, `api/urls.py`, `api/serializers.py` | T-IDA-05, T-IDA-06 | backend-dev | M | Sí | 🟡 | rama `task/T-IDA-07-api-me`, sin PR |
-| T-IDA-08 | Gateway de Google + validación del ID token | AC-IDA-07, AC-IDA-08 (`nonce`), AC-IDA-36 | Integración | `oidc/google_gateway.py`, `oidc/id_token.py`, `tests/fakes/google.py` | T-IDA-04 | backend-dev | L | Sí | 🟡 | rama `task/T-IDA-08-google-gateway`, sin PR |
-| T-IDA-09 | Credencial BFF, IP del cliente y throttles | AC-IDA-20, AC-IDA-37 | API | `api/bff_auth.py`, `api/client_ip.py`, `api/throttles.py`, `tests/config/test_RF_PLT_19_feature_flags.py` | T-IDA-01 | backend-dev | M | Sí | 🟡 | PR abierto |
-| T-IDA-10 | Iniciar login: `LoginAttempt` + migración 0003 | AC-IDA-19 (servidor), AC-IDA-20, AC-IDA-37 | DB/API | `models/login_attempt.py`, `domain/return_path.py`, `services/login_start.py`, `api/views_bff.py`, `infra/docker-compose.yml` | T-IDA-08, T-IDA-09 | backend-dev | L | Sí | 🟡 | rama `task/T-IDA-10-login-start`, sin PR |
-| T-IDA-11 | Reglas del callback y usuario existente | AC-IDA-09 (callback), AC-IDA-29, AC-IDA-30 | Servicio | `domain/login_rules.py`, `services/user_provisioning.py` | T-IDA-03, T-IDA-05 | backend-dev | L | Sí | 🟡 | rama `task/T-IDA-11-callback-rules`, sin PR |
-| T-IDA-12 | Usuario nuevo por invitación y carrera de callbacks | AC-IDA-02, AC-IDA-03, AC-IDA-04, AC-IDA-05, AC-IDA-31 | Servicio | `services/user_provisioning.py` | T-IDA-11 | backend-dev | L | Sí | 🟡 | rama `task/T-IDA-12-invited-user`, sin PR |
-| T-IDA-13 | Completar login: orquestación y vista | AC-IDA-01, AC-IDA-03, AC-IDA-06, AC-IDA-08, AC-IDA-09, AC-IDA-20, AC-IDA-24 (login) | Servicio/API | `services/login_complete.py`, `api/views_bff.py` | T-IDA-10, T-IDA-12 | backend-dev | L | Sí | 🟡 | rama `task/T-IDA-13-login-complete`, sin PR |
-| T-IDA-14 | Refresh: rotación y vencimientos | AC-IDA-09 (refresh), AC-IDA-14, AC-IDA-15, AC-IDA-16, AC-IDA-22, AC-IDA-28 (servicio) | Servicio/API | `services/refresh.py`, `api/views_bff.py`, `api/throttles.py`, `config/settings/base.py` | T-IDA-06, T-IDA-09 | backend-dev | L | Sí | 🟡 | rama `task/T-IDA-14-refresh`, sin PR |
-| T-IDA-15 | Refresh: concurrencia y 31.º refresh | AC-IDA-20 (refresh), AC-IDA-28 (carrera) | Servicio | `backend/tests/identity/test_refresh_concurrency.py` | T-IDA-14 | backend-dev | M | Sí | 🟡 | rama `task/T-IDA-15-refresh-race`, sin PR |
-| T-IDA-16 | Logout | AC-IDA-17 (backend), AC-IDA-35 | Servicio/API | `services/logout.py`, `api/views_bff.py` | T-IDA-14 | backend-dev | M | Sí | 🟡 | rama `task/T-IDA-16-logout`, PR #97 |
-| T-IDA-17 | Sesiones propias: listar y revocar | AC-IDA-25, AC-IDA-26, AC-IDA-33 (API) | Servicio/API | `services/sessions.py`, `api/views_sessions.py`, `domain/client_hint.py` | T-IDA-06, T-IDA-13 | backend-dev | L | Sí | 🟡 | rama `task/T-IDA-17-own-sessions`, PR #98 |
-| T-IDA-18 | Comandos de desactivar y reactivar usuario | AC-IDA-27, AC-IDA-32 (parte 01) | Comandos | `services/user_status.py`, `management/commands/*` | T-IDA-17 | backend-dev | M | Sí | 🟡 | rama `task/T-IDA-18-user-status`, sin PR |
-| T-IDA-19 | Purga periódica | AC-IDA-38 | Asíncrono | `tasks.py`, `beat.py`, `services/purge.py` | T-IDA-10, T-IDA-14 | backend-dev | M | Sí | 🟡 | PR #107 |
-| T-IDA-20 | Chequeos de arranque y proveedor OIDC falso | — (RN-IDA-01, RN-IDA-16, RNF-IDA-06) | Config | `checks.py`, `apps.py`, `dev_oidc/*`, `oidc/provider.py` | T-IDA-08 | backend-dev | L | Sí | 🟡 | rama `task/T-IDA-20-startup-checks`, sin PR |
-| T-IDA-21 | Redacción de logs, métricas y catálogo completo | AC-IDA-23, AC-IDA-24 | Observabilidad | `apps/common/domain/redaction.py`, tests de identity | T-IDA-13, T-IDA-15, T-IDA-16, T-IDA-17, T-IDA-18 | backend-dev | M | Sí | 🟡 | PR #111 |
-| T-IDA-22 | BFF: cookies, IP, retorno y cliente a Django | AC-IDA-18, AC-IDA-19, AC-IDA-37 (BFF) | BFF | `src/lib/server/{cookies,client-ip,return-path,django,problem}.ts`, `.github/zona-roja-paths.txt` | T-IDA-10 | frontend-dev | L | Sí | 🟡 | rama `task/T-IDA-22-bff-lib`, sin PR |
-| T-IDA-23 | BFF: CSRF y refresh con coalescencia | AC-IDA-19 (CSRF), AC-IDA-28 (BFF) | BFF | `src/lib/server/{csrf,refresh}.ts` | T-IDA-14, T-IDA-22 | frontend-dev | M | Sí | 🟡 | rama `task/T-IDA-23-bff-routes`, PR #99 |
-| T-IDA-24 | Route Handlers de inicio y callback | AC-IDA-01 (cookies), AC-IDA-18, AC-IDA-19 | BFF | `app/api/auth/google/{start,callback}/route.ts` | T-IDA-13, T-IDA-22 | frontend-dev | M | Sí | 🟡 | rama `task/T-IDA-24-login-routes`, PR #103 |
-| T-IDA-25 | Route Handlers de logout y organización activa | AC-IDA-17 (cookies) | BFF | `app/api/auth/logout/route.ts`, `app/api/session/active-organization/route.ts` | T-IDA-16, T-IDA-23 | frontend-dev | M | Sí | 🟡 | PR #109 |
-| T-IDA-26 | Smoke: 3xx y URL de ejemplo (deuda de 00) | AC-PLT-29 (regresión) | CI | `scripts/smoke_stack.py`, `scripts/smoke_pages.py`, `scripts/tests/test_smoke_stack.py`, `scripts/tests/test_smoke_pages.py`, `scripts/tests/test_smoke_stack_wiring.py`, `scripts/tests/test_smoke_client_bundle.py` | — | backend-dev | M | Sí | 🟡 | PR abierto |
-| T-IDA-27 | Proxy con sesión: Bearer, CSRF y refresh transparente | AC-IDA-18, AC-IDA-26 (UX), AC-IDA-28 | BFF | `src/lib/server/{session-proxy,backend-proxy,problem}.ts`, `app/api/[...path]/route.ts`, `src/lib/api-client.ts`, `frontend/scripts/check-client-bundle.ts`, `frontend/Dockerfile`, `context/07-frontend-ui-guidelines.md` | T-IDA-23 | frontend-dev | L | Sí | 🟡 | rama `task/T-IDA-27-session-proxy`, sin PR |
-| T-IDA-28 | Pantalla "Ingresar" y protección de rutas | AC-IDA-19 (UI) | UI | `src/proxy.ts`, `app/(auth)/login/page.tsx`, `src/modules/identity/components/{LoginCard,LoginErrorAlert}.tsx`, `src/modules/identity/lib/login-errors.ts`, `scripts/smoke_pages.py`, `scripts/tests/test_smoke_pages.py` | T-IDA-24, T-IDA-26, T-IDA-27 | frontend-dev | M | Sí | 🟡 | PR #112 |
-| T-IDA-29 | Mi perfil, menú de usuario y "sin empresas" | AC-IDA-30 (UI) | UI | `src/modules/identity/components/{ProfileCard,UserMenu,NoOrganizationState}.tsx` | T-IDA-07, T-IDA-25, T-IDA-28 | frontend-dev | M | Sí (`scripts/**`) | 🟡 | rama `task/T-IDA-29-profile-menu`, sin PR |
-| T-IDA-30 | Pantalla "Seguridad" | AC-IDA-33 (UI) | UI | `app/(dashboard)/configuracion/seguridad/page.tsx`, `src/modules/identity/components/SessionsTable.tsx` | T-IDA-17, T-IDA-29 | frontend-dev | L | Sí (`scripts/**`) | 🟡 | rama `task/T-IDA-30-security-screen`, sin PR |
-| T-IDA-31 | E2E de login con proveedor falso | AC-IDA-01, AC-IDA-17, AC-IDA-33 | E2E | `scripts/e2e_login.py`, `scripts/tests/test_e2e_login.py` | T-IDA-20, T-IDA-29, T-IDA-30 | backend-dev | M | Sí | 🟡 | rama `task/T-IDA-31-e2e-login` |
-| T-IDA-32 | Registrar en el log de seguridad un `--operator` rechazado en los comandos de identity (Q-242) | — (Q-242, RN-IDA-23) | Comandos | `apps/identity/management/commands/_user_status.py`, `apps/common/platform_operators.py` | T-IDA-31, T-TEN-38 | backend-dev | S | Sí | 🟡 | PR #149, rama `task/T-IDA-32-rejected-operator-log` |
+| T-IDA-02 | Reglas puras de sesión y formato de secretos | AC-IDA-15, AC-IDA-16, AC-IDA-28 (decisión) | Dominio | `domain/session_policy.py`, `domain/secrets_format.py`, `domain/errors.py` | T-IDA-01 | backend-dev | M | Sí | ✅ | #75 · c8d2e52 |
+| T-IDA-03 | `AuthSession`, `RefreshToken` + migración 0002 | AC-IDA-14 (solo hash), AC-IDA-16 (constraints) | DB | `models/auth_session.py`, `models/refresh_token.py`, `services/session_lifecycle.py` | T-IDA-02 | backend-dev | L | Sí | ✅ | #83 · 71bf380 |
+| T-IDA-04 | JWT del Hub: claves, emisión y verificación | AC-IDA-10, AC-IDA-11, AC-IDA-12, AC-IDA-13, AC-IDA-34 | Dominio | `tokens/keys.py`, `tokens/access_token.py`, `backend/pyproject.toml` | T-IDA-01 | backend-dev | L | Sí | ✅ | #79 · a2060e2 |
+| T-IDA-05 | Puertos, stubs, registro y catálogo de auditoría | AC-IDA-24 (catálogo) | Puertos | `ports/*`, `domain/audit_events.py` | T-IDA-01 | backend-dev | M | Sí | ✅ | #76 · ce80fcb |
+| T-IDA-06 | `HubJWTAuthentication` y deny-by-default | AC-IDA-10, AC-IDA-11, AC-IDA-12, AC-IDA-22, AC-IDA-26, AC-IDA-34 | API | `api/authentication.py`, `selectors/auth_sessions.py`, `config/settings/base.py` | T-IDA-03, T-IDA-04 | backend-dev | L | Sí | ✅ | #85 · 3de48d6 |
+| T-IDA-07 | `GET /api/me` | AC-IDA-21, AC-IDA-22, AC-IDA-30 (API) | API | `api/views_me.py`, `api/urls.py`, `api/serializers.py` | T-IDA-05, T-IDA-06 | backend-dev | M | Sí | ✅ | #87 · 1381fe7 |
+| T-IDA-08 | Gateway de Google + validación del ID token | AC-IDA-07, AC-IDA-08 (`nonce`), AC-IDA-36 | Integración | `oidc/google_gateway.py`, `oidc/id_token.py`, `tests/fakes/google.py` | T-IDA-04 | backend-dev | L | Sí | ✅ | #84 · 022bd0a |
+| T-IDA-09 | Credencial BFF, IP del cliente y throttles | AC-IDA-20, AC-IDA-37 | API | `api/bff_auth.py`, `api/client_ip.py`, `api/throttles.py`, `tests/config/test_RF_PLT_19_feature_flags.py` | T-IDA-01 | backend-dev | M | Sí | ✅ | #78 · 4b75be5 |
+| T-IDA-10 | Iniciar login: `LoginAttempt` + migración 0003 | AC-IDA-19 (servidor), AC-IDA-20, AC-IDA-37 | DB/API | `models/login_attempt.py`, `domain/return_path.py`, `services/login_start.py`, `api/views_bff.py`, `infra/docker-compose.yml` | T-IDA-08, T-IDA-09 | backend-dev | L | Sí | ✅ | #90 · ebe72d1 |
+| T-IDA-11 | Reglas del callback y usuario existente | AC-IDA-09 (callback), AC-IDA-29, AC-IDA-30 | Servicio | `domain/login_rules.py`, `services/user_provisioning.py` | T-IDA-03, T-IDA-05 | backend-dev | L | Sí | ✅ | #88 · db24388 |
+| T-IDA-12 | Usuario nuevo por invitación y carrera de callbacks | AC-IDA-02, AC-IDA-03, AC-IDA-04, AC-IDA-05, AC-IDA-31 | Servicio | `services/user_provisioning.py` | T-IDA-11 | backend-dev | L | Sí | ✅ | #91 · c9ce529 |
+| T-IDA-13 | Completar login: orquestación y vista | AC-IDA-01, AC-IDA-03, AC-IDA-06, AC-IDA-08, AC-IDA-09, AC-IDA-20, AC-IDA-24 (login) | Servicio/API | `services/login_complete.py`, `api/views_bff.py` | T-IDA-10, T-IDA-12 | backend-dev | L | Sí | ✅ | #96 · 253fdae |
+| T-IDA-14 | Refresh: rotación y vencimientos | AC-IDA-09 (refresh), AC-IDA-14, AC-IDA-15, AC-IDA-16, AC-IDA-22, AC-IDA-28 (servicio) | Servicio/API | `services/refresh.py`, `api/views_bff.py`, `api/throttles.py`, `config/settings/base.py` | T-IDA-06, T-IDA-09 | backend-dev | L | Sí | ✅ | #93 · 45c1e50 |
+| T-IDA-15 | Refresh: concurrencia y 31.º refresh | AC-IDA-20 (refresh), AC-IDA-28 (carrera) | Servicio | `backend/tests/identity/test_refresh_concurrency.py` | T-IDA-14 | backend-dev | M | Sí | ✅ | #95 · fe89271 |
+| T-IDA-16 | Logout | AC-IDA-17 (backend), AC-IDA-35 | Servicio/API | `services/logout.py`, `api/views_bff.py` | T-IDA-14 | backend-dev | M | Sí | ✅ | #97 · 250fc32 |
+| T-IDA-17 | Sesiones propias: listar y revocar | AC-IDA-25, AC-IDA-26, AC-IDA-33 (API) | Servicio/API | `services/sessions.py`, `api/views_sessions.py`, `domain/client_hint.py` | T-IDA-06, T-IDA-13 | backend-dev | L | Sí | ✅ | #98 · 013f1c9 |
+| T-IDA-18 | Comandos de desactivar y reactivar usuario | AC-IDA-27, AC-IDA-32 (parte 01) | Comandos | `services/user_status.py`, `management/commands/*` | T-IDA-17 | backend-dev | M | Sí | ✅ | #101 · 4f84389 |
+| T-IDA-19 | Purga periódica | AC-IDA-38 | Asíncrono | `tasks.py`, `beat.py`, `services/purge.py` | T-IDA-10, T-IDA-14 | backend-dev | M | Sí | ✅ | #107 · 39b21fd |
+| T-IDA-20 | Chequeos de arranque y proveedor OIDC falso | — (RN-IDA-01, RN-IDA-16, RNF-IDA-06) | Config | `checks.py`, `apps.py`, `dev_oidc/*`, `oidc/provider.py` | T-IDA-08 | backend-dev | L | Sí | ✅ | #94 · 81e6afe |
+| T-IDA-21 | Redacción de logs, métricas y catálogo completo | AC-IDA-23, AC-IDA-24 | Observabilidad | `apps/common/domain/redaction.py`, tests de identity | T-IDA-13, T-IDA-15, T-IDA-16, T-IDA-17, T-IDA-18 | backend-dev | M | Sí | ✅ | #111 · c08c332 |
+| T-IDA-22 | BFF: cookies, IP, retorno y cliente a Django | AC-IDA-18, AC-IDA-19, AC-IDA-37 (BFF) | BFF | `src/lib/server/{cookies,client-ip,return-path,django,problem}.ts`, `.github/zona-roja-paths.txt` | T-IDA-10 | frontend-dev | L | Sí | ✅ | #92 · fa496da |
+| T-IDA-23 | BFF: CSRF y refresh con coalescencia | AC-IDA-19 (CSRF), AC-IDA-28 (BFF) | BFF | `src/lib/server/{csrf,refresh}.ts` | T-IDA-14, T-IDA-22 | frontend-dev | M | Sí | ✅ | #99 · c5634bb |
+| T-IDA-24 | Route Handlers de inicio y callback | AC-IDA-01 (cookies), AC-IDA-18, AC-IDA-19 | BFF | `app/api/auth/google/{start,callback}/route.ts` | T-IDA-13, T-IDA-22 | frontend-dev | M | Sí | ✅ | #103 · bc22806 |
+| T-IDA-25 | Route Handlers de logout y organización activa | AC-IDA-17 (cookies) | BFF | `app/api/auth/logout/route.ts`, `app/api/session/active-organization/route.ts` | T-IDA-16, T-IDA-23 | frontend-dev | M | Sí | ✅ | #109 · 42f9ba2 |
+| T-IDA-26 | Smoke: 3xx y URL de ejemplo (deuda de 00) | AC-PLT-29 (regresión) | CI | `scripts/smoke_stack.py`, `scripts/smoke_pages.py`, `scripts/tests/test_smoke_stack.py`, `scripts/tests/test_smoke_pages.py`, `scripts/tests/test_smoke_stack_wiring.py`, `scripts/tests/test_smoke_client_bundle.py` | — | backend-dev | M | Sí | ✅ | #66 · 5910ea9 |
+| T-IDA-27 | Proxy con sesión: Bearer, CSRF y refresh transparente | AC-IDA-18, AC-IDA-26 (UX), AC-IDA-28 | BFF | `src/lib/server/{session-proxy,backend-proxy,problem}.ts`, `app/api/[...path]/route.ts`, `src/lib/api-client.ts`, `frontend/scripts/check-client-bundle.ts`, `frontend/Dockerfile`, `context/07-frontend-ui-guidelines.md` | T-IDA-23 | frontend-dev | L | Sí | ✅ | #108 · 3b004c4 |
+| T-IDA-28 | Pantalla "Ingresar" y protección de rutas | AC-IDA-19 (UI) | UI | `src/proxy.ts`, `app/(auth)/login/page.tsx`, `src/modules/identity/components/{LoginCard,LoginErrorAlert}.tsx`, `src/modules/identity/lib/login-errors.ts`, `scripts/smoke_pages.py`, `scripts/tests/test_smoke_pages.py` | T-IDA-24, T-IDA-26, T-IDA-27 | frontend-dev | M | Sí | ✅ | #112 · 8ad7327 |
+| T-IDA-29 | Mi perfil, menú de usuario y "sin empresas" | AC-IDA-30 (UI) | UI | `src/modules/identity/components/{ProfileCard,UserMenu,NoOrganizationState}.tsx` | T-IDA-07, T-IDA-25, T-IDA-28 | frontend-dev | M | Sí (`scripts/**`) | ✅ | #118 · 004359b |
+| T-IDA-30 | Pantalla "Seguridad" | AC-IDA-33 (UI) | UI | `app/(dashboard)/configuracion/seguridad/page.tsx`, `src/modules/identity/components/SessionsTable.tsx` | T-IDA-17, T-IDA-29 | frontend-dev | L | Sí (`scripts/**`) | ✅ | #121 · 1645f8e |
+| T-IDA-31 | E2E de login con proveedor falso | AC-IDA-01, AC-IDA-17, AC-IDA-33 | E2E | `scripts/e2e_login.py`, `scripts/tests/test_e2e_login.py` | T-IDA-20, T-IDA-29, T-IDA-30 | backend-dev | M | Sí | ✅ | #123 · 61afa49 |
+| T-IDA-32 | Registrar en el log de seguridad un `--operator` rechazado en los comandos de identity (Q-242) | — (Q-242, RN-IDA-23) | Comandos | `apps/identity/management/commands/_user_status.py`, `apps/common/platform_operators.py` | T-IDA-31, T-TEN-38 | backend-dev | S | Sí | ✅ | #149 · a2f4ba2 |
 
 ## Cobertura AC → tareas
 | AC | Tareas |
@@ -917,7 +926,87 @@ módulos se aprueba en la misma pasada, después de `T-TEN-36`.
   `test_Q_242_an_empty_allowlist_refuses_and_logs_every_operator`, `test_Q_242_a_valid_operator_logs_no_refusal`,
   `test_Q_242_another_bad_argument_logs_no_refusal`; siguen en verde los `test_Q_241_*` de 02.
 
+## Seguimientos técnicos (de las revisiones, sin tarea)
+
+No bloqueantes que dejaron los veredictos. No son tareas: el planner decide si alguno la necesita (Carril S) o va
+por worklog (Carril O). Las líneas son las del momento de la revisión; esta conciliación no comprobó en el código si
+un PR posterior cerró alguno.
+
+- **#101 (T-IDA-18):** `FORBIDDEN_SEGMENTS` (`activate`, `deactivate`, `enable`, `disable`) de
+  `backend/tests/identity/test_AC_IDA_32_no_endpoints.py` va a chocar con rutas de SPEC-04 y SPEC-13; `:80` deja pasar
+  toda ruta con un segmento `branches` (anclarla a `branches/{id}/(de|re)activate`, revisión de #127). Faltan tests: el
+  orden "gana la revocación" debería exigir `401`, una carrera login contra desactivar y una falla de auditoría al
+  reactivar.
+- **#108 (T-IDA-27):** `request.clone()` en `frontend/src/lib/server/session-proxy.ts` guarda una segunda copia del
+  cuerpo: acotarla o documentarla antes del primer endpoint de subida. El refresh dentro del proxy no escribe log
+  (`C-16`).
+- **#109 y #111 (T-IDA-25, T-IDA-21):** las rutas del BFF (`app/api/auth/google/{start,callback}`, `auth/logout`,
+  `session/active-organization`) no tienen logs operativos (`C-16`); hace falta un ID de tarea. El envoltorio
+  `problem+json` de `app/api/session/active-organization/route.ts` duplica `lib/server/problem.ts`.
+- **#111 (T-IDA-21):** el patrón `rt1.` de `backend/apps/common/domain/redaction.py` redacta de más (`rt1.example.com`);
+  ajustarlo a `{22}.{43}`, como `domain/secrets_format.py`.
+- **#112 (T-IDA-28):** `/_next/*` pasa `src/proxy.ts` sin sesión (recarga en caliente de dev); en la app construida da
+  `404`.
+- **#118 (T-IDA-29):** el `<li>` de cabecera de `UserMenu.tsx:73`, dentro de `role="menu"`, necesita `role="none"`;
+  faltan tests del avatar (`referrerpolicy`, rechazo de `javascript:` y `data:`).
+- **#121 (T-IDA-30):** la tabla de `SessionsTable.tsx:111` no tiene nombre accesible (`aria-labelledby` al `h1`);
+  en `useSessions.ts:44-45` un `next` que no avanza da un `ApiError` con status `200`, y no hay tope de páginas.
+- **#122 (T-TEN-29):** `src/modules/identity/hooks/useLogout.ts` importa `clearTabOrganization` de tenancy (acople
+  menor entre módulos).
+- **#123 (T-IDA-31):** `http_origin` de `scripts/e2e_login.py` acepta userinfo en el origen; el `get_or_create` por
+  `google_sub` del comando de siembra del README puede lanzar un `IntegrityError` con email y `sub` en el texto
+  (avisarlo en el README).
+- **#114 y #149 (T-TEN-09, T-IDA-32):** `cache_logger_on_first_use` de structlog contra la reconfiguración de
+  `tests/logging` hace que los tests dependan del orden; unificar la fixture en `backend/tests/conftest.py` o que
+  `tests/logging` restaure la configuración. Es la causa probable del flaky
+  `tests/identity/api/test_login_start.py::test_AC_IDA_23_start_logs_no_secret` (Windows, 1 de 3, 2026-11-21).
+
+## Conciliación con git (generada, no editar a mano)
+
+> La genera `python scripts/check_spec_state.py --write` a partir de `git log` y del estado de la tabla de
+> resumen. No se edita a mano: el bloque se reemplaza completo.
+
+<!-- check_spec_state:begin -->
+| Tarea | PR | SHA | Estado |
+|---|---|---|---|
+| T-IDA-00 | #63 | c57db14 | ✅ |
+| T-IDA-01 | #65 | c5c3136 | ✅ |
+| T-IDA-02 | #75 | c8d2e52 | ✅ |
+| T-IDA-03 | #83 | 71bf380 | ✅ |
+| T-IDA-04 | #79 | a2060e2 | ✅ |
+| T-IDA-05 | #76 | ce80fcb | ✅ |
+| T-IDA-06 | #85 | 3de48d6 | ✅ |
+| T-IDA-07 | #87 | 1381fe7 | ✅ |
+| T-IDA-08 | #84 | 022bd0a | ✅ |
+| T-IDA-09 | #78 | 4b75be5 | ✅ |
+| T-IDA-10 | #90 | ebe72d1 | ✅ |
+| T-IDA-11 | #88 | db24388 | ✅ |
+| T-IDA-12 | #91 | c9ce529 | ✅ |
+| T-IDA-13 | #96 | 253fdae | ✅ |
+| T-IDA-14 | #93 | 45c1e50 | ✅ |
+| T-IDA-15 | #95 | fe89271 | ✅ |
+| T-IDA-16 | #97 | 250fc32 | ✅ |
+| T-IDA-17 | #98 | 013f1c9 | ✅ |
+| T-IDA-18 | #101 | 4f84389 | ✅ |
+| T-IDA-19 | #107 | 39b21fd | ✅ |
+| T-IDA-20 | #94 | 81e6afe | ✅ |
+| T-IDA-21 | #111 | c08c332 | ✅ |
+| T-IDA-22 | #92 | fa496da | ✅ |
+| T-IDA-23 | #99 | c5634bb | ✅ |
+| T-IDA-24 | #103 | bc22806 | ✅ |
+| T-IDA-25 | #109 | 42f9ba2 | ✅ |
+| T-IDA-26 | #66 | 5910ea9 | ✅ |
+| T-IDA-27 | #108 | 3b004c4 | ✅ |
+| T-IDA-28 | #112 | 8ad7327 | ✅ |
+| T-IDA-29 | #118 | 004359b | ✅ |
+| T-IDA-30 | #121 | 1645f8e | ✅ |
+| T-IDA-31 | #123 | 61afa49 | ✅ |
+| T-IDA-32 | #149 | a2f4ba2 | ✅ |
+<!-- check_spec_state:end -->
+
 ---
-**Hecho:** 32 tareas, 38 AC y 10 RF cubiertos, olas y división de archivos. Después se sumó `T-IDA-32` (Q-242, 2026-11-21).
-**Pendiente / dudas:** ninguna de 01.
-**Siguiente rol sugerido:** `backend-dev` en la ola 1 (`T-IDA-02`, `04`, `05`, `09`) y `T-IDA-26`; después `reviewer`.
+**Hecho:** 32 tareas, 38 AC y 10 RF cubiertos, olas y división de archivos. Después se sumó `T-IDA-32` (Q-242,
+2026-11-21). Al 2026-11-26 las 33 están mergeadas (PR #63 a #149).
+**Pendiente / dudas:** el dueño confirma el tope `refresh_ip` ("Ajustes al diseño"); la verificación conjunta con
+SPEC-02 (Q-108).
+**Siguiente rol sugerido:** `qa-verifier` en la verificación conjunta de 01 y 02; después el dueño decide `Verified`.

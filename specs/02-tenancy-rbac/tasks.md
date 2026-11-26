@@ -65,52 +65,59 @@ Donde el diseño y el código de SPEC-00, o el orden real, difieren, manda esta 
 | El rol se muestra como código (`context/07 §5.3`, spec §14) y los rechazos de `/invitacion` sin acción (`design.md §3.9`) | Etiquetas en español en un único módulo, `frontend/src/modules/tenancy/lib/role-labels.ts` (`Record<RoleEnum, string>`), que usan el aviso de invitaciones y la invitación aceptada; todo rechazo de `/invitacion` y el link sin token muestran un único botón "Ir a Inicio" hacia `/inicio`, y la falla de red/5xx conserva "Reintentar" | Q-232 y Q-233, decididas por el dueño el 2026-11-20. La API sigue con los códigos; un rol nuevo no compila sin su etiqueta. Worklog `context/worklog/2026-11-20-role-labels-exit.md` |
 | `timezone` "de lista" en `CompanyDataForm` (`design.md §3.9`), sin decir cuál | Lista fija en `frontend/src/modules/tenancy/lib/timezones.ts`: las doce `America/Argentina/*` y `UTC`, como `enum` del esquema zod; una zona guardada fuera de la lista se muestra como actual y no bloquea guardar (T-TEN-32) | Q-240 (dueño, 2026-11-21): la lista del navegador (`Intl`) trae alias CLDR y cambia según el navegador; el backend sigue validando contra `zoneinfo` |
 | `POST /api/invitations/accept/` con `status ≠ pending` → `400 invitation_invalid (reason=used)`, también en paralelo (`design.md §4.4`) | Una `accepted` cuyo `accepted_by` es quien la manda y cuya membership (`source_invitation`) sigue `active` responde `200` con el cuerpo de una aceptación (rol vigente), sin escrituras ni evento de auditoría, solo el log `tenancy.invitation_accept_repeated`; otra cuenta o una membership terminada siguen en `used`, la suspendida en `409`. `POST /api/invitations/{id}/accept/` y el puerto de SPEC-01 no cambian. Contrato `0.19.0` (T-TEN-39) | Q-243, decidida por el dueño el 2026-11-26: el primer login ya aceptó la invitación (RN-IDA-06) y `/invitacion` mostraba «Invitación ya usada» a quien acababa de entrar. AC-TEN-17 lo recoge desde la spec 1.0.3 |
+| CHECK `membership_end_coherent` con `ended_reason IN (...)` en la rama `revoked` (`design.md §5`) | La rama `revoked` suma `ended_reason IS NOT NULL` (T-TEN-05) | Con un motivo `NULL`, `IN (...)` da `NULL` y el CHECK lo dejaba pasar; lo encontró `test_RN_TEN_21_end_fields_are_coherent` (revisión de #102) |
+| Las funciones `decide_*` de `design.md §3.8`, sin orden entre la autoridad y el no-op | `role_rules` chequea primero la autoridad del actor y después si el cambio es un no-op: quien no puede cambiar un rol recibe `403` aunque el rol pedido sea el actual (T-TEN-07) | AC-TEN-15 manda sobre la lectura literal de `§3.8` (revisión de #106) |
+| Lista explícita `TENANT_EXEMPT_ROUTES` (`design.md §3.5`) | Una tupla `EXEMPT` por módulo en `backend/tests/cross_tenant/cases/{identity,platform,tenancy}.py`, cada entrada con su motivo (T-TEN-09) | Cada módulo registra sus rutas en su archivo de casos, como el resto de la suite (revisión de #114) |
+| `tax_id` con "validación de formato CUIT" (`design.md §5`), sin el algoritmo | 11 dígitos, sin guiones o como `XX-XXXXXXXX-X`; módulo 11 de AFIP con pesos `5 4 3 2 7 6 5 4 3 2`, 11 → `0`, 10 → inválido; el prefijo no se valida. Se guarda sin guiones (`domain/tax_id.py`, T-TEN-13) | El diseño delegaba el formato y no lo escribía (revisión de #120) |
+| Errores de validación por campo con los códigos de `design.md §6` | Suma el código `unknown_field` por campo: una clave que el endpoint no acepta es `400 validation_error` con ese código en `errors[]`, en todo cuerpo estricto (`services/fields.py`, T-TEN-13 y T-TEN-24) | Código nuevo del sobre de ADR-0005, compatible (revisión de #120) |
 
 ## Resumen
 
-> T-TEN-01, T-TEN-02, T-TEN-03, T-TEN-04, T-TEN-05, T-TEN-06, T-TEN-07, T-TEN-08, T-TEN-09, T-TEN-10, T-TEN-11, T-TEN-12, T-TEN-13, T-TEN-14, T-TEN-15, T-TEN-16, T-TEN-17, T-TEN-18, T-TEN-19, T-TEN-20, T-TEN-21, T-TEN-22, T-TEN-23, T-TEN-24, T-TEN-25, T-TEN-27, T-TEN-28, T-TEN-29, T-TEN-30, T-TEN-32, T-TEN-33, T-TEN-34, T-TEN-37 y T-TEN-39 en revisión; las demás sin empezar. La columna **Evidencia** es obligatoria para `✅` y la verifica `scripts/check_spec_state.py`.
+> Las 39 tareas están mergeadas (✅, con el PR y el SHA del squash en `main`), conciliadas con git el 2026-11-26.
+> Ninguna está 🧪: falta la verificación conjunta con SPEC-01 (Q-108). La columna **Evidencia** es obligatoria para
+> `✅` y la verifica `scripts/check_spec_state.py`.
 
 | ID | Título | AC | Capa | Archivos esperados (ver detalle) | Depende de | Agente | Tamaño | Zona roja | Estado | Evidencia |
 |---|---|---|---|---|---|---|---|---|---|---|
-| T-TEN-01 | `TenantContext`, `tenant_scope` y errores | — (RF-TEN-01, RF-TEN-08) | Base | `apps/common/tenancy/{context,current,middleware,errors}.py`, `.github/zona-roja-paths.txt` | — | backend-dev | M | Sí | 🟡 | rama `task/T-TEN-01-tenant-context`, sin PR |
-| T-TEN-02 | Queryset que falla cerrado + `Organization` + migración 0001 | AC-TEN-11 | DB | `apps/common/tenancy/querysets.py`, `apps/tenancy/models/organization.py` | T-TEN-01 | backend-dev | L | Sí | 🟡 | rama `task/T-TEN-02-organization`, sin PR |
-| T-TEN-03 | `TenantModel` y app de prueba `tenant_probe` | AC-TEN-07 (guarda), AC-TEN-11 | Base | `apps/common/tenancy/models.py`, `tests/testapps/tenant_probe/` | T-TEN-02 | backend-dev | M | Sí | 🟡 | rama `task/T-TEN-03-tenant-model`, sin PR |
-| T-TEN-04 | Test de arquitectura de accesos crudos | AC-TEN-10 | Arquitectura | `backend/tests/architecture/tenant_rules.py`, `test_tenant_queries.py` | T-TEN-03 | backend-dev | L | Sí | 🟡 | rama `task/T-TEN-04-raw-access-rules`, PR #104 |
-| T-TEN-05 | `Membership` + migración 0002 | — (RN-TEN-07, RN-TEN-21) | DB | `apps/tenancy/models/membership.py`, `apps/common/authz/roles.py` | T-TEN-03, T-IDA-01 | backend-dev | M | Sí | 🟡 | rama `task/T-TEN-05-membership`, sin PR |
-| T-TEN-06 | Matriz de permisos como código | AC-TEN-15, AC-TEN-16, AC-TEN-34 (matriz) | Dominio | `apps/common/authz/{actions,checks}.py`, `apps/tenancy/domain/permissions.py` | T-TEN-01, T-TEN-05 | backend-dev | L | Sí | 🟡 | rama `task/T-TEN-06-permission-matrix`, PR #105 |
-| T-TEN-07 | Reglas de roles (`decide_*`) | AC-TEN-13, AC-TEN-15, AC-TEN-16, AC-TEN-27 (decisión) | Dominio | `apps/tenancy/domain/role_rules.py` | T-TEN-05 | backend-dev | L | Sí | 🟡 | rama `task/T-TEN-07-role-rules`, sin PR |
-| T-TEN-08 | Resolución de organización por request | AC-TEN-03, AC-TEN-04, AC-TEN-06, AC-TEN-33 | API | `apps/tenancy/api/{permissions,base}.py`, `apps/tenancy/selectors/resolution.py` | T-TEN-05, T-TEN-06, T-IDA-06 | backend-dev | L | Sí | 🟡 | PR #110 |
-| T-TEN-09 | Suite cross-tenant parametrizada | AC-TEN-12, AC-TEN-33 | Aislamiento | `backend/tests/cross_tenant/*` | T-TEN-08 | backend-dev | L | Sí | 🟡 | PR #114 |
-| T-TEN-10 | Puerto de auditoría y catálogo | AC-TEN-23 (base) | Base | `apps/common/audit/{port,sinks}.py`, `apps/tenancy/domain/audit_events.py` | T-TEN-01 | backend-dev | M | Sí | 🟡 | rama `task/T-TEN-10-audit-port`, sin PR |
-| T-TEN-11 | Locks y tareas por organización | AC-TEN-28 (s2s) | Base | `apps/common/tenancy/{locks,celery}.py`, `apps/tenancy/selectors/locks.py` | T-TEN-08 | backend-dev | L | Sí | 🟡 | rama `task/T-TEN-11-org-locks`, PR #117 |
-| T-TEN-12 | `GET /api/organizations/` y selector para `/api/me` | AC-TEN-08, AC-TEN-21, AC-IDA-21 | API | `apps/tenancy/api/organizations.py`, `selectors/memberships.py`, `services/membership_selector.py` | T-TEN-08, T-IDA-07 | backend-dev | M | Sí | 🟡 | rama `task/T-TEN-12-organizations-list`, PR #113 |
-| T-TEN-13 | Datos de la organización activa | AC-TEN-29 (API) | API | `apps/tenancy/api/organizations.py`, `services/organizations.py`, `domain/tax_id.py` | T-TEN-10, T-TEN-11, T-TEN-12 | backend-dev | L | Sí | 🟡 | rama `task/T-TEN-13-active-org-data`, sin PR |
-| T-TEN-14 | `Invitation` + migración 0003 + reglas puras | AC-TEN-25, AC-TEN-35 (unidad) | DB | `apps/tenancy/models/invitation.py`, `domain/invitations.py` | T-TEN-05 | backend-dev | L | Sí | 🟡 | rama `task/T-TEN-14-invitation-model`, sin PR |
-| T-TEN-15 | Aceptar invitación con token | AC-TEN-17, AC-TEN-18, AC-TEN-19, AC-TEN-25, AC-TEN-35 | Servicio/API | `services/invitation_accept.py`, `api/invitations.py` | T-TEN-10, T-TEN-11, T-TEN-14 | backend-dev | L | Sí | 🟡 | rama `task/T-TEN-15-accept-invitation`, sin PR |
-| T-TEN-16 | Mis invitaciones y aceptar desde la sesión (Q-124) | AC-TEN-39, AC-TEN-28, AC-TEN-10 | Servicio/API | `selectors/invitations.py`, `api/invitations.py`, `services/invitation_accept.py` | T-TEN-15 | backend-dev | L | Sí | 🟡 | rama `task/T-TEN-16-my-invitations`, sin PR |
-| T-TEN-17 | `TenancyInvitationPort` (puerto de SPEC-01) | AC-TEN-17 (vía puerto), AC-IDA-02, AC-IDA-04, AC-IDA-05, AC-IDA-31 | Servicio | `services/invitation_port.py`, `config/settings/base.py` | T-TEN-15, T-IDA-13 | backend-dev | M | Sí | 🟡 | rama `task/T-TEN-17-invitation-port`, sin PR |
-| T-TEN-18 | Comando `tenancy_create_org` | AC-TEN-22, AC-TEN-40, AC-IDA-32 | Comandos | `services/platform_org.py`, `management/commands/tenancy_create_org.py` | T-TEN-16, T-TEN-17 | backend-dev | L | Sí | 🟡 | rama `task/T-TEN-18-create-org-command`, sin PR |
-| T-TEN-19 | Comandos de suspensión y primer owner | AC-TEN-28, AC-TEN-29 | Comandos | `management/commands/{tenancy_set_org_status,tenancy_owner_invite}.py` | T-TEN-18 | backend-dev | M | Sí | 🟡 | rama `task/T-TEN-19-suspend-and-first-owner`, sin PR |
-| T-TEN-20 | Crear y listar invitaciones | AC-TEN-15, AC-TEN-20, AC-TEN-24, AC-TEN-26, AC-TEN-34 | Servicio/API | `services/invitations.py`, `api/invitations.py`, `api/serializers/invitations.py` | T-TEN-07, T-TEN-15 | backend-dev | L | Sí | 🟡 | rama `task/T-TEN-20-create-invitations`, PR #131 |
-| T-TEN-21 | Reenviar y revocar invitaciones | AC-TEN-02, AC-TEN-15, AC-TEN-24, AC-TEN-26, AC-TEN-37 | Servicio/API | `services/invitations.py`, `api/invitations.py` | T-TEN-20 | backend-dev | M | Sí | 🟡 | rama `task/T-TEN-21-resend-revoke`, sin PR |
-| T-TEN-22 | Listar memberships y cambiar rol | AC-TEN-02, AC-TEN-05, AC-TEN-13, AC-TEN-15, AC-TEN-16, AC-TEN-27, AC-TEN-34 | Servicio/API | `services/memberships.py`, `api/memberships.py` | T-TEN-07, T-TEN-11 | backend-dev | L | Sí | 🟡 | rama `task/T-TEN-22-memberships`, sin PR |
-| T-TEN-23 | Revocar, abandonar y autorrevocar invitaciones | AC-TEN-04, AC-TEN-13, AC-TEN-14, AC-TEN-15, AC-TEN-31, AC-TEN-36 | Servicio/API | `services/memberships.py`, `services/membership_exit.py`, `api/memberships.py` | T-TEN-21, T-TEN-22 | backend-dev | L | Sí | 🟡 | PR #138, rama `task/T-TEN-23-revoke-leave` |
-| T-TEN-24 | `Branch` + migración 0004 + crear y listar | AC-TEN-07, AC-TEN-16, AC-TEN-30, AC-TEN-38 | DB/API | `models/branch.py`, `services/branches.py`, `api/branches.py` | T-TEN-08, T-TEN-11 | backend-dev | L | Sí | 🟡 | rama `task/T-TEN-24-branch-model`, sin PR |
-| T-TEN-25 | Ver, editar, desactivar y reactivar `Branch`, filtro | AC-TEN-01, AC-TEN-05, AC-TEN-09, AC-TEN-30, AC-TEN-32, AC-TEN-37, AC-TEN-38 | Servicio/API | `services/branches.py`, `api/branches.py`, `api/filters.py` | T-TEN-24 | backend-dev | L | Sí | 🟡 | rama `task/T-TEN-25-branch-edit`, sin PR |
-| T-TEN-26 | Vencimiento de invitaciones y email por flag | AC-TEN-37 | Asíncrono | `apps/tenancy/tasks.py` | T-TEN-11, T-TEN-21 | backend-dev | M | Sí | 🟡 | rama `task/T-TEN-26-invitation-expiry`, PR #137 |
-| T-TEN-27 | Completitud de auditoría y suspendida genérica | AC-TEN-23, AC-TEN-28 | Aislamiento | `backend/tests/cross_tenant/*`, `tests/tenancy/test_audit_triggers.py` | T-TEN-13, T-TEN-23, T-TEN-25, T-TEN-26 | backend-dev | M | Sí | 🟡 | PR #142, rama `task/T-TEN-27-audit-completeness` |
-| T-TEN-28 | Comandos de soporte y recuperación de owner | AC-TEN-23 (`purpose`) | Comandos | `services/platform_access.py`, `management/commands/{tenancy_support_access,tenancy_owner_recovery}.py` | T-TEN-18 | backend-dev | M | Sí | 🟡 | PR #141, rama `task/T-TEN-28-support-and-recovery` |
-| T-TEN-29 | Organización activa en el frontend y selector | — (RF-TEN-02, spec §14) | UI | `src/modules/tenancy/context/ActiveOrgProvider.tsx`, `src/lib/api-client.ts`, `context/07-frontend-ui-guidelines.md` | T-TEN-12, T-IDA-27 | frontend-dev | L | No | 🟡 | rama `task/T-TEN-29-active-org-frontend`, PR #122 |
-| T-TEN-30 | Sin organización y aviso de invitaciones (Q-124) | AC-TEN-39 (UI) | UI | `app/(dashboard)/sin-organizacion/page.tsx`, `src/modules/tenancy/components/PendingInvitationsNotice.tsx` | T-TEN-16, T-TEN-29, T-IDA-29 | frontend-dev | M | Sí | 🟡 | rama `task/T-TEN-30-no-org-invitations`, PR #129 |
-| T-TEN-31 | Pantalla `/invitacion` | AC-TEN-17 (UI) | UI | `app/invitacion/page.tsx`, `src/modules/tenancy/components/AcceptInvitation.tsx` | T-TEN-15, T-TEN-29 | frontend-dev | M | Sí | 🟡 | rama `task/T-TEN-31-invitation-screen`, sin PR |
-| T-TEN-32 | Datos de la empresa y abandonar | — (RF-TEN-03, RF-TEN-04, spec §14) | UI | `app/(dashboard)/configuracion/empresa/page.tsx`, `src/modules/tenancy/components/CompanyDataForm.tsx` | T-TEN-13, T-TEN-23, T-TEN-29 | frontend-dev | M | No | 🟡 | PR #145, rama `task/T-TEN-32-company-data` |
-| T-TEN-33 | Sucursales | — (RF-TEN-06, spec §14) | UI | `app/(dashboard)/configuracion/sucursales/page.tsx`, `BranchesTable.tsx`, `BranchFormDialog.tsx` | T-TEN-25, T-TEN-29 | frontend-dev | L | No | 🟡 | PR #139, rama `task/T-TEN-33-branches-ui` |
-| T-TEN-34 | Colaboradores: miembros | — (RF-TEN-04, spec §14) | UI | `app/(dashboard)/configuracion/colaboradores/page.tsx`, `MembersTable.tsx` | T-TEN-23, T-TEN-29 | frontend-dev | L | No | 🟡 | PR #143, rama `task/T-TEN-34-members-ui` |
-| T-TEN-35 | Colaboradores: invitaciones y link de una sola vez | AC-TEN-24 (UI) | UI | `InviteDialog.tsx`, `InvitationLinkDialog.tsx` | T-TEN-21, T-TEN-34 | frontend-dev | M | Sí | 🟡 | PR #148, rama `task/T-TEN-35-invitations-ui` |
-| T-TEN-36 | E2E y cierre conjunto con SPEC-01 | AC-TEN-08, AC-TEN-22, AC-TEN-39 | E2E | `scripts/e2e_tenancy.py`, `scripts/tests/test_e2e_tenancy.py` | T-TEN-30, T-TEN-31, T-TEN-35, T-IDA-31 | backend-dev | M | Sí | 🟡 | PR #150, rama `task/T-TEN-36-e2e-tenancy` |
-| T-TEN-37 | Auditar los rechazos de los comandos de operador (Q-237) | AC-TEN-23 (rechazos del operador) | Comandos | `services/platform_{owner_invite,org_status,access}.py`, `domain/audit_events.py` | T-TEN-28 | backend-dev | S | Sí | 🟡 | PR #144, rama `task/T-TEN-37-audit-operator-refusals` |
-| T-TEN-38 | Registrar en el log de seguridad un --operator rechazado (Q-241) | — (RF-TEN-07, Q-241) | Comandos | `management/commands/_platform.py` | T-TEN-37 | backend-dev | S | Sí | 🟡 | PR #146, rama `task/T-TEN-38-rejected-operator-log` |
-| T-TEN-39 | Aceptar con el token de una invitación ya aceptada por la misma persona responde 200 idempotente (Q-243) | AC-TEN-17 (Q-243) | Servicio/API | `domain/invitations.py`, `services/invitation_accept.py`, `api/invitations.py` | T-TEN-15, T-TEN-36 | backend-dev | S | Sí | 🟡 | PR #151, rama `task/T-TEN-39-idempotent-accept` |
+| T-TEN-01 | `TenantContext`, `tenant_scope` y errores | — (RF-TEN-01, RF-TEN-08) | Base | `apps/common/tenancy/{context,current,middleware,errors}.py`, `.github/zona-roja-paths.txt` | — | backend-dev | M | Sí | ✅ | #82 · 5a3fd97 |
+| T-TEN-02 | Queryset que falla cerrado + `Organization` + migración 0001 | AC-TEN-11 | DB | `apps/common/tenancy/querysets.py`, `apps/tenancy/models/organization.py` | T-TEN-01 | backend-dev | L | Sí | ✅ | #89 · 10c8ccf |
+| T-TEN-03 | `TenantModel` y app de prueba `tenant_probe` | AC-TEN-07 (guarda), AC-TEN-11 | Base | `apps/common/tenancy/models.py`, `tests/testapps/tenant_probe/` | T-TEN-02 | backend-dev | M | Sí | ✅ | #100 · 239c28e |
+| T-TEN-04 | Test de arquitectura de accesos crudos | AC-TEN-10 | Arquitectura | `backend/tests/architecture/tenant_rules.py`, `test_tenant_queries.py` | T-TEN-03 | backend-dev | L | Sí | ✅ | #104 · bb33cdb |
+| T-TEN-05 | `Membership` + migración 0002 | — (RN-TEN-07, RN-TEN-21) | DB | `apps/tenancy/models/membership.py`, `apps/common/authz/roles.py` | T-TEN-03, T-IDA-01 | backend-dev | M | Sí | ✅ | #102 · 31750cc |
+| T-TEN-06 | Matriz de permisos como código | AC-TEN-15, AC-TEN-16, AC-TEN-34 (matriz) | Dominio | `apps/common/authz/{actions,checks}.py`, `apps/tenancy/domain/permissions.py` | T-TEN-01, T-TEN-05 | backend-dev | L | Sí | ✅ | #105 · 30929a8 |
+| T-TEN-07 | Reglas de roles (`decide_*`) | AC-TEN-13, AC-TEN-15, AC-TEN-16, AC-TEN-27 (decisión) | Dominio | `apps/tenancy/domain/role_rules.py` | T-TEN-05 | backend-dev | L | Sí | ✅ | #106 · d5ec9ee |
+| T-TEN-08 | Resolución de organización por request | AC-TEN-03, AC-TEN-04, AC-TEN-06, AC-TEN-33 | API | `apps/tenancy/api/{permissions,base}.py`, `apps/tenancy/selectors/resolution.py` | T-TEN-05, T-TEN-06, T-IDA-06 | backend-dev | L | Sí | ✅ | #110 · 7d0a9ec |
+| T-TEN-09 | Suite cross-tenant parametrizada | AC-TEN-12, AC-TEN-33 | Aislamiento | `backend/tests/cross_tenant/*` | T-TEN-08 | backend-dev | L | Sí | ✅ | #114 · 6603539 |
+| T-TEN-10 | Puerto de auditoría y catálogo | AC-TEN-23 (base) | Base | `apps/common/audit/{port,sinks}.py`, `apps/tenancy/domain/audit_events.py` | T-TEN-01 | backend-dev | M | Sí | ✅ | #86 · c7c01e7 |
+| T-TEN-11 | Locks y tareas por organización | AC-TEN-28 (s2s) | Base | `apps/common/tenancy/{locks,celery}.py`, `apps/tenancy/selectors/locks.py` | T-TEN-08 | backend-dev | L | Sí | ✅ | #117 · c27d7e4 |
+| T-TEN-12 | `GET /api/organizations/` y selector para `/api/me` | AC-TEN-08, AC-TEN-21, AC-IDA-21 | API | `apps/tenancy/api/organizations.py`, `selectors/memberships.py`, `services/membership_selector.py` | T-TEN-08, T-IDA-07 | backend-dev | M | Sí | ✅ | #113 · 3c38ac3 |
+| T-TEN-13 | Datos de la organización activa | AC-TEN-29 (API) | API | `apps/tenancy/api/organizations.py`, `services/organizations.py`, `domain/tax_id.py` | T-TEN-10, T-TEN-11, T-TEN-12 | backend-dev | L | Sí | ✅ | #120 · 2c9479a |
+| T-TEN-14 | `Invitation` + migración 0003 + reglas puras | AC-TEN-25, AC-TEN-35 (unidad) | DB | `apps/tenancy/models/invitation.py`, `domain/invitations.py` | T-TEN-05 | backend-dev | L | Sí | ✅ | #119 · 153977b |
+| T-TEN-15 | Aceptar invitación con token | AC-TEN-17, AC-TEN-18, AC-TEN-19, AC-TEN-25, AC-TEN-35 | Servicio/API | `services/invitation_accept.py`, `api/invitations.py` | T-TEN-10, T-TEN-11, T-TEN-14 | backend-dev | L | Sí | ✅ | #125 · 181a793 |
+| T-TEN-16 | Mis invitaciones y aceptar desde la sesión (Q-124) | AC-TEN-39, AC-TEN-28, AC-TEN-10 | Servicio/API | `selectors/invitations.py`, `api/invitations.py`, `services/invitation_accept.py` | T-TEN-15 | backend-dev | L | Sí | ✅ | #126 · c97ad5f |
+| T-TEN-17 | `TenancyInvitationPort` (puerto de SPEC-01) | AC-TEN-17 (vía puerto), AC-IDA-02, AC-IDA-04, AC-IDA-05, AC-IDA-31 | Servicio | `services/invitation_port.py`, `config/settings/base.py` | T-TEN-15, T-IDA-13 | backend-dev | M | Sí | ✅ | #130 · 6bdceba |
+| T-TEN-18 | Comando `tenancy_create_org` | AC-TEN-22, AC-TEN-40, AC-IDA-32 | Comandos | `services/platform_org.py`, `management/commands/tenancy_create_org.py` | T-TEN-16, T-TEN-17 | backend-dev | L | Sí | ✅ | #136 · 379479c |
+| T-TEN-19 | Comandos de suspensión y primer owner | AC-TEN-28, AC-TEN-29 | Comandos | `management/commands/{tenancy_set_org_status,tenancy_owner_invite}.py` | T-TEN-18 | backend-dev | M | Sí | ✅ | #140 · f545919 |
+| T-TEN-20 | Crear y listar invitaciones | AC-TEN-15, AC-TEN-20, AC-TEN-24, AC-TEN-26, AC-TEN-34 | Servicio/API | `services/invitations.py`, `api/invitations.py`, `api/serializers/invitations.py` | T-TEN-07, T-TEN-15 | backend-dev | L | Sí | ✅ | #131 · 9d90f8f |
+| T-TEN-21 | Reenviar y revocar invitaciones | AC-TEN-02, AC-TEN-15, AC-TEN-24, AC-TEN-26, AC-TEN-37 | Servicio/API | `services/invitations.py`, `api/invitations.py` | T-TEN-20 | backend-dev | M | Sí | ✅ | #135 · ccb2d76 |
+| T-TEN-22 | Listar memberships y cambiar rol | AC-TEN-02, AC-TEN-05, AC-TEN-13, AC-TEN-15, AC-TEN-16, AC-TEN-27, AC-TEN-34 | Servicio/API | `services/memberships.py`, `api/memberships.py` | T-TEN-07, T-TEN-11 | backend-dev | L | Sí | ✅ | #128 · af0c97a |
+| T-TEN-23 | Revocar, abandonar y autorrevocar invitaciones | AC-TEN-04, AC-TEN-13, AC-TEN-14, AC-TEN-15, AC-TEN-31, AC-TEN-36 | Servicio/API | `services/memberships.py`, `services/membership_exit.py`, `api/memberships.py` | T-TEN-21, T-TEN-22 | backend-dev | L | Sí | ✅ | #138 · 32e5786 |
+| T-TEN-24 | `Branch` + migración 0004 + crear y listar | AC-TEN-07, AC-TEN-16, AC-TEN-30, AC-TEN-38 | DB/API | `models/branch.py`, `services/branches.py`, `api/branches.py` | T-TEN-08, T-TEN-11 | backend-dev | L | Sí | ✅ | #124 · c33572f |
+| T-TEN-25 | Ver, editar, desactivar y reactivar `Branch`, filtro | AC-TEN-01, AC-TEN-05, AC-TEN-09, AC-TEN-30, AC-TEN-32, AC-TEN-37, AC-TEN-38 | Servicio/API | `services/branches.py`, `api/branches.py`, `api/filters.py` | T-TEN-24 | backend-dev | L | Sí | ✅ | #127 · 9b8ef68 |
+| T-TEN-26 | Vencimiento de invitaciones y email por flag | AC-TEN-37 | Asíncrono | `apps/tenancy/tasks.py` | T-TEN-11, T-TEN-21 | backend-dev | M | Sí | ✅ | #137 · 6e85d72 |
+| T-TEN-27 | Completitud de auditoría y suspendida genérica | AC-TEN-23, AC-TEN-28 | Aislamiento | `backend/tests/cross_tenant/*`, `tests/tenancy/test_audit_triggers.py` | T-TEN-13, T-TEN-23, T-TEN-25, T-TEN-26 | backend-dev | M | Sí | ✅ | #142 · 37cff95 |
+| T-TEN-28 | Comandos de soporte y recuperación de owner | AC-TEN-23 (`purpose`) | Comandos | `services/platform_access.py`, `management/commands/{tenancy_support_access,tenancy_owner_recovery}.py` | T-TEN-18 | backend-dev | M | Sí | ✅ | #141 · a69e509 |
+| T-TEN-29 | Organización activa en el frontend y selector | — (RF-TEN-02, spec §14) | UI | `src/modules/tenancy/context/ActiveOrgProvider.tsx`, `src/lib/api-client.ts`, `context/07-frontend-ui-guidelines.md` | T-TEN-12, T-IDA-27 | frontend-dev | L | No | ✅ | #122 · 3a9a654 |
+| T-TEN-30 | Sin organización y aviso de invitaciones (Q-124) | AC-TEN-39 (UI) | UI | `app/(dashboard)/sin-organizacion/page.tsx`, `src/modules/tenancy/components/PendingInvitationsNotice.tsx` | T-TEN-16, T-TEN-29, T-IDA-29 | frontend-dev | M | Sí | ✅ | #129 · 13d395e |
+| T-TEN-31 | Pantalla `/invitacion` | AC-TEN-17 (UI) | UI | `app/invitacion/page.tsx`, `src/modules/tenancy/components/AcceptInvitation.tsx` | T-TEN-15, T-TEN-29 | frontend-dev | M | Sí | ✅ | #132 · b482bf4 |
+| T-TEN-32 | Datos de la empresa y abandonar | — (RF-TEN-03, RF-TEN-04, spec §14) | UI | `app/(dashboard)/configuracion/empresa/page.tsx`, `src/modules/tenancy/components/CompanyDataForm.tsx` | T-TEN-13, T-TEN-23, T-TEN-29 | frontend-dev | M | No | ✅ | #145 · e903ce4 |
+| T-TEN-33 | Sucursales | — (RF-TEN-06, spec §14) | UI | `app/(dashboard)/configuracion/sucursales/page.tsx`, `BranchesTable.tsx`, `BranchFormDialog.tsx` | T-TEN-25, T-TEN-29 | frontend-dev | L | No | ✅ | #139 · 1319da4 |
+| T-TEN-34 | Colaboradores: miembros | — (RF-TEN-04, spec §14) | UI | `app/(dashboard)/configuracion/colaboradores/page.tsx`, `MembersTable.tsx` | T-TEN-23, T-TEN-29 | frontend-dev | L | No | ✅ | #143 · 53150a7 |
+| T-TEN-35 | Colaboradores: invitaciones y link de una sola vez | AC-TEN-24 (UI) | UI | `InviteDialog.tsx`, `InvitationLinkDialog.tsx` | T-TEN-21, T-TEN-34 | frontend-dev | M | Sí | ✅ | #148 · 2155a74 |
+| T-TEN-36 | E2E y cierre conjunto con SPEC-01 | AC-TEN-08, AC-TEN-22, AC-TEN-39 | E2E | `scripts/e2e_tenancy.py`, `scripts/tests/test_e2e_tenancy.py` | T-TEN-30, T-TEN-31, T-TEN-35, T-IDA-31 | backend-dev | M | Sí | ✅ | #150 · 6acb49b |
+| T-TEN-37 | Auditar los rechazos de los comandos de operador (Q-237) | AC-TEN-23 (rechazos del operador) | Comandos | `services/platform_{owner_invite,org_status,access}.py`, `domain/audit_events.py` | T-TEN-28 | backend-dev | S | Sí | ✅ | #144 · 35624bc |
+| T-TEN-38 | Registrar en el log de seguridad un --operator rechazado (Q-241) | — (RF-TEN-07, Q-241) | Comandos | `management/commands/_platform.py` | T-TEN-37 | backend-dev | S | Sí | ✅ | #146 · 52ccc7e |
+| T-TEN-39 | Aceptar con el token de una invitación ya aceptada por la misma persona responde 200 idempotente (Q-243) | AC-TEN-17 (Q-243) | Servicio/API | `domain/invitations.py`, `services/invitation_accept.py`, `api/invitations.py` | T-TEN-15, T-TEN-36 | backend-dev | S | Sí | ✅ | #151 · 6fd9ed6 |
 
 ## Cobertura AC → tareas
 | AC | Tareas |
@@ -557,6 +564,10 @@ T-TEN-30 · suspendida → T-TEN-29.
 - **Cambios:** `design.md §4.4`. Servicio único: lo reusan `T-TEN-16` y `T-TEN-17`.
   Abre un `tenant_scope` por organización antes de escribir la membership y suma a `SystemReason` el valor de ese
   caso ("Ajustes al diseño"; T-TEN-05 lo dejó acá).
+- **Sumados al implementar (según `git show 181a793`, conciliación 2026-11-26):** `apps/common/api/{exceptions,problems,schema}.py`
+  (`reason` en el sobre y títulos fijos), `apps/common/tenancy/context.py`, `domain/invitations.py`,
+  `selectors/invitations.py` (`find_by_token`), `backend/tests/cross_tenant/cases/tenancy.py` y los tests de identity que
+  fijan `info.version`. El PR superó el tamaño `L` (revisión de #125).
 - **Pruebas:** `test_AC_TEN_17_accept_creates_membership`, `test_AC_TEN_17_double_accept_in_parallel` (hilos),
   `test_AC_TEN_18_other_email_keeps_pending`, `test_AC_TEN_19_expired_or_revoked`, `test_AC_TEN_25_at_seven_days`,
   `test_AC_TEN_35_case_and_alias`.
@@ -602,6 +613,9 @@ T-TEN-30 · suspendida → T-TEN-29.
   `backend/tests/tenancy/test_invitation_port_contract.py`, `backend/tests/identity/test_login_with_real_port.py`.
 - **Cambios:** firma de `specs/01-identity-access/design.md §6.4`, **todo o nada**; locks en orden de `id`. `apps/identity`
   sigue sin importar `apps/tenancy`.
+- **Sumados al implementar (según `git show 6bdceba`, conciliación 2026-11-26):** `backend/tests/architecture/allowlists.py`,
+  `backend/tests/identity/test_ports.py`, `frontend/src/app/api/auth/google/callback/route.ts` y su test (Q-231),
+  `scripts/e2e_login.py`, `infra/README.md` y `clarifications.md` (revisión de #130).
 - **Pruebas:** `test_AC_TEN_17_accept_via_port`, `test_AC_IDA_02_invited_login_creates_membership`, `test_AC_IDA_04_expired_invitation`,
   `test_AC_IDA_05_one_invalid_rolls_back_all`, `test_AC_IDA_31_normalized_email_matches`,
   `test_Q_120_all_valid_invitations_accepted`.
@@ -878,7 +892,7 @@ T-TEN-30 · suspendida → T-TEN-29.
   - `GET` lista activas e inactivas (AC-TEN-30), `?is_active=true|false` filtra; paginado con
     `HubPageNumberPagination` (como `GET /api/organizations/`), por nombre y después id. `DELETE`/`PUT` → `405`.
   - Sumados, con su porqué: `models/__init__.py` (exporta `Branch`); `api/urls.py` (monta el router);
-    `api/serializers/__init__.py` (paquete nuevo, mismo contenido que el de `T-TEN-13`);
+    `api/serializers/__init__.py` (el paquete ya existía desde `T-TEN-13`; esta tarea solo suma su export);
     `apps/common/api/problems.py` (título fijo de `conflict`); `apps/common/api/schema.py` (`API_VERSION` 0.11.0) y
     los tests que fijan `info.version`.
   - `services/fields.py` (nuevo) con `unknown_field_errors`, la regla de cuerpo estricto que ya tenía `T-TEN-13`:
@@ -927,7 +941,7 @@ T-TEN-30 · suspendida → T-TEN-29.
   `api/invitations.py` (encola el email al crear y reenviar), `apps/tenancy/checks.py` y `apps/tenancy/apps.py`
   (`tenancy.E001`: el flag encendido sin `EMAIL_BACKEND` no arranca), `config/settings/dev.py` (backend de consola,
   Q-207) y `tests/architecture/allowlists.py` (el `unscoped(SYSTEM_FANOUT)` del fan-out, design.md §3.6).
-- **Cambios:** `expire_invitations` por fan-out; `send_invitation_email` detrás de `TENANCY_INVITATION_EMAIL_ENABLED`,
+- **Cambios:** `expire_invitations_fanout` (fan-out por organización a `expire_invitation`); `send_invitation_email` detrás de `TENANCY_INVITATION_EMAIL_ENABLED`,
   apagado. Sin proveedor (Q-207): backend de consola en dev. El envío fallido se reintenta (checklist de
   `clarifications.md §3`) con el `kwargsrepr` redactado y el `expires` original.
 - **Pruebas:** `test_AC_TEN_37_expiry_task_emits_system_event`, `test_fanout_only_enumerates_ids`,
@@ -991,8 +1005,8 @@ T-TEN-30 · suspendida → T-TEN-29.
     se valida con `clean_reason` de `tenancy_set_org_status` (1 a 200 caracteres) y va a la invitación y al evento,
     nunca al log. El link, una vez por stdout.
   - Salidas como los otros comandos de operador: `0` emitida; `1` rechazo sin cambios (organización desconocida, sin
-    owner activo, miembro activo, `pending` vigente, sin `FRONTEND_BASE_URL`), todavía sin auditar, como al crear
-    una invitación (Q-237 los audita en `T-TEN-37`); `2` argumento inválido (`--email`, `--reason`, `--org`, `--role owner`) u operador fuera de
+    owner activo, miembro activo, `pending` vigente, sin `FRONTEND_BASE_URL`), sin auditar al mergear esta tarea
+    (desde `T-TEN-37`, #144, los audita `operator_command.rejected`, Q-237); `2` argumento inválido (`--email`, `--reason`, `--org`, `--role owner`) u operador fuera de
     `PLATFORM_OPERATOR_EMAILS`.
   - **Aviso a los owners existentes (Q-224):** pendiente hasta el ADR del proveedor de email (Q-207); el comando no
     avisa a nadie y lo dice en la salida.
@@ -1031,6 +1045,9 @@ T-TEN-30 · suspendida → T-TEN-29.
 - **AC:** AC-TEN-17 (UI). **Zona roja:** sí (maneja el token).
 - **Archivos:** `src/app/invitacion/page.tsx`, `src/modules/tenancy/components/AcceptInvitation.tsx`, `src/proxy.ts`, tests.
 - **Cambios:** `design.md §3.9`: lee `#token`, lo borra de la URL, sobrevive al login con `sessionStorage`.
+- **Sumados al implementar (según `git show b482bf4`, conciliación 2026-11-26):** `src/lib/problem.ts`,
+  `src/modules/tenancy/hooks/useAcceptInvitation.ts` y `src/modules/tenancy/lib/invitation-token.ts`, con sus tests
+  (revisión de #132).
 - **Pruebas:** `test_AC_TEN_17` por estado (válida, vencida, revocada, usada, otro email, suspendida), token que no queda
   ni en la URL ni en `sessionStorage` al terminar.
 
@@ -1214,7 +1231,9 @@ T-TEN-30 · suspendida → T-TEN-29.
 
 ### T-TEN-38 — Registrar en el log de seguridad un --operator rechazado (Q-241)
 - **AC:** — (RF-TEN-07, Q-241). RN-IDA-23, RNF-TEN-04. **Zona roja:** sí.
-- **Archivos:** `management/commands/_platform.py`, `tests/tenancy/commands/*`.
+- **Archivos:** `management/commands/_platform.py`, `tests/tenancy/commands/*`. Sumados al implementar (según
+  `git show 52ccc7e`): los cinco comandos que llaman a `operator_of`, `management/commands/{tenancy_create_org,
+  tenancy_owner_invite,tenancy_owner_recovery,tenancy_set_org_status,tenancy_support_access}.py` (revisión de #146).
 - **Cambios:** `operator_of` escribe, antes de la salida `2`, una línea WARNING en el log de seguridad de la aplicación
   con el nombre del comando y el usuario del sistema operativo; nunca el email ni el valor de `--operator`. No es un
   evento de auditoría de ninguna empresa (Q-241) ni escribe nada más.
@@ -1240,7 +1259,147 @@ T-TEN-30 · suspendida → T-TEN-29.
 - **Pruebas:** `test_Q_243_*` (servicio, ruta, carrera de la misma persona, otra cuenta, membership terminada,
   suspendida, ruta de sesión sin cambios, dominio y pantalla); `AC-TEN-17` sigue probando `used` para otra cuenta.
 
+## Seguimientos técnicos (de las revisiones, sin tarea)
+
+No bloqueantes que dejaron los veredictos. No son tareas: el planner decide si alguno la necesita (Carril S) o va
+por worklog (Carril O). Las líneas son las del momento de la revisión; esta conciliación no comprobó en el código si
+un PR posterior cerró alguno.
+
+- **Planner (#122, #139):** ninguna ficha lleva las sucursales activas al selector de la barra superior: hoy
+  `OrgBranchSelector.tsx` ofrece solo "Todas las sucursales".
+- **#102 (T-TEN-05):** opcional `ended_by_id IS NULL` en la rama activa del CHECK; un test de aislamiento de lectura de
+  `Membership`; tests con prefijo `RN_TEN_07` que prueban RN-TEN-01 / AC-TEN-11.
+- **#104, #110, #113, #114 (reglas de arquitectura y suite cross-tenant):** la regla AST no ve alias por tupla,
+  anotados ni walrus, `getattr(connection, "cursor")`, `RawQuery`, una subclase de `Func` con template anotado,
+  `getattr(context, "TenantContext")` ni `qs.query.where` en el lugar; `tenant_rules.py:264` exime todo segmento
+  `models` (restringirlo a `apps.<app>.models`); `scope_builders` no cubre nombres dinámicos, subíndices ni asignar
+  `_scope`. `as_view(get_permissions=...)` y reasignar `V.check_permissions` después del import todavía saltean la
+  guarda (opcional: chequeo por instancia). `ENUM_NAME_OVERRIDES` reconoce enums por su conjunto de valores: todo campo
+  futuro `{active, suspended}` sale como `OrganizationStatusEnum`.
+- **#105 y #106 (T-TEN-06, T-TEN-07):** `ActionSpec` no valida `api_key_scope`; ningún endpoint debe usar
+  `member.change_role` sin `role_rules`; `decide_revoke` no tiene `is_self` (revocar la propia membership debería contar
+  como abandonar).
+- **#117 (T-TEN-11):** la regla AST no ve el acceso dinámico (`getattr`, `dataclasses.replace`) a `MembershipMutex` ni a
+  `system_context`; todo llamador nuevo de `system_context` va a `SYSTEM_CONTEXT_CALLERS`; una tarea que corre inline
+  encolada desde un request lanza `TenantScopeError` en tests (documentar el patrón); `wait_for_a_blocked_backend` no
+  anda con pytest en paralelo.
+- **#119 (T-TEN-14):** el CHECK de email normalizado de `models/invitation.py:97` usa solo `btrim` (pasan tabs): los
+  servicios siempre normalizan antes de escribir. Nada en la BD impide que `Membership.source_invitation` o
+  `Invitation.replaces` apunten a una invitación de otra organización (lo hacen cumplir los servicios; falta el test
+  cross-tenant). Comentario viejo en `backend/tests/architecture/allowlists.py:65-66`. Sin CHECK de coherencia de la
+  revocación (pediría cambiar `§5`).
+- **#120 (T-TEN-13):** `services/organizations.py:27` es el primer servicio que importa `rest_framework`
+  (`ValidationError`); falta el test de lock a tres (dos ediciones `KEY SHARE` y una suspensión en cola); la validación
+  estricta vive en `OrganizationUpdateSerializer.to_internal_value` (extraerla cuando la necesiten otras vistas).
+- **#124 (T-TEN-24):** `services/fields.py:16` cambió el texto de `unknown_field` en el `PATCH /current/` ya
+  mergeado; `cross_tenant/cases/tenancy.py:74` debería mandar el `organization_id` de B en el cuerpo del `POST`.
+- **#125 (T-TEN-15):** el vencimiento después de un `400` se prueba solo en el servicio; falta un test de ruta con
+  `transaction=True` (se rompería en silencio con `ATOMIC_REQUESTS`).
+- **#126 (T-TEN-16):** una fila ajena también emite `invitation.rejected` (oráculo de tiempo, mitigado por UUIDv4 y el
+  alcance al email propio); falta la variante con hilos del doble aceptar por sesión; el test aceptar-contra-revocar
+  simula la revocación (rehacerlo contra el servicio real); `accept_from_session` emite `invitation.rejected` sin
+  registro propio en `AUDIT_TRIGGERS`; el orden de `mine/` (`expires_at`, `id`) lo eligió el implementador.
+- **#127 (T-TEN-25):** `cases/tenancy.py:113` reconoce a B por el nombre "B" (exportarlo de `harness.py`);
+  `classifier.py:36` debería aceptar el initkwarg `schema` cuando es un `TenantAutoSchema`; `services/branches.py:196`
+  ignora el retorno de `_save`; `test_branch_detail.py:101` compara solo el `404`, no el cuerpo, con un id no UUID.
+- **#128 (T-TEN-22):** falta el test con hilos de AC-TEN-14 para dos `PATCH` que se degradan entre owners;
+  `PatchedMembershipRoleUpdateRequest` deja `role` opcional en `api.d.ts` aunque el servidor lo exige; el
+  `Retry-After` del `503` figura solo en la descripción, no como `headers:`.
+- **#129 (T-TEN-30):** `PendingInvitationsNotice` parpadea al reintentar la única invitación que falló.
+- **#130 (T-TEN-17):** `invitation_port.py:70-74`: una organización borrada entre la lectura y el lock lanza
+  `OrganizationNotFound` en vez de saltearse (teórico); `test_login_with_real_port.py:71` no lleva ID y duplica
+  `test_RF_IDA_09_invitation_port_is_the_one_of_spec_02`.
+- **#131 y #136 (T-TEN-20, T-TEN-18):** `FRONTEND_BASE_URL` es opcional en prod y sin él crear una invitación da `500`
+  (`env.py:254`, `prod.py:68`, `services/invitations.py:134`) y repetir `tenancy_create_org` sale con `1` antes del
+  evento de Q-235 (`platform_org.py:132`): exigirla en `ProdEnv` o informarla en readiness antes del primer despliegue.
+  La idempotencia de `tenancy_create_org` compara el nombre actual (`platform_org.py:188-198`): renombrar la
+  organización vuelve `conflict` la misma corrida. El reenvío arma el link con un f-string propio en vez de
+  `accept_url` (`invitation_manage.py:116`).
+- **#132 (T-TEN-31):** `AcceptInvitation.tsx:28` cita `C-08` donde corresponde `C-06` / AC-PLT-23; el comentario de
+  `invitation-token.ts:5` promete que el historial no guarda el token (el historial global del navegador puede guardar
+  la URL con el fragmento); falta el test del diferimiento bajo `<StrictMode>`; comentario viejo en
+  `scripts/smoke_pages.py:21`.
+- **#135 y #140 (T-TEN-21, T-TEN-19):** sin test de Q-234 c) (`invitation_manage.py:153-154`), de un actor degradado
+  bajo el lock → `403` (`:191-192`), de `already_member` ni de `reissue` sobre una `accepted`, ni de aceptar una
+  reemitida con la organización suspendida; el rollback deshace el vencimiento perezoso (Q-234 b).
+- **#137 (T-TEN-26):** el chequeo `tenancy.E001` solo detecta el `EMAIL_BACKEND` por defecto (revisarlo con el ADR del
+  proveedor de email).
+- **#138 (T-TEN-23):** el caso `leave` de la suite cross-tenant muta en el constructor de la URL; `NoBodySerializer` se
+  importa de `api/invitations.py`; el `403` del `DELETE` propio para `operator` y `viewer` no está en el contrato.
+- **#139, #143, #145, #148 (pantallas):** el diálogo de sucursal reaparece en A→B→A (`BranchesTable.tsx:250`) y el estado
+  vacío parpadea; `test_AC_TEN_37_…` de la UI no es evidencia de AC-TEN-37; migrar `lib/branch-form.ts` a
+  react-hook-form + zod (Q-239); `useMembers.ts:190` vuelve a pedir los miembros de la empresa siguiente tras
+  abandonar; la fila "Colaboradores" aparece tarde; columna de acciones vacía con `change_role` sin roles; en
+  `CompanyDataForm.tsx` una relectura fallida desmonta el formulario, `saved` se calcula solo al montar (`:66`) y el
+  resolver usa `issue.path[0]`; el diálogo del link no tiene `onClose` y se pierde si se cambia de empresa con la
+  request en curso; el chequeo de email del diálogo es laxo.
+- **#141, #142, #144 (T-TEN-28, T-TEN-27, T-TEN-37):** hacer pública `_expire_or_refuse_pending`; `AUDIT_TRIGGERS` se
+  llena por import (si producción lo lee, importarlo en `AppConfig.ready`); el driver por servicio no verifica el id del
+  actor; el catálogo se compara con el enum, no con el texto de RNF-TEN-04; `ImproperlyConfigured` se mapea demasiado
+  amplio a `not_configured` (`platform_org_status.py:72`); un timeout de lock (`55P03`) en los comandos de operador no se
+  maneja ni se audita (`:122`).
+- **#146 (T-TEN-38):** el `os_user` de `getpass` es falsificable (como en la auditoría); `capture_logs` saltea
+  `redact_event` en los tests.
+- **#150 (T-TEN-36):** el docstring de `scripts/tests/test_e2e_tenancy.py:6` cita un `verification.md` de 02 que todavía no
+  existe (lo crea la verificación conjunta);
+  falta el `403` del `operator` en `GET /api/invitations/`; AC-TEN-39 infiere `accepted`; dos tests con prefijo
+  AC-TEN-22 prueban AC-TEN-24 y AC-TEN-34; el `run_manage` falso usa `str.split`; el E2E no corre en CI (sumarlo toca
+  `ci.yml`: lo decide el dueño, Q-063).
+- **#151 (T-TEN-39):** faltan tests de la repetición de Q-243 después del vencimiento, del `used` por HTTP para otra
+  cuenta y del escenario real (el puerto en el primer login y después el token).
+
+## Conciliación con git (generada, no editar a mano)
+
+> La genera `python scripts/check_spec_state.py --write` a partir de `git log` y del estado de la tabla de
+> resumen. No se edita a mano: el bloque se reemplaza completo.
+
+<!-- check_spec_state:begin -->
+| Tarea | PR | SHA | Estado |
+|---|---|---|---|
+| T-TEN-01 | #82 | 5a3fd97 | ✅ |
+| T-TEN-02 | #89 | 10c8ccf | ✅ |
+| T-TEN-03 | #100 | 239c28e | ✅ |
+| T-TEN-04 | #104 | bb33cdb | ✅ |
+| T-TEN-05 | #102 | 31750cc | ✅ |
+| T-TEN-06 | #105 | 30929a8 | ✅ |
+| T-TEN-07 | #106 | d5ec9ee | ✅ |
+| T-TEN-08 | #110 | 7d0a9ec | ✅ |
+| T-TEN-09 | #114 | 6603539 | ✅ |
+| T-TEN-10 | #86 | c7c01e7 | ✅ |
+| T-TEN-11 | #117 | c27d7e4 | ✅ |
+| T-TEN-12 | #113 | 3c38ac3 | ✅ |
+| T-TEN-13 | #120 | 2c9479a | ✅ |
+| T-TEN-14 | #119 | 153977b | ✅ |
+| T-TEN-15 | #125 | 181a793 | ✅ |
+| T-TEN-16 | #126 | c97ad5f | ✅ |
+| T-TEN-17 | #130 | 6bdceba | ✅ |
+| T-TEN-18 | #136 | 379479c | ✅ |
+| T-TEN-19 | #140 | f545919 | ✅ |
+| T-TEN-20 | #131 | 9d90f8f | ✅ |
+| T-TEN-21 | #135 | ccb2d76 | ✅ |
+| T-TEN-22 | #128 | af0c97a | ✅ |
+| T-TEN-23 | #138 | 32e5786 | ✅ |
+| T-TEN-24 | #124 | c33572f | ✅ |
+| T-TEN-25 | #127 | 9b8ef68 | ✅ |
+| T-TEN-26 | #137 | 6e85d72 | ✅ |
+| T-TEN-27 | #142 | 37cff95 | ✅ |
+| T-TEN-28 | #141 | a69e509 | ✅ |
+| T-TEN-29 | #122 | 3a9a654 | ✅ |
+| T-TEN-30 | #129 | 13d395e | ✅ |
+| T-TEN-31 | #132 | b482bf4 | ✅ |
+| T-TEN-32 | #145 | e903ce4 | ✅ |
+| T-TEN-33 | #139 | 1319da4 | ✅ |
+| T-TEN-34 | #143 | 53150a7 | ✅ |
+| T-TEN-35 | #148 | 2155a74 | ✅ |
+| T-TEN-36 | #150 | 6acb49b | ✅ |
+| T-TEN-37 | #144 | 35624bc | ✅ |
+| T-TEN-38 | #146 | 52ccc7e | ✅ |
+| T-TEN-39 | #151 | 6fd9ed6 | ✅ |
+<!-- check_spec_state:end -->
+
 ---
-**Hecho:** 39 tareas, 40 AC y 9 RF cubiertos, olas y división de archivos.
-**Pendiente / dudas:** Q-220 (SPEC-04/05).
-**Siguiente rol sugerido:** `backend-dev` en `T-TEN-01`, en paralelo con la ola 0 de SPEC-01, después `reviewer`.
+**Hecho:** 39 tareas, 40 AC y 9 RF cubiertos, olas y división de archivos. Al 2026-11-26 las 39 están mergeadas
+(PR #82 a #151).
+**Pendiente / dudas:** Q-220 (SPEC-04/05) y Q-229 (unicidades con el manager que falla cerrado), abiertas y sin
+bloquear 02; la verificación conjunta con SPEC-01 (Q-108).
+**Siguiente rol sugerido:** `qa-verifier` en la verificación conjunta de 01 y 02; después el dueño decide `Verified`.
