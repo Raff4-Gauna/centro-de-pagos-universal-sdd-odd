@@ -1,8 +1,9 @@
-"""Tasks per organization (AC-TEN-28 s2s, RN-TEN-18, RF-TEN-08, design.md §3.6).
+"""Tasks per organization (AC-TEN-28, RN-TEN-18, RF-TEN-08, design.md §3.6).
 
-There are no charges yet, so the server-to-server event on a ``pending`` charge of a suspended
-organization is ``tenant_probe.rename_widget``: a ``TenantTask`` that takes the write lock and
-writes. ``Task.apply`` runs it through the same trace and signals as a worker (no broker).
+AC-TEN-28 asks that a system task on a suspended organization keeps running. The probe is
+``tenant_probe.rename_widget``: a ``TenantTask`` that takes the write lock and writes.
+``Task.apply`` runs it through the same trace and signals as a worker (no broker). The
+server-to-server event on a ``pending`` charge moved to SPEC-06 (AC-CHG-18, Q-244).
 """
 
 from __future__ import annotations
