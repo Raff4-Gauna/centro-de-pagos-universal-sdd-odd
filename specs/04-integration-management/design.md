@@ -5,7 +5,7 @@ actualizado: 2026-11-27
 ---
 # Diseño — Módulo de Gestión de Integraciones (integraciones, credenciales, vínculos y Cajas)
 
-> Parte de `spec.sdd.md` **0.4.0 (*Designed*)** y de `clarifications.md` (Q-401…Q-432). No cambia reglas de negocio:
+> Parte de `spec.sdd.md` **0.4.1 (*Designed*)** y de `clarifications.md` (Q-401…Q-432). No cambia reglas de negocio:
 > donde la spec delega un detalle técnico ("lo fija `design.md`") se decide acá. Decisión no obvia de cifrado:
 > **ADR-0003** (*Propuesto*). Se reutiliza sin cambios la base de SPEC-02 (ADR-0001, ADR-0002): `TenantModel` que
 > falla cerrado, `TenantContext`, `ensure_writable`, `ActionSpec`/`TenantViewSet`, puerto de auditoría, suite
@@ -18,7 +18,8 @@ actualizado: 2026-11-27
 > historial. Las tareas de 04 que llaman al motor van después de las de 03.
 >
 > **Supuestos por preguntas abiertas** (sin bloqueo; §11.2 dice qué cambia si se decide otra opción): Q-413 a),
-> Q-414 a), Q-416 a), Q-417 a), Q-419 a), Q-422 a), Q-430 b) (lo que hoy dice la spec), Q-431 a), Q-432 a).
+> Q-414 a), Q-416 a), Q-417 a), Q-419 a), Q-422 a). **Decididas por el dueño el 2026-11-27 durante la revisión del
+> PR #158** y aplicadas acá: Q-430 a) (cuenta sin confirmar, §4.2), Q-431 b) (solo sobre integración y `Branch` activas, §4.6), Q-432 a).
 
 ## 1. Resumen de la solución
 1. **Una app `apps/integrations`** (label `integrations`) con cuatro tablas tenant (`Integration`, `CredentialSet`,
@@ -59,14 +60,14 @@ actualizado: 2026-11-27
 | RN-INT-16 | Sin rutas OAuth (`api/urls.py`); test de rutas (AC-INT-22) |
 | RN-INT-17 | `domain/audit_events.py::IntegrationsAuditAction` · `services/audit.py::record_event` + `AUDIT_TRIGGERS` (patrón SPEC-02) |
 | RN-INT-18 | `domain/lifecycle.py::decide_integration_event`, `decide_link_event`, `decide_cash_register_event` · `transition.rejected` fuera del `atomic` |
-| RN-INT-19 | índice único parcial `integration_account_reserved` (`provider_code`, `environment`, `account_id`) `WHERE account_id IS NOT NULL AND status <> 'disconnected'` · `domain/connection.py::decide_save` (otra cuenta) · traducción a `account_already_connected` sin datos ajenos (§4.2) |
+| RN-INT-19 | índice único parcial `integration_account_reserved` (`provider_code`, `environment`, `account_id`) `WHERE account_id IS NOT NULL AND status <> 'disconnected'` · `domain/connection.py::decide_save` (otra cuenta) · traducción a `account_already_connected` sin datos ajenos (§4.2) · `Integration.account_unconfirmed` + `integration_unconfirmed_coherent` (Q-430 a)) |
 | RN-INT-20 | `api/serializers/integrations.py`: bloque `management` solo con `integration.read_detail` (§6.5) |
 | RN-INT-21 | `Integration.connection_status/connection_reason/connection_checked_at` + checks · `services/auth_failure.py::report_provider_auth_error` · desconectar → `unverified` |
 | RN-INT-22 | `domain/connection.py::decide_save` (tabla §4.2) · `services/create_integration.py`, `replace_credentials.py`, `integration_lifecycle.py::reactivate` |
 | RN-INT-23 | `BranchLink` + `services/branch_links.py` (modos `create`/`import`/`manual`/`none`) · `domain/external_keys.py::store_key` · `list_stores` (Q-428) · `branch_link_one_per_pair` (Q-429) |
 | RN-INT-24 | `services/integration_lifecycle.py::disconnect` (§4.5): lock `FOR UPDATE` de la integración + `PendingChargesPort` + `DELETE` del juego · `integration_disconnected_coherent` |
 | RN-INT-25 | `INTEGRATIONS_ACTIONS` (`branch_link.*`, `cash_register.*`) |
-| RN-INT-26 | `selectors/usability.py::get_usable_integration`, `get_usable_cash_register` · `selectors/locks.py::lock_integration_for_new_charge` |
+| RN-INT-26 | `selectors/usability.py::get_usable_integration`, `get_usable_cash_register` · `selectors/locks.py::lock_integration_for_new_charge` (las dos excluyen `account_unconfirmed`, Q-430 a)) |
 | RN-INT-27 | `Integration.webhook_route_key` (único) · `services/webhook_key.py::regenerate_webhook_key` · `selectors/webhook_routing.py::find_by_webhook_route_key` (scope de modelo restringido) |
 | RF-INT-01 | `GET /api/integration-providers/` · `selectors/catalog.py::list_enabled_providers` |
 | RF-INT-02 | `POST /api/integrations/` · `services/create_integration.py` |
@@ -218,7 +219,7 @@ Importada solo de `apps.integrations.engine` (nunca de `providers/`):
 ### 3.7 Interfaz ofrecida a otros módulos (Python)
 | Para | Función | Contrato |
 |---|---|---|
-| 06 | `selectors.usability.get_usable_integration(ctx, integration_id, capability)` | `UsableIntegration` o `IntegrationNotUsable(reason ∈ {inactive, unknown_account, capability_not_supported, provider_unavailable})`; otra organización → `NotFound` (RN-INT-26, Q-422 a)) |
+| 06 | `selectors.usability.get_usable_integration(ctx, integration_id, capability)` | `UsableIntegration` o `IntegrationNotUsable(reason ∈ {inactive, unknown_account, account_unconfirmed, capability_not_supported, provider_unavailable})`; otra organización → `NotFound` (RN-INT-26, Q-422 a)) |
 | 06 | `selectors.usability.get_usable_cash_register(ctx, cash_register_id, integration_id)` | Caja activa, de esa integración, `Branch` activa y vínculo activo; si no, `CashRegisterNotUsable(reason)` |
 | 06 | `selectors.locks.lock_integration_for_new_charge(ctx, integration_id)` | dentro de la transacción del cobro nuevo: `SELECT … FOR KEY SHARE` de la fila y re-chequeo de "utilizable" (§4.5) |
 | 06 | `services.ports.PendingChargesPort.has_pending_charges(ctx, integration_id) -> bool` | lo **implementa** SPEC-06 y se registra en `settings.INTEGRATIONS_PENDING_CHARGES_PORT`; hasta entonces, `NoChargesModule` (no hay cobros) y `checks.py` falla si `apps.charges` está instalada sin puerto propio |
@@ -267,7 +268,8 @@ Logger `apps.integrations` (structlog JSON, `request_id`/`task_id` y `organizati
 | `integrations.context_resolved` | `integration_id`, `provider_code`, `operation`, `result`, `duration_ms` |
 | `integrations.provider_auth_failure` | `integration_id`, `provider_code`, `operation`, `applied` (si el juego seguía vigente) |
 | `integrations.cipher_key_missing` | `integration_id`, `cipher_key_id` (no secreto) |
-| `integrations.reencrypt_batch` | `rows`, `from_key_ids`, `to_key_id`, `duration_ms` (sin `organization_id` por fila) |
+| `integrations.reencrypt_batch` | `rows`, `skipped`, `failed`, `from_key_ids`, `to_key_id`, `duration_ms` (sin `organization_id` por fila) |
+| `integrations.reencrypt_failed` | `integration_id`, `cipher_key_id` (juego que no descifra; no se escribe y el comando sale con código ≠ 0, ADR-0003 §5) |
 Reglas de nombres (`context/08 §6`): nunca `state`, `code`, ni claves con `token`, `secret`, `credential`,
 `session`, `signature`, `auth` (la redacción los tapa y se pierde el dato): se usa `*_status`, `reason`,
 `cipher_key_id`. Nunca se loguea el `webhook_route_key` (las rutas van por plantilla, Q-041), ni `configuration`,
@@ -316,18 +318,31 @@ usuario del `ctx`. `integration.created` lleva `provider_code`, `environment`, `
 
 | Outcome | `decide_save` (alta / reemplazo / reactivación de una desconectada) | `decide_manual_test` |
 |---|---|---|
-| `Connected(A)`, sin cuenta conocida | `Save(connected, account=A)` | `Apply(connected, account=A)` |
-| `Connected(A)`, cuenta conocida `X = A` | `Save(connected)` | `Apply(connected)` |
-| `Connected(A)`, cuenta conocida `X ≠ A` | `Reject(account_mismatch)` (RN-INT-19, Q-427) | `Apply(connection_error, reason=account_mismatch)`, cuenta sin cambio → respuesta `409 account_mismatch` (Q-430 b)) |
-| `AuthInvalid` | `Reject(connection_test_failed, auth_invalid)` | `Apply(credentials_invalid, reason)` |
-| `Raised(validation \| rejected \| not_found)` | `Reject(connection_test_failed, <kind>)` (Q-425) | `Apply(connection_error, reason)` (Q-425) |
-| `Unreachable` / `Raised(unknown)` | `Save(connection_error, reason)`, cuenta sin cambio (Q-407, Q-425) | `Apply(connection_error, reason)` |
+| `Connected(A)`, sin cuenta conocida | `Save(connected, account=A, unconfirmed=false)` | `Apply(connected, account=A, unconfirmed=false)` |
+| `Connected(A)`, cuenta conocida `X = A` | `Save(connected, unconfirmed=false)` | `Apply(connected, unconfirmed=false)` (confirma la cuenta, Q-430 a)) |
+| `Connected(A)`, cuenta conocida `X ≠ A` | `Reject(account_mismatch)` (RN-INT-19, Q-427) | `Apply(connection_error, reason=account_mismatch)`, cuenta y `account_unconfirmed` sin cambio → respuesta `409 account_mismatch` (Q-430 a)) |
+| `AuthInvalid` | `Reject(connection_test_failed, auth_invalid)` | `Apply(credentials_invalid, reason)`, `account_unconfirmed` sin cambio |
+| `Raised(validation \| rejected \| not_found)` | `Reject(connection_test_failed, <kind>)` (Q-425) | `Apply(connection_error, reason)` (Q-425), `account_unconfirmed` sin cambio |
+| `Unreachable` / `Raised(unknown)`, sin cuenta conocida (alta, o reemplazo/reactivación de una que nunca tuvo cuenta) | `Save(connection_error, reason, unconfirmed=false)`: ya no es utilizable por cuenta desconocida (Q-423) | `Apply(connection_error, reason)` |
+| `Unreachable` / `Raised(unknown)`, cuenta conocida `X` (reemplazo o reactivación) | `Save(connection_error, reason, unconfirmed=true)`, cuenta sin cambio (Q-407, Q-425, **Q-430 a)**) | `Apply(connection_error, reason)`, `account_unconfirmed` sin cambio |
 
 "Cuenta ya tomada" no la decide el dominio: la detecta el índice único al escribir `account_id` (o al volver a
 `status='active'` una desconectada con cuenta conocida). En `decide_save` eso es `Reject(account_already_connected)`
 y no se guarda nada; en `decide_manual_test` se aplica `connection_error` + `account_already_connected` **sin** la
 cuenta, y la respuesta es `409 account_already_connected` (AC-INT-36). El cuerpo de ese `409` es constante: ni
 organización, ni integración, ni la cuenta. Un test recorre la tabla completa.
+
+**Cuenta sin confirmar (Q-430 a)).** `account_unconfirmed = true` significa "el juego vigente se guardó sin una
+prueba que confirmara la cuenta conocida". Solo lo pone `decide_save` en la última fila; solo lo limpia una prueba
+(a pedido o al guardar) que devuelve `Connected` con la cuenta conocida, y desconectar (que borra el juego). Una
+operación real exitosa no lo limpia (RN-INT-21: no cambia el estado). Mientras sea `true`, la integración no es
+utilizable para cobros nuevos (`get_usable_integration` y `lock_integration_for_new_charge`, reason
+`account_unconfirmed`); los procesos de sistema sobre cobros existentes siguen (RN-INT-15).
+
+**`409` con estado escrito.** En la prueba a pedido, `account_mismatch` y `account_already_connected` aplican el
+estado dentro del `atomic` y el error se lanza **después** de cerrarlo (como `transition.rejected`, SPEC-02 §3.3),
+así el rollback no se lleva el estado; un test verifica que tras el `409` el estado persistido es `connection_error`
+con ese `reason` (AC-INT-36, AC-INT-45).
 
 ### 4.3 Reemplazo de credenciales y reactivación de una desconectada (RN-INT-06, RN-INT-22, Q-427)
 1. Validar el juego contra el esquema (sin lock). Leer la integración `for_tenant(ctx)` (`404` si es de otra org).
@@ -338,8 +353,10 @@ organización, ni integración, ni la cuenta. Un test recorre la tabla completa.
 4. `atomic`: `ensure_writable` → `select_for_update(no_key=True)` de la integración → si cambió el estado o la
    `version` desde el paso 2, `409 conflict` (otra escritura ganó; se reintenta) → escribir:
    - reemplazo: una sola `UPDATE` de `credential_set` (`ciphertext`, `key_id`, `public_fields`,
-     `secret_field_names`, `version+1`, `credentials_updated_at`, `updated_by`) + campos de conexión;
-   - reactivación: `INSERT` del juego + `status='active'`, `deactivated_at=NULL`, `disconnected_at=NULL`.
+     `secret_field_names`, `version+1`, `credentials_updated_at`, `updated_by`) + campos de conexión y
+     `account_unconfirmed` según `decide_save` (§4.2);
+   - reactivación: `INSERT` del juego + `status='active'`, `deactivated_at=NULL`, `disconnected_at=NULL`,
+     `account_unconfirmed` según `decide_save`.
    La escritura va en un savepoint: `IntegrityError` de `integration_account_reserved` → `409
    account_already_connected`, de `integration_unique_active_name` → `400 validation_error` (`taken`); nada
    guardado.
@@ -354,19 +371,22 @@ Throttle por integración (§6.3) → leer integración (desconectada → `409 i
 vigente (`version` v) → `test_connection()` fuera de transacción → `decide_manual_test` → `atomic`: lock de la fila;
 si la `version` ya no es v, el resultado se descarta (log `integrations.connection_test`, `result=stale`) y la
 respuesta es `409 conflict` ("las credenciales cambiaron, probá de nuevo") → si no, aplica estado, `reason`,
-`connection_checked_at` y, si corresponde, `account_id` (savepoint; colisión → §4.2) → evento de cambio de estado
-solo si cambió (Q-419 a)). Respuesta `200 {connection_status, connection_reason, connection_checked_at,
-account_id}`.
+`connection_checked_at`, `account_unconfirmed` y, si corresponde, `account_id` (savepoint; colisión → §4.2) →
+evento de cambio de estado solo si cambió (Q-419 a)) → se cierra el `atomic` → recién ahí, si el resultado fue
+`account_mismatch` o `account_already_connected`, se lanza el `409` (el estado ya quedó confirmado, §4.2).
+Respuesta `200 {connection_status, connection_reason, connection_checked_at, account_id, account_unconfirmed}`.
 
 ### 4.5 Desconectar frente a un cobro nuevo (RN-INT-24)
 - **Desconectar**: `atomic` → `ensure_writable` → `select_for_update()` (**`FOR UPDATE`**) de la integración →
   `decide_integration_event(status, DISCONNECT)` → `PendingChargesPort.has_pending_charges(ctx, id)` → si hay, `409
   pending_charges` sin cambios → si no, `DELETE` del `credential_set`, `status='disconnected'`,
-  `connection_status='unverified'`, `connection_reason=NULL`, `connection_checked_at=NULL`, `account_id` se
-  conserva → `integration.disconnected`.
+  `disconnected_at=now()`, `deactivated_at=now()` si venía de `active` (si venía de `inactive` conserva el suyo;
+  así se cumple `integration_active_coherent`), `connection_status='unverified'`, `connection_reason=NULL`,
+  `connection_checked_at=NULL`, `account_unconfirmed=false`, `account_id` se conserva → `integration.disconnected`.
 - **Cobro nuevo (SPEC-06)**: dentro de su transacción, antes de insertar el cobro, `lock_integration_for_new_charge`
   = `SELECT … FROM integrations_integration WHERE organization_id=%s AND id=%s FOR KEY SHARE` y re-chequeo de
-  "utilizable". `FOR KEY SHARE` choca con el `FOR UPDATE` de desconectar y no con las `UPDATE` de estado de conexión
+  "utilizable" con las mismas condiciones que `get_usable_integration` (activa, cuenta conocida, **no**
+  `account_unconfirmed`, capacidad, provider disponible). `FOR KEY SHARE` choca con el `FOR UPDATE` de desconectar y no con las `UPDATE` de estado de conexión
   (`NO KEY UPDATE`), así que los cobros no se serializan entre sí:
   - si el cobro toma el lock primero, inserta su `pending` y confirma; desconectar espera, ve el `pending` y rechaza;
   - si desconectar va primero, el cobro espera, relee `disconnected` y no se crea.
@@ -381,15 +401,27 @@ account_id}`.
 - **Crear vínculo** (`store_mode`): `create` → `ensure_store(EnsureStore(store_key, branch.name, data))`; `import`
   → `list_stores()` y la `store_ref` tiene que estar en la lista (si no, `400 validation_error` en `store_ref`);
   `manual` → `store_ref` obligatoria, sin llamar al adaptador; `none` → sin referencia. `create`/`import` sin
-  `POS_MANAGEMENT` → `409 capability_not_supported`; sin credenciales (desconectada) → `409
-  integration_without_credentials` (Q-431 a)).
-- **Crear Caja** (`mode`): exige el vínculo `Branch` + integración y que esté activo (si no, `409
-  branch_link_required` con `reason ∈ {missing, inactive}`). `create` → `ensure_pos(EnsurePos(pos_key,
-  link.store_ref, name))`; `import` → `list_pos()` filtrado por la `store_ref` del vínculo y la `provider_ref`
-  tiene que estar; `manual` → `provider_ref` obligatoria, sin adaptador. Mismas reglas de capacidad y credenciales.
-- Orden: validar → pre-chequeo de unicidad (lectura) → llamada al proveedor dentro de `provider_session` (fuera de
-  transacción) → `atomic`: `ensure_writable`, `select_for_update(no_key=True)` del vínculo (re-chequeo activo, así
-  no se cruza con desactivarlo), `INSERT` en savepoint (`IntegrityError` → `409 conflict` con el campo) → evento.
+  `POS_MANAGEMENT` → `409 capability_not_supported`.
+- **Integración y `Branch` activas (Q-431 b)).** Crear un vínculo o una Caja exige `integration.status='active'` y
+  `branch.is_active`; si no, `409 resource_inactive` con `reason ∈ {integration_inactive, branch_inactive}` (se
+  chequea primero la integración), sin crear nada y **sin llamar al proveedor**. Una integración inactiva con
+  credenciales y una desconectada dan lo mismo. Como una integración `active` siempre tiene su `credential_set`
+  (§10 de la spec; lo mantienen alta, reactivación y desconexión, y un test lo verifica), los modos `create`/`import`
+  nunca encuentran una integración sin credenciales en estas altas; `integration_without_credentials` queda solo
+  para las listas de `provider-stores`/`provider-pos` sobre una desconectada.
+- **Crear Caja** (`mode`): además exige el vínculo `Branch` + integración y que esté activo (si no, `409
+  branch_link_required` con `reason ∈ {missing, inactive}`; orden: `resource_inactive` antes que
+  `branch_link_required`). `create` → `ensure_pos(EnsurePos(pos_key, link.store_ref, name))`; `import` → `list_pos()`
+  filtrado por la `store_ref` del vínculo y la `provider_ref` tiene que estar; `manual` → `provider_ref`
+  obligatoria, sin adaptador. Misma regla de capacidad.
+- Orden: validar → chequeo de actividad (lectura; integración, `Branch`, vínculo) → pre-chequeo de unicidad
+  (lectura) → llamada al proveedor dentro de `provider_session` (fuera de transacción) → `atomic`: `ensure_writable`
+  → `select_for_update(no_key=True)` de la integración → `lock_branch(ctx, id)` de SPEC-02 → (Caja)
+  `select_for_update(no_key=True)` del vínculo → **re-chequeo de actividad de los tres bajo lock** (así no se cruza
+  con desactivar la integración, la `Branch` o el vínculo; si alguno cambió, `409 resource_inactive` o
+  `branch_link_required` y nada local) → `INSERT` en savepoint (`IntegrityError` → `409 conflict` con el campo) →
+  evento. Orden fijo de locks: organización → integración → `Branch` → vínculo. Si el re-chequeo falla después de
+  haber creado el recurso en el proveedor, queda como en el punto siguiente (se reusa por la clave estable).
 - Si el `INSERT` falla después de crear el recurso en el proveedor, el recurso queda creado y un reintento con los
   mismos datos lo reusa por la clave estable. Una Caja renombrada no cambia su POS (no hay `update_pos` en el
   contrato): crear otra Caja con el nombre viejo reusa ese POS y choca con `cash_register_unique_provider_ref` →
@@ -424,7 +456,7 @@ Todas las PK `UUID` v4, fechas `timestamptz` UTC, enums `varchar` + `CheckConstr
 
 | Tabla | Columnas | Constraints / índices | Notas |
 |---|---|---|---|
-| `integrations_integration` | `id`, `organization_id`, `provider_code varchar(32)`, `name varchar(120)`, `environment varchar(16)`, `status varchar(16) default 'active'`, `connection_status varchar(24) default 'unverified'`, `connection_reason varchar(48) null`, `connection_checked_at null`, `account_id varchar(128) null`, `configuration jsonb default {}`, `webhook_route_key varchar(64)`, `created_by_id` FK user PROTECT, `created_at`, `updated_at`, `deactivated_at null`, `disconnected_at null` | `integration_status_valid` (`active, inactive, disconnected`) · `integration_environment_valid` (`test, production`) · `integration_connection_status_valid` (`unverified, connected, connection_error, credentials_invalid`) · `integration_name_not_blank` · `integration_unique_active_name` único `(organization_id, lower(name)) WHERE status='active'` (Q-426) · **`integration_account_reserved`** único `(provider_code, environment, account_id) WHERE account_id IS NOT NULL AND status <> 'disconnected'` (Q-403, Q-423, Q-427) · `integration_account_not_blank` (`account_id IS NULL OR account_id <> ''`) · `integration_connected_has_account` (`connection_status <> 'connected' OR account_id IS NOT NULL`) · `integration_reason_coherent` (`(connection_status IN ('unverified','connected')) = (connection_reason IS NULL)`) · `integration_active_coherent` (`(status='active') = (deactivated_at IS NULL)`) · `integration_disconnected_coherent` (`(status='disconnected') = (disconnected_at IS NOT NULL)` y `status <> 'disconnected' OR connection_status='unverified'`) · único `webhook_route_key` · `integration_org_id_uniq (organization_id, id)` · índice `(organization_id, status, name)` | `account_id` nunca cambia una vez conocido (servicio + test; un trigger se descarta, §11). Sin tabla `providers` (Q-416 a)) |
+| `integrations_integration` | `id`, `organization_id`, `provider_code varchar(32)`, `name varchar(120)`, `environment varchar(16)`, `status varchar(16) default 'active'`, `connection_status varchar(24) default 'unverified'`, `connection_reason varchar(48) null`, `connection_checked_at null`, `account_id varchar(128) null`, `account_unconfirmed bool default false` (Q-430 a)), `configuration jsonb default {}`, `webhook_route_key varchar(64)`, `created_by_id` FK user PROTECT, `created_at`, `updated_at`, `deactivated_at null`, `disconnected_at null` | `integration_status_valid` (`active, inactive, disconnected`) · `integration_environment_valid` (`test, production`) · `integration_connection_status_valid` (`unverified, connected, connection_error, credentials_invalid`) · `integration_name_not_blank` · `integration_unique_active_name` único `(organization_id, lower(name)) WHERE status='active'` (Q-426) · **`integration_account_reserved`** único `(provider_code, environment, account_id) WHERE account_id IS NOT NULL AND status <> 'disconnected'` (Q-403, Q-423, Q-427) · `integration_account_not_blank` (`account_id IS NULL OR account_id <> ''`) · `integration_connected_has_account` (`connection_status <> 'connected' OR account_id IS NOT NULL`) · `integration_reason_coherent` (`(connection_status IN ('unverified','connected')) = (connection_reason IS NULL)`) · `integration_active_coherent` (`(status='active') = (deactivated_at IS NULL)`) · `integration_disconnected_coherent` (`(status='disconnected') = (disconnected_at IS NOT NULL)` y `status <> 'disconnected' OR connection_status='unverified'`) · `integration_unconfirmed_coherent` (`NOT account_unconfirmed OR (account_id IS NOT NULL AND connection_status <> 'connected' AND status <> 'disconnected')`, Q-430 a)) · único `webhook_route_key` · `integration_org_id_uniq (organization_id, id)` · índice `(organization_id, status, name)` | `account_id` nunca cambia una vez conocido (servicio + test; un trigger se descarta, §11). `account_unconfirmed` va en `0001_integration` (todavía no hay datos: reversible bajando la migración). Sin tabla `providers` (Q-416 a)) |
 | `integrations_credentialset` | `id`, `organization_id`, `integration_id` **único**, `version int`, `key_id varchar(32)`, `format_version smallint`, `ciphertext bytea`, `public_fields jsonb default {}`, `secret_field_names jsonb default []`, `credentials_updated_at`, `updated_by_id` FK user PROTECT, `created_at`, `reencrypted_at null` | `credentialset_one_per_integration` · `credentialset_version_positive` · `credentialset_format_v1` (`format_version = 1`) · `credentialset_key_id_valid` (`key_id ~ '^[a-z0-9-]{1,32}$'`) · `credentialset_ciphertext_min` (`octet_length(ciphertext) >= 28`) · índice `(key_id)` (progreso de la rotación) · FK compuesta → integración | La AAD usa el `organization_id` y el `integration_id` de la fila (ADR-0003 §3). `__repr__` = PK |
 | `integrations_branchlink` | `id`, `organization_id`, `branch_id` FK `tenancy.Branch` PROTECT, `integration_id` FK PROTECT, `store_ref varchar(128) ''`, `store_origin varchar(16)`, `data jsonb default {}`, `is_active bool default true`, `deactivated_at null`, `created_by_id`, `created_at`, `updated_at` | **`branch_link_one_per_pair`** único `(organization_id, branch_id, integration_id)` (Q-429; destino de la FK de la Caja) · `branch_link_store_origin_valid` (`created, imported, manual, none`) · `branch_link_store_ref_coherent` (`(store_origin='none') = (store_ref='')`) · `branch_link_unique_store_ref` único `(integration_id, store_ref) WHERE store_ref <> ''` (Q-432 a)) · `branch_link_active_coherent` · FK compuestas → `Branch` y → integración · índices `(organization_id, branch_id, is_active)`, `(organization_id, integration_id, is_active)` | `data` validado contra `field_schema.branch_link` |
 | `integrations_cashregister` | `id`, `organization_id`, `branch_id` FK PROTECT, `integration_id` FK PROTECT, `name varchar(120)`, `provider_ref varchar(128)`, `origin varchar(16)`, `is_active bool default true`, `deactivated_at null`, `created_by_id`, `created_at`, `updated_at` | `cash_register_unique_active_name` único `(organization_id, branch_id, integration_id, lower(name)) WHERE is_active` (Q-413 a)) · `cash_register_unique_provider_ref` único `(integration_id, provider_ref)` (Q-413 a)) · `cash_register_name_not_blank` · `cash_register_provider_ref_not_blank` · `cash_register_origin_valid` (`created, imported, manual`) · `cash_register_active_coherent` · `cash_register_org_id_uniq (organization_id, id)` (destino de la FK compuesta de SPEC-06) · **FK compuesta `(organization_id, branch_id, integration_id)` → `branchlink`** · índice `(organization_id, branch_id, integration_id, is_active, name)` | Una Caja no existe sin su vínculo (lo garantiza la base) |
@@ -475,7 +507,7 @@ estrictas. Sin `DELETE` (`405`).
 | POST | `/api/integrations/` | `integration.create` | `{provider_code, name, environment, credentials{}, configuration{}}` | `201 Integration + connection_test{result, reason}` | 400 `validation_error` (`provider_code`: `not_available`), 400 `connection_test_failed`, 409 `conflict` (name), 409 `account_already_connected`, 409 `organization_suspended`, 403 |
 | GET | `/api/integrations/{id}/` | `integration.read` | — | `200 Integration` | 404 |
 | PATCH | `/api/integrations/{id}/` | `integration.update` | `{name?, configuration?}` (configuración completa; `environment` → `read_only`) | `200 Integration` | 400, 403, 404, 409 `conflict` |
-| PUT | `/api/integrations/{id}/credentials/` | `integration.replace_credentials` | `{credentials{}}` | `200 Integration + connection_test` | 400 `connection_test_failed`, 409 `account_mismatch` / `account_already_connected` / `invalid_transition` / `conflict` |
+| PUT | `/api/integrations/{id}/credentials/` | `integration.replace_credentials` | `{credentials{}}` | `200 Integration + connection_test` | 400 `validation_error` (esquema, `too_large`), 400 `connection_test_failed`, 409 `account_mismatch` / `account_already_connected` / `invalid_transition` / `conflict` |
 | POST | `/api/integrations/{id}/test-connection/` | `integration.test_connection` | — | `200 {connection_status, connection_reason, connection_checked_at, account_id}` | 409 `account_already_connected` / `account_mismatch` / `invalid_transition` / `conflict`, 429 `throttled` |
 | POST | `/api/integrations/{id}/deactivate/` | `integration.deactivate` | — | `200 Integration` | 409 `invalid_transition` |
 | POST | `/api/integrations/{id}/reactivate/` | `integration.reactivate` | `{credentials?}` (obligatorio si está desconectada) | `200 Integration` (+ `connection_test` si hubo prueba) | 400 `validation_error` (`credentials`: `required`; `name`: `taken`), 400 `connection_test_failed`, 409 `account_mismatch` / `account_already_connected` / `invalid_transition` |
@@ -484,12 +516,12 @@ estrictas. Sin `DELETE` (`405`).
 | GET | `/api/integrations/{id}/capabilities/` | `integration.capabilities` | — | `200 {capabilities[]}` | 404 |
 | GET | `/api/integrations/{id}/provider-stores/` | `integration.provider_lookup` | — | `200 [{ref, name}]` | 409 `capability_not_supported` / `integration_without_credentials` / `provider_rejected`, 503 `provider_unavailable` |
 | GET | `/api/branch-links/` | `branch_link.read` | `?branch_id&integration_id&is_active` | `200 [BranchLink]` | 404 (filtro de otra org) |
-| POST | `/api/branch-links/` | `branch_link.create` | `{branch_id, integration_id, store_mode, store_ref?, data{}}` | `201 BranchLink` | 400, 404, 409 `conflict` / `capability_not_supported` / `integration_without_credentials` / `provider_rejected`, 503 `provider_unavailable` |
+| POST | `/api/branch-links/` | `branch_link.create` | `{branch_id, integration_id, store_mode, store_ref?, data{}}` | `201 BranchLink` | 400, 404, 409 `resource_inactive` / `conflict` / `capability_not_supported` / `provider_rejected`, 503 `provider_unavailable` |
 | GET | `/api/branch-links/{id}/` | `branch_link.read` | — | `200 BranchLink` | 404 |
 | POST | `/api/branch-links/{id}/deactivate/` · `/reactivate/` | `branch_link.deactivate` · `.reactivate` | — | `200 BranchLink` | 409 `invalid_transition` |
 | GET | `/api/branch-links/{id}/provider-pos/` | `integration.provider_lookup` | — | `200 [{ref, name}]` (del Store del vínculo) | igual que `provider-stores` |
 | GET | `/api/cash-registers/` | `cash_register.read` | `?branch_id&integration_id&is_active` | `200 [CashRegister]` | 404 (filtro de otra org) |
-| POST | `/api/cash-registers/` | `cash_register.create` | `{branch_id, integration_id, name, mode, provider_ref?}` | `201 CashRegister` | 400, 404, 409 `branch_link_required` / `conflict` / `capability_not_supported` / `integration_without_credentials` / `provider_rejected`, 503 |
+| POST | `/api/cash-registers/` | `cash_register.create` | `{branch_id, integration_id, name, mode, provider_ref?}` | `201 CashRegister` | 400, 404, 409 `resource_inactive` / `branch_link_required` / `conflict` / `capability_not_supported` / `provider_rejected`, 503 |
 | GET · PATCH | `/api/cash-registers/{id}/` | `cash_register.read` · `.update` | `{name}` | `200 CashRegister` | 404, 409 `conflict` |
 | POST | `/api/cash-registers/{id}/deactivate/` · `/reactivate/` | `cash_register.deactivate` · `.reactivate` | — | `200 CashRegister` | 409 `invalid_transition`, 400 `taken` (reactivar con nombre ocupado) |
 
@@ -501,9 +533,10 @@ organization_required` y `404 organization_not_found` (SPEC-02).
 |---|---|---|---|
 | `connection_test_failed` | 400 | `auth_invalid`, `provider_validation`, `provider_rejected`, `provider_not_found` | alta, reemplazo o reactivación rechazados por la prueba (RN-INT-22) |
 | `account_already_connected` | 409 | — | la cuenta está reservada por otra integración (RN-INT-19); cuerpo constante |
-| `account_mismatch` | 409 | — | la prueba devolvió otra cuenta (RN-INT-19, Q-427, Q-430 b)) |
+| `account_mismatch` | 409 | — | la prueba devolvió otra cuenta (RN-INT-19, Q-427, Q-430 a)) |
 | `pending_charges` | 409 | — | desconectar con cobros `pending` (RN-INT-24) |
-| `integration_without_credentials` | 409 | — | operación que llama al proveedor sobre una desconectada (Q-431 a)) |
+| `integration_without_credentials` | 409 | — | lista de Stores o POS del proveedor (`provider-stores`, `provider-pos`) sobre una integración desconectada |
+| `resource_inactive` | 409 | `integration_inactive`, `branch_inactive` | crear un vínculo o una Caja sobre una integración no activa (inactiva o desconectada) o una `Branch` inactiva (Q-431 b)); nada creado, sin llamar al proveedor. Código nuevo porque ninguno existente encaja: `invalid_transition` es para el estado de la propia entidad y `branch_link_required` para el vínculo; sigue el patrón `code` + `reason` cerrado de `branch_link_required` |
 | `branch_link_required` | 409 | `missing`, `inactive` | Caja sin vínculo activo (RN-INT-12) |
 | `capability_not_supported` | 409 | — | modo `create`/`import` o lista sin `POS_MANAGEMENT` (si SPEC-03 lo agrega antes, se reutiliza) |
 | `provider_rejected` | 409 | `auth_invalid`, `provider_validation`, `provider_rejected`, `provider_not_found` | el proveedor rechazó una operación de vínculo, Caja o lista |
@@ -536,7 +569,7 @@ credenciales, reactivar sin juego o con nombre ocupado son `validation_error` co
 ### 6.5 Representaciones
 - **`Integration`** (todos los roles): `{id, name, provider_code, provider_display_name, environment, status,
   connection_status, capabilities[], provider_available, allowed_actions[]}` y, **solo** con
-  `integration.read_detail` (owner/admin), `management: {connection_reason, connection_checked_at, account_id,
+  `integration.read_detail` (owner/admin), `management: {connection_reason, connection_checked_at, account_id, account_unconfirmed,
   configuration{}, credentials: {public_fields{}, secret_fields: [{name, configured: true}], updated_at} | null,
   webhook_route_key, disconnect_blocked_reason: "pending_charges" | null, created_at, created_by_id,
   deactivated_at, disconnected_at}`. Para `operator`/`viewer` la clave `management` no existe (AC-INT-30). Un solo
@@ -581,8 +614,8 @@ credenciales, reactivar sin juego o con nombre ocupado son `validation_error` co
 | Nivel | Qué cubre | AC |
 |---|---|---|
 | Unitarias (dominio) | Matriz literal; `decide_save`/`decide_manual_test` (tabla §4.2 completa); máquinas de estado (integración, vínculo, Caja) con cada inválida; `validate_section` (requerido, tipo, `pattern`, largo, desconocido, mensajes sin valores); `normalize_name`; claves externas estables; cifrado: ida y vuelta, AAD de otra organización/integración/`key_id` falla, nonce distinto por cifrado, `key_id` desconocido, límite de tamaño; llavero: parseo y errores | AC-INT-05, 13, 25, 28, 31, 36, 37, 42 (decisión), 44 (cifrado) |
-| Servicio/integración (BD real) | Alta/reemplazo/reactivación con `FakeAdapter`; constraints (nombre, cuenta, vínculo, Caja, FK compuestas por SQL directo); concurrencia con hilos + `transaction=True`: reemplazo vs resolución (J1 o J2 completo), dos reemplazos, desconectar vs `lock_integration_for_new_charge`, dos altas con la misma cuenta; `provider_session` con `ProviderAuthError` (una sola llamada, estado, evento, versión vieja no pisa); resolución con `ctx` de otra org; tarea de sistema con org suspendida; selectors de "utilizable"; re-cifrado K1→K2 y retiro de K1; búsqueda por `webhook_route_key` | AC-INT-04, 08, 09, 16, 17, 18, 19, 29, 32, 33, 36–38, 40, 42, 43, 44 |
-| API | Cada AC con `test_AC_INT_NN_*`; representación por rol (sin `management` para operator/viewer); códigos §6.2; throttle; `405` en `DELETE`; prueba dentro del presupuesto con un fake que no responde | AC-INT-01–03, 05–07, 10, 11, 13–15, 17, 21, 25–31, 33–35, 39, 41 |
+| Servicio/integración (BD real) | Alta/reemplazo/reactivación con `FakeAdapter`; constraints (nombre, cuenta, vínculo, Caja, FK compuestas por SQL directo); concurrencia con hilos + `transaction=True`: reemplazo vs resolución (J1 o J2 completo), dos reemplazos, desconectar vs `lock_integration_for_new_charge`, dos altas con la misma cuenta; `provider_session` con `ProviderAuthError` (una sola llamada, estado, evento, versión vieja no pisa); resolución con `ctx` de otra org; tarea de sistema con org suspendida; selectors de "utilizable"; re-cifrado K1→K2 y retiro de K1; búsqueda por `webhook_route_key` | AC-INT-45 (cuenta sin confirmar: selector y lock de cobro nuevo), AC-INT-46 (actividad re-chequeada bajo lock frente a una desactivación concurrente), 04, 08, 09, 16, 17, 18, 19, 29, 32, 33, 36–38, 40, 42, 43, 44 |
+| API | Cada AC con `test_AC_INT_NN_*`; representación por rol (sin `management` para operator/viewer); códigos §6.2; throttle; `405` en `DELETE`; prueba dentro del presupuesto con un fake que no responde | AC-INT-45 (`409` de la prueba con estado persistido), AC-INT-46 (`409 resource_inactive`, sin llamadas al `FakeAdapter`), 01–03, 05–07, 10, 11, 13–15, 17, 21, 25–31, 33–35, 39, 41 |
 | Seguridad (`tests/security/`) | Valor secreto sintético conocido: crear, reemplazar, probar con `AUTH_INVALID`, resolver, desconectar → no aparece en logs capturados (structlog), cuerpos de respuesta y de error, eventos del `RecordingSink`, `repr`/`str` de modelos, DTOs y excepciones; fila de la BD sin el valor en claro | AC-INT-07, 08 |
 | Contrato (adaptadores) | Es de SPEC-03/05 (AC-ENG-09…12); acá solo se usa el `FakeAdapter` | (AC-INT-14 se apoya en AC-ENG-11) |
 | Aislamiento entre organizaciones | `backend/tests/cross_tenant/cases/integrations.py`: un caso por (ruta, método) de §6.1; objetos de B por ID → `404` y snapshot sin cambios; listados sin B; suspendida → `409` en toda `WRITE`; superusuario sin membership → `404` idéntico | AC-INT-02, 10, 12, 20, 24 |
@@ -591,7 +624,7 @@ credenciales, reactivar sin juego o con nombre ocupado son `validation_error` co
 | Frontend (vitest + Testing Library) | `schema-to-zod`; `SchemaFields` (secreto `password`, sin valor inicial); alta con cada resultado; detalle sin secretos; operador sin sección; `WebhookKeyPanel`; diálogos de vínculo y Caja según capacidades; la mutación no deja el secreto en el `MutationCache` | soporte de §14 de la spec |
 | E2E / manual | Humo HTTP con `FakeAdapter` en dev: alta → prueba → vínculo → Caja → desconectar. Manual (paso 6 de SDD): pantallas de §14 y, cuando exista SPEC-05, contra el sandbox de MP | AC-INT-01, 33, 35 (UI) |
 
-Cobertura de los 44 AC: todos tienen al menos un nivel arriba; `verification.md` los lista uno por uno.
+Cobertura de los 46 AC: todos tienen al menos un nivel arriba; `verification.md` los lista uno por uno.
 
 ## 10. Migración y despliegue
 - **Orden**: diseño y tareas del motor (SPEC-03: registry, `FieldSpec`, `FakeAdapter`) → `integrations` 0001–0004 →
@@ -641,9 +674,13 @@ Cobertura de los 44 AC: todos tienen al menos un nivel arriba; `verification.md`
 | Q-417 | a): la prueba es `WRITE` (rechazada con la org suspendida) | b): `ActionKind.READ` y la prueba no escribe estado con la org suspendida |
 | Q-419 | a): solo se auditan los cambios de estado; todas las pruebas, a log; `6/min` por integración | b): emitir un evento por prueba y quitar el throttle |
 | Q-422 | a): un provider fuera del registry o con flag apagado no es utilizable para cobros nuevos (`provider_unavailable`), sigue visible, sus `pending` se procesan; sin adaptador registrado, toda operación falla con error tipado y log de error | b)/c): un cambio en `selectors/usability.py` |
-| Q-430 | b) (lo que dice hoy la spec): sigue utilizable; una prueba con otra cuenta deja `error de conexión` + `account_mismatch` | a): columna `account_verified` en `integrations_integration` (migración), `false` al guardar sin prueba exitosa, condición más en `get_usable_integration` |
-| Q-431 | a): vínculos y Cajas en cualquier estado de actividad; los modos que llaman al proveedor exigen credenciales | b)/c): una validación en `branch_links.py` y `cash_registers.py` |
-| Q-432 | a): `branch_link_unique_store_ref` | b): quitar la constraint (migración) |
+
+Decididas por el dueño el 2026-11-27 (revisión del PR #158), ya no son supuestos:
+| Q | Decisión | Dónde |
+|---|---|---|
+| Q-430 | a): tras un reemplazo o una reactivación guardados con `UNREACHABLE`/`ProviderUnknown` sobre una cuenta conocida, la integración no admite cobros nuevos hasta que una prueba exitosa confirme la misma cuenta | columna `account_unconfirmed` + `integration_unconfirmed_coherent` (§5, migración 0001), filas de §4.2, `get_usable_integration` y `lock_integration_for_new_charge` (§3.7, §4.5) |
+| Q-431 | **b)** (reconfirmada por el dueño tras corregir la descripción de las opciones): vínculos y Cajas solo se crean sobre una integración activa y una `Branch` activa; si no, se rechazan sin crear nada | §4.6 (chequeo y re-chequeo bajo lock), §6.2 `resource_inactive`, AC-INT-46 |
+| Q-432 | a): la referencia de Store informada es única por integración | `branch_link_unique_store_ref` (§5) |
 
 ### 11.3 Cambios pendientes fuera de esta spec (no editados acá)
 - **`context/07`**: §3 (ruta `/configuracion/integraciones` en vez de `(dashboard)/integraciones/`); §5.2 (catálogo de
@@ -664,14 +701,14 @@ Cobertura de los 44 AC: todos tienen al menos un nivel arriba; `verification.md`
 4. Catálogo `GET /api/integration-providers/` + flags (AC-INT-26, 27).
 5. Alta (AC-INT-01–05, 28, 29, 31 alta).
 6. Listado/detalle por rol + capacidades (AC-INT-06, 15, 30).
-7. Reemplazo + PATCH (AC-INT-09, 31, 37).
-8. Prueba a pedido + throttle (AC-INT-13, 14, 36).
+7. Reemplazo + PATCH (AC-INT-09, 31, 37, 45 parte reemplazo).
+8. Prueba a pedido + throttle (AC-INT-13, 14, 36, 45 parte prueba).
 9. Ciclo de vida: desactivar/reactivar/desconectar + `PendingChargesPort` (AC-INT-25, 33, 38, 42).
 10. Resolución + `provider_session` + `auth_failure` (AC-INT-16, 32).
 11. Selectors de "utilizable" + `lock_integration_for_new_charge` (AC-INT-18).
 12. Identificador de webhooks (AC-INT-41).
-13. `BranchLink` + migración 0003 + servicios/API + `list_stores` (AC-INT-34, 39, 43).
-14. `CashRegister` + migración 0004 + servicios/API + `list_pos` (AC-INT-19, 20, 21, 35, 40).
+13. `BranchLink` + migración 0003 + servicios/API + `list_stores` (AC-INT-34, 39, 43, 46 parte vínculo).
+14. `CashRegister` + migración 0004 + servicios/API + `list_pos` (AC-INT-19, 20, 21, 35, 40, 46 parte Caja).
 15. Re-cifrado (AC-INT-44).
 16. Suite de secretos + suspendida + cross-tenant + auditoría + rutas OAuth (AC-INT-07, 10, 12, 17, 22–24).
 17. Frontend: Integraciones (lista, alta, detalle, credenciales, ciclo de vida, webhooks).
@@ -680,7 +717,7 @@ Cobertura de los 44 AC: todos tienen al menos un nivel arriba; `verification.md`
 ---
 **Hecho:** diseño completo: cada RN/RF/RNF con destino (§2), datos con constraints e índices (§5), contratos (§6),
 seguridad (§7), UI (§3.9), pruebas por AC (§9); ADR-0003 *Propuesto*.
-**Pendiente / dudas:** OK del dueño (spec → *Approved*, ADR-0003 → *Aceptado*); Q-430 conviene decidirla antes;
-supuestos de §11.2; diseño de SPEC-03 que confirme §3.6.
+**Pendiente / dudas:** OK del dueño (spec → *Approved*, ADR-0003 → *Aceptado*); supuestos de §11.2 (Q-430, Q-431 y
+Q-432 ya decididas); diseño de SPEC-03 que confirme §3.6.
 **Siguiente rol sugerido:** el dueño (aprobación) → task-planner (`/tasks 04-integration-management`, después de las
 tareas de SPEC-03).

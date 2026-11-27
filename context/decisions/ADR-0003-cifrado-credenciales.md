@@ -85,8 +85,10 @@ Opción 1. Detalle de implementación en `specs/04-integration-management/design
    Se cargan una vez al arrancar con `pydantic-settings` como `SecretStr` (no salen en `repr` de settings ni en
    tracebacks) y se validan: si faltan, una clave no decodifica a 32 bytes, hay ids repetidos o el id activo no
    está, el proceso **no arranca** (`ImproperlyConfigured`) con ningún settings salvo `test`, que usa un llavero
-   sintético fijo, solo de test; un *system check* de `prod` rechaza el id reservado `test`. En desarrollo cada
-   persona genera su clave con el comando de abajo y la pone en su `.env` (`env.example` trae solo los nombres). En producción la clave
+   sintético fijo, solo de test; un *system check* de `prod` rechaza el id reservado `test` **y también cualquier
+   clave cuyos bytes coincidan con los del llavero sintético de test**, aunque venga con otro id (compara contra la
+   constante de `config.settings.test`, sin loguear ninguna de las dos). En desarrollo cada persona genera su clave
+   con el comando de abajo y la pone en su `.env` (`env.example` trae solo los nombres). En producción la clave
    llega como secreto del orquestador (Docker secret o variable del servicio, a definir con el hosting, Q-065); nunca
    como argumento de línea de comando. Los nombres de las variables contienen `credential`, así que la redacción de
    logs (`apps/common/domain/redaction.py`) los tapa además por nombre.
@@ -99,10 +101,15 @@ Opción 1. Detalle de implementación en `specs/04-integration-management/design
       reactivación cifra con `K2`; lo guardado con `K1` se sigue leyendo con `K1` (cada fila dice su `key_id`).
    3. El operador corre `manage.py integrations_reencrypt_credentials --operator <email> [--batch-size N]
       [--dry-run]`: recorre los juegos con `key_id` distinto del activo, por organización y en lotes; cada juego se
-      re-cifra en su propia transacción corta (lock de la fila, descifrar con su clave, cifrar con la activa, una
-      sola `UPDATE` de `ciphertext` + `key_id`), así que una resolución concurrente ve el juego viejo completo o el
-      nuevo completo (RN-INT-06). No cambia `credentials_updated_at` (no es un reemplazo de credenciales) ni llama al
-      proveedor. Es idempotente y se puede cortar y retomar.
+      re-cifra en su propia transacción corta: lock de la fila; **re-chequeo del `key_id` bajo el lock** (si ya está
+      con la clave activa, porque un reemplazo o otra corrida lo re-cifró en el medio, se salta sin escribir);
+      descifrar con su clave, cifrar con la activa y una sola `UPDATE` de `ciphertext` + `key_id`. Así una resolución
+      concurrente ve el juego viejo completo o el nuevo completo (RN-INT-06). No cambia `credentials_updated_at` (no
+      es un reemplazo de credenciales) ni llama al proveedor. Es idempotente y se puede cortar y retomar.
+      **Un juego que no descifra** (`key_id` ausente del llavero o tag inválido) no se escribe: el comando sigue con
+      los demás, lo cuenta, loguea `integrations.reencrypt_failed` con `integration_id` y `cipher_key_id` (nunca el
+      texto cifrado, el nonce ni la clave), lo informa en el resumen final y **termina con código distinto de cero**.
+      Esos juegos no entran en la cuenta del evento de auditoría de su organización.
    4. `integrations_reencrypt_credentials --check` informa cuántos juegos quedan por clave y termina con código
       distinto de cero mientras quede alguno con una clave que no es la activa.
    5. Con `--check` en cero, se quita `K1` del llavero; se despliega.
