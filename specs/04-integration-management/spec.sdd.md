@@ -1,9 +1,9 @@
 ---
 id: SPEC-04
 modulo: integration-management
-estado: Clarified
+estado: Designed
 track: S
-version: 0.3.0
+version: 0.4.0
 depende_de: [SPEC-02, SPEC-03]
 actualizado: 2026-11-27
 ---
@@ -17,8 +17,9 @@ actualizado: 2026-11-27
 >
 > Prefijo de IDs: `INT` (`RN-INT`, `RF-INT`, `RNF-INT`, `AC-INT`). SPEC-03 usa `ENG`; ninguna spec usaba `INT`.
 >
-> **Estado:** *Clarified* (2026-11-27): Q-401 a Q-412, Q-423 y Q-424 decididas por el dueño; no queda ninguna
-> pregunta que bloquee *Clarified*. Las abiertas (§16) bloquean *Designed* o SPEC-11.
+> **Estado:** *Designed* (2026-11-27): Q-401 a Q-412, Q-415, Q-418, Q-421 y Q-423 a Q-429 decididas por el dueño;
+> diseño en `design.md` y cifrado en ADR-0003 (*Propuesto*). Ninguna pregunta abierta bloquea *Designed*; las que
+> quedan (§16) están tomadas como supuesto de diseño. Pasar a *Approved* es decisión del dueño (con ADR-0003).
 
 ## 1. Contexto y problema
 El motor (SPEC-03) define cómo se habla con un proveedor, pero no dónde viven las cuentas conectadas: SPEC-03 §3.2
@@ -48,6 +49,9 @@ propia organización sin que el núcleo conozca campos de ningún proveedor.
 - El vínculo `Branch` ↔ `Integration` (Q-410): SPEC-04 es su dueña; guarda la referencia opaca al Store del
   proveedor y los datos que declare el adaptador.
 - Selectors tenant-aware para que SPEC-06/07 validen integración y Caja (RN-CHG-04).
+- Identificador de ruteo de webhooks por integración (Q-415): se genera, se muestra a owner/admin y se regenera acá;
+  SPEC-07 lo usa para rutear.
+- Rotación de la clave maestra de cifrado sin downtime (Q-418, ADR-0003).
 - Eventos de auditoría del módulo (los almacena SPEC-10).
 - Pantallas: "Configuración → Integraciones" y la parte de cajas de "Configuración → Sucursales y cajas"
   (`context/07 §5.3`).
@@ -60,22 +64,23 @@ propia organización sin que el núcleo conozca campos de ningún proveedor.
   campos ni pantallas propias de ellos; quedan cubiertos por el esquema genérico de Q-401 cuando exista su adaptador.
 - Terminales Point y dispositivos (SPEC-12, Q-028).
 - El adaptador y sus llamadas al proveedor: crear Store/POS, `test_connection`, mapeo de errores (SPEC-03/05).
-- Recepción HTTP de webhooks, verificación de firma y ruteo al tenant (SPEC-07); acá solo lo que la integración
-  necesita guardar para eso (Q-415).
+- Recepción HTTP de webhooks, verificación de firma, ruta exacta y ruteo al tenant (SPEC-07); acá solo el
+  identificador que la integración guarda para eso (Q-415, RN-INT-27).
 - Cobros, estados de cobro y su procesamiento (SPEC-06); conciliación y comisiones (SPEC-08).
 - API keys y scopes del ERP (SPEC-11; acceso del ERP a este módulo: Q-420).
 - Almacenamiento y consulta del log de auditoría (SPEC-10).
 - La `Branch` en sí (SPEC-02, Approved): este módulo no le agrega campos (Q-410).
 - QR estático/híbrido de la Caja (Q-003: solo dinámico en el MVP).
-- Algoritmo de cifrado, gestión de la clave maestra, nombres de tablas, rutas exactas y componentes: `design.md` y
-  ADR-0003.
+- Algoritmo de cifrado, gestión de la clave maestra, nombres de tablas, rutas exactas y componentes: están en
+  `design.md` y ADR-0003, no en esta spec.
 
 ## 4. Actores y permisos
 Fuentes: Q-010 (owner/admin gestionan integraciones; credenciales nunca visibles completas), Q-404 (lectura del
 resumen para `operator`/`viewer`), Q-405 (qué se ve de un campo), Q-408 (ciclo de vida), Q-412 (Cajas y vínculos),
 brief §5, `context/07 §5.3` (un `operator` no ve "Integraciones"; ve "Sucursales y cajas" en lectura) y la matriz de
-SPEC-02. Lo único abierto es la columna del ERP (Q-420) y la prueba de conexión con la organización `suspended`
-(Q-417).
+SPEC-02, Q-415 (identificador de webhooks), Q-418 (rotación de la clave) y Q-429 (reactivar un vínculo). Lo único
+abierto es la columna del ERP (Q-420) y la prueba de conexión con la organización `suspended` (Q-417; `design.md`
+la trata como escritura, supuesto a).
 
 | Acción | owner | admin | operator | viewer | ERP (API key) | Operador plataforma |
 |---|---|---|---|---|---|---|
@@ -91,7 +96,9 @@ SPEC-02. Lo único abierto es la columna del ERP (Q-420) y la prueba de conexió
 | Borrar físicamente una integración | ✘ (Q-408) | ✘ | ✘ | ✘ | ✘ | ✘ |
 | Ver capacidades de una integración | ✔ | ✔ | ✔ (Q-404; lo necesita "Cobrar", SPEC-06 §14) | ✔ (Q-404) | Q-420 | ✘ |
 | Ver Cajas y vínculos Branch ↔ Integration | ✔ | ✔ | ✔ (Q-412) | ✔ (Q-412) | Q-420 | ✘ |
-| Crear / editar / desactivar / reactivar Caja; crear / desactivar vínculo Branch ↔ Integration | ✔ (Q-412) | ✔ (Q-412) | ✘ (Q-412) | ✘ (Q-412) | ✘ | ✘ |
+| Crear / editar / desactivar / reactivar Caja; crear / desactivar / reactivar vínculo Branch ↔ Integration | ✔ (Q-412, Q-429) | ✔ (Q-412, Q-429) | ✘ (Q-412) | ✘ (Q-412) | ✘ | ✘ |
+| Ver y regenerar el identificador de webhooks de una integración | ✔ (Q-415) | ✔ (Q-415) | ✘ | ✘ | ✘ | ✘ |
+| Rotar la clave maestra y re-cifrar credenciales | ✘ | ✘ | ✘ | ✘ | ✘ | ✔ por comando, sin API (Q-418, ADR-0003) |
 | Resolver credenciales para una operación (servicio interno) | sistema, dentro del contexto de la organización dueña (RN-INT-05) ||||||
 | Pasar la integración a `credenciales inválidas` tras un `ProviderAuthError` en una operación real (interno) | sistema (RN-INT-21, Q-409) ||||||
 
@@ -121,13 +128,19 @@ Organización `suspended` (SPEC-02 §4.1): lectura igual; toda escritura de esta
   referencia opaca a su contraparte en el proveedor (en MP, el Store) y los datos que declara el adaptador.
 - **Resolución de credenciales**: operación interna que descifra las credenciales en memoria para construir el
   `IntegrationContext` de una operación (RN-ENG-03/08).
+- **Identificador de ruteo de webhooks** (Q-415): valor no adivinable propio de cada integración, que forma parte de
+  la URL que el dueño pega en el panel del proveedor; identifica la integración destinataria, no autentica (la
+  autenticación es la firma, `C-07`).
+- **Clave maestra**: clave con la que el Hub cifra las credenciales en reposo; vive fuera de la base y del repo y se
+  rota sin downtime (Q-418, ADR-0003).
 
 ## 6. Reglas de negocio
 - **RN-INT-01** Una `Integration` pertenece a exactamente una organización y representa una cuenta de un provider
   (Q-006, `C-01`, RN-TEN-01). Una integración sirve a varias `Branch` de su organización (Q-006). Una organización
   puede tener **varias** integraciones del mismo provider, distinguidas por un **nombre visible obligatorio y único
-  dentro de la organización** (Q-402). Comparación del nombre (mayúsculas, espacios) y si cuentan las inactivas:
-  Q-426.
+  dentro de la organización** (Q-402). El nombre se recorta (espacios al inicio y al final), se compara **sin
+  distinguir mayúsculas** y es único solo **entre las integraciones activas**; reactivar una integración (también una
+  desconectada) exige que su nombre esté libre entre las activas (Q-426, igual que `Branch`, Q-226).
 - **RN-INT-02** El provider de una integración es un `provider_code` registrado en el `ProviderRegistry` (RN-ENG-01).
   No se crea una integración de un provider no registrado.
 - **RN-INT-03** Toda integración tiene un **ambiente** (prueba o producción; glosario "credenciales + ambiente",
@@ -155,9 +168,11 @@ Organización `suspended` (SPEC-02 §4.1): lectura igual; toda escritura de esta
 - **RN-INT-10** La prueba de conexión invoca `test_connection` del adaptador (RF-ENG-03) y aplica su resultado
   normalizado (SPEC-03 RF-ENG-07) al estado de conexión: `CONNECTED` → `conectada`, con fecha de verificación e
   identificador de cuenta; `AUTH_INVALID` → `credenciales inválidas`; `UNREACHABLE` (proveedor caído, 429, timeout)
-  → `error de conexión` (Q-406). Otros errores de la taxonomía: Q-425. El resultado se informa al usuario con el
-  `reason` normalizado, sin secretos ni cuerpo crudo del proveedor. SPEC-03 no exige que `test_connection` no tenga
-  efectos en el proveedor (solo SPEC-05 lo dice para MP, RF-MP-06): Q-421.
+  → `error de conexión` (Q-406). Cualquier otro error de la taxonomía en una prueba a pedido (`ProviderValidationError`,
+  `ProviderRejected`, `ProviderNotFound`, `ProviderUnknown`) → `error de conexión` con su `reason` (Q-425). El
+  resultado se informa al usuario con el `reason` normalizado, sin secretos ni cuerpo crudo del proveedor.
+  `test_connection` no tiene efectos en el proveedor y se puede repetir sin riesgo: lo exige el contrato del motor y
+  lo cubre el test de contrato de cada adaptador (Q-421, SPEC-03 RF-ENG-03 y AC-ENG-11).
 - **RN-INT-11** Las capacidades de una integración son las que declara su adaptador (RN-ENG-02); este módulo las
   expone y no las edita. El frontend nunca las hardcodea (`context/07 §4`).
 - **RN-INT-12** **Caja (Q-220):** pertenece a una organización y está ligada a una `Branch` y a una `Integration` de
@@ -188,7 +203,7 @@ Organización `suspended` (SPEC-02 §4.1): lectura igual; toda escritura de esta
 - **RN-INT-18** Los estados y transiciones de integración y Caja son solo los de §10. Una transición inválida (p. ej.
   reactivar una integración activa o desconectar una ya desconectada) se rechaza con `invalid_transition`, sin
   cambios, y queda auditada como `transition.rejected` (`C-05`; mismo criterio que SPEC-02, Q-225 y AC-TEN-37). La
-  tabla de la integración la fija Q-408; los detalles de la Caja, Q-413.
+  tabla de la integración la fija Q-408; la del vínculo, Q-429; los detalles de la Caja, Q-413.
 - **RN-INT-19** **Una cuenta, una conexión (Q-403):** la terna `provider_code` + identificador de cuenta + ambiente es
   **única en toda la plataforma**, entre todas las organizaciones. El identificador de cuenta es el valor no secreto
   que devuelve `test_connection` (SPEC-03 RF-ENG-07). Un alta o un reemplazo cuya prueba devuelve una cuenta ya
@@ -203,7 +218,15 @@ Organización `suspended` (SPEC-02 §4.1): lectura igual; toda escritura de esta
     la conocida de la integración se rechaza sin guardar nada (siguen el juego y el estado anteriores); para otra
     cuenta se crea otra integración.
   - **Reserva:** la cuenta queda reservada mientras la integración tenga credenciales, esté activa o inactiva; se
-    libera al desconectarla (RN-INT-24). Si al reactivar una desconectada se exige la misma cuenta: Q-427.
+    libera al desconectarla (RN-INT-24).
+  - **Reactivar una desconectada (Q-427):** la integración desconectada conserva su identificador de cuenta (sin
+    reservarlo). Reactivarla con un juego nuevo exige **la misma cuenta**, con el criterio del reemplazo: si la prueba
+    devuelve otra cuenta, se rechaza sin guardar nada; si devuelve la misma pero ya la tomó otra integración (de esta
+    u otra organización), se rechaza sin revelar dónde. Si la integración nunca tuvo cuenta conocida, vale el caso
+    "cuenta desconocida".
+  - Qué pasa si una prueba **posterior** devuelve una cuenta distinta de la conocida (credenciales guardadas con
+    `UNREACHABLE` en un reemplazo o una reactivación): Q-430. Hasta que se decida, esa prueba no cambia la cuenta y
+    deja `error de conexión` con un `reason` propio de "otra cuenta" (`design.md`).
 - **RN-INT-20** **Resumen para lectura (Q-404):** `operator` y `viewer` leen de cada integración solo el resumen:
   nombre, provider, ambiente, estado de actividad, estado de conexión y capacidades. No reciben ningún campo de
   credenciales ni de configuración, ni el identificador de cuenta. La sección "Configuración → Integraciones" es solo
@@ -213,16 +236,17 @@ Organización `suspended` (SPEC-02 §4.1): lectura igual; toda escritura de esta
   prueba de conexión (a pedido, RN-INT-10, o al guardar, RN-INT-22) y un `ProviderAuthError` en una **operación
   real** contra el proveedor. Ante ese `ProviderAuthError` la integración pasa a `credenciales inválidas`, queda
   auditado, la operación falla **sin reintento** y **sin intento de renovación** (no hay renovación en el MVP; entra
-  con OAuth). Una operación real exitosa no cambia el estado.
-- **RN-INT-22** **Prueba al guardar (Q-407):** crear una integración o reemplazar sus credenciales ejecuta siempre la
-  prueba de conexión antes de confirmar:
-  - falla de validación local contra el esquema (RN-INT-07), `AUTH_INVALID` o `ProviderValidationError` → **no se
-    guarda nada** (en un reemplazo, el juego anterior y el estado de conexión quedan como estaban);
-  - `UNREACHABLE` (proveedor caído, 429, timeout) → se guarda, con estado `error de conexión`;
+  con OAuth). Una operación real exitosa no cambia el estado. Desconectar deja el estado en `sin verificar` (Q-425).
+- **RN-INT-22** **Prueba al guardar (Q-407, Q-425):** crear una integración, reemplazar sus credenciales o
+  reactivar una desconectada con un juego nuevo ejecuta siempre la prueba de conexión antes de confirmar:
+  - falla de validación local contra el esquema (RN-INT-07), `AUTH_INVALID`, `ProviderValidationError`,
+    `ProviderRejected` o `ProviderNotFound` → **no se guarda nada** (en un reemplazo o una reactivación, el juego
+    anterior —o ninguno— y el estado de conexión quedan como estaban);
+  - `UNREACHABLE` (proveedor caído, 429, timeout) o `ProviderUnknown` → se guarda, con estado `error de conexión`;
   - `CONNECTED` → se guarda, con estado `conectada` e identificador de cuenta, salvo que la cuenta ya esté conectada
-    o (en un reemplazo) sea otra cuenta: entonces no se guarda nada (RN-INT-19).
-  Los demás errores de la taxonomía en el alta o el reemplazo: Q-425. Editar solo datos no secretos de configuración
-  no ejecuta la prueba (interpretación confirmada por el dueño, 2026-11-27).
+    o (en un reemplazo o una reactivación) sea otra cuenta: entonces no se guarda nada (RN-INT-19).
+  Editar solo datos no secretos de configuración no ejecuta la prueba (interpretación confirmada por el dueño,
+  2026-11-27).
 - **RN-INT-23** **Vínculo `Branch` ↔ `Integration` (Q-410):** lo modela este módulo de forma genérica: une una
   `Branch` y una `Integration` de la misma organización (RN-INT-13), guarda una referencia opaca a la contraparte en
   el proveedor (en MP, el Store) y los datos que declara el adaptador en su esquema (SPEC-03 RF-ENG-06), entre ellos
@@ -232,21 +256,34 @@ Organización `suspended` (SPEC-02 §4.1): lectura igual; toda escritura de esta
     "crear si no existe", sin crear a ciegas ante la duda) o **importa** un Store existente del proveedor;
   - si no la declara, la referencia se carga a mano o se omite, sin llamar al adaptador; pedir crear o importar
     responde `capability_not_supported`.
-  Cómo lista el adaptador los Stores existentes para importar: Q-428. Unicidad del vínculo y su reactivación: Q-429.
+  Para importar, el adaptador lista los Stores de la cuenta con `list_stores()` (solo con `POS_MANAGEMENT`), y la
+  referencia importada tiene que estar en esa lista; si no está, se rechaza sin crear nada (Q-428, SPEC-03
+  RF-ENG-03). Hay **a lo sumo un vínculo** por `Branch` + integración, en cualquier estado; un vínculo desactivado
+  se **reactiva** (el mismo, con su referencia al Store, sin llamar al proveedor) y sus Cajas vuelven a ser
+  utilizables si cumplen RN-INT-26 (Q-429). Si la misma referencia de Store puede ligarse a dos `Branch`: Q-432.
 - **RN-INT-24** **Desconectar (Q-408):** `owner`/`admin` pueden desconectar una integración (activa o inactiva;
   confirmado por el dueño, 2026-11-27) solo si **no tiene cobros `pending`** (SPEC-06). Desconectar **borra** su juego
   de credenciales, la deja inactiva y sin credenciales y **libera la reserva de su cuenta** (RN-INT-19, Q-423); no la
   borra físicamente ni toca sus Cajas, vínculos ni histórico. La verificación de cobros
   `pending` y el borrado no pueden intercalarse con la creación de un cobro nuevo sobre esa integración. Con cobros
-  `pending`, se rechaza sin cambios. Para reactivar una integración desconectada hay que cargar un juego de
-  credenciales nuevo, que pasa por RN-INT-22; reactivarla sin juego se rechaza sin cambios. Estado de conexión de
-  una integración desconectada: Q-425.
-- **RN-INT-25** **Cajas y vínculos (Q-412):** solo `owner` y `admin` crean, editan, desactivan y reactivan Cajas y
-  crean y desactivan vínculos `Branch` ↔ `Integration`; `operator` y `viewer` solo los leen.
+  `pending`, se rechaza sin cambios. Desconectar deja el estado de conexión en `sin verificar` y conserva el
+  identificador de cuenta, sin reservarlo (Q-425, Q-427). Para reactivar una integración desconectada hay que cargar
+  un juego de credenciales nuevo, que pasa por RN-INT-22 y por el criterio de "misma cuenta" de RN-INT-19 (Q-427), y
+  el nombre tiene que estar libre entre las activas (RN-INT-01); reactivarla sin juego se rechaza sin cambios.
+- **RN-INT-25** **Cajas y vínculos (Q-412, Q-429):** solo `owner` y `admin` crean, editan, desactivan y reactivan
+  Cajas y crean, desactivan y reactivan vínculos `Branch` ↔ `Integration`; `operator` y `viewer` solo los leen.
 - **RN-INT-26** **Utilizable para un cobro nuevo (RN-INT-14, Q-423, Q-424):** una integración lo es si está activa,
   es de la organización, tiene cuenta conocida (RN-INT-19) y declara la capacidad pedida. Una Caja lo es si está
   activa, es de esa integración, su `Branch` está activa y el vínculo de esa `Branch` con esa integración está activo.
-  Nada de esto limita los procesos de sistema sobre cobros existentes (RN-INT-15).
+  Nada de esto limita los procesos de sistema sobre cobros existentes (RN-INT-15). Si un provider retirado del
+  registry o con su *feature flag* apagado también deja de ser utilizable: Q-422 (`design.md` lo toma así, supuesto
+  a)).
+- **RN-INT-27** **Identificador de ruteo de webhooks (Q-415):** al crear una integración el Hub genera para ella un
+  identificador no adivinable, único en toda la plataforma, que forma parte de la URL de webhooks que el dueño pega en
+  el panel del proveedor. Lo ven solo `owner` y `admin` (en el detalle de RN-INT-04; nunca en el resumen de
+  RN-INT-20), que pueden **regenerarlo**: el anterior deja de identificar a la integración en el mismo momento y la
+  regeneración queda auditada. El identificador no aparece en logs (`C-16`, Q-041) y no es una credencial: no
+  autentica nada, la autenticidad del webhook la da la firma (`C-07`, SPEC-07). La ruta y el ruteo son de SPEC-07.
 
 ## 7. Requisitos funcionales
 - **RF-INT-01** Exponer a `owner`/`admin` el catálogo de providers registrados y habilitados con el esquema de campos
@@ -272,29 +309,38 @@ Organización `suspended` (SPEC-02 §4.1): lectura igual; toda escritura de esta
   ligando a mano, según `POS_MANAGEMENT`), listar (filtrable por `Branch` e integración), ver, editar, desactivar y
   reactivar, sin borrado físico. (RN-INT-12, 13, 14, 25; Q-411, Q-412, Q-413, Q-424)
 - **RF-INT-10** Vínculo `Branch` ↔ `Integration`: crear (creando o importando el Store en el proveedor, o con
-  referencia manual u omitida, según `POS_MANAGEMENT`), listar y desactivar, con los datos que declara el adaptador.
-  (RN-INT-13, 23, 25; Q-410, Q-424; AC-INT-34, AC-INT-39, AC-INT-40)
+  referencia manual u omitida, según `POS_MANAGEMENT`), listar, ver, desactivar y reactivar, con los datos que declara
+  el adaptador; para importar, listar los Stores de la cuenta. (RN-INT-13, 23, 25; Q-410, Q-424, Q-428, Q-429;
+  AC-INT-34, AC-INT-39, AC-INT-40, AC-INT-43)
 - **RF-INT-11** Selectors tenant-aware para SPEC-06/07: "integración utilizable para un cobro nuevo" y "Caja
   utilizable", con las condiciones de RN-INT-26. (RN-INT-09, 11, 14, 26; RN-CHG-04; Q-423, Q-424)
 - **RF-INT-12** Emitir los eventos de RNF-INT-03 hacia SPEC-10. (RN-INT-17)
 - **RF-INT-13** Servicio interno que, ante un `ProviderAuthError` en una operación real (SPEC-05/06/07), pasa la
   integración a `credenciales inválidas`, lo audita y deja que la operación falle sin reintento. (RN-INT-21; Q-409)
+- **RF-INT-14** Mostrar a `owner`/`admin` el identificador de ruteo de webhooks de cada integración y regenerarlo, con
+  auditoría; exponer a SPEC-07 la búsqueda de la integración por ese identificador. (RN-INT-27; Q-415; AC-INT-41)
+- **RF-INT-15** Comando del operador de plataforma que re-cifra por lotes las credenciales guardadas con la clave
+  maestra activa, sin downtime, y verifica cuándo una clave anterior ya no se usa. (RNF-INT-02; Q-418; AC-INT-44)
 
 ## 8. Requisitos no funcionales
 - **RNF-INT-01 Secretos (`C-06`):** tests automáticos que comprueban que ningún valor secreto aparece en respuestas,
   logs, errores, auditoría ni `repr` en crear, reemplazar, probar conexión (también ante error del proveedor),
   resolver y desconectar. Los fixtures y tests usan valores sintéticos; nunca valores de `context/09` ni `context/10`.
 - **RNF-INT-02 Cifrado:** la forma de cifrar, dónde vive la clave (fuera de la BD y del repo) y cómo se rota la
-  clave maestra se deciden en **ADR-0003** antes de *Designed* (`context/decisions/README.md`). Una dependencia
-  criptográfica nueva requiere ese ADR (`C-13`). Requisitos de rotación: Q-418.
+  clave maestra están en **ADR-0003** (*Propuesto*; se acepta con *Approved*). Una dependencia criptográfica nueva
+  requiere ese ADR (`C-13`). **Rotación (Q-418):** la clave maestra se rota sin downtime; las credenciales guardadas se
+  re-cifran con la clave nueva y las cifradas con claves anteriores siguen legibles hasta que el re-cifrado termina.
+  Se cifran solo los campos que el esquema del adaptador marca secretos (Q-401).
 - **RNF-INT-03 Auditoría (`C-08`, para SPEC-10):** `integration.created`, `integration.updated` (datos no
   secretos; con los nombres de los campos cambiados, nunca sus valores), `integration.credentials_replaced`,
   `integration.deactivated`, `integration.reactivated`, `integration.disconnected` (Q-408),
   `integration.connection_status_changed` (de → a, con `reason` de la taxonomía de SPEC-03 y origen: prueba u
   operación real, Q-409), `cash_register.created`, `cash_register.updated`, `cash_register.deactivated`,
-  `cash_register.reactivated`, `branch_link.created`, `branch_link.deactivated` (Q-410), `transition.rejected`
-  (`C-05`). Si cada prueba de conexión se audita: Q-419. Nombres definitivos en `design.md`; los eventos de Caja usan
-  el nombre que se elija para la entidad.
+  `cash_register.reactivated`, `branch_link.created`, `branch_link.deactivated` (Q-410), `branch_link.reactivated`
+  (Q-429), `integration.webhook_key_regenerated` (Q-415), `integration.credentials_reencrypted` (Q-418: por
+  organización, con la cantidad y los identificadores de clave, que no son secretos; actor: el operador de
+  plataforma, `C-08`), `transition.rejected` (`C-05`). Si cada prueba de conexión se audita: Q-419 (`design.md`: solo
+  los cambios de estado, supuesto a)). Nombres definitivos en `design.md §6.4`.
 - **RNF-INT-04 Observabilidad (`C-16`):** cada prueba de conexión y cada resolución de credenciales loguea
   `organization_id`, `integration_id`, `provider_code`, operación, resultado y duración, sin credenciales (RNF-ENG-02;
   la redacción de `apps/common/domain/redaction.py` y las reglas de nombres de `context/08 §6`). Métrica de
@@ -303,27 +349,28 @@ Organización `suspended` (SPEC-02 §4.1): lectura igual; toda escritura de esta
   SPEC-02 (RNF-TEN-01, AC-TEN-12); el test de arquitectura de SPEC-03 (AC-ENG-03) cubre el código del módulo.
 - **RNF-INT-06 Reversibilidad (`C-17`):** migraciones reversibles y probadas en ambos sentidos; esquema compatible
   con RLS (ADR-0001, Q-215). La FK compuesta hacia `Branch` usa la constraint `(organization_id, id)` que ya creó
-  SPEC-02 (ADR-0002 §1). La unicidad de la cuenta (RN-INT-19) cruza organizaciones a propósito: `design.md` explica
-  cómo convive con RLS.
+  SPEC-02 (ADR-0002 §1). La unicidad de la cuenta (RN-INT-19) cruza organizaciones a propósito: la garantiza un
+  índice único de la base, sin consultas globales, y `design.md §5.2` explica cómo convive con RLS.
 - **RNF-INT-07 Activación gradual (`C-17`, `context/08 §7`):** habilitar un provider nuevo para el alta queda detrás
   de un *feature flag*, apagado por defecto.
 - **RNF-INT-08 Tiempos:** la prueba de conexión (también la que corre al guardar, RN-INT-22) responde dentro de los
   timeouts del adaptador (RNF-ENG-01, RNF-MP-01); nunca queda esperando sin límite. Objetivo numérico de la API:
-  `design.md`.
+  `design.md §6.3`.
 - **RNF-INT-09 Contrato:** todos los endpoints quedan en `specs/_contracts/openapi.yaml` (ADR-0005) con errores
   `application/problem+json` y `code` estable (Q-036); cambiar el contrato pasa por `reviewer`.
 - **RNF-INT-10 Privacidad (`C-10`):** el módulo no guarda PII de pagadores; de la cuenta del proveedor guarda solo lo
   que el adaptador declare necesario y el identificador de cuenta no secreto (Q-403).
 
 ## 9. Modelo conceptual de datos
-Las tablas que SPEC-03 §9 asigna a este módulo son `providers`, `integrations` e `integration_credentials`; la de
-`providers` está en discusión (Q-416).
+Las tablas que SPEC-03 §9 asigna a este módulo son `integrations` e `integration_credentials`, más las del vínculo y
+la Caja; la de `providers` está pendiente de Q-416 (`design.md` no la crea, supuesto a)). Tablas y constraints
+concretos: `design.md §5`.
 
 | Entidad | Campos clave | Invariantes / constraints |
 |---|---|---|
-| `Integration` | id, organization, provider_code, nombre visible, ambiente, estado de actividad (activa / inactiva; Q-408), identificador de cuenta (no secreto, de la última prueba exitosa; Q-403), estado de conexión + fecha y `reason` de la última verificación (Q-406), configuración no secreta (según el esquema del adaptador), created_by, timestamps | pertenece a una organización; `provider_code` registrado; ambiente obligatorio; nombre único en la organización (RN-INT-01; comparación: Q-426); `provider_code` + identificador de cuenta + ambiente único en toda la plataforma entre las integraciones con credenciales (RN-INT-19, Q-423); el identificador de cuenta no cambia una vez conocido (RN-INT-19); sin borrado físico (Q-408) |
-| `IntegrationCredential` | id, organization, integration, juego de credenciales cifrado, versión/identificador de clave de cifrado, fecha de la última actualización, created_by, timestamps | a lo sumo un juego vigente por integración, ninguno si está desconectada (RN-INT-24); reemplazo atómico (RN-INT-06); nunca se serializa a la API (solo "configurado" + fecha, RN-INT-04) |
-| Vínculo `Branch` ↔ `Integration` (Q-410) | id, organization, branch, integration, referencia opaca al Store del proveedor, datos declarados por el adaptador (incluida la ubicación), activo, timestamps | misma organización en los tres (FK compuesta, RN-INT-13); datos validados contra el esquema (RN-INT-23); referencia creada, importada, manual u omitida (Q-424); unicidad y reactivación: Q-429 |
+| `Integration` | id, organization, provider_code, nombre visible, ambiente, estado de actividad (activa / inactiva / desconectada; Q-408), identificador de cuenta (no secreto, de la primera prueba exitosa; Q-403; se conserva al desconectar, Q-427), estado de conexión + fecha y `reason` de la última verificación (Q-406), configuración no secreta (según el esquema del adaptador), identificador de ruteo de webhooks (Q-415), created_by, timestamps | pertenece a una organización; `provider_code` registrado; ambiente obligatorio; nombre único entre las activas de la organización, sin distinguir mayúsculas y recortado (RN-INT-01, Q-426); `provider_code` + identificador de cuenta + ambiente único en toda la plataforma entre las integraciones con credenciales (RN-INT-19, Q-423); el identificador de cuenta no cambia una vez conocido (RN-INT-19, Q-427); identificador de webhooks único en toda la plataforma (RN-INT-27); sin borrado físico (Q-408) |
+| `IntegrationCredential` | id, organization, integration, juego de credenciales (los campos secretos, cifrados; los no secretos, en claro), identificador de la clave de cifrado, fecha de la última actualización, created_by, timestamps | a lo sumo un juego vigente por integración, ninguno si está desconectada (RN-INT-24); reemplazo atómico (RN-INT-06); nunca se serializa a la API (solo "configurado" + fecha, RN-INT-04); legible con cualquier clave del llavero hasta terminar el re-cifrado (Q-418) |
+| Vínculo `Branch` ↔ `Integration` (Q-410) | id, organization, branch, integration, referencia opaca al Store del proveedor, datos declarados por el adaptador (incluida la ubicación), activo, timestamps | misma organización en los tres (FK compuesta, RN-INT-13); datos validados contra el esquema (RN-INT-23); referencia creada, importada (validada con `list_stores`, Q-428), manual u omitida (Q-424); a lo sumo uno por `Branch` + integración en cualquier estado (Q-429); referencia de Store única por integración: Q-432 |
 | **Caja** (Q-220) | id, organization, branch, integration, nombre, referencia opaca al POS del proveedor, modo de alta (creada / importada / manual; Q-411), activa, timestamps | misma organización en los tres (FK compuesta, RN-INT-13); se crea solo con un vínculo activo de su `Branch` con su integración (RN-INT-12, Q-424); unicidad de nombre: Q-413; sin borrado físico (Q-413) |
 
 ## 10. Estados y transiciones
@@ -333,30 +380,35 @@ Las tablas que SPEC-03 §9 asigna a este módulo son `providers`, `integrations`
 |---|---|---|---|
 | — | crear (RN-INT-22) | activa, con credenciales | owner/admin |
 | activa | desactivar | inactiva, con credenciales | owner/admin |
-| inactiva, con credenciales | reactivar | activa | owner/admin |
-| activa o inactiva, con credenciales | desconectar (sin cobros `pending`, RN-INT-24) | inactiva, sin credenciales | owner/admin |
-| inactiva, sin credenciales | reactivar cargando un juego nuevo (RN-INT-22) | activa, con credenciales | owner/admin |
+| inactiva, con credenciales | reactivar (nombre libre entre activas, Q-426) | activa | owner/admin |
+| activa o inactiva, con credenciales | desconectar (sin cobros `pending`, RN-INT-24) | inactiva, sin credenciales (desconectada) | owner/admin |
+| inactiva, sin credenciales | reactivar cargando un juego nuevo (RN-INT-22, misma cuenta Q-427, nombre libre Q-426) | activa, con credenciales | owner/admin |
 
-Inválidas (→ `invalid_transition`, RN-INT-18): desactivar una inactiva, reactivar una activa, desconectar una ya
-desconectada. Reactivar una desconectada sin juego nuevo o desconectar con cobros `pending`: rechazo sin cambios
-(códigos en `design.md`). Si reactivar exige un nombre libre: Q-426.
+Inválidas (→ `invalid_transition`, RN-INT-18): desactivar una inactiva o desconectada, reactivar una activa,
+desconectar una ya desconectada, reemplazar credenciales o probar la conexión de una desconectada. Reactivar una
+desconectada sin juego nuevo, reactivar con el nombre ocupado o desconectar con cobros `pending`: rechazo sin
+cambios (códigos en `design.md §6.2`).
 
 **Integración — estado de conexión** (Q-406, RN-INT-21):
 
 | Desde | Evento | Hacia | Quién |
 |---|---|---|---|
-| — | crear con `UNREACHABLE` / `CONNECTED` | `error de conexión` / `conectada` | owner/admin (RN-INT-22) |
+| — | crear con `UNREACHABLE` o `ProviderUnknown` / `CONNECTED` | `error de conexión` / `conectada` | owner/admin (RN-INT-22) |
 | cualquiera | prueba de conexión `CONNECTED` | `conectada` | owner/admin |
 | cualquiera | prueba de conexión `AUTH_INVALID` | `credenciales inválidas` | owner/admin |
 | cualquiera | prueba de conexión `UNREACHABLE` | `error de conexión` | owner/admin |
+| cualquiera | prueba de conexión con otro error de la taxonomía (Q-425) | `error de conexión` con su `reason` | owner/admin |
+| cualquiera (reemplazo) o `sin verificar` (reactivación de una desconectada) | guardar con `UNREACHABLE` o `ProviderUnknown` / con `CONNECTED` | `error de conexión` / `conectada` | owner/admin (RN-INT-22) |
 | cualquiera | `ProviderAuthError` en una operación real | `credenciales inválidas` | sistema (Q-409) |
+| cualquiera | desconectar | `sin verificar` | owner/admin (Q-425) |
 
-`sin verificar` es el estado de una integración sin prueba registrada. Otros errores de la taxonomía y estado tras
-desconectar: Q-425. Un reemplazo rechazado por RN-INT-22 no cambia el estado.
+`sin verificar` es el estado de una integración sin prueba registrada o desconectada. Un alta, un reemplazo o una
+reactivación rechazados por RN-INT-22 no cambian el estado.
 
 **Caja**: activa ↔ inactiva por owner/admin (Q-412; detalles en Q-413).
-**Vínculo Branch ↔ Integration**: activo → inactivo por owner/admin (Q-410, Q-412); sus Cajas no cambian de estado
-pero dejan de ser utilizables (Q-424, RN-INT-26). Reactivación: Q-429.
+**Vínculo Branch ↔ Integration** (Q-410, Q-412, Q-429): activo → inactivo y inactivo → activo (el mismo vínculo) por
+owner/admin. Al desactivarlo sus Cajas no cambian de estado pero dejan de ser utilizables; al reactivarlo vuelven a
+serlo si cumplen RN-INT-26 (Q-424). Inválidas: desactivar uno inactivo o reactivar uno activo.
 
 La prueba que devuelve una cuenta ya conectada deja `error de conexión` con su `reason` propio y no guarda la cuenta
 (RN-INT-19, Q-423).
@@ -370,14 +422,16 @@ Transición inválida → rechazada con `invalid_transition` y auditada (RN-INT-
   rol: resumen (RN-INT-20) o detalle de owner/admin (RN-INT-04).
 - `GET /api/integrations/{id}/capabilities/` (ruta fijada por SPEC-03 §4 y `context/07 §4`).
 - Cajas: listar/crear/ver/editar/desactivar/reactivar (crear con modo creada / importada / manual, Q-411). Vínculo
-  Branch ↔ Integration: crear (Store creado / importado / manual u omitido, Q-424) /listar/desactivar (Q-410).
+  Branch ↔ Integration: crear (Store creado / importado / manual u omitido, Q-424) / listar / ver / desactivar /
+  reactivar (Q-410, Q-429); listar los Stores (Q-428) y los POS de la cuenta para importar.
+- Identificador de ruteo de webhooks: visible en el detalle de owner/admin y regenerable (Q-415).
 - Interfaz interna: resolución de credenciales → `IntegrationContext` (RF-INT-08), selectors de RF-INT-11 y aviso de
   `ProviderAuthError` real (RF-INT-13).
 - Todos los endpoints son tenant-scoped (header de organización activa, RN-TEN-03).
 - Errores: se reutilizan `validation_error`, `forbidden`, `not_found`, `organization_required`,
   `organization_not_found`, `organization_suspended`, `invalid_transition`, `capability_not_supported` y
   `provider_unavailable`. Los códigos nuevos (provider no registrado, resultado de la prueba, cuenta ya conectada,
-  desconexión con cobros `pending`, reactivación sin credenciales) los fija `design.md`.
+  otra cuenta, desconexión con cobros `pending`, reactivación sin credenciales) los fija `design.md §6.2`.
 - La respuesta de una prueba de conexión fallida lleva el `reason` normalizado de SPEC-03, nunca el cuerpo del
   proveedor. El rechazo por cuenta ya conectada no lleva datos de la otra organización ni de su integración.
 
@@ -393,7 +447,9 @@ Transición inválida → rechazada con `invalid_transition` y auditada (RN-INT-
 - Proveedor caído o 429 durante la prueba de conexión: `UNREACHABLE` (`ProviderUnavailable` / `ProviderRateLimited`,
   RN-ENG-05); el estado pasa a `error de conexión`, no a `credenciales inválidas` (RN-INT-21); al guardar, se guarda
   igual (RN-INT-22).
-- Timeout en la prueba: `error de conexión`. Que no deje efectos en el proveedor depende de Q-421.
+- Timeout en la prueba: `error de conexión`; no deja efectos en el proveedor y se puede repetir (Q-421).
+- Prueba a pedido mientras otro `admin` reemplaza las credenciales: el resultado de la prueba solo se aplica si sigue
+  vigente el juego que se probó; si no, se descarta y se informa que hay que repetirla (`design.md §4.4`).
 - Credenciales vencidas o revocadas en el proveedor durante una operación real: `ProviderAuthError` → la integración
   pasa a `credenciales inválidas`, se audita y la operación falla sin reintento ni renovación (RN-INT-21, Q-409;
   SPEC-03 §12 corregido en 0.2.0).
@@ -412,18 +468,26 @@ Transición inválida → rechazada con `invalid_transition` y auditada (RN-INT-
   (RN-INT-19); también cuando la cuenta se descubre en una prueba posterior.
 - Reemplazo de credenciales con un token de otra cuenta: rechazado, siguen el juego y el estado anteriores
   (RN-INT-19).
-- Cuenta de una integración desconectada: queda libre para otra integración (RN-INT-24); si la desconectada puede
-  volver con otra cuenta: Q-427.
+- Cuenta de una integración desconectada: queda libre para otra integración (RN-INT-24); la desconectada solo puede
+  volver con la misma cuenta y, si otra la tomó, no vuelve (Q-427, AC-INT-42).
+- Doble clic en "Crear vínculo" o "Crear Caja" en modo "crear": el Store o el POS se piden al proveedor con una clave
+  estable derivada del vínculo o de la Caja, así que el segundo pedido reusa el recurso en vez de duplicarlo, y el
+  segundo alta choca con la unicidad (`design.md §4.6`).
+- Regenerar el identificador de webhooks: los webhooks que el proveedor siga mandando a la URL vieja ya no
+  identifican a la integración (SPEC-07 decide qué responde); el dueño tiene que pegar la URL nueva (RN-INT-27).
+- Rotación de la clave maestra a mitad de una operación: una resolución lee el juego con la clave con la que está
+  cifrado, nueva o vieja; el re-cifrado de un juego es atómico como un reemplazo (RN-INT-06, Q-418).
 - Provider quitado del registry o con su flag apagado: no se crean integraciones nuevas de él (RN-INT-02,
-  RNF-INT-07, AC-INT-26). Qué pasa con las integraciones existentes y sus cobros `pending`: Q-422.
+  RNF-INT-07, AC-INT-26). Qué pasa con las integraciones existentes y sus cobros `pending`: Q-422 (`design.md`
+  toma a)).
 - Valores de campos vacíos, muy largos o con caracteres especiales: los valida el núcleo contra el esquema del
   adaptador (RN-INT-07); el núcleo aplica además un límite de tamaño genérico (`design.md`).
 - Rol cambiado a mitad de sesión: rige desde la request siguiente (RN-TEN-08).
 
 ## 13. Criterios de aceptación
 > Los AC usan el `FakeAdapter` de SPEC-03 (RF-ENG-05) con el esquema de campos de RF-ENG-06 y los resultados de
-> `test_connection` de RF-ENG-07. Las partes que dependen de una `Q-` abierta (Q-417, Q-421, Q-425, Q-426, Q-427,
-> Q-428, Q-429) lo dicen y se completan al decidirla.
+> `test_connection` de RF-ENG-07. Las partes que dependen de una `Q-` abierta (Q-417, Q-430) lo dicen y se completan
+> al decidirla; Q-421 y Q-425 a Q-429 ya están aplicadas (0.4.0).
 
 - **AC-INT-01** (RN-INT-01, RN-INT-09) **Dado** un `admin` de A **cuando** crea una integración con un provider
   registrado, ambiente y campos válidos, y la prueba devuelve `CONNECTED` **entonces** existe una integración de A,
@@ -454,11 +518,13 @@ Transición inválida → rechazada con `invalid_transition` y auditada (RN-INT-
   J2 mientras otra transacción resuelve credenciales **entonces** esa resolución obtiene J1 completo o J2 completo,
   nunca campos mezclados; **y** tras el reemplazo queda evento `integration.credentials_replaced` sin valores.
 - **AC-INT-10** (RN-INT-09) **Dado** un `owner` de A y una integración de B **cuando** hace GET, PATCH, reemplazo de
-  credenciales, prueba de conexión, desactivar, reactivar, desconectar o capacidades por su ID con A activa
+  credenciales, prueba de conexión, desactivar, reactivar, desconectar, regenerar el identificador de webhooks,
+  listar Stores o capacidades por su ID con A activa
   **entonces** `404` sin cambios en B; y el listado de A no incluye integraciones de B.
 - **AC-INT-11** (RN-INT-08) **Dado** un `operator` o un `viewer` de A **cuando** crea, edita, reemplaza
-  credenciales, prueba la conexión, desactiva, reactiva o desconecta una integración, o pide el catálogo de
-  providers, **entonces** `403` y nada cambia.
+  credenciales, prueba la conexión, desactiva, reactiva o desconecta una integración, regenera su identificador de
+  webhooks, o pide el catálogo de providers o la lista de Stores o POS del proveedor, **entonces** `403` y nada
+  cambia.
 - **AC-INT-12** (RN-INT-09, RN-TEN-20) **Dado** un superusuario/staff sin membership en A **cuando** llama a
   cualquier endpoint de este módulo con A activa **entonces** `404 organization_not_found`, idéntico al de AC-TEN-03.
 - **AC-INT-13** (RN-INT-10, RN-INT-21; Q-406) **Dado** una integración de A **cuando** un `admin` prueba la conexión
@@ -466,11 +532,15 @@ Transición inválida → rechazada con `invalid_transition` y auditada (RN-INT-
   de verificación e identificador `X`; **dado** que responde `AUTH_INVALID` **entonces** pasa a `credenciales
   inválidas`; **dado** `UNREACHABLE` (caído, 429 o timeout) **entonces** pasa a `error de conexión`; en los tres
   casos la respuesta lleva el `reason` normalizado, sin secretos ni cuerpo crudo, y cada cambio de estado deja
-  evento `integration.connection_status_changed` con de → a. (Otros errores: Q-425.)
+  evento `integration.connection_status_changed` con de → a; **dado** que lanza `ProviderValidationError`,
+  `ProviderRejected`, `ProviderNotFound` o `ProviderUnknown` **entonces** pasa a `error de conexión` con ese `reason`
+  (Q-425).
 - **AC-INT-14** (RN-INT-10, RNF-INT-08) **Dado** una prueba de conexión **cuando** se ejecuta contra el
   `FakeAdapter` **entonces** el núcleo invoca solo la operación `test_connection` del adaptador (ninguna otra del
-  contrato); **y** con un `FakeAdapter` que no responde, la API devuelve error dentro del timeout configurado. Que
-  `test_connection` no tenga efectos en el proveedor es una obligación del adaptador, pendiente de Q-421.
+  contrato); **y** con un `FakeAdapter` que no responde, la API devuelve el resultado `error de conexión` dentro del
+  timeout configurado; **y** dos pruebas seguidas sobre la misma integración no registran ninguna operación mutante en
+  el `FakeAdapter`. Que `test_connection` no tenga efectos en un proveedor real lo verifica el test de contrato de su
+  adaptador (Q-421, SPEC-03 AC-ENG-11).
 - **AC-INT-15** (RN-INT-11) **Dado** una integración de A cuyo adaptador declara un conjunto de capacidades
   **cuando** se pide `GET /api/integrations/{id}/capabilities/` **entonces** la respuesta es exactamente ese
   conjunto.
@@ -478,8 +548,9 @@ Transición inválida → rechazada con `invalid_transition` y auditada (RN-INT-
   el contexto de la organización B **entonces** se lanza error y no se descifra nada.
 - **AC-INT-17** (RN-INT-15) **Dado** A `suspended` **cuando** un `owner` lista y ve integraciones y Cajas **entonces**
   las recibe; **cuando** crea, edita, reemplaza credenciales, desactiva, reactiva o desconecta una integración, o
-  crea, edita, desactiva o reactiva una Caja o un vínculo, **entonces** `organization_suspended` sin efectos; **y**
-  una tarea de sistema que resuelve credenciales de una integración de A las obtiene. (Prueba de conexión: Q-417.)
+  regenera su identificador de webhooks, o crea, edita, desactiva o reactiva una Caja o un vínculo, **entonces**
+  `organization_suspended` sin efectos; **y** una tarea de sistema que resuelve credenciales de una integración de A
+  las obtiene. (Prueba de conexión: Q-417; `design.md` la rechaza como escritura, supuesto a).)
 - **AC-INT-18** (RN-INT-14, RN-INT-26) **Dado** una integración inactiva de A **cuando** SPEC-06 consulta el selector
   "integración utilizable para un cobro nuevo" **entonces** no la devuelve; **y** una tarea de sistema puede seguir
   resolviendo sus credenciales para un cobro existente. Lo mismo para una Caja inactiva, una Caja de una `Branch`
@@ -513,8 +584,10 @@ Transición inválida → rechazada con `invalid_transition` y auditada (RN-INT-
   texto de ayuda tal como los declara el adaptador, sin ningún valor de credenciales de ninguna integración.
 - **AC-INT-28** (RN-INT-01; Q-402) **Dado** A con una integración `fake` activa llamada `Cuenta 1` **cuando** un
   `admin` crea otra integración `fake` de otra cuenta llamada `Cuenta 2` **entonces** A tiene las dos; **cuando**
-  crea otra llamada exactamente `Cuenta 1` **entonces** error de validación y nada creado; **y** B puede crear una
-  integración llamada `Cuenta 1`. (Mayúsculas, espacios e integraciones inactivas: Q-426.)
+  crea otra llamada exactamente `Cuenta 1`, o `  cuenta 1 ` **entonces** conflicto de nombre y nada creado (Q-426);
+  **y** B puede crear una integración llamada `Cuenta 1`; **dado** que `Cuenta 1` de A se desactiva **cuando** se
+  crea otra `Cuenta 1` en A **entonces** se acepta, **y** reactivar después la primera se rechaza por nombre ocupado,
+  sin cambios.
 - **AC-INT-29** (RN-INT-19; Q-403) **Dado** una integración de B, provider `fake`, ambiente de prueba, cuenta `X`
   **cuando** un `admin` de A crea una integración `fake` en ambiente de prueba y la prueba devuelve `CONNECTED` con
   cuenta `X` **entonces** se rechaza, nada se guarda en A y la respuesta no contiene el ID, el nombre ni la
@@ -525,13 +598,15 @@ Transición inválida → rechazada con `invalid_transition` y auditada (RN-INT-
   **entonces** recibe nombre, provider, ambiente, estado de actividad, estado de conexión y capacidades, y la
   respuesta no contiene ningún campo de credenciales ni de configuración, ni el identificador de cuenta, ni la marca
   "configurado"; **y** `GET /api/integrations/{id}/capabilities/` le responde `200`.
-- **AC-INT-31** (RN-INT-22; Q-407) **Dado** un alta válida **cuando** la prueba al guardar responde `AUTH_INVALID` o
-  `ProviderValidationError` **entonces** error, ninguna integración ni credencial guardada; **cuando** responde
-  `UNREACHABLE` **entonces** la integración se guarda con estado `error de conexión`; **cuando** responde
-  `CONNECTED` **entonces** se guarda con `conectada`. **Dado** una integración con el juego J1 en `conectada`
-  **cuando** se reemplaza por J2 y la prueba responde `AUTH_INVALID` **entonces** siguen J1 y `conectada`, y no hay
-  evento `integration.credentials_replaced`; **cuando** responde `UNREACHABLE` **entonces** queda J2 con `error de
-  conexión`. **Y** editar solo datos de configuración no invoca `test_connection`. (Otros errores: Q-425.)
+- **AC-INT-31** (RN-INT-22; Q-407, Q-425) **Dado** un alta válida **cuando** la prueba al guardar responde
+  `AUTH_INVALID` o lanza `ProviderValidationError`, `ProviderRejected` o `ProviderNotFound` **entonces** error,
+  ninguna integración ni credencial guardada; **cuando** responde `UNREACHABLE` o lanza `ProviderUnknown`
+  **entonces** la integración se guarda con estado `error de conexión`; **cuando** responde `CONNECTED` **entonces**
+  se guarda con `conectada`. **Dado** una integración con el juego J1 en `conectada` **cuando** se reemplaza por J2 y
+  la prueba responde `AUTH_INVALID` (o lanza `ProviderRejected`) **entonces** siguen J1 y `conectada`, y no hay
+  evento `integration.credentials_replaced`; **cuando** responde `UNREACHABLE` (o lanza `ProviderUnknown`)
+  **entonces** queda J2 con `error de conexión`. **Y** editar solo datos de configuración no invoca
+  `test_connection`.
 - **AC-INT-32** (RN-INT-21, RF-INT-13; Q-409) **Dado** una integración de A en `conectada` **cuando** una operación
   real del motor (p. ej. `get_charge` del `FakeAdapter`) lanza `ProviderAuthError` **entonces** la integración pasa a
   `credenciales inválidas`, queda evento `integration.connection_status_changed` con el `reason` y el origen
@@ -539,11 +614,12 @@ Transición inválida → rechazada con `invalid_transition` y auditada (RN-INT-
   hubo ninguna otra llamada al adaptador; **y** si una operación real posterior tiene éxito el estado no cambia.
 - **AC-INT-33** (RN-INT-24, RN-INT-14; Q-408) **Dado** una integración de A sin cobros `pending` **cuando** un
   `admin` la desconecta **entonces** su juego de credenciales ya no existe en la base, la integración queda inactiva,
-  sus Cajas, vínculos e histórico no cambian y queda evento `integration.disconnected`; **dado** una integración con
-  un cobro `pending` **cuando** se la desconecta **entonces** se rechaza y nada cambia; **dado** una desconectada
-  **cuando** se la reactiva sin juego nuevo **entonces** se rechaza sin cambios, **y** con un juego nuevo pasa por la
-  prueba de AC-INT-31 y, si se guarda, queda activa. **Y** ninguna integración se puede borrar físicamente por la API.
-  (Si la reactivación puede traer otra cuenta: Q-427.)
+  con estado de conexión `sin verificar` (Q-425) y su identificador de cuenta conservado, sus Cajas, vínculos e
+  histórico no cambian y queda evento `integration.disconnected`; **dado** una integración con un cobro `pending`
+  **cuando** se la desconecta **entonces** se rechaza y nada cambia; **dado** una desconectada **cuando** se la
+  reactiva sin juego nuevo **entonces** se rechaza sin cambios, **y** con un juego nuevo de la misma cuenta pasa por
+  la prueba de AC-INT-31 y, si se guarda, queda activa. **Y** ninguna integración se puede borrar físicamente por la
+  API. (Otra cuenta al reactivar: AC-INT-42.)
 - **AC-INT-34** (RF-INT-10, RN-INT-23, RN-INT-13; Q-410) **Dado** una `Branch` y una integración `fake` de A, con un
   esquema que declara datos obligatorios del vínculo (p. ej. de ubicación) **cuando** un `admin` crea el vínculo con
   esos datos válidos **entonces** existe el vínculo de A, lo devuelve el listado de A y queda evento
@@ -574,21 +650,49 @@ Transición inválida → rechazada con `invalid_transition` y auditada (RN-INT-
 - **AC-INT-39** (RN-INT-23, RF-INT-10; Q-424) **Dado** una integración cuyo `FakeAdapter` declara `POS_MANAGEMENT`
   **cuando** un `admin` crea un vínculo `Branch` ↔ `Integration` en modo "crear" **entonces** el núcleo invoca
   `ensure_store` con los datos declarados del vínculo y guarda la referencia que devuelve; **cuando** lo crea en modo
-  "importar" con la referencia de un Store existente del proveedor **entonces** guarda esa referencia y no invoca
-  `ensure_store`. **Dado** un `FakeAdapter` sin `POS_MANAGEMENT` **cuando** crea un vínculo con referencia manual o
-  sin referencia **entonces** se guarda sin ninguna llamada al adaptador; **y cuando** pide "crear" o "importar"
-  **entonces** `capability_not_supported` y nada creado. (Cómo se listan los Stores para importar: Q-428.)
+  "importar" con la referencia de un Store que devuelve `list_stores` **entonces** guarda esa referencia y no invoca
+  `ensure_store`; **cuando** la referencia a importar no está en lo que devuelve `list_stores` **entonces** error de
+  validación y nada creado (Q-428). **Dado** un `FakeAdapter` sin `POS_MANAGEMENT` **cuando** crea un vínculo con
+  referencia manual o sin referencia **entonces** se guarda sin ninguna llamada al adaptador; **y cuando** pide
+  "crear" o "importar", o la lista de Stores, **entonces** `capability_not_supported` y nada creado.
 - **AC-INT-40** (RN-INT-14, RN-INT-26; Q-424) **Dado** un vínculo activo con una Caja activa **cuando** un `admin`
   desactiva el vínculo **entonces** la Caja sigue activa (su estado no cambia), el selector "Caja utilizable" ya no
   la devuelve y no se puede crear una Caja nueva sobre ese vínculo; los cobros `pending` de esa Caja siguen
   procesándose por los procesos de sistema (RN-INT-15).
+- **AC-INT-41** (RN-INT-27, RF-INT-14; Q-415) **Dado** una integración recién creada en A **cuando** un `owner` o un
+  `admin` pide su detalle **entonces** recibe su identificador de ruteo de webhooks, distinto del de cualquier otra
+  integración; **cuando** un `operator` o un `viewer` la pide **entonces** el resumen no lo contiene; **cuando** un
+  `admin` lo regenera **entonces** el detalle trae uno nuevo, la búsqueda de SPEC-07 por el anterior no encuentra
+  ninguna integración y por el nuevo encuentra esta, y queda evento `integration.webhook_key_regenerated` sin ninguno
+  de los dos valores; **y** ninguno de los dos aparece en los logs capturados; un `operator` que intenta regenerarlo
+  recibe `403`.
+- **AC-INT-42** (RN-INT-19, RN-INT-24; Q-427) **Dado** una integración de A desconectada con cuenta conocida `X`
+  **cuando** se la reactiva con un juego cuya prueba devuelve `CONNECTED` con `Y` ≠ `X` **entonces** se rechaza y
+  sigue desconectada, sin juego y con `X`; **dado** que después de desconectarla una integración de B conectó `X`
+  **cuando** se reactiva la de A con un juego de `X` **entonces** se rechaza sin datos de la integración de B ni de
+  su organización y sigue desconectada; **y dado** que `X` está libre **cuando** se la reactiva con un juego de `X`
+  **entonces** queda activa, `conectada` y `X` vuelve a quedar reservada.
+- **AC-INT-43** (RN-INT-23, RN-INT-26; Q-429) **Dado** un vínculo entre una `Branch` y una integración de A, activo o
+  inactivo **cuando** un `admin` crea otro vínculo entre las mismas dos **entonces** conflicto y nada creado (también
+  ante una inserción directa en la base); **dado** el vínculo inactivo con una Caja activa **cuando** un `admin` lo
+  reactiva **entonces** es el mismo vínculo, con la misma referencia al Store, no se llamó al adaptador, queda evento
+  `branch_link.reactivated` y el selector "Caja utilizable" vuelve a devolver la Caja; reactivar un vínculo activo da
+  `invalid_transition` con `transition.rejected`.
+- **AC-INT-44** (RNF-INT-02, RF-INT-15; Q-418) **Dado** integraciones de A y de B con credenciales cifradas con la
+  clave `K1` **cuando** se agrega `K2` al llavero como clave activa **entonces** se siguen resolviendo las
+  credenciales de las dos y un reemplazo nuevo queda cifrado con `K2`; **cuando** el operador corre el re-cifrado
+  **entonces** todos los juegos quedan con `K2`, el contenido descifrado es el mismo, `credentials_updated_at` no
+  cambia y queda un evento `integration.credentials_reencrypted` por organización sin valores; **y** tras quitar `K1`
+  del llavero todo se sigue resolviendo; **y** con `K1` todavía en uso, la verificación del comando informa cuántos
+  juegos faltan y no da por terminada la rotación.
 
 ## 14. Interfaz de usuario
 - **Configuración → Integraciones** (solo `owner`/`admin`, `context/07 §5.3`): tarjetas por integración con
   proveedor, nombre, ambiente, estado de actividad y de conexión, fecha de la última verificación; acciones "Probar
   conexión", "Reemplazar credenciales", "Editar", "Desactivar/Reactivar" y "Desconectar" (deshabilitada con cobros
   `pending`, con el motivo). En el detalle, los campos no secretos y el identificador de cuenta completos; los
-  secretos, como "configurado" con la fecha de la última actualización (Q-405).
+  secretos, como "configurado" con la fecha de la última actualización (Q-405); el identificador de webhooks con
+  "Copiar" y "Regenerar" (con confirmación que avisa que hay que pegar la URL nueva en el proveedor, Q-415).
 - **Alta**: elegir proveedor del catálogo (RF-INT-01) → ambiente → formulario generado desde el esquema del adaptador
   → guardar, que prueba la conexión (RN-INT-22): credenciales inválidas o datos rechazados → no se guarda y se
   explica; proveedor no disponible → se guarda con "error de conexión" y se ofrece "Probar conexión" más tarde. Los
@@ -606,35 +710,42 @@ Transición inválida → rechazada con `invalid_transition` y auditada (RN-INT-
   de conexión, con texto accionable sin detalles técnicos del proveedor), cuenta ya conectada (sin decir dónde).
 
 ## 15. Riesgos y supuestos
-- **Supuesto:** SPEC-03 0.2.0 incorpora lo que este módulo necesita (RF-ENG-06 esquema de campos, RF-ENG-07
-  `ConnectionStatus` con identificador de cuenta y resultados normalizados, §12 sin renovación). SPEC-03 sigue en
-  *Draft*; Q-421 (prueba sin efectos) sigue abierta.
+- **Supuesto:** SPEC-03 0.3.0 incorpora lo que este módulo necesita (RF-ENG-06 esquema de campos, RF-ENG-07
+  `ConnectionStatus` con identificador de cuenta y resultados normalizados, §12 sin renovación, `test_connection` sin
+  efectos y `list_stores()`, Q-421 y Q-428). SPEC-03 sigue en *Draft*: `design.md §3.6` lista la interfaz del motor
+  que consume este módulo, y el diseño de SPEC-03 tiene que respetarla (o cambiar este diseño con historial). Las
+  tareas de 04 que llaman al motor dependen de las de 03.
 - **Supuesto:** una aplicación de MP por integración (SPEC-05 §15), así que el secreto de webhooks es por integración.
 - **Supuesto explícito (confirmado por el dueño el 2026-11-27; se verifica en el spike S-001):** el identificador de
   cuenta que devuelve MP es estable por cuenta y ambiente. Si S-001 lo desmiente, RN-INT-19, RN-INT-26 y AC-INT-29 y
-  36 a 38 no pueden aplicarse con él y hay que abrir un `Q-` nuevo antes de *Designed*.
+  36 a 38 y 42 no pueden aplicarse con él y hay que abrir un `Q-` nuevo antes de implementar el adaptador.
 - **Riesgo:** fuga de credenciales por un camino no previsto (serializer genérico, traza de excepción, log de un
   SDK). Mitigación: RNF-INT-01 con tests explícitos por camino; entidad de credenciales nunca serializable.
 - **Riesgo:** la unicidad de cuenta (RN-INT-19) es la única regla del módulo que cruza organizaciones; con RLS
   (Q-215) necesita un camino explícito (RNF-INT-06). Una implementación descuidada podría filtrar por timing o por
   mensaje que la cuenta existe en otra organización.
-- **Riesgo:** Q-229 (abierta en SPEC-02): las unicidades de este módulo (RN-INT-01, RN-INT-19, Q-413) no pueden
-  validarse con `full_clean` ni `UniqueValidator` sobre modelos de tenant. Conviene resolverla antes de *Designed*.
-- **Para el architect (antes de *Designed*):** escribir **ADR-0003** (cifrado, clave maestra fuera de BD y repo,
-  rotación, Q-418); FK compuestas hacia `Branch`; forma de la resolución de credenciales sin dejarlas en objetos
-  logueables; cómo se registra el esquema de campos del adaptador; si hay tabla `providers` (Q-416); cómo
-  "Desconectar" excluye la creación concurrente de un cobro (RN-INT-24).
+- **Riesgo (resuelto en el diseño):** Q-229 (abierta en SPEC-02): las unicidades de este módulo no usan `full_clean`
+  ni `UniqueValidator`; las garantiza la base y el servicio traduce el `IntegrityError`, como `Branch`
+  (`design.md §5`). Q-229 sigue abierta en SPEC-02 y no bloquea.
+- **Resuelto por el architect (2026-11-27):** ADR-0003 (*Propuesto*); FK compuestas (`design.md §5`); resolución de
+  credenciales sin objetos logueables (`design.md §3.6`, §7); esquema de campos leído del registry (`design.md
+  §3.6`); sin tabla `providers` (Q-416, supuesto a)); "Desconectar" frente a un cobro nuevo concurrente por lock de
+  fila de la integración (`design.md §4.5`).
+- **Riesgo:** Q-430 (abierta): un juego guardado con `UNREACHABLE` en un reemplazo o una reactivación puede ser de
+  otra cuenta y la integración sigue utilizable hasta que una prueba lo detecte. Conviene decidirla antes de
+  *Approved*.
 - **Riesgo:** SPEC-06 modela la caja como `pos_ref?` en `charges` (SPEC-06 §9). Con Q-220, el cobro debería apuntar a
   la Caja de este módulo; lo ajusta SPEC-06. SPEC-06 también tiene que exponer a este módulo si una integración tiene
   cobros `pending` (RN-INT-24) y avisar los `ProviderAuthError` reales (RF-INT-13).
 
 ## 16. Preguntas abiertas
-Ver `specs/04-integration-management/clarifications.md`. **Decididas el 2026-11-27:** Q-401 a Q-412, Q-423 y Q-424,
-y las cuatro interpretaciones del clarifier (desconectar desde activa o inactiva, editar configuración sin prueba,
-datos del vínculo en RF-ENG-06, identificador de cuenta de MP estable a confirmar en S-001). **Ninguna bloquea
-*Clarified*.** Abiertas: Q-413 a Q-422 y Q-425 a Q-429. Bloquean *Designed*: Q-415, Q-418, Q-421, Q-425, Q-426,
-Q-427, Q-428 y Q-429. Q-420 bloquea SPEC-11. Sin bloqueo: Q-413, Q-414, Q-416, Q-417, Q-419 y Q-422. Decididas que aplican: Q-001, Q-006, Q-010, Q-014, Q-215,
-Q-220 (b). Sin decidir, solo con recomendación por defecto: Q-015 (se trata en Q-415).
+Ver `specs/04-integration-management/clarifications.md`. **Decididas el 2026-11-27:** Q-401 a Q-412, Q-415, Q-418,
+Q-421 y Q-423 a Q-429, y las cuatro interpretaciones del clarifier (desconectar desde activa o inactiva, editar
+configuración sin prueba, datos del vínculo en RF-ENG-06, identificador de cuenta de MP estable a confirmar en
+S-001). **Ninguna bloquea *Clarified* ni *Designed*.** Abiertas, tomadas como supuesto en `design.md §11`: Q-413,
+Q-414, Q-416, Q-417, Q-419, Q-422 y las nuevas Q-430 (conviene decidirla antes de *Approved*), Q-431 y Q-432.
+Q-420 bloquea SPEC-11. Decididas que aplican: Q-001, Q-006, Q-010, Q-014, Q-215, Q-220 (b). Q-015 queda resuelta
+por Q-415 en lo que toca a este módulo (la ruta es de SPEC-07).
 
 ## 17. Trazabilidad
 Se completa al generar `tasks.md`.
@@ -645,8 +756,11 @@ Se completa al generar `tasks.md`.
 | 0.1.0 | 2026-11-27 | Borrador inicial: 18 RN, 12 RF, 10 RNF, 26 AC; Caja como entidad de este módulo; 22 preguntas (Q-401…Q-422) | Paso 1 SDD (`/spec`), con Q-220 decidida (b); incluye los no bloqueantes del reviewer en el PR #157 |
 | 0.2.0 | 2026-11-27 | Se aplican las decisiones del dueño Q-401 a Q-412. Nuevas RN-INT-19 (cuenta única), 20 (resumen para lectura), 21 (estado de conexión y `ProviderAuthError` real), 22 (prueba al guardar), 23 (vínculo Branch ↔ Integration), 24 (desconectar) y 25 (Cajas y vínculos); reescritas RN-INT-01, 04, 07, 08, 10, 12, 14, 16 y 18. Nuevo RF-INT-13; RF-INT-01 y RF-INT-10 con AC. Nuevos AC-INT-27 a 35; reescritos AC-INT-01, 05, 06, 07, 10, 11, 13, 17, 20, 21 y 25. Matriz §4 y §10 sin "propuesto". Total: 25 RN, 13 RF, 10 RNF, 35 AC. Nuevas Q-423 y Q-424 (bloquean *Clarified*), Q-425 y Q-426 (no bloquean). Sigue *Draft* | Paso 2 SDD (`/clarify`), decisiones del dueño del 2026-11-27 |
 | 0.3.0 | 2026-11-27 | Estado → **Clarified**. Se aplican Q-423 (a/a/a: sin cuenta conocida no se cobra y la colisión posterior se rechaza sin revelar dónde; un reemplazo con otra cuenta se rechaza; la cuenta queda reservada mientras haya credenciales y se libera al desconectar) y Q-424 (a: Store creado o importado como la Caja; Caja solo sobre vínculo activo; desactivar el vínculo vuelve no utilizables sus Cajas sin cambiarles el estado), y las cuatro interpretaciones confirmadas por el dueño. Nueva RN-INT-26 (condiciones de "utilizable"); reescritas RN-INT-12, 14, 19, 22, 23 y 24; RF-INT-09, 10 y 11 actualizados. Nuevos AC-INT-36 a 40; reescritos AC-INT-18, 19, 29, 33 y 34. Supuesto explícito del identificador de cuenta de MP, a verificar en S-001. Total: 26 RN, 13 RF, 10 RNF, 40 AC. Nuevas Q-427, Q-428 y Q-429 (no bloquean *Clarified*; bloquean *Designed*) | Paso 2 SDD (`/clarify`), decisiones del dueño del 2026-11-27 |
+| 0.4.0 | 2026-11-27 | Estado → **Designed**. Se aplican Q-415 a) (nueva RN-INT-27 y RF-INT-14: identificador de ruteo de webhooks), Q-418 a) (RNF-INT-02 con la rotación sin downtime; nuevo RF-INT-15), Q-421 a) (RN-INT-10 y AC-INT-14: `test_connection` sin efectos, por contrato), Q-425 a) (RN-INT-10, 21, 22, 24; AC-INT-13, 31, 33), Q-426 a) (RN-INT-01, §10, AC-INT-28: nombre recortado, sin mayúsculas, único entre activas; AC-INT-28 pasa de "error de validación" a "conflicto de nombre", como `Branch`), Q-427 a) (RN-INT-19, 24: misma cuenta al reactivar; nuevo AC-INT-42), Q-428 a) (RN-INT-23, AC-INT-39: `list_stores`) y Q-429 a) (RN-INT-18, 23, 25, §9, §10: un vínculo por `Branch` + integración, reactivable; nuevo AC-INT-43). RNF-INT-03 suma `branch_link.reactivated`, `integration.webhook_key_regenerated` e `integration.credentials_reencrypted`. RN-INT-22 cubre también la reactivación de una desconectada. Nuevo AC-INT-44 (rotación). §4 suma el identificador de webhooks, la reactivación del vínculo y la rotación por comando. Nuevas Q-430 (otra cuenta tras guardar sin prueba; conviene decidirla antes de *Approved*), Q-431 y Q-432 (no bloquean). Total: 27 RN, 15 RF, 10 RNF, 44 AC. Diseño en `design.md`; cifrado en ADR-0003 (*Propuesto*) | Paso 3 SDD (`/design`), decisiones del dueño del 2026-11-27 |
 
 ---
-**Hecho:** *Clarified* 0.3.0: Q-401…Q-412, Q-423 y Q-424 aplicadas; SPEC-03 0.2.0 con RF-ENG-06/07 y §12 corregido.
-**Pendiente:** antes de *Designed*: Q-415, Q-418 (ADR-0003), Q-421, Q-425…Q-429; Q-420 con SPEC-11.
-**Siguiente rol:** architect (`/design 04-integration-management`).
+**Hecho:** *Designed* 0.4.0: Q-415, Q-418, Q-421 y Q-425…Q-429 aplicadas; `design.md` y ADR-0003 (*Propuesto*);
+SPEC-03 0.3.0 con Q-421 y Q-428.
+**Pendiente:** OK del dueño para *Approved* (y aceptar ADR-0003); Q-430 conviene decidirla antes; Q-420 con SPEC-11.
+**Siguiente rol:** el dueño (aprobación); después task-planner (`/tasks 04-integration-management`), con las tareas
+del motor (SPEC-03) antes.
