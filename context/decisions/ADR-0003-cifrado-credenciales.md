@@ -1,6 +1,6 @@
 # ADR-0003 — Cifrado en reposo de las credenciales de proveedores y rotación de la clave maestra
 
-- **Estado:** Propuesto (se acepta junto con *Approved* de SPEC-04, con OK del dueño)
+- **Estado:** Aceptado (2026-11-27, por el dueño, junto con *Approved* de SPEC-04)
 - **Fecha:** 2026-11-27
 - **Specs afectadas:** SPEC-04 (dueña: RN-INT-04/05/06, RNF-INT-01/02, RF-INT-08/15, AC-INT-07/08/09/16/44), SPEC-03
   (`IntegrationContext`, RN-ENG-08), SPEC-05/06/07 (consumen credenciales resueltas), SPEC-10 (auditoría).

@@ -1,8 +1,8 @@
 ---
 actualizado: 2026-11-27
-ultimo_commit: 921d087
-ultimo_pr: "#116"
-modulo_activo: 01-identity-access + 02-tenancy-rbac
+ultimo_commit: 675b62d
+ultimo_pr: "#158"
+modulo_activo: 04-integration-management (01 y 02 esperan Verified del dueño)
 fase: cierre de 01 y 02 (Q-108), verificados Con hallazgos; 00 con verificación Con hallazgos
 ---
 
@@ -19,8 +19,8 @@ fase: cierre de 01 y 02 (Q-108), verificados Con hallazgos; 00 con verificación
 | 00-platform | Approved 1.0.23 | 42 ✅ (42) | 42 de 42 tareas | Verificación **Con hallazgos** (falta AC-PLT-01); ruleset activo |
 | 01-identity-access | Approved 1.0.2 | 33 ✅ (33) | 33 de 33 tareas | Verificación conjunta **Con hallazgos** (#153): 38 ✔; Q-130 y Q-131 decididas; se cierra con 02 (Q-108) |
 | 02-tenancy-rbac | Approved 1.0.4 | 40 ✅ (40) | 40 de 40 tareas | Verificación conjunta **Con hallazgos** (#153): 40 ✔ (AC-TEN-17 cerrado por T-TEN-40, #155); falta la validación manual de la UI; Q-229 abierta, no bloquea |
-| 03-integrations-engine | Draft | — | 0 % | Falta cerrar el contrato del motor |
-| 04-integration-management | Por redactar | — | 0 % | Bloquea a 06 |
+| 03-integrations-engine | Draft 0.3.0 | — | 0 % | Contrato del motor ajustado por 04 (esquema de campos, `ConnectionStatus`, `list_stores`); falta su diseño |
+| 04-integration-management | Approved 1.0.0 | — | 0 % | `design.md` + ADR-0003 (Aceptado); falta `tasks.md`; bloquea a 06 |
 | 05-mercadopago-adapter | Draft | — | 0 % | Depende del spike S-001 |
 | 06-charges | Draft | — | 0 % | Núcleo del dinero; hereda AC-CHG-18 de AC-TEN-28 (Q-244) |
 | 07–14 | Por redactar / Futuro | — | 0 % | Ver `specs/ROADMAP.md` |
@@ -40,7 +40,7 @@ fase: cierre de 01 y 02 (Q-108), verificados Con hallazgos; 00 con verificación
 - **Requisito vigente para hosting (Q-065):** el puerto del backend no se expone a internet y el HTTPS queda a cargo
   del frente. **Webhooks:** ruta de entrada sin definir; abrir un `Q-xxx` al redactar ese módulo.
 - **Q-063:** todo PR que agregue o cambie un archivo de `.github/workflows/` lo mergea el dueño.
-- **04:** sin redactar; es el bloqueo de `06-charges`. **S-001 (Mercado Pago sandbox):** sin ejecutar; es el mayor
+- **04:** *Approved* 1.0.0 el 2026-11-27 (#157 spec y aclaraciones, #158 diseño; OK del dueño en el PR de aprobación), con ADR-0003 aceptado. Q-220 decidida: la Caja es de 04. Es el bloqueo de `06-charges`. **S-001 (Mercado Pago sandbox):** sin ejecutar; es el mayor
   riesgo abierto del roadmap.
 
 ## 2. Qué está terminado y NO se debe rehacer
@@ -57,10 +57,10 @@ fase: cierre de 01 y 02 (Q-108), verificados Con hallazgos; 00 con verificación
    §5`, pasos 1 a 3) y asignar Q-229 (no bloquea 02). Después, **el dueño decide `Verified` de 01 y 02 juntos**
    (Q-108). Ningún agente lo marca. Google real queda para cuando haya hosting (Q-131).
 2. **Dependabot (2026-11-27):** #73, #147 y #116 mergeados (psycopg 3.3.9 ya trae la reversión de TLS de 3.3.8).
-   Quedan dos: #67 (`pnpm/action-setup` 6.1.1, toca `.github/actions/`; lo mergea el dueño, Q-063) y #68 (imagen
-   `astral-sh/uv` 0.13.10, rechazado: el test de AC-PLT-25 fija 0.13.6 y CI instala 0.13.6 desde `.github/actions/setup/`;
-   el dueño decide si se sube uv en los dos lados o se cierra).
-3. **Redactar la spec 04** (bloquea a 06).
+   Quedan dos, que mergea el dueño (Q-063, tocan `.github/actions/`): #67 (`pnpm/action-setup` 6.1.1) y #68 (uv 0.13.10
+   en Dockerfile, test de AC-PLT-25, `design.md` de 00 y `.github/actions/setup/`; opción A del dueño).
+3. **Tareas de 04** (`/tasks 04-integration-management`, `design.md §11.4`); las que llaman al motor van después del
+   diseño de 03. Antes de implementar, alinear Q-220 en los textos de 02 y `context/07` (`design.md §11.3`).
 4. **Ejecutar S-001** antes de diseñar el adaptador de Mercado Pago.
 5. Incorporar el checklist de buenas prácticas de software escalable que el dueño va a pasar; mapearlo contra
    `context/12-solid-y-diseno.md` y los agentes existentes.
@@ -89,13 +89,12 @@ repetir esa verificación.
 
 ## 6. Pie de la última sesión
 
-- **Hecho:** `T-TEN-40` mergeada (#155, `984a532`): AC-TEN-17 ✔ y 02 en 40 ✔. Dependabot: #73 (`a6fe7d5`), #147
-  (`5538077`: django 5.2.19, psycopg 3.3.9, pydantic-settings 2.16.3, ruff 0.17.6, pyyaml 6.0.4) y #116 (`921d087`:
-  next 16.4.6 y parches de frontend), cada uno con `reviewer` APROBADO sobre el head y CI completo en verde. Versiones
-  de los documentos alineadas (spec 00 → 1.0.23, hook `ruff-pre-commit` v0.17.6).
-- **Pendiente / dudas:** validación manual de la UI de 02; Q-229 (abierta, no bloquea); #67 (lo mergea el dueño) y #68
-  (decisión del dueño sobre uv); Q-220 (SPEC-04/05); Q-028 (SPEC-12); AC-PLT-01; S-001 sin ejecutar.
-  `scripts/spec_state_baseline.json` sigue con AC que ya tienen test (lo cambia un PR con `reviewer`, no
-  `project-steward`).
-- **Siguiente rol sugerido:** el dueño hace la validación manual de 02 y decide `Verified` de 01 y 02; después,
-  spec-writer en la spec 04.
+- **Hecho (2026-11-27):** Dependabot #73, #147 (django 5.2.19, psycopg 3.3.9) y #116 (next 16.4.6); versiones de los
+  documentos alineadas (#156, spec 00 → 1.0.23). Spec 04: borrador y aclaraciones (#157, Q-401…Q-412, Q-423, Q-424 y
+  Q-220 decididas por el dueño), diseño y ADR-0003 (#158, Q-415, Q-418, Q-421, Q-425…Q-432), y *Approved* 1.0.0 con
+  ADR-0003 aceptado (OK del dueño). Spec 03 → Draft 0.3.0. Todo con `reviewer` APROBADO sobre el head y CI en verde.
+- **Pendiente / dudas:** validación manual de la UI de 02 y `Verified` de 01 y 02; Q-229 (abierta, no bloquea); #67 y
+  #68 (los mergea el dueño); Q-220 todavía figura abierta en los textos de 02 y `context/07`; supuestos abiertos de 04
+  (Q-413, Q-414, Q-416, Q-417, Q-419, Q-422) y Q-420 (SPEC-11); Q-028 (SPEC-12); AC-PLT-01; S-001 sin ejecutar.
+  `scripts/spec_state_baseline.json` sigue con AC que ya tienen test.
+- **Siguiente rol sugerido:** task-planner en 04; el dueño, validación manual de 02 y merge de #67 y #68.

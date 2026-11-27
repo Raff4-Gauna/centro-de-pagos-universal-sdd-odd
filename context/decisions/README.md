@@ -7,7 +7,7 @@ Plantilla: `specs/_templates/adr.md`. Una decisión por archivo: `ADR-NNNN-slug.
 |---|---|---|
 | ADR-0001 | Multi-tenancy: esquema compartido + `organization_id`, managers tenant-aware; RLS de PostgreSQL como segunda barrera (cuándo) — **Aceptado** 2026-11-06 | Spec 02 |
 | ADR-0002 | Organizaciones/Membership **propios** vs `django-organizations` / `django-saas` (la propuesta menciona ambos; ver Q-027) — **Aceptado** 2026-11-06 | Spec 02 |
-| ADR-0003 | Cifrado en reposo de credenciales: AES-256-GCM de `cryptography` con AAD por organización e integración, llavero con `key_id` fuera de la BD y del repo, rotación sin downtime por re-cifrado en lotes (Q-418); KMS y refresh de OAuth, diferidos — **Propuesto** 2026-11-27 (`ADR-0003-cifrado-credenciales.md`) | Spec 04 (*Designed*; se acepta con su *Approved*) |
+| ADR-0003 | Cifrado en reposo de credenciales: AES-256-GCM de `cryptography` con AAD por organización e integración, llavero con `key_id` fuera de la BD y del repo, rotación sin downtime por re-cifrado en lotes (Q-418); KMS y refresh de OAuth, diferidos — **Aceptado** 2026-11-27 (`ADR-0003-cifrado-credenciales.md`) | Spec 04 |
 | ADR-0004 | Dónde vive el JWT en el navegador (cookie httpOnly vía capa servidor de Next.js vs localStorage) — **Aceptado** 2026-11-07 | Spec 01 |
 | ADR-0005 | Contrato primero: OpenAPI generado (drf-spectacular) versionado en `specs/_contracts/` y tipos del frontend generados desde ahí | Spec 00 |
 | ADR-0006 | Representación de dinero y moneda | Spec 06 |
