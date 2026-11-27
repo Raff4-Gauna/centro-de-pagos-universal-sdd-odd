@@ -1,7 +1,7 @@
 ---
-actualizado: 2026-11-26
-ultimo_commit: 42d79be
-ultimo_pr: "#153"
+actualizado: 2026-11-27
+ultimo_commit: 921d087
+ultimo_pr: "#116"
 modulo_activo: 01-identity-access + 02-tenancy-rbac
 fase: cierre de 01 y 02 (Q-108), verificados Con hallazgos; 00 con verificación Con hallazgos
 ---
@@ -18,7 +18,7 @@ fase: cierre de 01 y 02 (Q-108), verificados Con hallazgos; 00 con verificación
 |---|---|---|---|---|
 | 00-platform | Approved 1.0.23 | 42 ✅ (42) | 42 de 42 tareas | Verificación **Con hallazgos** (falta AC-PLT-01); ruleset activo |
 | 01-identity-access | Approved 1.0.2 | 33 ✅ (33) | 33 de 33 tareas | Verificación conjunta **Con hallazgos** (#153): 38 ✔; Q-130 y Q-131 decididas; se cierra con 02 (Q-108) |
-| 02-tenancy-rbac | Approved 1.0.4 | 40 ✅ (40) | 40 de 40 tareas | Verificación conjunta (#153): 40 ✔ (AC-TEN-17 cerrado por T-TEN-40, #155); Q-229 abierta, no bloquea |
+| 02-tenancy-rbac | Approved 1.0.4 | 40 ✅ (40) | 40 de 40 tareas | Verificación conjunta **Con hallazgos** (#153): 40 ✔ (AC-TEN-17 cerrado por T-TEN-40, #155); falta la validación manual de la UI; Q-229 abierta, no bloquea |
 | 03-integrations-engine | Draft | — | 0 % | Falta cerrar el contrato del motor |
 | 04-integration-management | Por redactar | — | 0 % | Bloquea a 06 |
 | 05-mercadopago-adapter | Draft | — | 0 % | Depende del spike S-001 |
