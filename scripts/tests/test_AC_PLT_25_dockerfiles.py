@@ -23,7 +23,7 @@ BACKEND = REPO_ROOT / "backend"
 FRONTEND = REPO_ROOT / "frontend"
 
 PYTHON_IMAGE = "python:3.12.16-slim-trixie"
-UV_IMAGE = "ghcr.io/astral-sh/uv:0.13.6"
+UV_IMAGE = "ghcr.io/astral-sh/uv:0.13.10"
 NODE_IMAGE = "node:24.22.2-trixie-slim"
 PNPM_INSTALL = ["pnpm", "install", "--frozen-lockfile", "--ignore-scripts", "--ignore-pnpmfile"]
 PNPM_STORE = "/pnpm-store"
