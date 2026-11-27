@@ -3,7 +3,7 @@ id: SPEC-00
 modulo: platform
 estado: Approved
 track: S
-version: 1.0.23
+version: 1.0.24
 depende_de: []
 actualizado: 2026-11-27
 ---
@@ -266,3 +266,4 @@ Se completa al generar `tasks.md`.
 | 1.0.21 | 2026-11-06 | Ajuste de diseño en `design.md §3.7.3`: tras un veredicto se re-ejecutan todas las corridas de `zona-roja` del head. El ruleset se aplicó con autorización puntual del dueño, y `main.json` declara el default de GitHub `require_extra_approval_for_unattributed_changes`, inerte con 0 aprobaciones. Sin cambios en RN/RF/AC | Limpieza de proceso (`context/worklog/2026-11-06-process-cleanup.md`) |
 | 1.0.22 | 2026-11-07 | Ajuste de diseño en `design.md §3.5`, `§3.2.7` y `§8`, sin cambios en RN/RF/AC: Dependabot ignora los saltos mayores en los cuatro ecosistemas, `check_migrations_roundtrip` rechaza una BD con filas (#63), y la tabla de versiones refleja DRF 3.18.3 y psycopg 3.3.7 (#62) | Decisión del dueño del 2026-11-07, tras cerrar #26 a #31 |
 | 1.0.23 | 2026-11-27 | Ajuste de diseño en `design.md §3.6` y `§8`, sin cambios en RN/RF/AC: la tabla de versiones refleja django 5.2.19, psycopg[binary] 3.3.9, pydantic-settings 2.16.3, ruff 0.17.6 y pyyaml 6.0.4 (#147); next y eslint-config-next 16.4.6, postcss 8.5.33, vite 8.3.8 y `@testing-library/user-event` 14.6.13 (#116); `@vitejs/plugin-react` 6.3.0 (#73); el hook `ruff-pre-commit` pasa a v0.17.6, igual que CI. uv 0.13.6 y `pnpm/action-setup` v6.1.0 no cambian (#68 y #67 siguen abiertos) | Parches de Dependabot mergeados el 2026-11-27 (precedente: #62 → #64) |
+| 1.0.24 | 2026-11-27 | Ajuste de diseño en `design.md §3.4.2` y `§8`, sin cambios en RN/RF/AC: la imagen `ghcr.io/astral-sh/uv` del backend pasa de 0.13.6 a 0.13.10 (#68) y el test de AC-PLT-25 la fija en esa versión. uv de CI (`.github/actions/setup/action.yml`) pasa a 0.13.10 en el mismo PR, que mergea el dueño (Q-063) | Decisión del dueño del 2026-11-27: opción A en #68, uv 0.13.10 en Dockerfile, test, `design.md` y CI |

@@ -1,4 +1,4 @@
-# Shared job setup for ci.yml (design.md §3.5). Versions from design.md §8: uv 0.13.6, Python 3.12.16,
+# Shared job setup for ci.yml (design.md §3.5). Versions from design.md §8: uv 0.13.10, Python 3.12.16,
 # Node 24.22.2 (frontend/.nvmrc), pnpm 12.16.1 (frontend/package.json `packageManager`).
 # Input `python`: uv + Python + the backend env from the lockfile (dev group included), put on PATH.
 # Input `backend-deps` ("true" by default): with "false", only uv and Python; no `uv sync` and no
@@ -11,7 +11,7 @@ description: Install the pinned toolchain for a CI job.
 
 inputs:
   python:
-    description: "Install uv 0.13.6, Python 3.12.16 and the backend env (uv sync --frozen --no-build)."
+    description: "Install uv 0.13.10, Python 3.12.16 and the backend env (uv sync --frozen --no-build)."
     required: false
     default: "false"
   node:
@@ -41,7 +41,7 @@ runs:
       if: inputs.python == 'true'
       uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
       with:
-        version: "0.13.6"
+        version: "0.13.10"
         # "auto": cache on GitHub-hosted runners, but not on tag pushes (release builds start clean).
         enable-cache: auto
         cache-dependency-glob: backend/uv.lock
@@ -61,7 +61,7 @@ runs:
       # --no-build: wheels only. A lock entry with a local `source = { directory = ... }` would
       # otherwise run that directory's build backend, PR code, during the install (T-PLT-28, B-3).
       # --no-config: no uv.toml of the PR; `package = false` of backend/pyproject.toml still applies
-      # (it is project metadata, not a setting; checked in Docker with uv 0.13.6, B-5).
+      # (it is project metadata, not a setting; checked in Docker with uv 0.13.6, B-5; CI now pins 0.13.10).
       run: uv sync --no-config --frozen --no-build --python 3.12.16
 
     - name: Put the backend env on PATH

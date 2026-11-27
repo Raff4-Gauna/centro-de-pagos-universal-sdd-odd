@@ -411,7 +411,7 @@ en `modules/` (cuenta para cobertura). Sin protección de rutas ni datos.
   en el socket Unix, que un probe por socket daría por listo antes de tiempo.
 
 #### 3.4.2 Imágenes
-- **backend**: `ghcr.io/astral-sh/uv:0.13.6` → `builder` (`python:3.12.16-slim-trixie@sha256`,
+- **backend**: `ghcr.io/astral-sh/uv:0.13.10` → `builder` (`python:3.12.16-slim-trixie@sha256`,
   `UV_COMPILE_BYTECODE=1`, `UV_LINK_MODE=copy`, `UV_PYTHON_DOWNLOADS=never`, primero `pyproject.toml`+`uv.lock` y
   `uv sync --frozen --no-dev --no-install-project`) → `dev` (+ grupo dev) → `runtime` (copia `/opt/venv`, `apps/`,
   `config/`, `manage.py`, **sin** `tests/`; usuario `app` uid 10001; `ARG GIT_SHA` → `APP_VERSION`; label
@@ -706,7 +706,7 @@ Nombres de jobs = checks requeridos: `lint`, `file-size`, `secrets`, `deps-audit
 
 | Ámbito | Versiones fijadas |
 |---|---|
-| Runtimes / imágenes | Python **3.12.16** (`python:3.12.16-slim-trixie`) · PostgreSQL **17.11** (`postgres:17.11-trixie`) · Redis **7.4.12** (`redis:7.4.12-bookworm`; no hay `trixie` para 7.4) · Node **24.22.2** (`node:24.22.2-trixie-slim`; 24 hoy en *maintenance* LTS, la activa es 26) · uv **0.13.6** · pnpm **12.16.1** (corepack, con hash) · gitleaks **v8.30.1** · pre-commit **4.7.0** (host) · BuildKit **v0.34.2** (`moby/buildkit`, job `build`) |
+| Runtimes / imágenes | Python **3.12.16** (`python:3.12.16-slim-trixie`) · PostgreSQL **17.11** (`postgres:17.11-trixie`) · Redis **7.4.12** (`redis:7.4.12-bookworm`; no hay `trixie` para 7.4) · Node **24.22.2** (`node:24.22.2-trixie-slim`; 24 hoy en *maintenance* LTS, la activa es 26) · uv **0.13.10** · pnpm **12.16.1** (corepack, con hash) · gitleaks **v8.30.1** · pre-commit **4.7.0** (host) · BuildKit **v0.34.2** (`moby/buildkit`, job `build`) |
 | Backend runtime | `django` **5.2.19** · `djangorestframework` **3.18.3** (revisión 2026-11-01 del dueño, Q-059: sube desde 3.16.1 por 3 advisories altas; declara `django>=5.2`; los stubs siguen en 3.16.9 con `django-stubs` 5.2.9, porque `djangorestframework-stubs` 3.18.0 exige `django-stubs>=6.0.9` y 3.18.1 (la última) `>=6.1.0`, ambos pensados para Django 6 (verificado en la metadata de PyPI el 2026-11-01); 3.18.3 entró por Dependabot, #62) · `celery[redis]` **5.6.3** (→ `kombu` **5.6.2**) · `redis` **6.4.0** (`kombu` 5.6: `redis<6.5`; Q-059) · `psycopg[binary]` **3.3.9** · `pydantic-settings` **2.16.3** · `structlog` **26.1.0** · `drf-spectacular` **0.30.0** · `gunicorn` **26.2.0** |
 | Backend dev | `ruff` **0.17.6** · `mypy` **1.19.1** (`django-stubs` 5.2.9 exige `<1.20`) · `django-stubs` **5.2.9** (fijada para que uv no suba a 6.x, que apunta a Django 6) · `django-stubs-ext` **5.2.9** (compañera de `django-stubs`, fijada por lo mismo; T-PLT-02) · `djangorestframework-stubs` **3.16.9** · `celery-types` **0.26.0** · `pytest` **9.2.0** · `pytest-django` **4.14.0** · `pytest-cov` **7.1.0** (coverage ≥ 7.10.6, `patch=subprocess`) · `pip-audit` **2.10.1** · `pyyaml` **6.0.4** |
 | Frontend deps | `next` **16.4.6** (`@mui/material-nextjs` 9.5.0 acepta `^16`) · `react`/`react-dom` **19.3.1** · `@mui/material` **9.5.0** · `@mui/icons-material` **9.5.0** · `@mui/material-nextjs` **9.5.0** (Q-059; verificados en npm 2026-10-31) · `@emotion/react` **11.14.0** · `@emotion/styled` **11.14.1** · `@emotion/cache` **11.14.0** · `@tanstack/react-query` **5.105.0** · `openapi-fetch` **0.17.0** · `server-only` **0.0.1** |
