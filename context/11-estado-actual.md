@@ -12,21 +12,21 @@ fase: cierre de 01 y 02 (Q-108), verificados Con hallazgos; 00 con verificación
 > es `specs/NN-modulo/tasks.md` + `verification.md` + `git log`; si este archivo y git no coinciden, manda git y
 > hay que correr `/reconcile`.
 
-## 1. Dónde estamos (2026-11-26)
+## 1. Dónde estamos (2026-11-27)
 
 | Módulo | Spec | Tareas | Código | Nota |
 |---|---|---|---|---|
-| 00-platform | Approved 1.0.22 | 42 ✅ (42) | 42 de 42 tareas | Verificación **Con hallazgos** (falta AC-PLT-01); ruleset activo |
+| 00-platform | Approved 1.0.23 | 42 ✅ (42) | 42 de 42 tareas | Verificación **Con hallazgos** (falta AC-PLT-01); ruleset activo |
 | 01-identity-access | Approved 1.0.2 | 33 ✅ (33) | 33 de 33 tareas | Verificación conjunta **Con hallazgos** (#153): 38 ✔; Q-130 y Q-131 decididas; se cierra con 02 (Q-108) |
-| 02-tenancy-rbac | Approved 1.0.4 | 39 ✅ (39) | 39 de 39 tareas | Verificación conjunta **Con hallazgos** (#153): 39 ✔ · 1 ⚠ (AC-TEN-17); Q-229 abierta, no bloquea |
+| 02-tenancy-rbac | Approved 1.0.4 | 40 ✅ (40) | 40 de 40 tareas | Verificación conjunta (#153): 40 ✔ (AC-TEN-17 cerrado por T-TEN-40, #155); Q-229 abierta, no bloquea |
 | 03-integrations-engine | Draft | — | 0 % | Falta cerrar el contrato del motor |
 | 04-integration-management | Por redactar | — | 0 % | Bloquea a 06 |
 | 05-mercadopago-adapter | Draft | — | 0 % | Depende del spike S-001 |
 | 06-charges | Draft | — | 0 % | Núcleo del dinero; hereda AC-CHG-18 de AC-TEN-28 (Q-244) |
 | 07–14 | Por redactar / Futuro | — | 0 % | Ver `specs/ROADMAP.md` |
 
-- **01 y 02:** todo el código planificado está en `main` (`T-IDA-00..32`, PR #63 a #149; `T-TEN-01..39`, PR #82 a
-  #151), conciliado con git el 2026-11-26 (`check_spec_state.py`: sin drift). Ninguna tarea está 🧪 y ninguna spec
+- **01 y 02:** todo el código planificado está en `main` (`T-IDA-00..32`, PR #63 a #149; `T-TEN-01..40`, PR #82 a
+  #155), conciliado con git el 2026-11-27 (`check_spec_state.py`: sin drift). Ninguna tarea está 🧪 y ninguna spec
   está `Verified`. La verificación conjunta (PR #153, sobre `5536088`) dio **Con hallazgos** en las dos.
 - **Decisiones del dueño del 2026-11-26** (después de #153): confirma el tope `refresh_ip` de 60/min por IP (Q-130);
   la prueba con Google real se posterga hasta tener hosting y no bloquea `Verified` de 01 (Q-131); la cláusula s2s del
@@ -45,7 +45,7 @@ fase: cierre de 01 y 02 (Q-108), verificados Con hallazgos; 00 con verificación
 
 ## 2. Qué está terminado y NO se debe rehacer
 
-- Tareas mergeadas: `T-PLT-01..42`, `T-IDA-00..32` y `T-TEN-01..39` (detalle y evidencia en el `tasks.md` de cada
+- Tareas mergeadas: `T-PLT-01..42`, `T-IDA-00..32` y `T-TEN-01..40` (detalle y evidencia en el `tasks.md` de cada
   módulo).
 - No reabrir una tarea `✅` sin evidencia nueva (test que falla, bug reproducible o cambio de spec aprobado).
 - No re-especificar 00, 01 ni 02: están `Approved`. Un cambio de comportamiento va por “Historial de cambios”.
@@ -53,17 +53,16 @@ fase: cierre de 01 y 02 (Q-108), verificados Con hallazgos; 00 con verificación
 
 ## 3. Qué sigue, en orden
 
-1. **Test de AC-TEN-17 con la invitación vencida** (Q-243): se implementa como `T-TEN-40` en un PR aparte; después se
-   repite la verificación de esa fila (`specs/02-tenancy-rbac/verification.md §8`).
-2. **Acciones del dueño para cerrar 01 y 02:** la validación manual de la UI de 02 (`specs/02-tenancy-rbac/verification.md
+1. **Acciones del dueño para cerrar 01 y 02:** la validación manual de la UI de 02 (`specs/02-tenancy-rbac/verification.md
    §5`, pasos 1 a 3) y asignar Q-229 (no bloquea 02). Después, **el dueño decide `Verified` de 01 y 02 juntos**
    (Q-108). Ningún agente lo marca. Google real queda para cuando haya hosting (Q-131).
-3. **Dependabot abiertos (GitHub, 2026-11-26):** #147 (parches de `uv`), #116 (parches de npm), #73, #68 y #67
-   (toca `.github/actions/`). #80 y #81 se cerraron el 2026-11-17 sin merge (sus grupos siguen en #147 y #116).
-   psycopg 3.3.8 revierte un cambio de TLS de 3.3.7: tomarlo antes de apuntar a una base con TLS (mirar si #147 lo trae).
-4. **Redactar la spec 04** (bloquea a 06).
-5. **Ejecutar S-001** antes de diseñar el adaptador de Mercado Pago.
-6. Incorporar el checklist de buenas prácticas de software escalable que el dueño va a pasar; mapearlo contra
+2. **Dependabot (2026-11-27):** #73, #147 y #116 mergeados (psycopg 3.3.9 ya trae la reversión de TLS de 3.3.8).
+   Quedan dos: #67 (`pnpm/action-setup` 6.1.1, toca `.github/actions/`; lo mergea el dueño, Q-063) y #68 (imagen
+   `astral-sh/uv` 0.13.10, rechazado: el test de AC-PLT-25 fija 0.13.6 y CI instala 0.13.6 desde `.github/actions/setup/`;
+   el dueño decide si se sube uv en los dos lados o se cierra).
+3. **Redactar la spec 04** (bloquea a 06).
+4. **Ejecutar S-001** antes de diseñar el adaptador de Mercado Pago.
+5. Incorporar el checklist de buenas prácticas de software escalable que el dueño va a pasar; mapearlo contra
    `context/12-solid-y-diseno.md` y los agentes existentes.
 
 **Sigue pendiente de 00:** la corrida manual de AC-PLT-01 por el dueño (`specs/00-platform/verification.md §4`) y
@@ -90,12 +89,13 @@ repetir esa verificación.
 
 ## 6. Pie de la última sesión
 
-- **Hecho:** registro de tres decisiones del dueño del 2026-11-26 en los documentos de 01, 02 y 06: Q-130 (tope
-  `refresh_ip` confirmado), Q-131 (Google real postergado hasta tener hosting, no bloquea `Verified`) y Q-244 (la
-  cláusula s2s de AC-TEN-28 pasa a SPEC-06 como AC-CHG-18; spec 02 → 1.0.4). `verification.md` de 01 y 02 al día:
-  01 38 ✔; 02 39 ✔ · 1 ⚠ (AC-TEN-17). Sin cambios de código ni de tests.
-- **Pendiente / dudas:** `T-TEN-40` (test de AC-TEN-17, PR aparte); validación manual de la UI de 02; Q-229 (abierta,
-  no bloquea); Q-220 (SPEC-04/05); Q-028 (SPEC-12); AC-PLT-01; S-001 sin ejecutar. `scripts/spec_state_baseline.json`
-  sigue con AC que ya tienen test (lo cambia un PR con `reviewer`, no `project-steward`).
-- **Siguiente rol sugerido:** implementer en `T-TEN-40`; después el dueño hace la validación manual y decide `Verified`
-  de 01 y 02.
+- **Hecho:** `T-TEN-40` mergeada (#155, `984a532`): AC-TEN-17 ✔ y 02 en 40 ✔. Dependabot: #73 (`a6fe7d5`), #147
+  (`5538077`: django 5.2.19, psycopg 3.3.9, pydantic-settings 2.16.3, ruff 0.17.6, pyyaml 6.0.4) y #116 (`921d087`:
+  next 16.4.6 y parches de frontend), cada uno con `reviewer` APROBADO sobre el head y CI completo en verde. Versiones
+  de los documentos alineadas (spec 00 → 1.0.23, hook `ruff-pre-commit` v0.17.6).
+- **Pendiente / dudas:** validación manual de la UI de 02; Q-229 (abierta, no bloquea); #67 (lo mergea el dueño) y #68
+  (decisión del dueño sobre uv); Q-220 (SPEC-04/05); Q-028 (SPEC-12); AC-PLT-01; S-001 sin ejecutar.
+  `scripts/spec_state_baseline.json` sigue con AC que ya tienen test (lo cambia un PR con `reviewer`, no
+  `project-steward`).
+- **Siguiente rol sugerido:** el dueño hace la validación manual de 02 y decide `Verified` de 01 y 02; después,
+  spec-writer en la spec 04.
