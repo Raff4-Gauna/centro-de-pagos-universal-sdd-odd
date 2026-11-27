@@ -61,7 +61,7 @@ runs:
       # --no-build: wheels only. A lock entry with a local `source = { directory = ... }` would
       # otherwise run that directory's build backend, PR code, during the install (T-PLT-28, B-3).
       # --no-config: no uv.toml of the PR; `package = false` of backend/pyproject.toml still applies
-      # (it is project metadata, not a setting; checked in Docker with uv 0.13.6, B-5).
+      # (it is project metadata, not a setting; checked in Docker with uv 0.13.6, B-5; CI now pins 0.13.10).
       run: uv sync --no-config --frozen --no-build --python 3.12.16
 
     - name: Put the backend env on PATH
