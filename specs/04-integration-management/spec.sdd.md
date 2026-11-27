@@ -82,7 +82,7 @@ Lo marcado con `Q-` es la recomendación pendiente de decisión.
 | Probar conexión | ✔ | ✔ | ✘ | ✘ | ✘ | ✘ |
 | Desactivar / reactivar integración | ✔ | ✔ | ✘ | ✘ | ✘ | ✘ |
 | Borrar físicamente una integración | ✘ (Q-408) | ✘ | ✘ | ✘ | ✘ | ✘ |
-| Ver capacidades de una integración | ✔ | ✔ | ✔ (lo necesita "Cobrar", SPEC-06 §14) | Q-404 | Q-420 | ✘ |
+| Ver capacidades de una integración | ✔ | ✔ | Q-404 (✔ propuesto; lo necesita "Cobrar", SPEC-06 §14) | Q-404 (✔ propuesto) | Q-420 | ✘ |
 | Ver Cajas | ✔ | ✔ | ✔ (`context/07 §5.3`) | Q-412 (✔ propuesto) | Q-420 | ✘ |
 | Crear / editar / desactivar / reactivar Caja; vincular Branch ↔ Integration | Q-412 (✔ propuesto) | Q-412 (✔ propuesto) | ✘ | ✘ | ✘ | ✘ |
 | Resolver credenciales para una operación (servicio interno) | sistema, dentro del contexto de la organización dueña (RN-INT-05) ||||||
@@ -132,10 +132,10 @@ Organización `suspended` (SPEC-02 §4.1): lectura igual; toda escritura de esta
 - **RN-INT-09** La organización de toda escritura sale del contexto validado (RN-TEN-04); pedir por ID una
   integración, Caja o vínculo de otra organización responde `404` como si no existiera, y los listados nunca los
   incluyen (RN-TEN-05). El operador de la plataforma sin membership no tiene acceso (RN-TEN-20).
-- **RN-INT-10** La prueba de conexión invoca `test_connection` del adaptador (RF-ENG-03), que valida con una llamada
-  de **solo lectura** (RF-MP-06). Un error se traduce con la taxonomía de SPEC-03 (RN-ENG-05) y se informa al usuario
-  sin secretos ni cuerpo crudo del proveedor. Cómo actualiza el estado de conexión: Q-406; si es obligatoria al
-  guardar: Q-407.
+- **RN-INT-10** La prueba de conexión invoca `test_connection` del adaptador (RF-ENG-03). Un error se traduce con la
+  taxonomía de SPEC-03 (RN-ENG-05) y se informa al usuario sin secretos ni cuerpo crudo del proveedor. SPEC-03 no
+  exige que `test_connection` no tenga efectos en el proveedor (solo SPEC-05 lo dice para MP, RF-MP-06): Q-421. Cómo
+  actualiza el estado de conexión: Q-406; si es obligatoria al guardar: Q-407.
 - **RN-INT-11** Las capacidades de una integración son las que declara su adaptador (RN-ENG-02); este módulo las
   expone y no las edita. El frontend nunca las hardcodea (`context/07 §4`).
 - **RN-INT-12** **Caja (Q-220):** pertenece a una organización y está ligada a una `Branch` y a una `Integration` de
@@ -156,11 +156,16 @@ Organización `suspended` (SPEC-02 §4.1): lectura igual; toda escritura de esta
   y solo para organizaciones bajo control del dueño; no existe flujo OAuth (Q-014).
 - **RN-INT-17** Toda acción sensible del módulo queda auditada con quién, qué, cuándo, organización e integración o
   Caja afectada, sin valores secretos (`C-08`; catálogo en RNF-INT-03).
+- **RN-INT-18** Los estados y transiciones de integración y Caja son solo los de §10. Una transición inválida (p. ej.
+  reactivar una integración activa) se rechaza con `invalid_transition`, sin cambios, y queda auditada como
+  `transition.rejected` (`C-05`; mismo criterio que SPEC-02, Q-225 y AC-TEN-37). La tabla de transiciones se confirma
+  con Q-408 y Q-413.
 
 ## 7. Requisitos funcionales
 - **RF-INT-01** Exponer a `owner`/`admin` el catálogo de providers registrados con los campos de credenciales y de
   configuración que declara cada adaptador, para que la UI arme el formulario sin conocer al proveedor.
-  (RN-INT-02, RN-INT-07; mecanismo Q-401)
+  (RN-INT-02, RN-INT-07; mecanismo Q-401). Sin AC propio hasta decidir Q-401 (la forma del catálogo depende de
+  esa decisión); AC-INT-05 y AC-INT-26 cubren la validación y la exclusión de providers apagados.
 - **RF-INT-02** Crear una integración con provider, nombre visible, ambiente, credenciales y configuración; validar
   los campos contra lo declarado por el adaptador antes de guardar. (RN-INT-01…04, 07, 08, 16; Q-402, Q-407)
 - **RF-INT-03** Listar y ver integraciones de la organización activa con su resumen y estados, sin valores secretos.
@@ -178,7 +183,7 @@ Organización `suspended` (SPEC-02 §4.1): lectura igual; toda escritura de esta
 - **RF-INT-09** Cajas: crear, listar (filtrable por `Branch` e integración), ver, editar, desactivar y reactivar,
   sin borrado físico. (RN-INT-12, 13, 14; Q-411, Q-412, Q-413)
 - **RF-INT-10** Vínculo `Branch` ↔ `Integration`: crear, listar y desactivar, con la información que el adaptador
-  necesite para su Store. (RN-INT-13; Q-410)
+  necesite para su Store. (RN-INT-13; Q-410). Sin AC propio hasta decidir Q-410 (dueño y forma del vínculo).
 - **RF-INT-11** Selectors tenant-aware para SPEC-06/07: "integración utilizable para un cobro nuevo" (activa, de la
   organización, con la capacidad pedida) y "Caja utilizable" (activa, de esa integración, con `Branch` activa).
   (RN-INT-09, 11, 14; RN-CHG-04)
@@ -242,8 +247,7 @@ Las tablas que SPEC-03 §9 asigna a este módulo son `providers`, `integrations`
 
 **Caja**: activa ↔ inactiva por owner/admin (Q-412, Q-413).
 
-Transición inválida (p. ej. reactivar una integración activa) → rechazada con `invalid_transition` y auditada
-(`C-05`, mismo criterio que AC-TEN-37).
+Transición inválida → rechazada con `invalid_transition` y auditada (RN-INT-18).
 
 ## 11. Contratos (nivel conceptual; rutas y cuerpos en `design.md`)
 - Catálogo de providers y sus formularios (RF-INT-01; forma: Q-401).
@@ -267,8 +271,8 @@ Transición inválida (p. ej. reactivar una integración activa) → rechazada c
 - Doble clic en "Crear integración": el comportamiento ante duplicados depende de Q-402/Q-403.
 - Proveedor caído o 429 durante la prueba de conexión: `ProviderUnavailable` / `ProviderRateLimited` (RN-ENG-05);
   el estado pasa a `error de conexión`, no a `credenciales inválidas` (Q-406).
-- Timeout ambiguo en la prueba: como es de solo lectura, no hay efecto en el proveedor; se informa como error de
-  conexión.
+- Timeout ambiguo en la prueba: se informa como error de conexión. Que no deje efectos en el proveedor depende de
+  Q-421.
 - Credenciales vencidas o revocadas en el proveedor durante una operación real: `ProviderAuthError`; SPEC-03 §12
   deja a este módulo "renovar y reintentar una vez", que sin OAuth no es posible (Q-409).
 - Integración desactivada o organización suspendida con cobros `pending`: siguen resolviéndose credenciales para
@@ -277,8 +281,8 @@ Transición inválida (p. ej. reactivar una integración activa) → rechazada c
   salvo que Q-413 decida otra cosa.
 - Caja con `Branch` o integración de otra organización en el cuerpo: `404` y nada creado (RN-INT-09, RN-INT-13).
 - La misma cuenta de proveedor conectada dos veces, en la misma o en otra organización: Q-403.
-- Provider quitado del registry (o flag apagado) con integraciones existentes: las existentes siguen visibles; no se
-  crean nuevas; la operación de cobro falla con error tipado. Detalle en `design.md`.
+- Provider quitado del registry o con su flag apagado: no se crean integraciones nuevas de él (RN-INT-02,
+  RNF-INT-07, AC-INT-26). Qué pasa con las integraciones existentes y sus cobros `pending`: Q-422.
 - Valores de campos vacíos, muy largos o con caracteres especiales: los valida el adaptador según su declaración
   (RN-INT-07); el núcleo aplica además un límite de tamaño genérico (`design.md`).
 - Rol cambiado a mitad de sesión: rige desde la request siguiente (RN-TEN-08).
@@ -324,9 +328,10 @@ Transición inválida (p. ej. reactivar una integración activa) → rechazada c
   la conexión **entonces** el estado de conexión pasa a `conectada` con fecha de verificación; **dado** que responde
   `ProviderAuthError` **entonces** pasa a `credenciales inválidas`; **dado** `ProviderUnavailable` **entonces** pasa
   a `error de conexión`; en los tres casos la respuesta no contiene secretos ni cuerpo crudo (catálogo Q-406).
-- **AC-INT-14** (RN-INT-10) **Dado** una prueba de conexión **cuando** se ejecuta contra el `FakeAdapter`
-  **entonces** el adaptador solo registró la operación `test_connection` (ninguna operación mutante); **y** con un
-  `FakeAdapter` que no responde, la API devuelve error dentro del timeout configurado.
+- **AC-INT-14** (RN-INT-10, RNF-INT-08) **Dado** una prueba de conexión **cuando** se ejecuta contra el
+  `FakeAdapter` **entonces** el núcleo invoca solo la operación `test_connection` del adaptador (ninguna otra del
+  contrato); **y** con un `FakeAdapter` que no responde, la API devuelve error dentro del timeout configurado. Que
+  `test_connection` no tenga efectos en el proveedor es una obligación del adaptador, pendiente de Q-421.
 - **AC-INT-15** (RN-INT-11) **Dado** una integración de A cuyo adaptador declara un conjunto de capacidades
   **cuando** se pide `GET /api/integrations/{id}/capabilities/` **entonces** la respuesta es exactamente ese
   conjunto.
@@ -354,8 +359,12 @@ Transición inválida (p. ej. reactivar una integración activa) → rechazada c
   actor, acción, organización, integración o Caja afectada y fecha, sin ningún valor secreto.
 - **AC-INT-24** (RNF-INT-05) **Dado** las rutas de este módulo **cuando** corre el test cross-tenant parametrizado de
   SPEC-02 (AC-TEN-12) **entonces** cada una tiene caso.
-- **AC-INT-25** (C-05) **Dado** una integración activa **cuando** se la reactiva **entonces** `invalid_transition`,
+- **AC-INT-25** (RN-INT-18) **Dado** una integración activa **cuando** se la reactiva **entonces** `invalid_transition`,
   sin cambios, y evento `transition.rejected`.
+- **AC-INT-26** (RNF-INT-07, RN-INT-02) **Dado** un provider registrado con su *feature flag* apagado (el valor por
+  defecto) **cuando** un `owner` pide el catálogo de providers **entonces** ese provider no aparece; **y cuando**
+  intenta crear una integración con él **entonces** error de validación y ninguna integración creada; con el flag
+  encendido, el alta se acepta.
 
 ## 14. Interfaz de usuario
 - **Configuración → Integraciones** (solo `owner`/`admin`, `context/07 §5.3`): tarjetas por integración con
@@ -389,7 +398,9 @@ Transición inválida (p. ej. reactivar una integración activa) → rechazada c
 
 ## 16. Preguntas abiertas
 Ver `specs/04-integration-management/clarifications.md`. **Bloquean *Clarified*:** Q-401 a Q-412. No bloquean:
-Q-413 a Q-420. Decididas que aplican: Q-001, Q-006, Q-010, Q-014, Q-015 (default), Q-018 (default), Q-215, Q-220 (b).
+Q-413 a Q-422 (Q-415, Q-418 y Q-421 bloquean *Designed*; Q-420 bloquea SPEC-11). Decididas que aplican: Q-001,
+Q-006, Q-010, Q-014, Q-215, Q-220 (b). Sin decidir, solo con recomendación por defecto: Q-015 (se trata en Q-415) y
+Q-018 (se trata en Q-411).
 
 ## 17. Trazabilidad
 Se completa al generar `tasks.md`.
@@ -397,10 +408,10 @@ Se completa al generar `tasks.md`.
 ## 18. Historial de cambios
 | Versión | Fecha | Cambio | Motivo |
 |---|---|---|---|
-| 0.1.0 | 2026-11-27 | Borrador inicial: 17 RN, 12 RF, 10 RNF, 25 AC; Caja como entidad de este módulo; 20 preguntas (Q-401…Q-420) | Paso 1 SDD (`/spec`), con Q-220 decidida (b) |
+| 0.1.0 | 2026-11-27 | Borrador inicial: 18 RN, 12 RF, 10 RNF, 26 AC; Caja como entidad de este módulo; 22 preguntas (Q-401…Q-422) | Paso 1 SDD (`/spec`), con Q-220 decidida (b); incluye los no bloqueantes del reviewer en el PR #157 |
 
 ---
-**Hecho:** spec *Draft* 0.1.0 con prefijo `INT`; `clarifications.md` con Q-401…Q-420, matriz de permisos y
+**Hecho:** spec *Draft* 0.1.0 con prefijo `INT`; `clarifications.md` con Q-401…Q-422, matriz de permisos y
 checklist de casos límite.
 **Pendiente:** Q-401…Q-412 bloquean *Clarified*; Q-401 y Q-409 requieren cambios en SPEC-03; ADR-0003 antes de
 *Designed*.

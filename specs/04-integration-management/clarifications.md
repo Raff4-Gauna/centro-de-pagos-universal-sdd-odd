@@ -35,6 +35,8 @@
 | Q-418 | ¿Qué exige el producto sobre la rotación de la clave maestra de cifrado? | Es la base de ADR-0003. Una rotación mal hecha deja credenciales que no se pueden descifrar. | a) Rotar la clave sin downtime: las credenciales guardadas se pueden re-cifrar y las viejas siguen legibles hasta terminar; b) sin rotación en el MVP | **a)**. El cómo lo decide ADR-0003. | No (bloquea *Designed*) | | RNF-INT-02, ADR-0003 |
 | Q-419 | ¿Cada prueba de conexión va a la auditoría o solo los cambios de estado? ¿Tiene límite de frecuencia? | Ruido en la auditoría frente a trazabilidad. Además, un botón sin límite permite martillar al proveedor con las credenciales del comercio. | a) Auditoría solo de `connection_status_changed`; todas las pruebas, a log operativo + métrica; con límite de frecuencia por integración (número en `design.md`); b) auditar todas las pruebas, sin límite | **a)** | No | | RNF-INT-03/04 |
 | Q-420 | ¿Qué de este módulo puede leer el ERP con API key? | Para crear un cobro por API, el ERP tiene que elegir integración y Caja (brief §6, criterio 5). | a) Lectura del resumen de integraciones activas, de sus capacidades y de las Cajas activas (scope en SPEC-11); b) nada (el ERP manda IDs que ya conoce) | **a)**. Se decide al redactar SPEC-11. | No (bloquea SPEC-11) | | §4, SPEC-11 |
+| Q-421 | ¿El contrato de SPEC-03 exige que `test_connection` no tenga efectos en el proveedor (solo lectura)? Hoy solo lo dice SPEC-05 para MP (RF-MP-06); RF-ENG-03 no lo exige. | Si un adaptador futuro hace algo mutante al probar, un doble clic o un timeout ambiguo podrían dejar recursos en el proveedor, y 04 no podría repetir la prueba sin riesgo. | a) Sí: regla nueva en SPEC-03 (sin efectos y repetible), cubierta por el test de contrato de cada adaptador; b) no: cada adaptador lo documenta y 04 trata la prueba como operación mutante (idempotencia, sin reintentos) | **a)** | No (bloquea *Designed*: cambia SPEC-03 y la forma de AC-INT-14) | | RN-INT-10, AC-INT-14, §12, SPEC-03 RF-ENG-03 |
+| Q-422 | ¿Qué pasa con las integraciones existentes de un provider que sale del registry o cuyo *feature flag* se apaga? Ninguna fuente lo define. | Apagar un flag para frenar un adaptador con fallas no debería dejar cobros `pending` sin resolver (RN-INT-15, RNF-CHG-03), pero tampoco debería permitir cobros nuevos. | a) Siguen visibles y sus cobros `pending` se siguen procesando; no admiten cobros nuevos (como una integración inactiva, RN-INT-14); si el adaptador ya no está registrado, toda operación falla con error tipado y alerta; b) quedan inactivas automáticamente; c) el flag solo controla el alta, nunca las existentes | **a)** | No | | §12, RNF-INT-07, RN-INT-14, SPEC-06 |
 
 ## 2. Matriz de permisos (completar)
 Propuesta; las celdas con `Q-` se confirman al decidir esa pregunta.
@@ -49,7 +51,7 @@ Propuesta; las celdas con `Q-` se confirman al decidir esa pregunta.
 | Editar / reemplazar credenciales | ✔ | ✔ | ✘ | ✘ | ✘ |
 | Probar conexión | ✔ | ✔ | ✘ | ✘ | ✘ |
 | Desactivar / reactivar / desconectar | ✔ | ✔ | ✘ | ✘ | ✘ |
-| Ver capacidades | ✔ | ✔ | ✔ | ✔ (Q-404) | ERP: Q-420 |
+| Ver capacidades | ✔ | ✔ | ✔ (Q-404) | ✔ (Q-404) | ERP: Q-420 |
 | Ver Cajas y vínculos | ✔ | ✔ | ✔ | ✔ (Q-412) | ERP: Q-420 |
 | Gestionar Cajas y vínculos | ✔ (Q-412) | ✔ (Q-412) | ✘ | ✘ | ✘ |
 | Resolver credenciales (interno) | — | — | — | — | sistema, en el contexto de la organización dueña |
@@ -57,11 +59,12 @@ Propuesta; las celdas con `Q-` se confirman al decidir esa pregunta.
 ## 3. Checklist de casos límite (marcar o justificar "no aplica")
 - [x] **Concurrencia:** reemplazos simultáneos de credenciales, y reemplazo mientras se resuelven (RN-INT-06,
   AC-INT-09). Alta doble: Q-402/Q-403.
-- [x] **Reintentos y repetición:** doble clic en crear (Q-402/Q-403); la prueba de conexión es de solo lectura y no
-  tiene efecto si se repite (limitada por Q-419).
+- [x] **Reintentos y repetición:** doble clic en crear (Q-402/Q-403); repetir la prueba de conexión no tiene efecto
+  en el proveedor solo si se decide Q-421 (a); límite de frecuencia en Q-419.
 - [x] **Orden:** no hay eventos de proveedor en este módulo (son de SPEC-07).
 - [x] **Fallas parciales:** se crea la Caja en el proveedor pero falla la escritura local, o al revés (Q-411; la
-  "crear si no existe" sigue RN-MP-13). Timeout en la prueba de conexión: sin efecto externo.
+  "crear si no existe" sigue RN-MP-13). Timeout en la prueba de conexión: error de conexión; sin efecto externo
+  si se decide Q-421 (a).
 - [x] **Proveedor caído / lento / 429:** estado `error de conexión` (Q-406); guardado según Q-407.
 - [x] **Permisos:** matriz §2; rol cambiado a mitad de sesión rige desde la request siguiente (RN-TEN-08).
 - [x] **Aislamiento:** AC-INT-10/16/19/20/24; misma cuenta en dos organizaciones (Q-403).
@@ -70,7 +73,7 @@ Propuesta; las celdas con `Q-` se confirman al decidir esa pregunta.
 - [x] **Montos:** no aplica (el módulo no maneja dinero). La configuración de topes de monto (Q-005) no es de este
   módulo.
 - [x] **Vencimientos:** credenciales vencidas en el proveedor (Q-409); sin vencimientos propios.
-- [x] **Desactivación/borrado:** RN-INT-14, Q-408, Q-413.
+- [x] **Desactivación/borrado:** RN-INT-14, Q-408, Q-413; provider retirado o con flag apagado, Q-422.
 - [x] **Zona horaria:** fechas de verificación y auditoría en UTC; se presentan en la zona de la organización.
 - [x] **Volumen:** pocas integraciones y cajas por organización; los listados se paginan igual que en el resto de la
   API.
@@ -85,6 +88,6 @@ Propuesta; las celdas con `Q-` se confirman al decidir esa pregunta.
 (estados de conexión), Q-407 (prueba al guardar), Q-408 (ciclo de vida y "desconectar"), Q-409 (auth vencida sin
 OAuth), Q-410 (vínculo Branch ↔ Integration y ubicación del Store), Q-411 (alta de Caja contra el proveedor), Q-412
 (quién gestiona Cajas).
-**No bloqueantes (con recomendación por defecto):** Q-413 a Q-420. Q-418 bloquea *Designed* (ADR-0003); Q-420
-bloquea SPEC-11.
+**No bloqueantes (con recomendación por defecto):** Q-413 a Q-422. Q-415, Q-418 (ADR-0003) y Q-421 (cambio en
+SPEC-03) bloquean *Designed*; Q-420 bloquea SPEC-11.
 **Recomendaciones aceptadas:** ninguna todavía.
