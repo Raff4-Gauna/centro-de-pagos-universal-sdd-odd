@@ -447,11 +447,12 @@ Respuesta `200 {connection_status, connection_reason, connection_checked_at, acc
   AC-INT-46).
 
 ### 4.7 `ProviderAuthError` en una operación real (RF-INT-13, Q-409)
-`provider_session(ctx, integration_id, operation=…, new_charge=None)`: verifica que no hay transacción abierta →
-resuelve el contexto (`version` v) → si `operation` crea un cobro nuevo, exige `new_charge` y comprueba, con la fila
-leída en esa misma resolución, `v == new_charge.credential_version` y las condiciones de "utilizable" de RN-INT-26
-(activa, cuenta conocida, `account_unconfirmed=false`, capacidad, provider disponible); si falla, `IntegrationNotUsable`
-sin descifrar ni llamar al proveedor (§4.5) → instancia el adaptador → `yield`. Si el bloque lanza `ProviderAuthError`:
+`provider_session(ctx, integration_id, operation=…, new_charge=None)`, en este orden literal: (1) verifica que no hay
+transacción abierta; (2) **una sola lectura** de la integración y su juego de credenciales (`version` v, todavía
+cifrado); (3) si `operation` crea un cobro nuevo, exige `new_charge` y comprueba sobre esa misma fila
+`v == new_charge.credential_version` y las condiciones de "utilizable" de RN-INT-26 (activa, cuenta conocida,
+`account_unconfirmed=false`, capacidad, provider disponible); si falla, `IntegrationNotUsable` sin descifrar ni llamar
+al proveedor (§4.5); (4) recién entonces descifra (§4.8); (5) instancia el adaptador; (6) `yield`. Si el bloque lanza `ProviderAuthError`:
 `report_provider_auth_error(ctx, integration_id, version=v, reason, operation)` abre su propia transacción, toma el
 lock de la fila y, **solo si el juego vigente sigue siendo v** (un reemplazo posterior no se pisa), pasa a
 `credentials_invalid` (si no lo estaba) y emite `integration.connection_status_changed` (`origin=real_operation`,
@@ -707,7 +708,10 @@ Decididas por el dueño el 2026-11-27 (revisión del PR #158), ya no son supuest
   Para **crear** la orden en el proveedor tiene que pasar el `NewChargeLock` que le devolvió el lock
   (`provider_session(..., operation="create_charge", new_charge=lock)`, §4.5); si la sesión lanza
   `IntegrationNotUsable` (el juego cambió o la cuenta quedó sin confirmar entre el `pending` y la llamada), no hubo
-  llamada al proveedor y SPEC-06 decide qué hace con ese `pending` (p. ej. fallarlo sin orden). Las operaciones
+  llamada al proveedor y SPEC-06 decide qué hace con ese `pending`. La igualdad de versión falla cerrado: también rechaza si en el medio
+  hubo un reemplazo confirmado con la misma cuenta, así que SPEC-06 debería tratar
+  `IntegrationNotUsable(reason="credentials_changed")` como reintentable (volver a tomar el lock y releer "utilizable")
+  y no como un fallo definitivo del cobro; los demás `reason` (`account_unconfirmed`, `inactive`, …) no se reintentan. Las operaciones
   sobre cobros existentes (consultar, cancelar, devolver, webhooks, poller) no pasan `new_charge` (RN-INT-15).
 - **SPEC-07**: ruta de webhooks con `webhook_route_key` y su `Q-xxx` de ruta (tablero §1); usa
   `find_by_webhook_route_key` y `resolve_integration_context`.
