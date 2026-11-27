@@ -267,7 +267,9 @@ Organización `suspended` (SPEC-02 §4.1): lectura igual; toda escritura de esta
   estado del vínculo: no se liga el mismo Store a dos `Branch` (Q-432 a)). Un vínculo solo se crea sobre una integración
   **activa** y una `Branch` **activa**; si alguna no lo está, se rechaza sin crear nada ni llamar al proveedor
   (Q-431 b); lo mismo para la Caja, RN-INT-12). Los modos que llaman al proveedor (crear o importar) necesitan
-  credenciales, que una integración activa siempre tiene (§10).
+  credenciales, que una integración activa siempre tiene (§10). Q-431 b) es solo para **crear**: reactivar un
+  vínculo o una Caja se permite aunque la integración o la `Branch` estén inactivas, y lo reactivado no es
+  utilizable para cobros nuevos hasta que todo vuelva a estar activo (RN-INT-26).
 - **RN-INT-24** **Desconectar (Q-408):** `owner`/`admin` pueden desconectar una integración (activa o inactiva;
   confirmado por el dueño, 2026-11-27) solo si **no tiene cobros `pending`** (SPEC-06). Desconectar **borra** su juego
   de credenciales, la deja inactiva y sin credenciales y **libera la reserva de su cuenta** (RN-INT-19, Q-423); no la
@@ -415,7 +417,9 @@ reactivación rechazados por RN-INT-22 no cambian el estado.
 **Caja**: activa ↔ inactiva por owner/admin (Q-412; detalles en Q-413).
 **Vínculo Branch ↔ Integration** (Q-410, Q-412, Q-429): activo → inactivo y inactivo → activo (el mismo vínculo) por
 owner/admin. Al desactivarlo sus Cajas no cambian de estado pero dejan de ser utilizables; al reactivarlo vuelven a
-serlo si cumplen RN-INT-26 (Q-424). Inválidas: desactivar uno inactivo o reactivar uno activo.
+serlo si cumplen RN-INT-26 (Q-424). Inválidas: desactivar uno inactivo o reactivar uno activo. Reactivar un vínculo
+o una Caja no exige integración ni `Branch` activas (Q-431 b) restringe solo la creación); lo reactivado sobre algo
+inactivo sigue sin ser utilizable (RN-INT-26).
 
 La prueba que devuelve una cuenta ya conectada deja `error de conexión` con su `reason` propio y no guarda la cuenta
 (RN-INT-19, Q-423).
@@ -699,13 +703,20 @@ Transición inválida → rechazada con `invalid_transition` y auditada (RN-INT-
   posterior devuelve `CONNECTED` con `Y` ≠ `X` **entonces** la respuesta es de "otra cuenta", queda `error de
   conexión` con ese `reason` (persistido aunque la respuesta sea un error), sigue `X` y sigue sin ser utilizable;
   **cuando** una prueba devuelve `CONNECTED` con `X` **entonces** pasa a `conectada` y el selector vuelve a
-  devolverla. Lo mismo tras reactivar una desconectada con cuenta conocida y prueba `UNREACHABLE`.
+  devolverla. Lo mismo tras reactivar una desconectada con cuenta conocida y prueba `UNREACHABLE`. **Y dado** un
+  cobro nuevo que ya tomó el lock de la integración con el juego J1 y confirmó su `pending` **cuando**, antes de que
+  llame al proveedor, un reemplazo guarda J2 con `UNREACHABLE` **entonces** la sesión de proveedor del cobro falla
+  con "integración no utilizable" y el adaptador no recibe ninguna llamada; una operación sobre un cobro existente
+  en el mismo momento sigue pudiendo usar el juego vigente (RN-INT-15).
 - **AC-INT-46** (RN-INT-12, RN-INT-23; Q-431) **Dado** una `Branch` activa y una integración de A inactiva (o
   desconectada) **cuando** un `admin` crea un vínculo entre ellas, en cualquier modo **entonces** se rechaza, no se
   crea nada y no se llamó al adaptador; **dado** una integración activa y una `Branch` inactiva **entonces** lo mismo;
   **dado** un vínculo activo cuya integración se desactivó después (o cuya `Branch` se desactivó) **cuando** crea una
   Caja sobre él, en cualquier modo **entonces** se rechaza, no se crea nada y no se llamó al adaptador; **y** con
-  integración y `Branch` activas las dos altas se aceptan.
+  integración y `Branch` activas las dos altas se aceptan; **y dado** un vínculo inactivo (o una Caja inactiva) cuya
+  integración o `Branch` está inactiva **cuando** un `admin` lo reactiva **entonces** se acepta, sin llamar al
+  adaptador, y el selector "Caja utilizable" sigue sin devolver sus Cajas hasta que la integración y la `Branch`
+  vuelvan a estar activas.
 
 ## 14. Interfaz de usuario
 - **Configuración → Integraciones** (solo `owner`/`admin`, `context/07 §5.3`): tarjetas por integración con
@@ -779,7 +790,7 @@ Se completa al generar `tasks.md`.
 | 0.2.0 | 2026-11-27 | Se aplican las decisiones del dueño Q-401 a Q-412. Nuevas RN-INT-19 (cuenta única), 20 (resumen para lectura), 21 (estado de conexión y `ProviderAuthError` real), 22 (prueba al guardar), 23 (vínculo Branch ↔ Integration), 24 (desconectar) y 25 (Cajas y vínculos); reescritas RN-INT-01, 04, 07, 08, 10, 12, 14, 16 y 18. Nuevo RF-INT-13; RF-INT-01 y RF-INT-10 con AC. Nuevos AC-INT-27 a 35; reescritos AC-INT-01, 05, 06, 07, 10, 11, 13, 17, 20, 21 y 25. Matriz §4 y §10 sin "propuesto". Total: 25 RN, 13 RF, 10 RNF, 35 AC. Nuevas Q-423 y Q-424 (bloquean *Clarified*), Q-425 y Q-426 (no bloquean). Sigue *Draft* | Paso 2 SDD (`/clarify`), decisiones del dueño del 2026-11-27 |
 | 0.3.0 | 2026-11-27 | Estado → **Clarified**. Se aplican Q-423 (a/a/a: sin cuenta conocida no se cobra y la colisión posterior se rechaza sin revelar dónde; un reemplazo con otra cuenta se rechaza; la cuenta queda reservada mientras haya credenciales y se libera al desconectar) y Q-424 (a: Store creado o importado como la Caja; Caja solo sobre vínculo activo; desactivar el vínculo vuelve no utilizables sus Cajas sin cambiarles el estado), y las cuatro interpretaciones confirmadas por el dueño. Nueva RN-INT-26 (condiciones de "utilizable"); reescritas RN-INT-12, 14, 19, 22, 23 y 24; RF-INT-09, 10 y 11 actualizados. Nuevos AC-INT-36 a 40; reescritos AC-INT-18, 19, 29, 33 y 34. Supuesto explícito del identificador de cuenta de MP, a verificar en S-001. Total: 26 RN, 13 RF, 10 RNF, 40 AC. Nuevas Q-427, Q-428 y Q-429 (no bloquean *Clarified*; bloquean *Designed*) | Paso 2 SDD (`/clarify`), decisiones del dueño del 2026-11-27 |
 | 0.4.0 | 2026-11-27 | Estado → **Designed**. Se aplican Q-415 a) (nueva RN-INT-27 y RF-INT-14: identificador de ruteo de webhooks), Q-418 a) (RNF-INT-02 con la rotación sin downtime; nuevo RF-INT-15), Q-421 a) (RN-INT-10 y AC-INT-14: `test_connection` sin efectos, por contrato), Q-425 a) (RN-INT-10, 21, 22, 24; AC-INT-13, 31, 33), Q-426 a) (RN-INT-01, §10, AC-INT-28: nombre recortado, sin mayúsculas, único entre activas; AC-INT-28 pasa de "error de validación" a "conflicto de nombre", como `Branch`), Q-427 a) (RN-INT-19, 24: misma cuenta al reactivar; nuevo AC-INT-42), Q-428 a) (RN-INT-23, AC-INT-39: `list_stores`) y Q-429 a) (RN-INT-18, 23, 25, §9, §10: un vínculo por `Branch` + integración, reactivable; nuevo AC-INT-43). RNF-INT-03 suma `branch_link.reactivated`, `integration.webhook_key_regenerated` e `integration.credentials_reencrypted`. RN-INT-22 cubre también la reactivación de una desconectada. Nuevo AC-INT-44 (rotación). §4 suma el identificador de webhooks, la reactivación del vínculo y la rotación por comando. Nuevas Q-430 (otra cuenta tras guardar sin prueba; conviene decidirla antes de *Approved*), Q-431 y Q-432 (no bloquean). Total: 27 RN, 15 RF, 10 RNF, 44 AC. Diseño en `design.md`; cifrado en ADR-0003 (*Propuesto*) | Paso 3 SDD (`/design`), decisiones del dueño del 2026-11-27 |
-| 0.4.1 | 2026-11-27 | Sigue **Designed**. Se aplica Q-430 a): RN-INT-19 (cuenta sin confirmar tras guardar con `UNREACHABLE`/`ProviderUnknown` sobre una cuenta conocida; una prueba con otra cuenta no la confirma), RN-INT-26 (exige cuenta confirmada), §9 (marca en `Integration`), §15; nuevo AC-INT-45. Q-431 **b)** (reconfirmada por el dueño tras corregir la descripción de las opciones: vínculos y Cajas solo sobre integración activa y `Branch` activa; RN-INT-12, RN-INT-23; nuevo AC-INT-46) y Q-432 a) pasan a decididas (RN-INT-23, §9). §13 y §16 al día. Total: 27 RN, 15 RF, 10 RNF, 46 AC | Rechazo del reviewer en el PR #158 (SHA `f8e7831`) y decisiones del dueño del 2026-11-27 |
+| 0.4.1 | 2026-11-27 | Sigue **Designed**. Se aplica Q-430 a): RN-INT-19 (cuenta sin confirmar tras guardar con `UNREACHABLE`/`ProviderUnknown` sobre una cuenta conocida; una prueba con otra cuenta no la confirma), RN-INT-26 (exige cuenta confirmada), §9 (marca en `Integration`), §15; nuevo AC-INT-45. Q-431 **b)** (reconfirmada por el dueño tras corregir la descripción de las opciones: vínculos y Cajas solo sobre integración activa y `Branch` activa; RN-INT-12, RN-INT-23; nuevo AC-INT-46) y Q-432 a) pasan a decididas (RN-INT-23, §9). Q-431 b) se aclara como solo para crear: reactivar un vínculo o una Caja con la integración o la `Branch` inactiva se permite y queda no utilizable (RN-INT-23, §10, AC-INT-46). AC-INT-45 suma el caso concurrente del cobro nuevo frente a un reemplazo guardado sin confirmar la cuenta. §13 y §16 al día. Total: 27 RN, 15 RF, 10 RNF, 46 AC | Rechazos del reviewer en el PR #158 (SHA `f8e7831` y `201a40b`) y decisiones del dueño del 2026-11-27 |
 
 ---
 **Hecho:** *Designed* 0.4.1: Q-415, Q-418, Q-421 y Q-425…Q-432 aplicadas; `design.md` y ADR-0003 (*Propuesto*);

@@ -67,7 +67,7 @@ actualizado: 2026-11-27
 | RN-INT-23 | `BranchLink` + `services/branch_links.py` (modos `create`/`import`/`manual`/`none`) · `domain/external_keys.py::store_key` · `list_stores` (Q-428) · `branch_link_one_per_pair` (Q-429) |
 | RN-INT-24 | `services/integration_lifecycle.py::disconnect` (§4.5): lock `FOR UPDATE` de la integración + `PendingChargesPort` + `DELETE` del juego · `integration_disconnected_coherent` |
 | RN-INT-25 | `INTEGRATIONS_ACTIONS` (`branch_link.*`, `cash_register.*`) |
-| RN-INT-26 | `selectors/usability.py::get_usable_integration`, `get_usable_cash_register` · `selectors/locks.py::lock_integration_for_new_charge` (las dos excluyen `account_unconfirmed`, Q-430 a)) |
+| RN-INT-26 | `selectors/usability.py::get_usable_integration`, `get_usable_cash_register` · `selectors/locks.py::lock_integration_for_new_charge` (las dos excluyen `account_unconfirmed`, Q-430 a)) · `provider_session(..., new_charge=NewChargeLock)` re-chequea versión y "utilizable" antes de crear el cobro en el proveedor (§4.5) |
 | RN-INT-27 | `Integration.webhook_route_key` (único) · `services/webhook_key.py::regenerate_webhook_key` · `selectors/webhook_routing.py::find_by_webhook_route_key` (scope de modelo restringido) |
 | RF-INT-01 | `GET /api/integration-providers/` · `selectors/catalog.py::list_enabled_providers` |
 | RF-INT-02 | `POST /api/integrations/` · `services/create_integration.py` |
@@ -221,9 +221,9 @@ Importada solo de `apps.integrations.engine` (nunca de `providers/`):
 |---|---|---|
 | 06 | `selectors.usability.get_usable_integration(ctx, integration_id, capability)` | `UsableIntegration` o `IntegrationNotUsable(reason ∈ {inactive, unknown_account, account_unconfirmed, capability_not_supported, provider_unavailable})`; otra organización → `NotFound` (RN-INT-26, Q-422 a)) |
 | 06 | `selectors.usability.get_usable_cash_register(ctx, cash_register_id, integration_id)` | Caja activa, de esa integración, `Branch` activa y vínculo activo; si no, `CashRegisterNotUsable(reason)` |
-| 06 | `selectors.locks.lock_integration_for_new_charge(ctx, integration_id)` | dentro de la transacción del cobro nuevo: `SELECT … FOR KEY SHARE` de la fila y re-chequeo de "utilizable" (§4.5) |
+| 06 | `selectors.locks.lock_integration_for_new_charge(ctx, integration_id) -> NewChargeLock(integration_id, credential_version)` | dentro de la transacción del cobro nuevo: `SELECT … FOR KEY SHARE` de la fila, re-chequeo de "utilizable" y lectura de la `version` del juego vigente (§4.5); SPEC-06 guarda el `NewChargeLock` y lo pasa a `provider_session` |
 | 06 | `services.ports.PendingChargesPort.has_pending_charges(ctx, integration_id) -> bool` | lo **implementa** SPEC-06 y se registra en `settings.INTEGRATIONS_PENDING_CHARGES_PORT`; hasta entonces, `NoChargesModule` (no hay cobros) y `checks.py` falla si `apps.charges` está instalada sin puerto propio |
-| 05/06/07 | `services.provider_gateway.provider_session(ctx, integration_id, *, operation)` | context manager que entrega el adaptador ya construido; ante `ProviderAuthError` llama `report_provider_auth_error` y re-lanza; nunca dentro de una transacción |
+| 05/06/07 | `services.provider_gateway.provider_session(ctx, integration_id, *, operation, new_charge: NewChargeLock \| None = None)` | context manager que entrega el adaptador ya construido; ante `ProviderAuthError` llama `report_provider_auth_error` y re-lanza; nunca dentro de una transacción. Para una operación que **crea un cobro nuevo** (`operation ∈ NEW_CHARGE_OPERATIONS`, hoy `create_charge`) `new_charge` es obligatorio (sin él, `TypeError`) y la sesión, al resolver, exige que el juego vigente siga siendo `new_charge.credential_version` y que la integración siga utilizable (incluido `account_unconfirmed=false`); si no, `IntegrationNotUsable(reason ∈ {credentials_changed, account_unconfirmed, inactive, …})` **antes** de llamar al proveedor (§4.7). Las operaciones sobre cobros existentes no lo pasan y no miran "utilizable" (RN-INT-15) |
 | 07 | `services.resolve_context.resolve_integration_context(ctx, integration_id)` | `IntegrationContext` (para `verify_webhook`); no lo bloquea la suspensión ni la inactividad (RN-INT-15) |
 | 07 | `selectors.webhook_routing.find_by_webhook_route_key(key) -> RoutedIntegration(organization_id, integration_id) \| None` | lectura global de una fila por igualdad, antes de conocer el tenant |
 
@@ -391,6 +391,15 @@ Respuesta `200 {connection_status, connection_reason, connection_checked_at, acc
   - si el cobro toma el lock primero, inserta su `pending` y confirma; desconectar espera, ve el `pending` y rechaza;
   - si desconectar va primero, el cobro espera, relee `disconnected` y no se crea.
   La llamada al proveedor del cobro va **después** de confirmar el `pending` (es de SPEC-06), nunca con el lock.
+  **Reemplazo entre el lock y la llamada (Q-430 a)).** `FOR KEY SHARE` no choca con el `FOR NO KEY UPDATE` del
+  reemplazo de credenciales, así que entre que el cobro confirma su `pending` (con el juego J1, versión v) y que
+  llama al proveedor puede guardarse J2 con `UNREACHABLE` y `account_unconfirmed=true`. Por eso
+  `lock_integration_for_new_charge` devuelve `NewChargeLock(credential_version=v)` y SPEC-06 abre
+  `provider_session(..., operation="create_charge", new_charge=lock)`: la sesión resuelve en **una** lectura la
+  integración y su juego y, si la versión ya no es v o la integración dejó de ser utilizable (inactiva, desconectada,
+  `account_unconfirmed`), lanza `IntegrationNotUsable` sin descifrar nada ni llamar al proveedor. Si la versión
+  coincide, la sesión usa J1, cuya cuenta estaba confirmada: un reemplazo que llegue después de esa lectura no
+  cambia el juego que se usa. Qué hace SPEC-06 con su `pending` cuando la sesión falla es de SPEC-06 (§11.3).
 - `bounded_lock_wait()` de `common/tenancy/locks.py` acota la espera (5 s → `503 organization_busy`).
 
 ### 4.6 Vínculo y Caja con efecto en el proveedor (RN-INT-12, RN-INT-23, Q-424, Q-428)
@@ -408,7 +417,9 @@ Respuesta `200 {connection_status, connection_reason, connection_checked_at, acc
   credenciales y una desconectada dan lo mismo. Como una integración `active` siempre tiene su `credential_set`
   (§10 de la spec; lo mantienen alta, reactivación y desconexión, y un test lo verifica), los modos `create`/`import`
   nunca encuentran una integración sin credenciales en estas altas; `integration_without_credentials` queda solo
-  para las listas de `provider-stores`/`provider-pos` sobre una desconectada.
+  para las listas de `provider-stores`/`provider-pos` sobre una desconectada. Q-431 b) cubre **solo la creación**:
+  reactivar un vínculo o una Caja se permite aunque la integración o la `Branch` estén inactivas, y quedan no
+  utilizables para cobros nuevos por RN-INT-26 hasta que todo vuelva a estar activo.
 - **Crear Caja** (`mode`): además exige el vínculo `Branch` + integración y que esté activo (si no, `409
   branch_link_required` con `reason ∈ {missing, inactive}`; orden: `resource_inactive` antes que
   `branch_link_required`). `create` → `ensure_pos(EnsurePos(pos_key, link.store_ref, name))`; `import` → `list_pos()`
@@ -431,11 +442,16 @@ Respuesta `200 {connection_status, connection_reason, connection_checked_at, acc
   provider_rejected` con `reason=auth_invalid`; validación/rechazo/no encontrado → `409 provider_rejected` con su
   `reason`.
 - **Reactivar un vínculo** (Q-429): `select_for_update` del vínculo → `decide_link_event` → `is_active=true`, sin
-  llamar al proveedor → `branch_link.reactivated`.
+  llamar al proveedor → `branch_link.reactivated`. No exige integración ni `Branch` activas (Q-431 b) es solo para
+  crear); lo mismo reactivar una Caja. Lo que quede reactivado sobre algo inactivo no es utilizable (RN-INT-26,
+  AC-INT-46).
 
 ### 4.7 `ProviderAuthError` en una operación real (RF-INT-13, Q-409)
-`provider_session(ctx, integration_id, operation=…)`: verifica que no hay transacción abierta → resuelve el
-contexto (`version` v) → instancia el adaptador → `yield`. Si el bloque lanza `ProviderAuthError`:
+`provider_session(ctx, integration_id, operation=…, new_charge=None)`: verifica que no hay transacción abierta →
+resuelve el contexto (`version` v) → si `operation` crea un cobro nuevo, exige `new_charge` y comprueba, con la fila
+leída en esa misma resolución, `v == new_charge.credential_version` y las condiciones de "utilizable" de RN-INT-26
+(activa, cuenta conocida, `account_unconfirmed=false`, capacidad, provider disponible); si falla, `IntegrationNotUsable`
+sin descifrar ni llamar al proveedor (§4.5) → instancia el adaptador → `yield`. Si el bloque lanza `ProviderAuthError`:
 `report_provider_auth_error(ctx, integration_id, version=v, reason, operation)` abre su propia transacción, toma el
 lock de la fila y, **solo si el juego vigente sigue siendo v** (un reemplazo posterior no se pisa), pasa a
 `credentials_invalid` (si no lo estaba) y emite `integration.connection_status_changed` (`origin=real_operation`,
@@ -614,7 +630,7 @@ credenciales, reactivar sin juego o con nombre ocupado son `validation_error` co
 | Nivel | Qué cubre | AC |
 |---|---|---|
 | Unitarias (dominio) | Matriz literal; `decide_save`/`decide_manual_test` (tabla §4.2 completa); máquinas de estado (integración, vínculo, Caja) con cada inválida; `validate_section` (requerido, tipo, `pattern`, largo, desconocido, mensajes sin valores); `normalize_name`; claves externas estables; cifrado: ida y vuelta, AAD de otra organización/integración/`key_id` falla, nonce distinto por cifrado, `key_id` desconocido, límite de tamaño; llavero: parseo y errores | AC-INT-05, 13, 25, 28, 31, 36, 37, 42 (decisión), 44 (cifrado) |
-| Servicio/integración (BD real) | Alta/reemplazo/reactivación con `FakeAdapter`; constraints (nombre, cuenta, vínculo, Caja, FK compuestas por SQL directo); concurrencia con hilos + `transaction=True`: reemplazo vs resolución (J1 o J2 completo), dos reemplazos, desconectar vs `lock_integration_for_new_charge`, dos altas con la misma cuenta; `provider_session` con `ProviderAuthError` (una sola llamada, estado, evento, versión vieja no pisa); resolución con `ctx` de otra org; tarea de sistema con org suspendida; selectors de "utilizable"; re-cifrado K1→K2 y retiro de K1; búsqueda por `webhook_route_key` | AC-INT-45 (cuenta sin confirmar: selector y lock de cobro nuevo), AC-INT-46 (actividad re-chequeada bajo lock frente a una desactivación concurrente), 04, 08, 09, 16, 17, 18, 19, 29, 32, 33, 36–38, 40, 42, 43, 44 |
+| Servicio/integración (BD real) | Alta/reemplazo/reactivación con `FakeAdapter`; constraints (nombre, cuenta, vínculo, Caja, FK compuestas por SQL directo); concurrencia con hilos + `transaction=True`: reemplazo vs resolución (J1 o J2 completo), dos reemplazos, desconectar vs `lock_integration_for_new_charge`, dos altas con la misma cuenta; `provider_session` con `ProviderAuthError` (una sola llamada, estado, evento, versión vieja no pisa); resolución con `ctx` de otra org; tarea de sistema con org suspendida; selectors de "utilizable"; re-cifrado K1→K2 y retiro de K1; búsqueda por `webhook_route_key` | AC-INT-45 (cuenta sin confirmar: selector y lock de cobro nuevo; **concurrencia**: hilo 1 toma `lock_integration_for_new_charge` con J1 y confirma, hilo 2 reemplaza por J2 con `UNREACHABLE`, hilo 1 abre `provider_session(..., new_charge=lock)` → `IntegrationNotUsable` y el `FakeAdapter` no registra ninguna llamada; y `create_charge` sin `new_charge` → `TypeError`), AC-INT-46 (actividad re-chequeada bajo lock frente a una desactivación concurrente), 04, 08, 09, 16, 17, 18, 19, 29, 32, 33, 36–38, 40, 42, 43, 44 |
 | API | Cada AC con `test_AC_INT_NN_*`; representación por rol (sin `management` para operator/viewer); códigos §6.2; throttle; `405` en `DELETE`; prueba dentro del presupuesto con un fake que no responde | AC-INT-45 (`409` de la prueba con estado persistido), AC-INT-46 (`409 resource_inactive`, sin llamadas al `FakeAdapter`), 01–03, 05–07, 10, 11, 13–15, 17, 21, 25–31, 33–35, 39, 41 |
 | Seguridad (`tests/security/`) | Valor secreto sintético conocido: crear, reemplazar, probar con `AUTH_INVALID`, resolver, desconectar → no aparece en logs capturados (structlog), cuerpos de respuesta y de error, eventos del `RecordingSink`, `repr`/`str` de modelos, DTOs y excepciones; fila de la BD sin el valor en claro | AC-INT-07, 08 |
 | Contrato (adaptadores) | Es de SPEC-03/05 (AC-ENG-09…12); acá solo se usa el `FakeAdapter` | (AC-INT-14 se apoya en AC-ENG-11) |
@@ -688,6 +704,11 @@ Decididas por el dueño el 2026-11-27 (revisión del PR #158), ya no son supuest
   "Sucursales y cajas" (las cajas son de `04`, Q-220 decidida).
 - **SPEC-06**: la Caja del cobro pasa de `pos_ref?` a FK compuesta a `integrations_cashregister (organization_id, id)`;
   implementa `PendingChargesPort`; usa `get_usable_*`, `lock_integration_for_new_charge` y `provider_session`.
+  Para **crear** la orden en el proveedor tiene que pasar el `NewChargeLock` que le devolvió el lock
+  (`provider_session(..., operation="create_charge", new_charge=lock)`, §4.5); si la sesión lanza
+  `IntegrationNotUsable` (el juego cambió o la cuenta quedó sin confirmar entre el `pending` y la llamada), no hubo
+  llamada al proveedor y SPEC-06 decide qué hace con ese `pending` (p. ej. fallarlo sin orden). Las operaciones
+  sobre cobros existentes (consultar, cancelar, devolver, webhooks, poller) no pasan `new_charge` (RN-INT-15).
 - **SPEC-07**: ruta de webhooks con `webhook_route_key` y su `Q-xxx` de ruta (tablero §1); usa
   `find_by_webhook_route_key` y `resolve_integration_context`.
 - **SPEC-03**: confirmar §3.6 en su diseño (`FieldSpec`, firmas de `ensure_*`/`list_*`, `reason` estables).
