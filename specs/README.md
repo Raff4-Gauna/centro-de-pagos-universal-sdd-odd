@@ -36,7 +36,7 @@ specs/
 | 01-identity-access | **Approved** | Sin `tasks.md` todavía |
 | 02-tenancy-rbac | **Approved** | Sin `tasks.md`; se cierra junto con 01 (Q-108) |
 | 03-integrations-engine | Draft | Contrato del motor (BaseAdapter, capacidades, errores) |
-| 04-integration-management | Por redactar | Bloquea a 06 |
+| 04-integration-management | **Clarified** 0.3.0 | Bloquea a 06; sin bloqueantes de Clarified; antes de Designed: ADR-0003, Q-415, Q-418, Q-421, Q-425…Q-429 |
 | 05-mercadopago-adapter | Draft | Orders API; depende del spike S-001 |
 | 06-charges | Draft | Cobros, máquina de estados, devoluciones |
 | resto | Por redactar con `/spec` | Ver `ROADMAP.md` |

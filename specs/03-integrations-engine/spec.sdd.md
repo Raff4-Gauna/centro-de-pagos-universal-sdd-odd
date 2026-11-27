@@ -3,9 +3,9 @@ id: SPEC-03
 modulo: integrations-engine
 estado: Draft
 track: S
-version: 0.1.0
+version: 0.2.0
 depende_de: [SPEC-00]
-actualizado: 2026-10-30
+actualizado: 2026-11-27
 ---
 
 # Módulo de Motor de Integraciones
@@ -66,6 +66,8 @@ Módulo interno (sin endpoints propios salvo `GET /api/integrations/{id}/capabil
   - `list_pos()` / `ensure_store(...)` / `ensure_pos(...)` *(solo con `POS_MANAGEMENT`)*
 - **RF-ENG-04** `ChargeResult` incluye estado normalizado (`ProviderStatus`), `provider_ref`, `external_reference`, monto, y datos de presentación (p. ej. `qr_data`). (RN-ENG-04)
 - **RF-ENG-05** `FakeAdapter` simula éxito, rechazo, timeout ambiguo, duplicado y webhooks, de forma configurable. (RN-ENG-11)
+- **RF-ENG-06** *(Q-401 y Q-410 de SPEC-04, decididas el 2026-11-27.)* Cada adaptador declara, como parte del contrato, el **esquema de campos** que el núcleo tiene que pedir, validar y guardar: los de **credenciales**, los de **configuración** de la integración y, si declara `POS_MANAGEMENT`, los datos del **vínculo de una sucursal con la integración** (p. ej. la ubicación que el proveedor exige para su Store). Por cada campo: nombre, tipo, obligatorio, secreto/no secreto, validación de formato y texto de ayuda. El esquema es inmutable, como las capacidades (RN-ENG-02); el núcleo lo trata como datos opacos y no contiene nombres de campos de ningún proveedor (RN-ENG-10, C-09). El `FakeAdapter` declara un esquema configurable. (RN-ENG-03, RN-ENG-10)
+- **RF-ENG-07** *(Q-403 y Q-406 de SPEC-04, decididas el 2026-11-27.)* `ConnectionStatus` (resultado de `test_connection`) lleva un resultado normalizado: `CONNECTED` (las credenciales autentican; lleva el **identificador de cuenta** del proveedor, no secreto y obligatorio en este caso), `AUTH_INVALID` (el proveedor rechazó las credenciales, equivalente a `ProviderAuthError`) o `UNREACHABLE` (proveedor caído, 429 o timeout: `ProviderUnavailable`, `ProviderRateLimited` o falta de respuesta dentro del timeout); en los dos últimos, con el `reason` de la taxonomía de RN-ENG-05. Los demás errores de la taxonomía se lanzan como excepción (su efecto en SPEC-04: Q-425 de SPEC-04, abierta). `ConnectionStatus` no contiene credenciales ni el cuerpo crudo del proveedor (RN-ENG-08). El `FakeAdapter` puede configurarse para devolver cada resultado y un identificador de cuenta elegido. (RN-ENG-05, RN-ENG-08)
 
 ## 8. Requisitos no funcionales
 - **RNF-ENG-01** Ninguna llamada externa sin timeout (conexión y lectura configurables).
@@ -84,7 +86,7 @@ Interfaz Python (RF-ENG-03) y jerarquía de excepciones (RN-ENG-05). Sin endpoin
 ## 12. Casos límite y excepciones
 - El proveedor responde 5xx **después** de crear el recurso (resultado desconocido) → `ProviderUnknown`.
 - Reintento con la misma clave pero cuerpo distinto → error del proveedor; el core **nunca** muta el cuerpo en un reintento.
-- Credenciales vencidas durante la operación → `ProviderAuthError` (SPEC-04 decide renovar y reintentar una vez).
+- Credenciales vencidas durante la operación → `ProviderAuthError`. Sin renovación en el MVP (Q-409 de SPEC-04, 2026-11-27): SPEC-04 deja la integración en `credenciales inválidas` y la operación falla **sin reintento**; la renovación de tokens entra con OAuth.
 - Límite de tasa (429) → `ProviderRateLimited` con espera sugerida si el proveedor la informa.
 - Adaptador declara una capacidad que el ambiente de pruebas no soporta → el test de contrato lo marca como omitido con motivo, no como éxito.
 - Respuesta del proveedor con estado que no conocemos → `ProviderStatus.UNKNOWN` (nunca se adivina).
@@ -98,6 +100,8 @@ Interfaz Python (RF-ENG-03) y jerarquía de excepciones (RN-ENG-05). Sin endpoin
 - **AC-ENG-06** (RN-ENG-11) **Dado** un `FakeAdapter` configurado con timeout ambiguo en `create_charge` **cuando** el core reintenta con la misma clave **entonces** se obtiene el mismo `ChargeResult` y no se crea un segundo recurso.
 - **AC-ENG-07** (RN-ENG-04) **Dado** un monto `Decimal("1500.00")` **cuando** pasa por el contrato **entonces** nunca se convierte a `float` en el núcleo.
 - **AC-ENG-08** (RN-ENG-07) **Dado** una llamada sin timeout configurado **cuando** se construye el cliente HTTP **entonces** falla con error de configuración.
+- **AC-ENG-09** (RF-ENG-06) **Dado** el `FakeAdapter` con un esquema que declara un campo secreto obligatorio, uno no secreto con validación de formato y, con `POS_MANAGEMENT`, un dato del vínculo con la sucursal **cuando** el núcleo lee el esquema por el registry **entonces** obtiene cada campo con nombre, tipo, obligatoriedad, marca secreto/no secreto, validación y ayuda tal como se declararon; **y** el test de contrato falla si un adaptador registrado no declara su esquema.
+- **AC-ENG-10** (RF-ENG-07) **Dado** el `FakeAdapter` configurado para cada resultado **cuando** se invoca `test_connection` **entonces** devuelve `CONNECTED` con el identificador de cuenta configurado, `AUTH_INVALID` o `UNREACHABLE` con su `reason`; **y** ninguna representación de `ConnectionStatus` (`repr`, log, serialización) contiene credenciales.
 
 ## 14. Interfaz de usuario
 No aplica.
@@ -117,3 +121,4 @@ Se completa al generar `tasks.md`.
 |---|---|---|---|
 | 0.1.0 | 2026-10-30 | Borrador inicial | — |
 | 0.1.1 | 2026-10-31 | §16 actualizada | Q-002 y Q-007 decididas |
+| 0.2.0 | 2026-11-27 | Nuevo RF-ENG-06 (esquema de campos de credenciales, configuración y vínculo con la sucursal que declara el adaptador) con AC-ENG-09; nuevo RF-ENG-07 (`ConnectionStatus` con resultado normalizado `CONNECTED`/`AUTH_INVALID`/`UNREACHABLE` e identificador de cuenta no secreto) con AC-ENG-10; §12 corregido: sin renovación ni reintento ante `ProviderAuthError` en el MVP. Q-421 de SPEC-04 (`test_connection` sin efectos) sigue abierta y no se aplica | Decisiones del dueño del 2026-11-27 en SPEC-04: Q-401, Q-403, Q-406, Q-409 y Q-410 |
