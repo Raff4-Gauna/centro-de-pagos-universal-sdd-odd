@@ -92,7 +92,8 @@ repetir esa verificación.
 - **Hecho (2026-11-27):** Dependabot #73, #147 (django 5.2.19, psycopg 3.3.9) y #116 (next 16.4.6); versiones de los
   documentos alineadas (#156, spec 00 → 1.0.23). Spec 04: borrador y aclaraciones (#157, Q-401…Q-412, Q-423, Q-424 y
   Q-220 decididas por el dueño), diseño y ADR-0003 (#158, Q-415, Q-418, Q-421, Q-425…Q-432), y *Approved* 1.0.0 con
-  ADR-0003 aceptado (OK del dueño). Spec 03 → Draft 0.3.0. Todo con `reviewer` APROBADO sobre el head y CI en verde.
+  ADR-0003 aceptado (OK del dueño, en el PR de aprobación). Spec 03 → Draft 0.3.0. #156 a #158 con `reviewer` APROBADO
+  sobre el head y CI en verde.
 - **Pendiente / dudas:** validación manual de la UI de 02 y `Verified` de 01 y 02; Q-229 (abierta, no bloquea); #67 y
   #68 (los mergea el dueño); Q-220 todavía figura abierta en los textos de 02 y `context/07`; supuestos abiertos de 04
   (Q-413, Q-414, Q-416, Q-417, Q-419, Q-422) y Q-420 (SPEC-11); Q-028 (SPEC-12); AC-PLT-01; S-001 sin ejecutar.

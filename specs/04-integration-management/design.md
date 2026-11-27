@@ -1,6 +1,6 @@
 ---
 spec: SPEC-04
-estado: Draft            # Draft | Aprobado — pasa a Aprobado con el OK del dueño (spec → Approved)
+estado: Aprobado         # Draft | Aprobado — aprobado por el dueño el 2026-11-27
 actualizado: 2026-11-27
 ---
 # Diseño — Módulo de Gestión de Integraciones (integraciones, credenciales, vínculos y Cajas)
@@ -742,7 +742,5 @@ Decididas por el dueño el 2026-11-27 (revisión del PR #158), ya no son supuest
 ---
 **Hecho:** diseño completo: cada RN/RF/RNF con destino (§2), datos con constraints e índices (§5), contratos (§6),
 seguridad (§7), UI (§3.9), pruebas por AC (§9); ADR-0003 *Aceptado* (2026-11-27).
-**Pendiente / dudas:** OK del dueño (spec → *Approved*, ADR-0003 → *Aceptado*); supuestos de §11.2 (Q-430, Q-431 y
-Q-432 ya decididas); diseño de SPEC-03 que confirme §3.6.
-**Siguiente rol sugerido:** el dueño (aprobación) → task-planner (`/tasks 04-integration-management`, después de las
-tareas de SPEC-03).
+**Pendiente / dudas:** supuestos abiertos de §11.2; diseño de SPEC-03 que confirme §3.6.
+**Siguiente rol sugerido:** task-planner (`/tasks 04-integration-management`, después de las tareas de SPEC-03).

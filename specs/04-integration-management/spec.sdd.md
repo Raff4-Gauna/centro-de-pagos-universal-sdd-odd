@@ -17,9 +17,9 @@ actualizado: 2026-11-27
 >
 > Prefijo de IDs: `INT` (`RN-INT`, `RF-INT`, `RNF-INT`, `AC-INT`). SPEC-03 usa `ENG`; ninguna spec usaba `INT`.
 >
-> **Estado:** *Designed* (2026-11-27): Q-401 a Q-412, Q-415, Q-418, Q-421 y Q-423 a Q-432 decididas por el dueño;
-> diseño en `design.md` y cifrado en ADR-0003 (*Propuesto*). Ninguna pregunta abierta bloquea *Designed*; las que
-> quedan (§16) están tomadas como supuesto de diseño. Pasar a *Approved* es decisión del dueño (con ADR-0003).
+> **Estado:** *Approved* (2026-11-27, por el dueño): Q-401 a Q-412, Q-415, Q-418, Q-421 y Q-423 a Q-432 decididas por
+> el dueño; diseño en `design.md` y cifrado en ADR-0003 (*Aceptado* 2026-11-27). Las preguntas que quedan abiertas
+> (§16) están tomadas como supuesto de diseño y no bloquean la implementación.
 
 ## 1. Contexto y problema
 El motor (SPEC-03) define cómo se habla con un proveedor, pero no dónde viven las cuentas conectadas: SPEC-03 §3.2
@@ -336,7 +336,7 @@ Organización `suspended` (SPEC-02 §4.1): lectura igual; toda escritura de esta
   logs, errores, auditoría ni `repr` en crear, reemplazar, probar conexión (también ante error del proveedor),
   resolver y desconectar. Los fixtures y tests usan valores sintéticos; nunca valores de `context/09` ni `context/10`.
 - **RNF-INT-02 Cifrado:** la forma de cifrar, dónde vive la clave (fuera de la BD y del repo) y cómo se rota la
-  clave maestra están en **ADR-0003** (*Propuesto*; se acepta con *Approved*). Una dependencia criptográfica nueva
+  clave maestra están en **ADR-0003** (*Aceptado* 2026-11-27). Una dependencia criptográfica nueva
   requiere ese ADR (`C-13`). **Rotación (Q-418):** la clave maestra se rota sin downtime; las credenciales guardadas se
   re-cifran con la clave nueva y las cifradas con claves anteriores siguen legibles hasta que el re-cifrado termina.
   Se cifran solo los campos que el esquema del adaptador marca secretos (Q-401).
@@ -759,7 +759,7 @@ Transición inválida → rechazada con `invalid_transition` y auditada (RN-INT-
 - **Riesgo (resuelto en el diseño):** Q-229 (abierta en SPEC-02): las unicidades de este módulo no usan `full_clean`
   ni `UniqueValidator`; las garantiza la base y el servicio traduce el `IntegrityError`, como `Branch`
   (`design.md §5`). Q-229 sigue abierta en SPEC-02 y no bloquea.
-- **Resuelto por el architect (2026-11-27):** ADR-0003 (*Propuesto*); FK compuestas (`design.md §5`); resolución de
+- **Resuelto por el architect (2026-11-27):** ADR-0003 (*Propuesto*; aceptado el 2026-11-27); FK compuestas (`design.md §5`); resolución de
   credenciales sin objetos logueables (`design.md §3.6`, §7); esquema de campos leído del registry (`design.md
   §3.6`); sin tabla `providers` (Q-416, supuesto a)); "Desconectar" frente a un cobro nuevo concurrente por lock de
   fila de la integración (`design.md §4.5`).
@@ -791,11 +791,10 @@ Se completa al generar `tasks.md`.
 | 0.3.0 | 2026-11-27 | Estado → **Clarified**. Se aplican Q-423 (a/a/a: sin cuenta conocida no se cobra y la colisión posterior se rechaza sin revelar dónde; un reemplazo con otra cuenta se rechaza; la cuenta queda reservada mientras haya credenciales y se libera al desconectar) y Q-424 (a: Store creado o importado como la Caja; Caja solo sobre vínculo activo; desactivar el vínculo vuelve no utilizables sus Cajas sin cambiarles el estado), y las cuatro interpretaciones confirmadas por el dueño. Nueva RN-INT-26 (condiciones de "utilizable"); reescritas RN-INT-12, 14, 19, 22, 23 y 24; RF-INT-09, 10 y 11 actualizados. Nuevos AC-INT-36 a 40; reescritos AC-INT-18, 19, 29, 33 y 34. Supuesto explícito del identificador de cuenta de MP, a verificar en S-001. Total: 26 RN, 13 RF, 10 RNF, 40 AC. Nuevas Q-427, Q-428 y Q-429 (no bloquean *Clarified*; bloquean *Designed*) | Paso 2 SDD (`/clarify`), decisiones del dueño del 2026-11-27 |
 | 0.4.0 | 2026-11-27 | Estado → **Designed**. Se aplican Q-415 a) (nueva RN-INT-27 y RF-INT-14: identificador de ruteo de webhooks), Q-418 a) (RNF-INT-02 con la rotación sin downtime; nuevo RF-INT-15), Q-421 a) (RN-INT-10 y AC-INT-14: `test_connection` sin efectos, por contrato), Q-425 a) (RN-INT-10, 21, 22, 24; AC-INT-13, 31, 33), Q-426 a) (RN-INT-01, §10, AC-INT-28: nombre recortado, sin mayúsculas, único entre activas; AC-INT-28 pasa de "error de validación" a "conflicto de nombre", como `Branch`), Q-427 a) (RN-INT-19, 24: misma cuenta al reactivar; nuevo AC-INT-42), Q-428 a) (RN-INT-23, AC-INT-39: `list_stores`) y Q-429 a) (RN-INT-18, 23, 25, §9, §10: un vínculo por `Branch` + integración, reactivable; nuevo AC-INT-43). RNF-INT-03 suma `branch_link.reactivated`, `integration.webhook_key_regenerated` e `integration.credentials_reencrypted`. RN-INT-22 cubre también la reactivación de una desconectada. Nuevo AC-INT-44 (rotación). §4 suma el identificador de webhooks, la reactivación del vínculo y la rotación por comando. Nuevas Q-430 (otra cuenta tras guardar sin prueba; conviene decidirla antes de *Approved*), Q-431 y Q-432 (no bloquean). Total: 27 RN, 15 RF, 10 RNF, 44 AC. Diseño en `design.md`; cifrado en ADR-0003 (*Propuesto*) | Paso 3 SDD (`/design`), decisiones del dueño del 2026-11-27 |
 | 0.4.1 | 2026-11-27 | Sigue **Designed**. Se aplica Q-430 a): RN-INT-19 (cuenta sin confirmar tras guardar con `UNREACHABLE`/`ProviderUnknown` sobre una cuenta conocida; una prueba con otra cuenta no la confirma), RN-INT-26 (exige cuenta confirmada), §9 (marca en `Integration`), §15; nuevo AC-INT-45. Q-431 **b)** (reconfirmada por el dueño tras corregir la descripción de las opciones: vínculos y Cajas solo sobre integración activa y `Branch` activa; RN-INT-12, RN-INT-23; nuevo AC-INT-46) y Q-432 a) pasan a decididas (RN-INT-23, §9). Q-431 b) se aclara como solo para crear: reactivar un vínculo o una Caja con la integración o la `Branch` inactiva se permite y queda no utilizable (RN-INT-23, §10, AC-INT-46). AC-INT-45 suma el caso concurrente del cobro nuevo frente a un reemplazo guardado sin confirmar la cuenta. §13 y §16 al día. Total: 27 RN, 15 RF, 10 RNF, 46 AC. En la revisión de #158 (`4fe861e`) se agregó en `design.md` el orden literal de `provider_session` (§4.7) y que `credentials_changed` es reintentable para SPEC-06 (§11.3). | Rechazos del reviewer en el PR #158 (SHA `f8e7831` y `201a40b`) y decisiones del dueño del 2026-11-27 |
-| 1.0.0 | 2026-11-27 | Estado → **Approved** por el dueño, junto con la aceptación de ADR-0003. Sin cambios en RN/RF/RNF/AC (27 RN, 15 RF, 10 RNF, 46 AC) | Gate humano *Approved* (2026-11-27), después de la revisión de `design.md` en #158 |
+| 1.0.0 | 2026-11-27 | Estado → **Approved** por el dueño, junto con la aceptación de ADR-0003. Sin cambios en RN/RF/RNF/AC (27 RN, 15 RF, 10 RNF, 46 AC); los textos de estado (aviso inicial, RNF-INT-02, §15 y pie) pasan a *Approved* y ADR-0003 *Aceptado* | Gate humano *Approved* (2026-11-27), después de la revisión de `design.md` en #158 |
 
 ---
-**Hecho:** *Designed* 0.4.1: Q-415, Q-418, Q-421 y Q-425…Q-432 aplicadas; `design.md` y ADR-0003 (*Propuesto*);
-SPEC-03 0.3.0 con Q-421 y Q-428.
-**Pendiente:** OK del dueño para *Approved* (y aceptar ADR-0003); Q-420 con SPEC-11.
-**Siguiente rol:** el dueño (aprobación); después task-planner (`/tasks 04-integration-management`), con las tareas
-del motor (SPEC-03) antes.
+**Hecho:** *Approved* 1.0.0 (2026-11-27, por el dueño): `design.md` y ADR-0003 (*Aceptado*); SPEC-03 0.3.0 con
+Q-421 y Q-428.
+**Pendiente:** Q-420 con SPEC-11; supuestos abiertos de §16.
+**Siguiente rol:** task-planner (`/tasks 04-integration-management`), con las tareas del motor (SPEC-03) antes.
