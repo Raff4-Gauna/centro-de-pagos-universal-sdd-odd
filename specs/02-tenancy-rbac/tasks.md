@@ -73,8 +73,8 @@ Donde el diseño y el código de SPEC-00, o el orden real, difieren, manda esta 
 
 ## Resumen
 
-> 39 de las 40 tareas están mergeadas (✅, con el PR y el SHA del squash en `main`), conciliadas con git el 2026-11-26;
-> `T-TEN-40` está en revisión. Ninguna está 🧪: falta la verificación conjunta con SPEC-01 (Q-108). La columna **Evidencia** es obligatoria para
+> Las 40 tareas están mergeadas (✅, con el PR y el SHA del squash en `main`), conciliadas con git el 2026-11-27.
+> Ninguna está 🧪: falta la verificación conjunta con SPEC-01 (Q-108). La columna **Evidencia** es obligatoria para
 > `✅` y la verifica `scripts/check_spec_state.py`.
 
 | ID | Título | AC | Capa | Archivos esperados (ver detalle) | Depende de | Agente | Tamaño | Zona roja | Estado | Evidencia |
@@ -118,7 +118,7 @@ Donde el diseño y el código de SPEC-00, o el orden real, difieren, manda esta 
 | T-TEN-37 | Auditar los rechazos de los comandos de operador (Q-237) | AC-TEN-23 (rechazos del operador) | Comandos | `services/platform_{owner_invite,org_status,access}.py`, `domain/audit_events.py` | T-TEN-28 | backend-dev | S | Sí | ✅ | #144 · 35624bc |
 | T-TEN-38 | Registrar en el log de seguridad un --operator rechazado (Q-241) | — (RF-TEN-07, Q-241) | Comandos | `management/commands/_platform.py` | T-TEN-37 | backend-dev | S | Sí | ✅ | #146 · 52ccc7e |
 | T-TEN-39 | Aceptar con el token de una invitación ya aceptada por la misma persona responde 200 idempotente (Q-243) | AC-TEN-17 (Q-243) | Servicio/API | `domain/invitations.py`, `services/invitation_accept.py`, `api/invitations.py` | T-TEN-15, T-TEN-36 | backend-dev | S | Sí | ✅ | #151 · 6fd9ed6 |
-| T-TEN-40 | Test de AC-TEN-17: la misma persona repite el token después del vencimiento (Q-243) | AC-TEN-17 (Q-243) | Tests | `backend/tests/tenancy/test_Q_243_idempotent_accept.py`, `backend/tests/tenancy/api/test_invitation_accept_api.py` | T-TEN-39 | backend-dev | S | Sí | 🟡 | PR #155, rama `task/T-TEN-40-repeat-after-expiry-test` |
+| T-TEN-40 | Test de AC-TEN-17: la misma persona repite el token después del vencimiento (Q-243) | AC-TEN-17 (Q-243) | Tests | `backend/tests/tenancy/test_Q_243_idempotent_accept.py`, `backend/tests/tenancy/api/test_invitation_accept_api.py` | T-TEN-39 | backend-dev | S | Sí | ✅ | #155 · 984a532 |
 
 ## Cobertura AC → tareas
 | AC | Tareas |
@@ -1411,6 +1411,7 @@ un PR posterior cerró alguno.
 | T-TEN-37 | #144 | 35624bc | ✅ |
 | T-TEN-38 | #146 | 52ccc7e | ✅ |
 | T-TEN-39 | #151 | 6fd9ed6 | ✅ |
+| T-TEN-40 | #155 | 984a532 | ✅ |
 <!-- check_spec_state:end -->
 
 ---

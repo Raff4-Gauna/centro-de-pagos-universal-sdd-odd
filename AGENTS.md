@@ -147,7 +147,7 @@ Notas:
   CI: `test_RN_PLT_09_architecture_job_runs_architecture_tests` y `test_AC_PLT_21_typecheck_job_runs_mypy_on_backend_and_scripts`.
 - `scripts/` no está montado en `backend` ni el contrato en `frontend`: `DC exec backend mypy . ../scripts` y
   `DC exec frontend pnpm openapi:types` fallan; por eso `DC run` con el montaje. `DC exec backend mypy .` solo mira el backend.
-- `pytest` y `ruff` del host no son prerrequisitos (`infra/README.md`): van instalados aparte, `ruff` en `0.17.3`.
+- `pytest` y `ruff` del host no son prerrequisitos (`infra/README.md`): van instalados aparte, `ruff` en `0.17.6`.
   `pre-commit` trae su propio `ruff`.
 - Smoke del stack (`scripts/smoke_stack.py`, T-PLT-38): corre en el job `build` de CI (`infra/docker-compose.ci.yml`) y
   a mano sobre las imágenes `runtime` del commit. PowerShell, desde la raíz:

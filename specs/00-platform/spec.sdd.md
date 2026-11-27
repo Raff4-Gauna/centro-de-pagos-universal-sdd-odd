@@ -3,9 +3,9 @@ id: SPEC-00
 modulo: platform
 estado: Approved
 track: S
-version: 1.0.22
+version: 1.0.23
 depende_de: []
-actualizado: 2026-11-07
+actualizado: 2026-11-27
 ---
 
 # Módulo de Plataforma (fundaciones)
@@ -265,3 +265,4 @@ Se completa al generar `tasks.md`.
 | 1.0.20 | 2026-11-06 | Ajuste de diseño en `design.md §10.2` (T-PLT-41): los comandos de pnpm de la tabla se corren desde `frontend/` (`cd frontend; pnpm <comando>; cd ..`), no con `pnpm --dir frontend`; lo mismo en `§3.6`. Ampliación decidida por la sesión principal, no por el dueño: `§10.2` queda igual a `AGENTS.md` (`DC` con `--env-file .env`, `DJANGO_SETTINGS_MODULE` y `stop` de worker en los tests, `mypy` con `DC run` y `scripts/` montado, `openapi:types` en contenedor, `createdb`/`dropdb` del round trip y fila de smoke). Sin cambios en RN/RF/AC. Número provisional: 1.0.19 queda para #55, se ajusta al mergear. Q-063 ampliada por el dueño: todo PR que agregue o cambie un archivo de `.github/workflows/` lo mergea él | Con corepack, `pnpm --dir frontend` desde la raíz, que no tiene `package.json`, arranca la versión por defecto de corepack y pnpm la rechaza con `ERR_PNPM_BAD_PM_VERSION`; reproducido en `node:24.22.2-trixie-slim` y en PowerShell. Al probar la tabla (T-PLT-41), `exec backend mypy . ../scripts` falló porque `scripts/` no está montado |
 | 1.0.21 | 2026-11-06 | Ajuste de diseño en `design.md §3.7.3`: tras un veredicto se re-ejecutan todas las corridas de `zona-roja` del head. El ruleset se aplicó con autorización puntual del dueño, y `main.json` declara el default de GitHub `require_extra_approval_for_unattributed_changes`, inerte con 0 aprobaciones. Sin cambios en RN/RF/AC | Limpieza de proceso (`context/worklog/2026-11-06-process-cleanup.md`) |
 | 1.0.22 | 2026-11-07 | Ajuste de diseño en `design.md §3.5`, `§3.2.7` y `§8`, sin cambios en RN/RF/AC: Dependabot ignora los saltos mayores en los cuatro ecosistemas, `check_migrations_roundtrip` rechaza una BD con filas (#63), y la tabla de versiones refleja DRF 3.18.3 y psycopg 3.3.7 (#62) | Decisión del dueño del 2026-11-07, tras cerrar #26 a #31 |
+| 1.0.23 | 2026-11-27 | Ajuste de diseño en `design.md §3.6` y `§8`, sin cambios en RN/RF/AC: la tabla de versiones refleja django 5.2.19, psycopg[binary] 3.3.9, pydantic-settings 2.16.3, ruff 0.17.6 y pyyaml 6.0.4 (#147); next y eslint-config-next 16.4.6, postcss 8.5.33, vite 8.3.8 y `@testing-library/user-event` 14.6.13 (#116); `@vitejs/plugin-react` 6.3.0 (#73); el hook `ruff-pre-commit` pasa a v0.17.6, igual que CI. uv 0.13.6 y `pnpm/action-setup` v6.1.0 no cambian (#68 y #67 siguen abiertos) | Parches de Dependabot mergeados el 2026-11-27 (precedente: #62 → #64) |
