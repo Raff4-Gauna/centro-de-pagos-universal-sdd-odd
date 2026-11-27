@@ -1,13 +1,13 @@
 ---
 spec: SPEC-04
-estado: Draft            # Draft | Aprobado — pasa a Aprobado con el OK del dueño (spec → Approved)
+estado: Aprobado         # Draft | Aprobado — aprobado por el dueño el 2026-11-27
 actualizado: 2026-11-27
 ---
 # Diseño — Módulo de Gestión de Integraciones (integraciones, credenciales, vínculos y Cajas)
 
-> Parte de `spec.sdd.md` **0.4.1 (*Designed*)** y de `clarifications.md` (Q-401…Q-432). No cambia reglas de negocio:
+> Parte de `spec.sdd.md` **1.0.0 (*Approved*)** y de `clarifications.md` (Q-401…Q-432). No cambia reglas de negocio:
 > donde la spec delega un detalle técnico ("lo fija `design.md`") se decide acá. Decisión no obvia de cifrado:
-> **ADR-0003** (*Propuesto*). Se reutiliza sin cambios la base de SPEC-02 (ADR-0001, ADR-0002): `TenantModel` que
+> **ADR-0003** (*Aceptado* 2026-11-27). Se reutiliza sin cambios la base de SPEC-02 (ADR-0001, ADR-0002): `TenantModel` que
 > falla cerrado, `TenantContext`, `ensure_writable`, `ActionSpec`/`TenantViewSet`, puerto de auditoría, suite
 > cross-tenant y test de arquitectura.
 >
@@ -668,7 +668,7 @@ Cobertura de los 46 AC: todos tienen al menos un nivel arriba; `verification.md`
 ### 11.1 Decisiones y riesgos
 | Riesgo / decisión | Mitigación / ADR |
 |---|---|
-| Cifrado, clave maestra, rotación sin downtime | ADR-0003 (*Propuesto*) |
+| Cifrado, clave maestra, rotación sin downtime | ADR-0003 (*Aceptado*) |
 | SPEC-03 en *Draft*: su diseño puede no calzar con §3.6 | §3.6 es explícito; el diseño de 03 lo respeta o cambia este documento con historial; tareas de 04 después de las de 03 |
 | Unicidad de cuenta entre organizaciones bajo RLS | Índice único (§5.2): no depende de políticas ni de consultas globales |
 | Prueba con el proveedor lento mientras hay lock | Nunca hay lock ni transacción durante la llamada; control de `version` al aplicar (§4.3, §4.4) |
@@ -741,8 +741,6 @@ Decididas por el dueño el 2026-11-27 (revisión del PR #158), ya no son supuest
 
 ---
 **Hecho:** diseño completo: cada RN/RF/RNF con destino (§2), datos con constraints e índices (§5), contratos (§6),
-seguridad (§7), UI (§3.9), pruebas por AC (§9); ADR-0003 *Propuesto*.
-**Pendiente / dudas:** OK del dueño (spec → *Approved*, ADR-0003 → *Aceptado*); supuestos de §11.2 (Q-430, Q-431 y
-Q-432 ya decididas); diseño de SPEC-03 que confirme §3.6.
-**Siguiente rol sugerido:** el dueño (aprobación) → task-planner (`/tasks 04-integration-management`, después de las
-tareas de SPEC-03).
+seguridad (§7), UI (§3.9), pruebas por AC (§9); ADR-0003 *Aceptado* (2026-11-27).
+**Pendiente / dudas:** supuestos abiertos de §11.2; diseño de SPEC-03 que confirme §3.6.
+**Siguiente rol sugerido:** task-planner (`/tasks 04-integration-management`, después de las tareas de SPEC-03).
