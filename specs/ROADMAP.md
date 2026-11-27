@@ -8,8 +8,8 @@
 | 00 | platform | Repo, Docker, CI, settings, logging, convenciones, OpenAPI | — | **Parcial** (contrato OpenAPI, chequeo de migraciones, tests de arquitectura — Q-051) | H1 | **Approved** |
 | 01 | identity-access | Usuarios, login con Google, JWT, sesión segura | 00 | **Sí** | H1 | **Approved**, diseño aprobado, `tasks.md` listo |
 | 02 | tenancy-rbac | Organizaciones, memberships, roles, sucursales, filtro obligatorio | 00, 01 (se cierran juntas, Q-108) | **Sí** | H1 | **Approved**, diseño aprobado, `tasks.md` listo |
-| 03 | integrations-engine | Contrato común: BaseAdapter, registry, capacidades, errores, FakeAdapter | 00 | **Sí** | H2 | **Draft** |
-| 04 | integration-management | Alta de integraciones, credenciales cifradas, prueba de conexión, Caja (Q-220), (OAuth) | 02, 03 | **Sí** | H2 | **Draft** |
+| 03 | integrations-engine | Contrato común: BaseAdapter, registry, capacidades, errores, FakeAdapter | 00 | **Sí** | H2 | **Draft** 0.3.0 |
+| 04 | integration-management | Alta de integraciones, credenciales cifradas, prueba de conexión, Caja (Q-220), (OAuth) | 02, 03 | **Sí** | H2 | **Designed** 0.4.1 (`design.md` + ADR-0003 *Propuesto*; falta OK del dueño para *Approved*) |
 | 05 | mercadopago-adapter | Stores/POS, órdenes QR, cancelar, devolver, parseo y firma de webhooks | 03, S-001 | **Sí** | H2 | **Draft** |
 | 06 | charges | Cobros, estados, idempotencia, cancelación, devolución | 02, 03, 04 | **Sí** | H2–H3 | **Draft** |
 | 07 | webhooks | Receptor firmado, registro de eventos, dedupe, procesamiento asíncrono, poller | 05, 06 | **Sí** | H3 | Por redactar |
