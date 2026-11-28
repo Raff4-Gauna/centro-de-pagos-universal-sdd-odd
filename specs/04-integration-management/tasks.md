@@ -93,8 +93,8 @@ Donde el diseño y el código de `main`, o el orden real, difieren, manda esta t
 | ID | Título | AC | Capa | Archivos esperados (ver detalle) | Depende de | Agente | Tamaño | Zona roja | Estado | Evidencia |
 |---|---|---|---|---|---|---|---|---|---|---|
 | T-INT-01 | App `integrations` + `Integration` + migración 0001 | AC-INT-28 (constraint), AC-INT-29 (índice), AC-INT-38 (índice), AC-INT-41 (unicidad) | DB | `apps/integrations/{apps,models/integration}.py`, `migrations/0001_integration.py`, `config/settings/base.py` | — | backend-dev | L | Sí | ✅ | #167 · fc7687d |
-| T-INT-02 | `CredentialSet` + migración 0002 con FK compuesta | — (RN-INT-06, RN-INT-13) | DB | `models/credential_set.py`, `migrations/0002_credential_set.py` | T-INT-01 | backend-dev | M | Sí | 🟡 | PR #168, rama `task/T-INT-02-credential-set` |
-| T-INT-03 | `BranchLink` + migración 0003 con FK compuestas | AC-INT-34 (constraint), AC-INT-43 (constraint) | DB | `models/branch_link.py`, `migrations/0003_branch_link.py` | T-INT-02 | backend-dev | M | Sí | ☐ | — |
+| T-INT-02 | `CredentialSet` + migración 0002 con FK compuesta | — (RN-INT-06, RN-INT-13) | DB | `models/credential_set.py`, `migrations/0002_credential_set.py` | T-INT-01 | backend-dev | M | Sí | ✅ | #168 · 278890f |
+| T-INT-03 | `BranchLink` + migración 0003 con FK compuestas | AC-INT-34 (constraint), AC-INT-43 (constraint) | DB | `models/branch_link.py`, `migrations/0003_branch_link.py` | T-INT-02 | backend-dev | M | Sí | 🔄 | rama `task/T-INT-03-branch-link` |
 | T-INT-04 | `CashRegister` + migración 0004 con FK compuesta al vínculo | AC-INT-19 (constraint) | DB | `models/cash_register.py`, `migrations/0004_cash_register.py` | T-INT-03 | backend-dev | M | Sí | ☐ | — |
 | T-INT-05 | Cifrado AES-256-GCM y llavero (dominio, ADR-0003) | AC-INT-44 (cifrado) | Dominio | `apps/integrations/keyring.py`, `domain/credential_cipher.py` | T-INT-01 | backend-dev | L | Sí | ☐ | — |
 | T-INT-06 | Llavero en settings, system checks y `integrations_generate_key` | AC-INT-08 | Base | `config/settings/{env,base,test,prod}.py`, `apps/integrations/checks.py`, `management/commands/integrations_generate_key.py`, `env.example`, `infra/docker-compose.ci.yml` | T-INT-02, T-INT-05 | backend-dev | M | Sí | ☐ | — |
@@ -275,6 +275,11 @@ suspendida, resultado de la prueba, cuenta ya conectada) → en cada tarea de UI
 - **Pruebas:** `test_RN_INT_13_credentialset_mixing_organizations_is_rejected` (INSERT por SQL),
   `test_RN_INT_06_one_set_per_integration`, `test_RN_INT_04_credentialset_repr_has_no_data`, checks de
   `key_id`/`format_version`/`ciphertext` mínimo.
+- **Desvío aceptado en la revisión (#168):** el diff quedó en ~430 líneas contra ~200 de una M: la `0002` es una sola
+  migración de la serie y no se parte, y ningún archivo se acerca a 400 líneas (C-14). La FK compuesta se llama
+  `credentialset_integration_same_org` (design §5.1 no la nombra; el servicio traduce el `IntegrityError` por ese
+  nombre). `version` y `format_version` no tienen default: los fija el servicio y los acotan
+  `credentialset_version_positive` y `credentialset_format_v1`.
 
 ### T-INT-03 — `BranchLink` + migración 0003 con FK compuestas
 - **AC:** AC-INT-34 (constraint), AC-INT-43 (constraint). RN-INT-13, RN-INT-23; Q-429, Q-432 a). **Zona roja:** sí.
@@ -855,8 +860,8 @@ suspendida, resultado de la prueba, cuenta ya conectada) → en cada tarea de UI
 | Tarea | PR | SHA | Estado |
 |---|---|---|---|
 | T-INT-01 | #167 | fc7687d | ✅ |
-| T-INT-02 | — | — | 🟡 |
-| T-INT-03 | — | — | ☐ |
+| T-INT-02 | #168 | 278890f | ✅ |
+| T-INT-03 | — | — | 🔄 |
 | T-INT-04 | — | — | ☐ |
 | T-INT-05 | — | — | ☐ |
 | T-INT-06 | — | — | ☐ |
