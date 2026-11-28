@@ -20,7 +20,7 @@ fase: cierre de 01 y 02 (Q-108), verificados Con hallazgos; 00 con verificación
 | 01-identity-access | Approved 1.0.2 | 33 ✅ (33) | 33 de 33 tareas | Verificación conjunta **Con hallazgos** (#153): 38 ✔; Q-130 y Q-131 decididas; se cierra con 02 (Q-108) |
 | 02-tenancy-rbac | Approved 1.0.4 | 40 ✅ (40) | 40 de 40 tareas | Verificación conjunta **Con hallazgos** (#153): 40 ✔ (AC-TEN-17 cerrado por T-TEN-40, #155); falta la validación manual de la UI; Q-229 abierta, no bloquea |
 | 03-integrations-engine | Draft 0.3.0 | — | 0 % | Contrato del motor ajustado por 04 (esquema de campos, `ConnectionStatus`, `list_stores`); falta su diseño |
-| 04-integration-management | Approved 1.0.0 | — | 0 % | `design.md` + ADR-0003 (Aceptado); falta `tasks.md`; bloquea a 06 |
+| 04-integration-management | Approved 1.0.0 | 52 (19 ☐ · 33 ⛔ Q-433) | 0 % | `design.md` + ADR-0003 (Aceptado); `tasks.md` listo: `T-INT-01..19` no usan el motor, `T-INT-20..52` esperan a SPEC-03; bloquea a 06 |
 | 05-mercadopago-adapter | Draft | — | 0 % | Depende del spike S-001 |
 | 06-charges | Draft | — | 0 % | Núcleo del dinero; hereda AC-CHG-18 de AC-TEN-28 (Q-244) |
 | 07–14 | Por redactar / Futuro | — | 0 % | Ver `specs/ROADMAP.md` |
@@ -59,8 +59,10 @@ fase: cierre de 01 y 02 (Q-108), verificados Con hallazgos; 00 con verificación
 2. **Dependabot (2026-11-27):** #73, #147 y #116 mergeados (psycopg 3.3.9 ya trae la reversión de TLS de 3.3.8).
    Quedan dos, que mergea el dueño (Q-063, tocan `.github/actions/`): #67 (`pnpm/action-setup` 6.1.1) y #68 (uv 0.13.10
    en Dockerfile, test de AC-PLT-25, `design.md` de 00 y `.github/actions/setup/`; opción A del dueño).
-3. **Tareas de 04** (`/tasks 04-integration-management`, `design.md §11.4`); las que llaman al motor van después del
-   diseño de 03. Antes de implementar, alinear Q-220 en los textos de 02 y `context/07` (`design.md §11.3`).
+3. **Implementar `T-INT-01..19` de 04** (no usan el motor; empezar por `T-INT-01`, orden en
+   `specs/04-integration-management/tasks.md` "Orden y paralelismo"). En paralelo, **llevar SPEC-03 a *Approved* y a
+   `tasks.md`** (Q-433): desbloquea `T-INT-20..52`. Antes de `T-INT-49`/`T-INT-50`, alinear Q-220 en los textos de 02
+   y `context/07` (`design.md §11.3`); `T-INT-43` espera además Q-434 (dueño).
 4. **Ejecutar S-001** antes de diseñar el adaptador de Mercado Pago.
 5. Incorporar el checklist de buenas prácticas de software escalable que el dueño va a pasar; mapearlo contra
    `context/12-solid-y-diseno.md` y los agentes existentes.
