@@ -43,7 +43,7 @@ def forwards(apps: object, schema_editor: object) -> None:
 # Destructive (reverts to zero): every run on hub_synthetic confirms it is throwaway.
 ROUNDTRIP = ("check_migrations_roundtrip", "--allow-data-loss")
 # The apps under ``apps.*`` with migrations: what a run without labels reverts.
-PROJECT_APPS = {"identity", "tenancy"}
+PROJECT_APPS = {"identity", "integrations", "tenancy"}
 # Test-only app of config.settings.test whose migration depends on tenancy: reverting tenancy to
 # zero unapplies it too (Django reverts what depends on the target), though it is not checked.
 REVERTED_APPS = {*PROJECT_APPS, "tenant_probe"}
@@ -271,7 +271,7 @@ def test_AC_PLT_17_default_run_reverts_only_apps_modules(run_manage: RunDjango) 
     result = run_manage(*ROUNDTRIP)
 
     assert result.returncode == 0, output(result)
-    assert "Round trip passed for 2 app(s): identity, tenancy" in result.stdout
+    assert "Round trip passed for 3 app(s): identity, integrations, tenancy" in result.stdout
     # Migrated with the rest of the project; the only ones reverted are the apps under ``apps``.
     assert "Applying good_reversible.0004_part_code_index" in result.stdout
     assert "Unapplying identity.0001_users" in result.stdout
@@ -335,7 +335,7 @@ def test_AC_PLT_17_real_apps_roundtrip(run_django: RunDjango, fresh_synthetic_db
     )
 
     assert result.returncode == 0, output(result)
-    assert "Round trip passed for 2 app(s): identity, tenancy" in result.stdout
+    assert "Round trip passed for 3 app(s): identity, integrations, tenancy" in result.stdout
     assert "Unapplying identity.0001_users" in result.stdout
     assert "Unapplying tenancy.0001_organization" in result.stdout
     assert result.stdout.index("Unapplying") < result.stdout.rindex("Applying identity.0001_users")

@@ -92,7 +92,7 @@ Donde el diseño y el código de `main`, o el orden real, difieren, manda esta t
 
 | ID | Título | AC | Capa | Archivos esperados (ver detalle) | Depende de | Agente | Tamaño | Zona roja | Estado | Evidencia |
 |---|---|---|---|---|---|---|---|---|---|---|
-| T-INT-01 | App `integrations` + `Integration` + migración 0001 | AC-INT-28 (constraint), AC-INT-29 (índice), AC-INT-38 (índice), AC-INT-41 (unicidad) | DB | `apps/integrations/{apps,models/integration}.py`, `migrations/0001_integration.py`, `config/settings/base.py` | — | backend-dev | L | Sí | ☐ | — |
+| T-INT-01 | App `integrations` + `Integration` + migración 0001 | AC-INT-28 (constraint), AC-INT-29 (índice), AC-INT-38 (índice), AC-INT-41 (unicidad) | DB | `apps/integrations/{apps,models/integration}.py`, `migrations/0001_integration.py`, `config/settings/base.py` | — | backend-dev | L | Sí | 🟡 | PR #167, rama `task/T-INT-01-integration-model` |
 | T-INT-02 | `CredentialSet` + migración 0002 con FK compuesta | — (RN-INT-06, RN-INT-13) | DB | `models/credential_set.py`, `migrations/0002_credential_set.py` | T-INT-01 | backend-dev | M | Sí | ☐ | — |
 | T-INT-03 | `BranchLink` + migración 0003 con FK compuestas | AC-INT-34 (constraint), AC-INT-43 (constraint) | DB | `models/branch_link.py`, `migrations/0003_branch_link.py` | T-INT-02 | backend-dev | M | Sí | ☐ | — |
 | T-INT-04 | `CashRegister` + migración 0004 con FK compuesta al vínculo | AC-INT-19 (constraint) | DB | `models/cash_register.py`, `migrations/0004_cash_register.py` | T-INT-03 | backend-dev | M | Sí | ☐ | — |
@@ -259,6 +259,10 @@ suspendida, resultado de la prueba, cuenta ya conectada) → en cada tarea de UI
   `test_AC_INT_41_webhook_route_key_unique`, `test_RN_INT_21_reason_and_status_coherent` (parametrizado por check),
   `test_RN_INT_19_unconfirmed_coherent`. Ida y vuelta de la migración (job `migrations`).
 - **DoD extra:** `makemigrations --check` y `lint_migrations` en verde.
+- **Desvío aceptado en la revisión (#167):** el diff quedó en ~760 líneas contra ~300 de una L. La `0001` no se
+  parte sin sumar una migración solo de constraints; el exceso está en la migración generada (199) y en los tests (338), y
+  ningún archivo pasa de 400 líneas (C-14). Los enums de estado quedan en `models/integration.py`: si T-INT-08 los mueve a
+  `domain/lifecycle.py`, el modelo los importa desde ahí (sin duplicarlos).
 
 ### T-INT-02 — `CredentialSet` + migración 0002 con FK compuesta
 - **AC:** — (RN-INT-06 un juego por integración, RN-INT-13). **Zona roja:** sí. **Depende:** T-INT-01. **DoR:** lista.

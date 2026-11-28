@@ -27,6 +27,7 @@ INSTALLED_APPS = [
     "apps.common",
     "apps.identity",
     "apps.tenancy",
+    "apps.integrations",
 ]
 
 AUTH_USER_MODEL = "identity.User"
