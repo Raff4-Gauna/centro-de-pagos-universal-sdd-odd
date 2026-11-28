@@ -92,8 +92,8 @@ Donde el diseño y el código de `main`, o el orden real, difieren, manda esta t
 
 | ID | Título | AC | Capa | Archivos esperados (ver detalle) | Depende de | Agente | Tamaño | Zona roja | Estado | Evidencia |
 |---|---|---|---|---|---|---|---|---|---|---|
-| T-INT-01 | App `integrations` + `Integration` + migración 0001 | AC-INT-28 (constraint), AC-INT-29 (índice), AC-INT-38 (índice), AC-INT-41 (unicidad) | DB | `apps/integrations/{apps,models/integration}.py`, `migrations/0001_integration.py`, `config/settings/base.py` | — | backend-dev | L | Sí | 🟡 | PR #167, rama `task/T-INT-01-integration-model` |
-| T-INT-02 | `CredentialSet` + migración 0002 con FK compuesta | — (RN-INT-06, RN-INT-13) | DB | `models/credential_set.py`, `migrations/0002_credential_set.py` | T-INT-01 | backend-dev | M | Sí | ☐ | — |
+| T-INT-01 | App `integrations` + `Integration` + migración 0001 | AC-INT-28 (constraint), AC-INT-29 (índice), AC-INT-38 (índice), AC-INT-41 (unicidad) | DB | `apps/integrations/{apps,models/integration}.py`, `migrations/0001_integration.py`, `config/settings/base.py` | — | backend-dev | L | Sí | ✅ | #167 · fc7687d |
+| T-INT-02 | `CredentialSet` + migración 0002 con FK compuesta | — (RN-INT-06, RN-INT-13) | DB | `models/credential_set.py`, `migrations/0002_credential_set.py` | T-INT-01 | backend-dev | M | Sí | 🔄 | rama `task/T-INT-02-credential-set` |
 | T-INT-03 | `BranchLink` + migración 0003 con FK compuestas | AC-INT-34 (constraint), AC-INT-43 (constraint) | DB | `models/branch_link.py`, `migrations/0003_branch_link.py` | T-INT-02 | backend-dev | M | Sí | ☐ | — |
 | T-INT-04 | `CashRegister` + migración 0004 con FK compuesta al vínculo | AC-INT-19 (constraint) | DB | `models/cash_register.py`, `migrations/0004_cash_register.py` | T-INT-03 | backend-dev | M | Sí | ☐ | — |
 | T-INT-05 | Cifrado AES-256-GCM y llavero (dominio, ADR-0003) | AC-INT-44 (cifrado) | Dominio | `apps/integrations/keyring.py`, `domain/credential_cipher.py` | T-INT-01 | backend-dev | L | Sí | ☐ | — |
@@ -854,8 +854,8 @@ suspendida, resultado de la prueba, cuenta ya conectada) → en cada tarea de UI
 <!-- check_spec_state:begin -->
 | Tarea | PR | SHA | Estado |
 |---|---|---|---|
-| T-INT-01 | — | — | ☐ |
-| T-INT-02 | — | — | ☐ |
+| T-INT-01 | #167 | fc7687d | ✅ |
+| T-INT-02 | — | — | 🔄 |
 | T-INT-03 | — | — | ☐ |
 | T-INT-04 | — | — | ☐ |
 | T-INT-05 | — | — | ☐ |
