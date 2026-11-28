@@ -12,8 +12,14 @@ Reglas: rebanada vertical · ≤ ~300 líneas de diff · mergeable sola · cita 
 > `Capability`, `IntegrationContext`/`Credentials`, `ConnectionStatus`, errores con `reason`, `test_connection`,
 > `list_stores`/`list_pos`/`ensure_store`/`ensure_pos`, `FakeAdapter`) no tiene diseño ni tareas: SPEC-03 sigue en
 > *Draft* 0.3.0. Las tareas que lo consumen están **⛔ Q-433** y dicen qué pieza del motor necesitan; las que no lo
-> necesitan (`T-INT-01` a `T-INT-19`) arrancan ya. Cuando existan las tareas de 03, se reemplaza "SPEC-03 (sin
-> *Approved*)" por los `T-ENG-NN` reales y esas filas pasan a ☐ en el mismo PR.
+> necesitan (`T-INT-01` a `T-INT-19`) arrancan ya. **Q-433 decidida por el dueño (2026-11-27), opción a):** SPEC-03
+> se lleva a *Approved* con su `tasks.md`; cuando existan las tareas de 03, se reemplaza "SPEC-03 (sin *Approved*)"
+> por los `T-ENG-NN` reales y esas filas pasan a ☐ en el mismo PR. Hasta entonces siguen ⛔ con Q-433 en Evidencia.
+> **Q-434 decidida (2026-11-27), opción a):** `T-INT-43` depende además de un cambio de SPEC-02 que todavía no tiene
+> tarea (ver su ficha).
+> **Migraciones en serie:** `T-INT-01 → T-INT-02 → T-INT-03 → T-INT-04` (0001 → 0002 → 0003 → 0004). Ninguna otra
+> tarea crea migraciones; si alguna lo necesitara, cuelga de la última mergeada y nunca corre en paralelo con otra
+> que cree una (dos hojas en `integrations` hacen fallar `makemigrations --check`).
 
 ## Convenciones de esta lista
 - **Rutas:** relativas a `backend/` salvo que empiecen con `frontend/`, `scripts/`, `infra/` o `specs/`.
@@ -80,22 +86,22 @@ Donde el diseño y el código de `main`, o el orden real, difieren, manda esta t
 
 ## Resumen
 
-> 52 tareas: 19 ☐ que no usan el motor (`T-INT-01` a `T-INT-19`) y 33 ⛔ que esperan a SPEC-03 (Q-433; `T-INT-43`
-> también Q-434). Ninguna está mergeada. La columna **Evidencia** es obligatoria para `✅` y para `⛔` y la verifica
+> 52 tareas: 19 ☐ que no usan el motor (`T-INT-01` a `T-INT-19`) y 33 ⛔ que esperan a SPEC-03 (Q-433, decidida a):
+> esperan a las `T-ENG-NN`; `T-INT-43` también al cambio de SPEC-02 de Q-434 a)). Ninguna está mergeada. La columna **Evidencia** es obligatoria para `✅` y para `⛔` y la verifica
 > `scripts/check_spec_state.py`.
 
 | ID | Título | AC | Capa | Archivos esperados (ver detalle) | Depende de | Agente | Tamaño | Zona roja | Estado | Evidencia |
 |---|---|---|---|---|---|---|---|---|---|---|
 | T-INT-01 | App `integrations` + `Integration` + migración 0001 | AC-INT-28 (constraint), AC-INT-29 (índice), AC-INT-38 (índice), AC-INT-41 (unicidad) | DB | `apps/integrations/{apps,models/integration}.py`, `migrations/0001_integration.py`, `config/settings/base.py` | — | backend-dev | L | Sí | ☐ | — |
 | T-INT-02 | `CredentialSet` + migración 0002 con FK compuesta | — (RN-INT-06, RN-INT-13) | DB | `models/credential_set.py`, `migrations/0002_credential_set.py` | T-INT-01 | backend-dev | M | Sí | ☐ | — |
-| T-INT-03 | `BranchLink` + migración 0003 con FK compuestas | AC-INT-34 (constraint), AC-INT-43 (constraint) | DB | `models/branch_link.py`, `migrations/0003_branch_link.py` | T-INT-01 | backend-dev | M | Sí | ☐ | — |
+| T-INT-03 | `BranchLink` + migración 0003 con FK compuestas | AC-INT-34 (constraint), AC-INT-43 (constraint) | DB | `models/branch_link.py`, `migrations/0003_branch_link.py` | T-INT-02 | backend-dev | M | Sí | ☐ | — |
 | T-INT-04 | `CashRegister` + migración 0004 con FK compuesta al vínculo | AC-INT-19 (constraint) | DB | `models/cash_register.py`, `migrations/0004_cash_register.py` | T-INT-03 | backend-dev | M | Sí | ☐ | — |
 | T-INT-05 | Cifrado AES-256-GCM y llavero (dominio, ADR-0003) | AC-INT-44 (cifrado) | Dominio | `apps/integrations/keyring.py`, `domain/credential_cipher.py` | T-INT-01 | backend-dev | L | Sí | ☐ | — |
 | T-INT-06 | Llavero en settings, system checks y `integrations_generate_key` | AC-INT-08 | Base | `config/settings/{env,base,test,prod}.py`, `apps/integrations/checks.py`, `management/commands/integrations_generate_key.py`, `env.example`, `infra/docker-compose.ci.yml` | T-INT-02, T-INT-05 | backend-dev | M | Sí | ☐ | — |
 | T-INT-07 | Matriz de permisos y catálogo de auditoría | AC-INT-11 (matriz), AC-INT-21 (matriz), AC-INT-23 (catálogo) | Dominio | `domain/{permissions,audit_events}.py`, `services/audit.py` | T-INT-01 | backend-dev | M | Sí | ☐ | — |
 | T-INT-08 | Máquinas de estado, nombres y claves externas | AC-INT-25 (decisión), AC-INT-28 (normalización), AC-INT-43 (transiciones) | Dominio | `domain/{lifecycle,names,external_keys}.py` | T-INT-01 | backend-dev | M | Sí | ☐ | — |
 | T-INT-09 | Decisión de la prueba de conexión (`decide_save` / `decide_manual_test`) | AC-INT-13, AC-INT-31, AC-INT-36, AC-INT-37, AC-INT-42, AC-INT-45 (decisión) | Dominio | `domain/{connection,errors}.py` | T-INT-01 | backend-dev | L | Sí | ☐ | — |
-| T-INT-10 | Desactivar y reactivar una integración inactiva (servicio) | AC-INT-25 (servicio), AC-INT-28 (reactivar), AC-INT-38 (desactivar) | Servicio | `services/integration_lifecycle.py`, `selectors/integrations.py`, `apps/integrations/errors.py` | T-INT-02, T-INT-07, T-INT-08 | backend-dev | M | Sí | ☐ | — |
+| T-INT-10 | Desactivar y reactivar una integración inactiva (servicio) | AC-INT-25 (servicio), AC-INT-28 (reactivar), AC-INT-33 (reactivar sin juego), AC-INT-38 (desactivar) | Servicio | `services/integration_lifecycle.py`, `selectors/integrations.py`, `apps/integrations/errors.py` | T-INT-02, T-INT-07, T-INT-08 | backend-dev | M | Sí | ☐ | — |
 | T-INT-11 | `PendingChargesPort` y desconectar (servicio) | AC-INT-25 (desconectar), AC-INT-33 (desconectar), AC-INT-38 (desconectar) | Servicio | `services/{ports,integration_lifecycle}.py`, `apps/integrations/checks.py`, `config/settings/base.py` | T-INT-04, T-INT-10 | backend-dev | L | Sí | ☐ | — |
 | T-INT-12 | Búsqueda por identificador de webhooks para SPEC-07 | AC-INT-41 (búsqueda) | Selector | `selectors/webhook_routing.py`, `models/integration.py`, `tests/architecture/allowlists.py` | T-INT-01 | backend-dev | S | Sí | ☐ | — |
 | T-INT-13 | Regenerar el identificador de webhooks (primera ruta del módulo) | AC-INT-10 (regenerar), AC-INT-11 (regenerar), AC-INT-12, AC-INT-17 (regenerar), AC-INT-22, AC-INT-41 (regenerar) | Servicio/API | `services/webhook_key.py`, `api/{urls,base,integration_actions}.py`, `config/urls.py`, `tests/cross_tenant/cases/integrations.py` | T-INT-07, T-INT-10, T-INT-12 | backend-dev | L | Sí | ☐ | — |
@@ -128,10 +134,10 @@ Donde el diseño y el código de `main`, o el orden real, difieren, manda esta t
 | T-INT-40 | `POST /api/cash-registers/` y `GET /api/branch-links/{id}/provider-pos/` | AC-INT-11 (POS), AC-INT-17 (crear Caja), AC-INT-19 (de otra organización), AC-INT-21 (crear Caja) | API | `api/{cash_registers,branch_links}.py`, `services/provider_lookup.py`, `apps/common/api/problems.py` | T-INT-38, T-INT-39 | backend-dev | M | Sí | ⛔ | Q-433 |
 | T-INT-41 | Suite de secretos (RNF-INT-01) | AC-INT-07, AC-INT-08 (otros caminos) | Seguridad | `backend/tests/integrations/security/test_no_secret_leaks.py` | T-INT-25, T-INT-29, T-INT-32, T-INT-33 | backend-dev | M | Sí | ⛔ | Q-433 |
 | T-INT-42 | Completitud: cross-tenant, suspendida, auditoría y rutas | AC-INT-10, AC-INT-12, AC-INT-17, AC-INT-20, AC-INT-22, AC-INT-23, AC-INT-24 | Aislamiento | `backend/tests/cross_tenant/cases/*`, `backend/tests/integrations/test_audit_triggers.py` | T-INT-23, T-INT-30, T-INT-34, T-INT-36, T-INT-40, T-INT-41 | backend-dev | M | Sí | ⛔ | Q-433 |
-| T-INT-43 | Frontend: lista de integraciones y entrada de Configuración | — (RF-INT-03, spec §14) | UI | `frontend/src/app/(dashboard)/configuracion/integraciones/page.tsx`, `frontend/src/modules/integrations/{components/IntegrationsScreen,components/IntegrationCard,hooks/useIntegrations}.tsx`, `frontend/src/modules/settings/settings-sections.ts` | T-INT-22 | frontend-dev | M | No | ⛔ | Q-433 · Q-434 |
+| T-INT-43 | Frontend: lista de integraciones y entrada de Configuración | — (RF-INT-03, spec §14) | UI | `frontend/src/app/(dashboard)/configuracion/integraciones/page.tsx`, `frontend/src/modules/integrations/{components/IntegrationsScreen,components/IntegrationCard,hooks/useIntegrations}.tsx`, `frontend/src/modules/settings/settings-sections.ts` | T-INT-22, cambio de SPEC-02 por Q-434 (sin tarea todavía) | frontend-dev | M | No | ⛔ | Q-433 · Q-434 |
 | T-INT-44 | Frontend: `SchemaFields` y `schema-to-zod` | — (RF-INT-01, RN-INT-07) | UI | `frontend/src/modules/integrations/{lib/schema-to-zod.ts,components/SchemaFields.tsx}` | T-INT-21 | frontend-dev | M | Sí | ⛔ | Q-433 |
 | T-INT-45 | Frontend: alta de integración | — (RF-INT-02, spec §14 "Alta") | UI | `frontend/src/modules/integrations/{components/CreateIntegrationDialog.tsx,hooks/useProviderCatalog.ts,hooks/useIntegrationMutations.ts}` | T-INT-25, T-INT-43, T-INT-44 | frontend-dev | L | Sí | ⛔ | Q-433 |
-| T-INT-46 | Frontend: detalle y "Probar conexión" | — (RF-INT-03, RF-INT-05) | UI | `frontend/src/app/(dashboard)/configuracion/integraciones/[id]/page.tsx`, `frontend/src/modules/integrations/{components/IntegrationDetailScreen.tsx,components/ConnectionTestButton.tsx,lib/connection-messages.ts}` | T-INT-29, T-INT-43 | frontend-dev | L | No | ⛔ | Q-433 |
+| T-INT-46 | Frontend: detalle y "Probar conexión" | — (RF-INT-03, RF-INT-05) | UI | `frontend/src/app/(dashboard)/configuracion/integraciones/[id]/page.tsx`, `frontend/src/modules/integrations/{components/IntegrationDetailScreen.tsx,components/ConnectionTestButton.tsx,lib/connection-messages.ts}` | T-INT-29, T-INT-43 | frontend-dev | L | Sí | ⛔ | Q-433 |
 | T-INT-47 | Frontend: identificador de webhooks (Copiar, Regenerar) | — (RF-INT-14) | UI | `frontend/src/modules/integrations/components/WebhookKeyPanel.tsx` | T-INT-13, T-INT-46 | frontend-dev | S | Sí | ⛔ | Q-433 |
 | T-INT-48 | Frontend: reemplazar credenciales y ciclo de vida | — (RF-INT-04, RF-INT-06) | UI | `frontend/src/modules/integrations/components/{CredentialsDialog,IntegrationLifecycleDialogs}.tsx` | T-INT-32, T-INT-34, T-INT-44, T-INT-46 | frontend-dev | L | Sí | ⛔ | Q-433 |
 | T-INT-49 | Frontend: detalle de sucursal con sus vínculos | — (RF-INT-10, spec §14 "Sucursales y cajas") | UI | `frontend/src/app/(dashboard)/configuracion/sucursales/[id]/page.tsx`, `frontend/src/modules/integrations/components/{BranchDetailScreen,BranchLinksPanel,BranchLinkDialog}.tsx`, `frontend/src/modules/tenancy/components/{BranchesTable,BranchDetailLink}.tsx` | T-INT-17, T-INT-38, T-INT-44 | frontend-dev | L | No | ⛔ | Q-433 |
@@ -174,7 +180,7 @@ Donde el diseño y el código de `main`, o el orden real, difieren, manda esta t
 | AC-INT-30 | T-INT-22, T-INT-23 |
 | AC-INT-31 | T-INT-09, T-INT-24, T-INT-30, T-INT-31 |
 | AC-INT-32 | T-INT-27 |
-| AC-INT-33 | T-INT-11, T-INT-33, T-INT-34, T-INT-52 |
+| AC-INT-33 | T-INT-10 (reactivar sin juego), T-INT-11, T-INT-33, T-INT-34, T-INT-52 |
 | AC-INT-34 | T-INT-03, T-INT-16, T-INT-17, T-INT-37, T-INT-38 |
 | AC-INT-35 | T-INT-39, T-INT-52 |
 | AC-INT-36 | T-INT-09, T-INT-28, T-INT-35 |
@@ -220,11 +226,11 @@ suspendida, resultado de la prueba, cuenta ya conectada) → en cada tarea de UI
 ## Orden y paralelismo
 | Ola | Tareas | Notas |
 |---|---|---|
-| 0 | T-INT-01 → {T-INT-02, T-INT-03 → T-INT-04, T-INT-05, T-INT-07, T-INT-08, T-INT-09, T-INT-12} | Arrancan ya: no usan el motor |
+| 0 | T-INT-01 → T-INT-02 → T-INT-03 → T-INT-04 (en serie: son las cuatro migraciones) · después de T-INT-01, en paralelo: {T-INT-05, T-INT-07, T-INT-08, T-INT-09, T-INT-12} | Arrancan ya: no usan el motor. Ninguna de las paralelas crea migraciones |
 | 1 | T-INT-06 · T-INT-10 → T-INT-11 · T-INT-13 → T-INT-16 → {T-INT-17, T-INT-18 → T-INT-19} · T-INT-14 → T-INT-15 | Arrancan ya. Con T-INT-13 existe la primera ruta del módulo |
 | 2 (⛔ Q-433) | T-INT-20 → T-INT-21 → T-INT-22 → T-INT-23 · T-INT-24 → {T-INT-25, T-INT-26 → {T-INT-27, T-INT-28 → T-INT-29}} · T-INT-30 | Desde acá hace falta el motor de SPEC-03 |
 | 3 (⛔ Q-433) | T-INT-31 → {T-INT-32, T-INT-35 → T-INT-36} · T-INT-33 → T-INT-34 · T-INT-37 → {T-INT-38, T-INT-39 → T-INT-40} | Con T-INT-35/36, SPEC-06 tiene los contratos de §3.7 |
-| 4 (⛔ Q-433) | T-INT-41 → T-INT-42 · T-INT-43 → {T-INT-45, T-INT-46 → {T-INT-47, T-INT-48}} · T-INT-44 · T-INT-49 → T-INT-50 · T-INT-51 → T-INT-52 | T-INT-43 espera además Q-434. Después de T-INT-52: verificación (paso 6) y validación manual de §14 |
+| 4 (⛔ Q-433) | T-INT-41 → T-INT-42 · T-INT-43 → {T-INT-45, T-INT-46 → {T-INT-47, T-INT-48}} · T-INT-44 · T-INT-49 → T-INT-50 · T-INT-51 → T-INT-52 | T-INT-43 espera además el cambio de SPEC-02 de Q-434. Después de T-INT-52: verificación (paso 6) y validación manual de §14 |
 
 ---
 
@@ -268,7 +274,8 @@ suspendida, resultado de la prueba, cuenta ya conectada) → en cada tarea de UI
 
 ### T-INT-03 — `BranchLink` + migración 0003 con FK compuestas
 - **AC:** AC-INT-34 (constraint), AC-INT-43 (constraint). RN-INT-13, RN-INT-23; Q-429, Q-432 a). **Zona roja:** sí.
-  **Depende:** T-INT-01. **DoR:** lista.
+  **Depende:** T-INT-02 (0003 cuelga de `0002_credential_set` y de `tenancy.0004_branch`; serie de migraciones).
+  **DoR:** lista.
 - **Archivos:** `models/branch_link.py`, `models/__init__.py`, `migrations/0003_branch_link.py`,
   `backend/tests/integrations/test_branch_link_constraints.py`.
 - **Cambios:** tabla `integrations_branchlink` (design §5): `branch_link_one_per_pair`, `branch_link_unique_store_ref`,
@@ -374,12 +381,13 @@ suspendida, resultado de la prueba, cuenta ya conectada) → en cada tarea de UI
   `backend/tests/integrations/services/test_lifecycle_deactivate_reactivate.py`.
 - **Cambios:** `atomic` → `ensure_writable` → `select_for_update(no_key=True)` → `decide_integration_event` →
   escritura; nombre ocupado → `taken` traduciendo el `IntegrityError` (sin `full_clean`, Q-229); desactivar no toca
-  credenciales, vínculos ni Cajas; `transition.rejected` fuera del `atomic`. Reactivar una **desconectada** queda para
-  T-INT-34 (llama al motor) y aquí responde `invalid_transition`-equivalente "requiere credenciales" sin cambios.
-- **Fuera:** API (T-INT-33), desconectar (T-INT-11).
+  credenciales, vínculos ni Cajas; `transition.rejected` fuera del `atomic`. Reactivar una **desconectada sin juego
+  nuevo** se rechaza sin cambios como `validation_error` con `credentials`: `required` (design §6.1, la API lo
+  devuelve como `400` en T-INT-33). Reactivar una desconectada **con** juego nuevo llama al motor y es de T-INT-34.
+- **Fuera:** API (T-INT-33), desconectar (T-INT-11), reactivar con juego nuevo (T-INT-34).
 - **Pruebas:** `test_AC_INT_25_reactivate_active_is_rejected_and_audited`, `test_AC_INT_25_deactivate_inactive_is_rejected`,
   `test_AC_INT_28_reactivate_with_taken_name_is_rejected`, `test_AC_INT_38_deactivated_keeps_account_reserved`,
-  `test_RN_INT_15_suspended_organization_rejects`.
+  `test_AC_INT_33_reactivate_disconnected_without_set_requires_credentials`, `test_RN_INT_15_suspended_organization_rejects`.
 
 ### T-INT-11 — `PendingChargesPort` y desconectar (servicio)
 - **AC:** AC-INT-25 (desconectar una desconectada), AC-INT-33 (desconectar), AC-INT-38 (desconectar libera la cuenta).
@@ -745,15 +753,20 @@ suspendida, resultado de la prueba, cuenta ya conectada) → en cada tarea de UI
   `test_AC_INT_22_no_oauth_routes` (vuelve a correr sobre todas las rutas).
 
 ### T-INT-43 — Frontend: lista de integraciones y entrada de Configuración ⛔ Q-433 · Q-434
-- **AC:** — (RF-INT-03, spec §14). **Zona roja:** no. **Depende:** T-INT-22; Q-434 (cómo se oculta la entrada).
+- **AC:** — (RF-INT-03, spec §14). **Zona roja:** no. **Depende:** T-INT-22 y el cambio de SPEC-02 que pide **Q-434
+  a)** (decidida por el dueño el 2026-11-27): el detalle de la organización activa suma `integration_provider.list` a
+  `allowed_actions`. Ese cambio no tiene tarea todavía: es de SPEC-02 (contrato compatible, con entrada en el Historial
+  de 02 y su propio PR) y no se crea desde esta lista. Mientras no exista y esté mergeado, esta fila sigue con Q-434 en
+  Evidencia; cuando tenga ID (`T-TEN-NN`), se reemplaza acá "cambio de SPEC-02 por Q-434" por ese ID.
 - **Archivos:** `frontend/src/app/(dashboard)/configuracion/integraciones/page.tsx`,
   `frontend/src/modules/integrations/components/{IntegrationsScreen,IntegrationCard,ConnectionStatusChip}.tsx`,
   `frontend/src/modules/integrations/hooks/useIntegrations.ts`, `frontend/src/modules/settings/settings-sections.ts`
-  (`href` de "Integraciones"), tests `*.test.tsx`.
+  (`href` y `requires: "integration_provider.list"` de "Integraciones"; el tipo de `requires` se amplía si hace falta),
+  tests `*.test.tsx`.
 - **Cambios:** design §3.9: tarjetas, filtro activas/inactivas/desconectadas, vacío "Todavía no conectaste ningún
   proveedor", `PageSkeleton`, error con "Reintentar", "sin permiso", suspendida; query keys `['org', orgId, 'integrations', …]`.
 - **Pruebas:** `IntegrationsScreen.test.tsx` (vacío, error, lista, sin permiso), `settings-sections.test.ts` (sección
-  oculta según Q-434).
+  oculta sin `integration_provider.list`, Q-434 a)).
 
 ### T-INT-44 — Frontend: `SchemaFields` y `schema-to-zod` ⛔ Q-433
 - **AC:** — (RF-INT-01, RN-INT-07). **Zona roja:** sí (campos secretos). **Depende:** T-INT-21.
@@ -773,7 +786,8 @@ suspendida, resultado de la prueba, cuenta ya conectada) → en cada tarea de UI
 - **Pruebas:** `CreateIntegrationDialog.test.tsx` (cada resultado; el secreto no queda en el `MutationCache`).
 
 ### T-INT-46 — Frontend: detalle y "Probar conexión" ⛔ Q-433
-- **AC:** — (RF-INT-03, RF-INT-05). **Zona roja:** no. **Depende:** T-INT-29, T-INT-43.
+- **AC:** — (RF-INT-03, RF-INT-05). **Zona roja:** sí (muestra `account_id`, configuración y los secretos como
+  "Configurado"). **Depende:** T-INT-29, T-INT-43.
 - **Archivos:** `frontend/src/app/(dashboard)/configuracion/integraciones/[id]/page.tsx`,
   `frontend/src/modules/integrations/components/{IntegrationDetailScreen,ConnectionTestButton}.tsx`,
   `frontend/src/modules/integrations/lib/connection-messages.ts`, `frontend/src/modules/integrations/hooks/useIntegration.ts`, tests.
