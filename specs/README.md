@@ -36,7 +36,7 @@ specs/
 | 01-identity-access | **Approved** | Sin `tasks.md` todavía |
 | 02-tenancy-rbac | **Approved** | Sin `tasks.md`; se cierra junto con 01 (Q-108) |
 | 03-integrations-engine | Draft 0.3.0 | Contrato del motor (BaseAdapter, capacidades, errores); 0.3.0 suma Q-421 y Q-428 de SPEC-04 |
-| 04-integration-management | **Approved** 1.0.0 | Bloquea a 06; `design.md` y ADR-0003 (*Aceptado*); sin `tasks.md` todavía |
+| 04-integration-management | **Approved** 1.0.0 | Bloquea a 06; `design.md` y ADR-0003 (*Aceptado*); `tasks.md` con 52 tareas: 19 ☐ sin motor, 33 ⛔ hasta que SPEC-03 tenga diseño y tareas (Q-433) |
 | 05-mercadopago-adapter | Draft | Orders API; depende del spike S-001 |
 | 06-charges | Draft | Cobros, máquina de estados, devoluciones |
 | resto | Por redactar con `/spec` | Ver `ROADMAP.md` |
